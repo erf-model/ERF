@@ -43,28 +43,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-  const Box& bx,
-  amrex::Array4<Real> const& state,
-  amrex::Array4<Real> const& x_vel,
-  amrex::Array4<Real> const& y_vel,
-  amrex::Array4<Real> const& z_vel,
-  amrex::Array4<Real> const&,
-  amrex::Array4<Real> const&,
-  amrex::Array4<Real const> const&,
-  amrex::Array4<Real const> const&,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    amrex::Array4<Real> const& state,
+    amrex::Array4<Real> const& x_vel,
+    amrex::Array4<Real> const& y_vel,
+    amrex::Array4<Real> const& z_vel,
+    amrex::Array4<Real> const&,
+    amrex::Array4<Real> const&,
+    amrex::Array4<Real const> const&,
+    amrex::Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-  amrex::GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    amrex::GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -89,7 +92,6 @@ init_custom_prob(
 
   });
 
-  const Box& xbx = amrex::surroundingNodes(bx,0);
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
@@ -103,7 +105,6 @@ init_custom_prob(
           x_vel(i, j, k) = 0.0;
   });
 
-  const Box& ybx = amrex::surroundingNodes(bx,1);
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
@@ -117,7 +118,6 @@ init_custom_prob(
          y_vel(i, j, k) = 0.0;
   });
 
-  const Box& zbx = amrex::surroundingNodes(bx,2);
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     z_vel(i, j, k) = 0.0;

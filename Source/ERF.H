@@ -121,7 +121,8 @@ public:
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_th,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
+                              amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
@@ -489,9 +490,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
-    // Other SGS terms
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_hfx1_lev, SGS_hfx2_lev, SGS_hfx3_lev;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SGS_diss_lev;
+    // Other SFS terms
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
@@ -709,12 +710,26 @@ private:
     AMREX_FORCE_INLINE
     int
     ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
-                      const int& spatial_order_WENO,  const bool& use_WENO) {
+                      const int& spatial_order_WENO,  const bool& use_WENO,
+                      const bool& use_numerical_diff) {
       int nGhostCells;
 
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
 
-      if(!use_WENO) {
+      if (use_numerical_diff) {
+          nGhostCells = 3;
+      } else if(use_WENO) {
+          switch (spatial_order_WENO) {
+          case 3:
+              nGhostCells = 2;
+              break;
+          case 5:
+              nGhostCells = 3;
+              break;
+          default:
+              amrex::Error("Must specify WENO spatial order to be 3 or 5");
+          }
+      } else {
           switch (spatial_order) {
           case 2:
               nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
@@ -733,17 +748,6 @@ private:
               break;
           default:
               amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
-          }
-      } else {
-          switch (spatial_order_WENO) {
-          case 3:
-              nGhostCells = 2;
-              break;
-          case 5:
-              nGhostCells = 3;
-              break;
-          default:
-              amrex::Error("Must specify WENO spatial order to be 3 or 5");
           }
       }
 

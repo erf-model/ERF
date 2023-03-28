@@ -165,6 +165,7 @@ struct SolverChoice {
         }
 
         pp.query("Ce" , Ce);
+        pp.query("Ce_wall" , Ce_wall);
         pp.query("sigma_k" , sigma_k);
 
         if (les_type == LESType::Deardorff) {
@@ -239,6 +240,15 @@ struct SolverChoice {
                                       "WENO advection only supports orders 3 & 5.");
         }
 
+        // Use numerical diffusion?
+        pp.query("use_NumDiff",use_NumDiff);
+        if(use_NumDiff) {
+            pp.query("NumDiffCoeff",NumDiffCoeff);
+            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
+                                      "Numerical diffusion coefficient must be between 0 & 1.");
+            NumDiffCoeff *= std::pow(2.0,-6);
+        }
+
     }
 
     void display()
@@ -254,6 +264,7 @@ struct SolverChoice {
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "Ce                    : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
         amrex::Print() << "Ck                    : " << Ck << std::endl;
         amrex::Print() << "reference theta       : " << theta_ref << std::endl;
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
@@ -391,6 +402,7 @@ struct SolverChoice {
 
     // Deardorff Ce coefficient
     amrex::Real Ce = 0.93;
+    amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
@@ -428,6 +440,10 @@ struct SolverChoice {
     bool all_use_WENO{false};
     bool moist_use_WENO{false};
     int  spatial_order_WENO{3};
+
+    // Numerical diffusion
+    bool use_NumDiff{false};
+    amrex::Real NumDiffCoeff{0.};
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

@@ -241,8 +241,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
 
-        amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-        amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+        amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+        amrex::Gpu::DeviceVector<Real> d_p(khi+2);
 
         init_isentropic_hse_no_terrain(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
@@ -269,28 +269,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-        const Box& bx,
-        Array4<Real      > const& state,
-        Array4<Real      > const& x_vel,
-        Array4<Real      > const& y_vel,
-        Array4<Real      > const& z_vel,
-        Array4<Real      > const& r_hse,
-        Array4<Real      > const& p_hse,
-        Array4<Real const> const& z_nd,
-        Array4<Real const> const& z_cc,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& state,
+    Array4<Real      > const& x_vel,
+    Array4<Real      > const& y_vel,
+    Array4<Real      > const& z_vel,
+    Array4<Real      > const& r_hse,
+    Array4<Real      > const& p_hse,
+    Array4<Real const> const& z_nd,
+    Array4<Real const> const& z_cc,
 #if defined(ERF_USE_MOISTURE)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-        GeometryData const& geomdata,
-        Array4<Real const> const& /*mf_m*/,
-        Array4<Real const> const& /*mf_u*/,
-        Array4<Real const> const& /*mf_v*/,
-        const SolverChoice& sc)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice& sc)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -309,11 +312,11 @@ init_custom_prob(
   const Real l_Tpt = parms.T_pert;
 
   // These are at cell centers (unstaggered)
-  Vector<Real> h_r(khi+1);
-  Vector<Real> h_p(khi+1);
+  Vector<Real> h_r(khi+2);
+  Vector<Real> h_p(khi+2);
 
-  amrex::Gpu::DeviceVector<Real> d_r(khi+1);
-  amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+  amrex::Gpu::DeviceVector<Real> d_r(khi+2);
+  amrex::Gpu::DeviceVector<Real> d_p(khi+2);
 
   const Real rdOcp = sc.rdOcp;
 
@@ -433,25 +436,17 @@ init_custom_prob(
 
   const Real u0 = parms.U_0;
 
-  // Construct a box that is on x-faces
-  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       x_vel(i, j, k) = u0;
   });
 
-  // Construct a box that is on y-faces
-  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
-
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel(i, j, k) = 0.0;
   });
-
-  // Construct a box that is on z-faces
-  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

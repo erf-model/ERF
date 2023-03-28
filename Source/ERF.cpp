@@ -402,13 +402,35 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
 
-        // For now we initialize rho_KE to 0
-        Real RhoKE_0 = 0.0;
+        // We initialize rho_KE to be nonzero (and positive) so that we end up
+        // with reasonable values for the eddy diffusivity and the MOST fluxes
+        // (~ 1/diffusivity) do not blow up
+        Real RhoKE_0 = 0.1;
         ParmParse pp(pp_prefix);
-        pp.query("RhoKE_0", RhoKE_0);
-        int lb = std::max(finest_level-1,0);
-        for (int lev(lb); lev >= 0; --lev)
-            vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+        if (pp.query("RhoKE_0", RhoKE_0)) {
+            // uniform initial rho*e field
+            int lb = std::max(finest_level-1,0);
+            for (int lev(lb); lev >= 0; --lev)
+                vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+        } else {
+            // default: uniform initial e field
+            Real KE_0 = 0.1;
+            pp.query("KE_0", KE_0);
+            for (int lev = 0; lev <= finest_level; lev++)
+            {
+                auto& lev_new = vars_new[lev];
+                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box &bx = mfi.tilebox();
+                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+                    // We want to set the lateral BC values, too
+                    Box gbx = bx; // Copy constructor
+                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
+                    });
+                }
+            }
+        }
 
         AverageDown();
 
@@ -763,9 +785,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
     int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+1;
+                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+                                        solverChoice.use_NumDiff)+1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO);
+                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
+                                        solverChoice.use_NumDiff);
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -860,9 +884,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
     int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+1;
+                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+                                        solverChoice.use_NumDiff)+1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO);
+                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
+                                        solverChoice.use_NumDiff);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -923,8 +949,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
     Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
 
-    SGS_hfx1_lev.resize(lev+1); SGS_hfx2_lev.resize(lev+1); SGS_hfx3_lev.resize(lev+1);
-    SGS_diss_lev.resize(lev+1);
+    SFS_hfx1_lev.resize(lev+1); SFS_hfx2_lev.resize(lev+1); SFS_hfx3_lev.resize(lev+1);
+    SFS_diss_lev.resize(lev+1);
 
     eddyDiffs_lev.resize(lev+1);
     SmnSmn_lev.resize(lev+1);
@@ -945,17 +971,17 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SGS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
-        SGS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx1_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx2_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_hfx3_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
+        SFS_diss_lev[lev].reset( new MultiFab(ba  , dm, 1, IntVect(1,1,0)) );
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
       Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
       Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
-      SGS_hfx1_lev[lev] = nullptr; SGS_hfx2_lev[lev] = nullptr; SGS_hfx3_lev[lev] = nullptr;
-      SGS_diss_lev[lev] = nullptr;
+      SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+      SFS_diss_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {
@@ -1039,7 +1065,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                      solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO))+2;
+                                      solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+                                      solverChoice.use_NumDiff)+2;
         z_phys_nd[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev].reset(new MultiFab(ba_nd,dm,1,IntVect(ngrow,ngrow,1)));

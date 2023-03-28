@@ -143,7 +143,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         {
             if (containerHasElement(plot_var_names, der_name)) {
                 MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
-
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
                 for (MFIter mfi(dmf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
                 {
                     const Box& bx = mfi.tilebox();
@@ -181,6 +183,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -198,6 +203,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
         if (containerHasElement(plot_var_names, "pert_dens"))
         {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -218,6 +226,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         {
             auto dxInv = geom[lev].InvCellSizeArray();
             MultiFab pres(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(), 1, 1);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 // First define pressure on grown box
@@ -230,6 +241,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             pres.FillBoundary(geom[lev].periodicity());
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 // Now compute pressure gradient on valid box
@@ -299,6 +313,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             auto dxInv = geom[lev].InvCellSizeArray();
 
             MultiFab pres(vars_new[lev][Vars::cons].boxArray(), vars_new[lev][Vars::cons].DistributionMap(), 1, 1);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 // First define pressure on grown box
@@ -311,6 +328,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             pres.FillBoundary(geom[lev].periodicity());
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 // Now compute pressure gradient on valid box
@@ -375,6 +395,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (containerHasElement(plot_var_names, "pres_hse_x"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -432,6 +455,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (containerHasElement(plot_var_names, "pres_hse_y"))
         {
             auto dxInv = geom[lev].InvCellSizeArray();
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -498,6 +524,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         } // use_terrain
 
         if (containerHasElement(plot_var_names, "mapfac")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -586,6 +615,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             const auto dx = geom[lev].CellSizeArray();
 
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.validbox();
@@ -640,6 +672,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
 
             // Now restore the velocities to what they were
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for (MFIter mfi(mf[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.validbox();
@@ -678,6 +713,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (containerHasElement(plot_var_names, "pp_err"))
         {
             // Moving terrain ANALYTICAL
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
             for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
@@ -812,6 +850,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             // Do piecewise interpolation of mf into mf2
             for (int lev = 1; lev <= finest_level; ++lev) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
                 for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                     const Box& bx = mfi.tilebox();
                     pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
