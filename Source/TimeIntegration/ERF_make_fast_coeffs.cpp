@@ -54,7 +54,7 @@ void make_fast_coeffs (int /*level*/,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 

@@ -42,7 +42,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #if !defined(ERF_USE_MOISTURE) && !defined(ERF_USE_WARM_NO_PRECIP)
 
     if (solverChoice.buoyancy_type == 1) {
-        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,false); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
@@ -92,7 +92,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,false); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
