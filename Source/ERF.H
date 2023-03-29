@@ -86,6 +86,19 @@ public:
     ERF ();
     ~ERF() override;
 
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    ERF(ERF&&)  noexcept = default;
+
+    // Declare a default move assignment operator
+    ERF& operator=(ERF&& other)  noexcept = default;
+
+    // Delete the copy constructor
+    ERF(const ERF& other) = delete;
+    //
+    // Delete the copy assignment operator
+    ERF& operator=(const ERF& other) = delete;
+
     // Advance solution to final time
     void Evolve ();
 
@@ -836,7 +849,7 @@ private:
         numCores * (amrex::ParallelDescriptor::second() - startCPUTime) +
         previousCPUTimeUsed;
 
-      return static T;
+      return T;
     }
 
     static void setRecordDataInfo (int i, const std::string& filename)
