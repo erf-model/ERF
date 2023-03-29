@@ -208,7 +208,7 @@ public:
     amrex::MultiFab& build_fine_mask(int lev);
 
     void MakeHorizontalAverages();
-    void MakeDiagnosticAverage(amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
+    static void MakeDiagnosticAverage(amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
     void derive_upwp          (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
