@@ -297,7 +297,7 @@ private:
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
 
-    static void define_grids_to_evolve (int lev);
+    void define_grids_to_evolve (int lev);
 
     void init1DArrays();
 
