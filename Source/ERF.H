@@ -313,7 +313,7 @@ private:
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
-    static void AverageDownTo (int crse_lev);
+    void AverageDownTo (int crse_lev);
 
     // compute a new multifab by copying in phi from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
