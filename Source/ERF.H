@@ -852,7 +852,7 @@ private:
       return T;
     }
 
-    static void setRecordDataInfo (int i, const std::string& filename)
+    void setRecordDataInfo (int i, const std::string& filename)
     {
         if (amrex::ParallelDescriptor::IOProcessor())
         {
@@ -865,7 +865,7 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
-    static void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
         for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
@@ -882,7 +882,7 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
     }
 
-    static void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
         for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
