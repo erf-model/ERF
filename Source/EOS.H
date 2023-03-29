@@ -1,6 +1,5 @@
 #ifndef _EOS_H_
-#define _EOS_H_
-
+#define EOS_H_
 #include <ERF_Constants.H>
 #include <AMReX.H>
 #include <cmath>

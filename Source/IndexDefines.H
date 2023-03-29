@@ -1,5 +1,5 @@
-#ifndef _INDEX_DEFINES_H_
-#define _INDEX_DEFINES_H_
+#ifndef INDEX_DEFINES_H_
+#define INDEX_DEFINES_H_
 
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>

@@ -1441,7 +1441,7 @@ ERF::MakeHorizontalAverages ()
 
 // Create horizontal average quantities for the MultiFab passed in
 // NOTE: this does not create device versions of the 1d arrays
-void
+static void
 ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 {
     // Get the number of cells in z at level 0

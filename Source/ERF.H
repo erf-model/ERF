@@ -284,7 +284,7 @@ private:
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
 
-    void define_grids_to_evolve (int lev);
+    static void define_grids_to_evolve (int lev);
 
     void init1DArrays();
 
@@ -300,7 +300,7 @@ private:
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
-    void AverageDownTo (int crse_lev);
+    static void AverageDownTo (int crse_lev);
 
     // compute a new multifab by copying in phi from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -348,7 +348,7 @@ private:
     void ComputeDt ();
 
     // get plotfile name
-    std::string PlotFileName (int lev) const;
+    [[nodiscard]] std::string PlotFileName (int lev) const;
 
     // set plotfile variables names
     static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
@@ -836,10 +836,10 @@ private:
         numCores * (amrex::ParallelDescriptor::second() - startCPUTime) +
         previousCPUTimeUsed;
 
-      return T;
+      return static T;
     }
 
-    void setRecordDataInfo (int i, const std::string& filename)
+    static void setRecordDataInfo (int i, const std::string& filename)
     {
         if (amrex::ParallelDescriptor::IOProcessor())
         {
@@ -852,7 +852,7 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordDataInfo");
     }
 
-    void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    static void setRecordSamplePointInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
         for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
@@ -869,7 +869,7 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
     }
 
-    void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
+    static void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename)
     {
         amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
         for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
@@ -898,13 +898,13 @@ private:
     amrex::Vector<amrex::IntVect> sampleline;
 
     //! The filename of the ith datalog file.
-    std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+    [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
-    std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
+    [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     //! The filename of the ith samplelinelog file.
-    std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+    [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;
