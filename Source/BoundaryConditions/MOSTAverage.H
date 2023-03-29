@@ -33,14 +33,10 @@ public:
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    // MOSTAverage(MOSTAverage&&)  noexcept = default;
+    MOSTAverage(MOSTAverage&&)  noexcept = default;
 
     // Declare a default move assignment operator
     MOSTAverage& operator=(MOSTAverage&& other)  noexcept = default;
-
-    // Delete the copy constructor and copy assignment operators because
-    // the integrator allocates internal memory that is best initialized
-    // from scratch when needed instead of making a copy.
 
     // Delete the copy constructor
     MOSTAverage(const MOSTAverage& other) = delete;

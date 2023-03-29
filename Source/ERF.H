@@ -86,6 +86,19 @@ public:
     ERF ();
     ~ERF() override;
 
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    ERF(ERF&&)  noexcept = default;
+
+    // Declare a default move assignment operator
+    ERF& operator=(ERF&& other)  noexcept = default;
+
+    // Delete the copy constructor
+    ERF(const ERF& other) = delete;
+    //
+    // Delete the copy assignment operator
+    ERF& operator=(const ERF& other) = delete;
+
     // Advance solution to final time
     void Evolve ();
 
@@ -348,7 +361,7 @@ private:
     void ComputeDt ();
 
     // get plotfile name
-    std::string PlotFileName (int lev) const;
+    [[nodiscard]] std::string PlotFileName (int lev) const;
 
     // set plotfile variables names
     static amrex::Vector<std::string> PlotFileVarNames (amrex::Vector<std::string> plot_var_names) ;
@@ -898,13 +911,13 @@ private:
     amrex::Vector<amrex::IntVect> sampleline;
 
     //! The filename of the ith datalog file.
-    std::string DataLogName (int i) const noexcept { return datalogname[i]; }
+    [[nodiscard]] std::string DataLogName (int i) const noexcept { return datalogname[i]; }
 
     //! The filename of the ith sampleptlog file.
-    std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
+    [[nodiscard]] std::string SamplePointLogName (int i) const noexcept { return sampleptlogname[i]; }
 
     //! The filename of the ith samplelinelog file.
-    std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+    [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
     void writeJobInfo(const std::string& dir) const;
