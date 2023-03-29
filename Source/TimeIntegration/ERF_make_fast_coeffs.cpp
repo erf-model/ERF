@@ -3,6 +3,7 @@
 #include <IndexDefines.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
+#include <EOS.H>
 
 using namespace amrex;
 
@@ -54,7 +55,7 @@ void make_fast_coeffs (int /*level*/,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],false); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 
