@@ -126,7 +126,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
             // Construct intersection of current tilebox and valid region for updating
             const Box& valid_bx = grids_to_evolve[mfi.index()];
