@@ -76,12 +76,14 @@ amrex::Real getRhoThetagivenP(const amrex::Real p)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::IntVect TileNoZ()
 {
-    if (amrex::TilingIfNotGPU())
+    if (amrex::TilingIfNotGPU()) {
         return amrex::IntVect{amrex::FabArrayBase::mfiter_tile_size[0],
                               amrex::FabArrayBase::mfiter_tile_size[1],
                               1024000};
-    else
+    }
+    else {
         return amrex::IntVect::TheZeroVector();
+    }
 }
 // should we do this based on number of dims?
 /*
