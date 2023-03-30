@@ -1,5 +1,5 @@
-#ifndef _CONSTANTS_H_
-#define _CONSTANTS_H_
+#ifndef ERF_CONSTANTS_H_
+#define ERF_CONSTANTS_H_
 
 #include <AMReX_REAL.H>
 

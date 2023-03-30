@@ -10,7 +10,7 @@ void amrex_probinit (
   const amrex_real* probhi);
 
 void
-erf_init_dens_hse (amrex::MultiFab& dens_hse,
+erf_init_dens_hse (amrex::MultiFab& rho_hse,
                    std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                    amrex::Geometry const& geom);

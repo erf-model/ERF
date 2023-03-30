@@ -6,7 +6,7 @@
 #include <AMReX_REAL.H>
 
 struct TimeInterpolatedData {
-    TimeInterpolatedData() {}
+    TimeInterpolatedData() = default;
 
     TimeInterpolatedData(amrex::Real time) : m_time(time) {}
 
@@ -14,11 +14,28 @@ struct TimeInterpolatedData {
         clear();
     }
 
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    TimeInterpolatedData(TimeInterpolatedData&&)  noexcept = default;
+
+    // Declare a default move assignment operator
+    TimeInterpolatedData& operator=(TimeInterpolatedData&& other)  noexcept = default;
+
+    // Delete the copy constructor and copy assignment operators because
+    // the integrator allocates internal memory that is best initialized
+    // from scratch when needed instead of making a copy.
+
+    // Delete the copy constructor
+    TimeInterpolatedData(const TimeInterpolatedData& other) = delete;
+    //
+    // Delete the copy assignment operator
+    TimeInterpolatedData& operator=(const TimeInterpolatedData& other) = delete;
+
     void set_time(amrex::Real time) {
         m_time = time;
     }
 
-    amrex::Real get_time() { return m_time; }
+    [[nodiscard]] amrex::Real get_time() const { return m_time; }
 
     void add_var(amrex::MultiFab* var_data, int own_data) {
         m_data.push_back(var_data);

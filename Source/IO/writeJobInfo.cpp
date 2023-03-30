@@ -42,7 +42,7 @@ ERF::writeJobInfo(const std::string& dir) const
   jobInfoFile << " Plotfile Information\n";
   jobInfoFile << PrettyLine;
 
-  time_t now = time(0);
+  time_t now = time(nullptr);
 
   // Convert now to tm struct for local timezone
   tm* localtm = localtime(&now);
