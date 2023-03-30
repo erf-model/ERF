@@ -289,7 +289,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     {
                         int ii = std::min(i, dom_hi.x);
                         dest_arr(i,j,k,icomp) = oma   * bdatxhi_n  (ii,j,k,0)
--                                             + alpha * bdatxhi_np1(ii,j,k,0);
+                                              + alpha * bdatxhi_np1(ii,j,k,0);
                     });
                 } // bx
             } // x-faces
@@ -299,7 +299,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 if (bx_lo.y == dom_lo.y)
                 {
                     Box bx_ylo(gbx & domain);
-                    bx_ylo.setSmall(1,dom_lo.y-ng_vect[0]);
+                    bx_ylo.setSmall(1,dom_lo.y-ng_vect[1]);
                     bx_ylo.setBig(1,dom_lo.y+width-1);
 
                    ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -314,7 +314,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 {
                     Box bx_yhi(gbx & domain);
                     bx_yhi.setSmall(1,dom_hi.y-width+1);
-                    bx_yhi.setBig(1,dom_hi.y+ng_vect[0]);
+                    bx_yhi.setBig(1,dom_hi.y+ng_vect[1]);
                     ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::min(j, dom_hi.y);
