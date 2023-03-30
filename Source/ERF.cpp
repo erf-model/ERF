@@ -1441,7 +1441,8 @@ ERF::MakeHorizontalAverages ()
 
 // Create horizontal average quantities for the MultiFab passed in
 // NOTE: this does not create device versions of the 1d arrays
-void // NOLINT
+// NOLINTNEXTLINE
+void // NOLINTNEXTLINE
 ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 {
     // Get the number of cells in z at level 0
@@ -1500,7 +1501,7 @@ ERF::AverageDown ()
 
 // Set covered coarse cells to be the average of overlying fine cells at level crse_lev
 void
-ERF::AverageDownTo (int crse_lev)
+ERF::AverageDownTo (int crse_lev) // NOLINT
 {
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
@@ -1514,7 +1515,7 @@ ERF::AverageDownTo (int crse_lev)
 }
 
 void
-ERF::define_grids_to_evolve (int lev)
+ERF::define_grids_to_evolve (int lev) // NOLINT
 {
    Box domain(geom[lev].Domain());
    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
