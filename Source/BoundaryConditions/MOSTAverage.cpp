@@ -1,11 +1,12 @@
 #include <MOSTAverage.H>
+#include <utility>
 
 // Constructor
-MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
+MOSTAverage::MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
-  : m_geom(geom)
+  : m_geom(std::move(geom))
 {
     // Get basic info
     //--------------------------------------------------------
@@ -46,7 +47,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         auto& mf  = vars_old[lev][Vars::xvel];
         amrex::MultiFab* mfp = &vars_old[lev][Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
-        amrex::BoxArray ba  = mf.boxArray();
+        const amrex::BoxArray& ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(2,0);
         amrex::BoxArray ba2d(std::move(bl2d));
@@ -62,7 +63,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         auto& mf  = vars_old[lev][Vars::yvel];
         amrex::MultiFab* mfp = &vars_old[lev][Vars::yvel];
         // Create a 2D ba, dm, & ghost cells
-        amrex::BoxArray ba  = mf.boxArray();
+        const amrex::BoxArray& ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(2,0);
         amrex::BoxArray ba2d(std::move(bl2d));
@@ -78,7 +79,7 @@ MOSTAverage::MOSTAverage (const amrex::Vector<amrex::Geometry>& geom,
         auto& mf  = *Theta_prim[lev];
         amrex::MultiFab* mfp = Theta_prim[lev].get();
         // Create a 2D ba, dm, & ghost cells
-        amrex::BoxArray ba  = mf.boxArray();
+        const amrex::BoxArray& ba  = mf.boxArray();
         amrex::BoxList bl2d = ba.boxList();
         for (auto& b : bl2d) b.setRange(2,0);
         amrex::BoxArray ba2d(std::move(bl2d));
@@ -475,7 +476,7 @@ MOSTAverage::compute_plane_averages(int lev)
     // Peel back the level
     auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
-    auto& geom     = m_geom[lev];
+    const auto & geom     = m_geom[lev];
 
     auto& z_phys   = m_z_phys_nd[lev];
     auto& x_pos    = m_x_pos[lev];
@@ -640,7 +641,7 @@ MOSTAverage::compute_region_averages(int lev)
     // Peel back the level
     auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
-    auto& geom     = m_geom[lev];
+    const auto & geom     = m_geom[lev];
 
     auto& z_phys   = m_z_phys_nd[lev];
     auto& x_pos    = m_x_pos[lev];

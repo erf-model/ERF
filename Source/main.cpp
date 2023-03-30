@@ -10,7 +10,7 @@
 #include <MultiBlockContainer.H>
 #endif
 
-std::string inputs_name = "";
+std::string inputs_name;
 
 using namespace amrex;
 

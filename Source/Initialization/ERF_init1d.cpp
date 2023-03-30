@@ -73,8 +73,8 @@ ERF::setRayleighRefFromSounding(bool restarting)
     for (int lev = 0; lev <= finest_level; lev++)
     {
         const int khi = geom[lev].Domain().bigEnd()[2];
-        const auto prob_lo = geom[lev].ProbLo();
-        const auto dx = geom[lev].CellSize();
+        const auto *const prob_lo = geom[lev].ProbLo();
+        const auto *const dx = geom[lev].CellSize();
 
         for (int k = 0; k <= khi; k++)
         {

@@ -124,7 +124,7 @@ ERF::sample_points(int lev, Real time, IntVect cell, MultiFab& mf)
     int ncomp = mf.nComp();
     Vector<Real> my_point = get_cell_data(mf, cell);
 
-    if (my_point.size() > 0) {
+    if (!my_point.empty()) {
 
         // HERE DO WHATEVER YOU WANT TO THE DATA BEFORE WRITING
 

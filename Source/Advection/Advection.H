@@ -33,10 +33,10 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const int use_terrain);
 
 void AdvectionSrcForScalars (const amrex::Box& bx,
-                             const int &start_comp, const int &num_comp,
-                             const amrex::Array4<const amrex::Real>& rho_u,
-                             const amrex::Array4<const amrex::Real>& rho_v,
-                             const amrex::Array4<const amrex::Real>& rho_w,
+                             const int &icomp, const int &ncomp,
+                             const amrex::Array4<const amrex::Real>& avg_xmom,
+                             const amrex::Array4<const amrex::Real>& avg_ymom,
+                             const amrex::Array4<const amrex::Real>& avg_zmom,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
                              const amrex::Array4<const amrex::Real>& detJ,

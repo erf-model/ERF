@@ -7,9 +7,9 @@ class ERFFillPatcher
 {
 public:
 
-    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
+    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
                     amrex::Geometry const& fgeom,
-                    amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
+                    amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
                     amrex::Geometry const& cgeom,
                     int nghost, int ncomp, amrex::InterpBase* interp);
 

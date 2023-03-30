@@ -52,7 +52,7 @@ amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
         int i;
         if (alpha_interp >= *alpha_end)
         {
-            i = alpha_end - alpha_begin - 1;
+            i = static_cast<int>(alpha_end - alpha_begin - 1);
         }
         else
         {
