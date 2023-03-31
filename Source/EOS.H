@@ -73,7 +73,7 @@ amrex::Real getRhoThetagivenP(const amrex::Real p)
 }
 
 // this function returns explicit tile size that prevents tiling in z
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_FORCE_INLINE
 amrex::IntVect TileNoZ()
 {
     if (amrex::TilingIfNotGPU()) {
