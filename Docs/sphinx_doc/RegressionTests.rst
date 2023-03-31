@@ -450,7 +450,7 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 Problem Location: `Exec/EkmanSpiral`_
 
-.. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral
+.. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral_ideal
 
 .. |aek| image:: figures/ekman_spiral_profiles.png
          :width: 300

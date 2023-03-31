@@ -319,6 +319,10 @@ man_pages = [
 #
 # man_show_urls = False
 
+linkcheck_ignore = [
+    'https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103',
+]
+
 
 # -- Options for Texinfo output -------------------------------------------
 

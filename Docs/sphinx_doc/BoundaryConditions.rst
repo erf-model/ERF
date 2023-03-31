@@ -270,7 +270,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
 #. The previous two steps are repeated iteratively, sequentially updating the values of :math:`u_{\star}` and :math:`\zeta`, until the change in the value of :math:`u_{\star}` on each iteration falls below a specified tolerance.
 
-#. Once the MOST iterations have converged, and the planar average surface flux values are known, the approach from `Moeng, Journal of the Atmospheric Sciences, 1984 <https://ui.adsabs.harvard.edu/link_gateway/1984JAtS...41.2052M/doi:10.1175/1520-0469(1984)041%3C2052:ALESMF%3E2.0.CO;2>`_ is applied to consistently compute local surface-normal stress/flux values (e.g., :math:`\tau_{xz} = - \rho \overline{u^{'}w^{'}}`):
+#. Once the MOST iterations have converged, and the planar average surface flux values are known, the approach from `Moeng, Journal of the Atmospheric Sciences, 1984 <https://journals.ametsoc.org/view/journals/atsc/41/13/1520-0469_1984_041_2052_alesmf_2_0_co_2.xml>`_ is applied to consistently compute local surface-normal stress/flux values (e.g., :math:`\tau_{xz} = - \rho \overline{u^{'}w^{'}}`):
 
    .. math::
 
