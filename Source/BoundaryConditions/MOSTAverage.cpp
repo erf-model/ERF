@@ -1,5 +1,6 @@
 #include <MOSTAverage.H>
 #include <utility>
+#include <EOS.H>
 
 // Constructor
 MOSTAverage::MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
@@ -259,7 +260,7 @@ MOSTAverage::set_k_indices_T()
     if (read_z) {
         for (int lev(0); lev < m_maxlev; lev++) {
             int kmax = m_geom[lev].Domain().bigEnd(2);
-            for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for (amrex::MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
                 amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
                 const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                 auto k_arr = m_k_indx[lev]->array(mfi);
@@ -303,7 +304,7 @@ MOSTAverage::set_norm_indices_T()
         int kmax = m_geom[lev].Domain().bigEnd(2);
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         amrex::IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
-        for (amrex::MFIter mfi(*m_k_indx[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
@@ -368,7 +369,7 @@ MOSTAverage::set_z_positions_T()
         amrex::RealVect base;
         const auto dx = m_geom[lev].CellSizeArray();
         amrex::IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
-        for (amrex::MFIter mfi(*m_x_pos[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
             amrex::RealBox grb{gpbx,dx.data(),base.dataPtr()};
@@ -409,7 +410,7 @@ MOSTAverage::set_norm_positions_T()
         const auto dx = m_geom[lev].CellSizeArray();
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         amrex::IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
-        for (amrex::MFIter mfi(*m_x_pos[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
             amrex::Box gpbx  = mfi.growntilebox(ng);
             amrex::RealBox grb{gpbx,dx.data(),base.dataPtr()};
@@ -519,7 +520,7 @@ MOSTAverage::compute_plane_averages(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for (amrex::MFIter mfi(*fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             // Avoid double counting nodal data
@@ -575,7 +576,7 @@ MOSTAverage::compute_plane_averages(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for (amrex::MFIter mfi(*averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             // Last element is Umag and always cell centered
@@ -674,7 +675,7 @@ MOSTAverage::compute_region_averages(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for (amrex::MFIter mfi(*fields[imf], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*fields[imf], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             auto mf_arr = fields[imf]->const_array(mfi);
@@ -744,7 +745,7 @@ MOSTAverage::compute_region_averages(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for (amrex::MFIter mfi(*averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (amrex::MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
             amrex::Box pbx = mfi.tilebox(); pbx.setSmall(2,0); pbx.setBig(2,0);
 
             auto u_mf_arr = fields[imf]->const_array(mfi);
@@ -825,7 +826,7 @@ MOSTAverage::compute_region_averages(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for (amrex::MFIter mfi(*averages[iavg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for (amrex::MFIter mfi(*averages[iavg], TileNoZ()); mfi.isValid(); ++mfi) {
                 amrex::Box gpbx = mfi.growntilebox(ng); gpbx.setSmall(2,0); gpbx.setBig(2,0);
 
                 if (ldomain.contains(gpbx)) continue;
@@ -864,7 +865,7 @@ MOSTAverage::write_k_indices(int lev)
     ofile.open ("MOST_k_indices.txt");
     ofile << "K indices used to compute averages via MOSTAverages class:\n";
 
-    for (amrex::MFIter mfi(*averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
@@ -901,7 +902,7 @@ MOSTAverage::write_norm_indices(int lev)
     ofile.open ("MOST_ijk_indices.txt");
     ofile << "IJK indices used to compute averages via MOSTAverages class:\n";
 
-    for (amrex::MFIter mfi(*averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
@@ -940,7 +941,7 @@ MOSTAverage::write_xz_positions(int lev, int j)
     std::ofstream ofile;
     ofile.open ("MOST_xz_positions.txt");
 
-    for (amrex::MFIter mfi(*x_pos_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(*x_pos_mf, TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
 
@@ -968,7 +969,7 @@ MOSTAverage::write_averages(int lev)
     ofile.open ("MOST_averages.txt");
     ofile << "Averages computed via MOSTAverages class:\n";
 
-    for (amrex::MFIter mfi(*averages[navg], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for (amrex::MFIter mfi(*averages[navg], TileNoZ()); mfi.isValid(); ++mfi) {
         amrex::Box bx  = mfi.tilebox(); bx.setBig(2,0);
         int il = bx.smallEnd(0); int iu = bx.bigEnd(0);
         int jl = bx.smallEnd(1); int ju = bx.bigEnd(1);
