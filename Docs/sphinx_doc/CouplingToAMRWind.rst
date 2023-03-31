@@ -45,7 +45,7 @@ output files.
 
 The following parameters control the generation of 1D column output files in ERF. To
 use this capability, the user must install the `NetCDF library
-<http://doi.org/10.5065/D6H70CW6>`_ and link to it at compile time, which can be done
+<https://www.unidata.ucar.edu/software/netcdf/>`_ and link to it at compile time, which can be done
 by setting `USE_NETCDF = TRUE` in the GNUMakefile for ERF.
 
 +----------------------------+------------------+------------------+-----------------+

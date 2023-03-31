@@ -27,7 +27,7 @@ MYNN Level 2.5 PBL Model
 ------------------------
 In this model, the vertical turbulent diffusivities are computed in a local
 manner based on a transported turbulent kinetic energy value. The model was
-proposed by `Nakanishi and Niino <https://doi.org/10.1023/B:BOUN.0000020164.04146.98>`_,
+proposed by `Nakanishi and Niino <https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98>`_,
 building on the work of `Mellor and Yamada <https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/RG020i004p00851>`_
 
 The prognostic equation

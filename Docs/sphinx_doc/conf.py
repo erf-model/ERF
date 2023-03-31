@@ -324,6 +324,10 @@ linkcheck_ignore = [
     'https://link.springer.com/article/10.1007/s10546-020-00538-5',
     'https://onlinelibrary.wiley.com/doi/10.1002/we.2017',
     'https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/RG020i004p00851',
+    'https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003',
+    'https://link.springer.com/article/10.1007/BF00240838',
+    'https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904',
+    'https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98',
 ]
 
 
