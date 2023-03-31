@@ -321,6 +321,9 @@ man_pages = [
 
 linkcheck_ignore = [
     'https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103',
+    'https://link.springer.com/article/10.1007/s10546-020-00538-5',
+    'https://onlinelibrary.wiley.com/doi/10.1002/we.2017',
+    'https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/RG020i004p00851',
 ]
 
 

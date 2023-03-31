@@ -266,9 +266,9 @@ Scalar Advection/Diffusion by Uniform Flow With Different Spatial Orders
 ------------------------------------------------------------------------
 This tests scalar advection and diffusion with periodic boundaries in the lateral directions and slip walls at low and high z.
 
-Test Location: `Tests/test_files/ScalarAdvectionDiffusionUniformU`_
+Test Location (for 2nd order): `Tests/test_files/ScalarAdvDiff_order2`_
 
-.. _`Tests/test_files/ScalarAdvectionDiffusionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionDiffusionUniformU
+.. _`Tests/test_files/ScalarAdvDiff_order2`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvDiff_order2
 
 Problem Location: `Exec/ScalarAdvDiff`_
 
