@@ -24,6 +24,11 @@ jobs:
         run: |
           ./Docs/BuildDocs.sh
 
+      - name: Check links
+        run: |
+          cd Docs/sphinx_doc
+          make SPHINXOPTS=-v NO_DOXYGEN=TRUE linkcheck
+
       - name: Deploy to Webpage
         if: github.event_name == 'push' && github.repository == 'erf-model/ERF' && github.ref == 'refs/heads/development'
         uses: JamesIves/github-pages-deploy-action@4.1.5
