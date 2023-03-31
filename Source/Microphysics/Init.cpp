@@ -33,7 +33,7 @@ void Microphysics::Init(const MultiFab& cons_in,
   // The ghost cells of these arrays aren't filled in the boundary condition calls for the state
   qv_in.setVal(0.);
 
-  for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
 
      const auto& box3d = mfi.tilebox();
 
