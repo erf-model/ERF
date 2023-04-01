@@ -136,7 +136,7 @@ ERF::erf_enforce_hse(int lev,
 
     const Box& domain = geom[lev].Domain();
 
-    for ( MFIter mfi(dens, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);
