@@ -5,6 +5,7 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 

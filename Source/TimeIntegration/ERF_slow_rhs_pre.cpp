@@ -7,6 +7,7 @@
 #include <Diffusion.H>
 #include <NumericalDiffusion.H>
 #include <TimeIntegration.H>
+#include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
 

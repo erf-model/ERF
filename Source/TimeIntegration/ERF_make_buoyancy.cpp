@@ -6,6 +6,7 @@
 #include <Advection.H>
 #include <Diffusion.H>
 #include <TimeIntegration.H>
+#include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
 

@@ -1,5 +1,5 @@
-#ifndef _STENCILS_H_
-#define _STENCILS_H_
+#ifndef _UTILS_H_
+#define _UTILS_H_
 
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>

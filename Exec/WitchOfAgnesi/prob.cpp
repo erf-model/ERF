@@ -6,6 +6,7 @@
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
 #include "TerrainMetrics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 

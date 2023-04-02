@@ -3,7 +3,7 @@
 #include <IndexDefines.H>
 #include <TimeIntegration.H>
 #include <prob_common.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
 

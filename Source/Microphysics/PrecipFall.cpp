@@ -6,7 +6,7 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics.H"
-#include "EOS.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
