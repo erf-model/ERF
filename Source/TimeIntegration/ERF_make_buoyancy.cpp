@@ -36,22 +36,25 @@ void make_buoyancy (BoxArray& grids_to_evolve,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
+    const int klo = 0;
+    const int khi = geom.Domain().bigEnd()[2] + 1;
+
     // ******************************************************************************************
     // Dry versions of buoyancy expressions (type 1 and type 2/3 -- types 2 and 3 are equivalent)
     // ******************************************************************************************
 #if !defined(ERF_USE_MOISTURE) && !defined(ERF_USE_WARM_NO_PRECIP)
 
     if (solverChoice.buoyancy_type == 1) {
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -92,7 +95,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
@@ -100,8 +103,8 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             Box tbz = mfi.tilebox() & valid_bx;
 
             // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -132,16 +135,16 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #if defined(ERF_USE_MOISTURE)
     if (solverChoice.buoyancy_type == 1) {
 
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -204,16 +207,16 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
@@ -255,16 +258,16 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
@@ -302,16 +305,16 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
 
-        for ( MFIter mfi(buoyancy,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
 
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
