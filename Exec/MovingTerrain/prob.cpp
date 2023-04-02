@@ -7,6 +7,7 @@
 #include "IndexDefines.H"
 #include "ERF_Constants.H"
 #include "TerrainMetrics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 

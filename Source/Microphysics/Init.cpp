@@ -4,6 +4,7 @@
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
 #include "EOS.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -106,8 +107,8 @@ void Microphysics::Init(const MultiFab& cons_in,
   Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
   // Real gamg3 = erf_gammafff(4.0+b_grau      );
 
-  // get the temperature, dentisy, theta, qt and qp from input
-  for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  // get the temperature, density, theta, qt and qp from input
+  for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
      auto qc_in_array  = qc_in.array(mfi);
      // auto qv_in_array  = qv_in.array(mfi);

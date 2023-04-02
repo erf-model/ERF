@@ -3,7 +3,7 @@
 #include <ABLMost.H>
 #include <EddyViscosity.H>
 #include <Diffusion.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
 

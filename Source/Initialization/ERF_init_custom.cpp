@@ -3,9 +3,8 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
+#include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;

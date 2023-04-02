@@ -1,7 +1,7 @@
 
 #include "Microphysics.H"
 #include "IndexDefines.H"
-#include "EOS.H"
+#include "TileNoZ.H"
 
 void Microphysics::Update(amrex::MultiFab& cons_in,
                           amrex::MultiFab& qv_in,

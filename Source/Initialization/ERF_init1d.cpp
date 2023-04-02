@@ -1,8 +1,9 @@
 /**
  * \file ERF_init1d.cpp
  */
-#include <ERF.H>
 #include <EOS.H>
+#include <ERF.H>
+#include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;

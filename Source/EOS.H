@@ -72,34 +72,5 @@ amrex::Real getRhoThetagivenP(const amrex::Real p)
     return std::pow(p*std::pow(p_0, Gamma-1), iGamma) * iR_d;
 }
 
-// this function returns explicit tile size that prevents tiling in z
-AMREX_FORCE_INLINE
-amrex::IntVect TileNoZ()
-{
-    if (amrex::TilingIfNotGPU()) {
-        return amrex::IntVect{amrex::FabArrayBase::mfiter_tile_size[0],
-                              amrex::FabArrayBase::mfiter_tile_size[1],
-                              1024000};
-    }
-    else {
-        return amrex::IntVect::TheZeroVector();
-    }
-}
-// should we do this based on number of dims?
-/*
-#if AMREX_SPACEDIM == 1
-    return IntVect{FabArrayBase::mfiter_tile_size[0],
-                   FabArrayBase::mfiter_tile_size[1],
-                   1024000};
-#elif AMREX_SPACEDIM == 2
-    return IntVect{FabArrayBase::mfiter_tile_size[0],
-                   1024000};
-#else
-return IntVect{FabArrayBase::mfiter_tile_size[0],
-                   FabArrayBase::mfiter_tile_size[1],
-                   1024000};
-#endif
-*/
-
 #endif
 

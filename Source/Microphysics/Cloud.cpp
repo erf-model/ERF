@@ -1,7 +1,7 @@
 
 #include "Microphysics.H"
 #include "IndexDefines.H"
-#include "EOS.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
