@@ -135,8 +135,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
-//  for ( MFIter mfi(S_stage_data[IntVar::cons],false); mfi.isValid(); ++mfi)
+//  for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
