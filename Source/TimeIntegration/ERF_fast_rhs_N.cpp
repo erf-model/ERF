@@ -268,13 +268,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
-        // Note: it is important to grow the tilebox rather than use growntilebox because
-        //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox();  gbx.grow(1);
-
-        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-
         FArrayBox RHS_fab;
         RHS_fab.resize(tbz,1);
 
