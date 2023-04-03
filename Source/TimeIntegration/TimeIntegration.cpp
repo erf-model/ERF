@@ -2,12 +2,14 @@
 #include <AMReX_TimeIntegrator.H>
 #include <ERF_MRI.H>
 #include <EddyViscosity.H>
+#include <EOS.H>
+#include <ERF.H>
 #include <TerrainMetrics.H>
 #include <TimeIntegration.H>
 #include <PlaneAverage.H>
 #include <Diffusion.H>
-#include <ERF.H>
-#include <EOS.H>
+#include <TileNoZ.H>
+#include <Utils.H>
 
 using namespace amrex;
 
@@ -84,7 +86,7 @@ void ERF::erf_advance(int level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(cons_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(cons_new,TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));

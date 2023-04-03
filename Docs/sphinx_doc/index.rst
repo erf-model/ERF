@@ -12,8 +12,6 @@ The full AMReX documentation can be found `here <https://amrex-codes.github.io/a
 
 ERF is designed to run on machines from laptops to multicore CPU and hybrid CPU/GPU systems.
 
-For details on the equations that ERF solves, see the :ref:`theory section <theory>`.
-
 .. raw:: html
 
    <style>

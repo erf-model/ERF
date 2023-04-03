@@ -19,7 +19,7 @@ begins, using the ERF output files as time-dependent boundary conditions or forc
 ----------------------
 
 The 1D file-based coupling scheme is based on the Time-Height Profile Assimilation
-Technique proposed by `Allaerts et al. <https://doi.org/10.1007/s10546-020-00538-5>`_
+Technique proposed by `Allaerts et al. <https://link.springer.com/article/10.1007/s10546-020-00538-5>`_
 In this approach, the time evolution of the vertical profile of the horizontal
 velocity components and potential temperature at a particular position from the
 mesoscale simulation is saved, and a forcing term is added to the microscale simulation
@@ -45,7 +45,7 @@ output files.
 
 The following parameters control the generation of 1D column output files in ERF. To
 use this capability, the user must install the `NetCDF library
-<http://doi.org/10.5065/D6H70CW6>`_ and link to it at compile time, which can be done
+<https://www.unidata.ucar.edu/software/netcdf/>`_ and link to it at compile time, which can be done
 by setting `USE_NETCDF = TRUE` in the GNUMakefile for ERF.
 
 +----------------------------+------------------+------------------+-----------------+

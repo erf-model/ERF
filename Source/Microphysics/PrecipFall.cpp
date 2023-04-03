@@ -6,6 +6,7 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -165,7 +166,7 @@ void Microphysics::PrecipFall(int hydro_type) {
 #endif
 
   for(int iprec = 1; iprec<=nprec; iprec++) {
-    for ( MFIter mfi(tmp_qp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(tmp_qp, TileNoZ()); mfi.isValid(); ++mfi) {
        auto qp_array     = qp->array(mfi);
        auto tabs_array   = tabs->array(mfi);
        auto theta_array  = theta->array(mfi);

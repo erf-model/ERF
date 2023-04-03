@@ -3,6 +3,7 @@
 #include <ABLMost.H>
 #include <EddyViscosity.H>
 #include <Diffusion.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
 
@@ -259,7 +260,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( amrex::MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bxcc   = mfi.tilebox();
         Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);

@@ -2,6 +2,8 @@
 #define ERF_EOS_H_
 #include <ERF_Constants.H>
 #include <AMReX.H>
+#include <AMReX_IntVect.H>
+#include <AMReX_MFIter.H>
 #include <cmath>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -69,5 +71,6 @@ amrex::Real getRhoThetagivenP(const amrex::Real p)
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html
     return std::pow(p*std::pow(p_0, Gamma-1), iGamma) * iR_d;
 }
+
 #endif
 

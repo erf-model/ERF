@@ -15,13 +15,15 @@ function(build_erf_lib erf_lib_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_lib_name})
 
-  set(ERF_EOS_DIR "${CMAKE_SOURCE_DIR}/Source")
-  target_sources(${erf_lib_name} PRIVATE
-                 ${ERF_EOS_DIR}/EOS.H)
-  target_include_directories(${erf_lib_name} SYSTEM PUBLIC ${ERF_EOS_DIR})
-
   if(ERF_ENABLE_MOISTURE)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
+  endif()
+
+  if(ERF_ENABLE_MULTIBLOCK)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/MultiBlock)
   endif()
 
   if(ERF_ENABLE_WARM_NO_PRECIP)
@@ -34,18 +36,8 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
 
-  if(ERF_ENABLE_MULTIBLOCK)
-    target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/MultiBlock/MultiBlockContainer.H
-                   ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
-  endif()
-
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/IO/NCInterface.H
-                   ${SRC_DIR}/IO/NCWpsFile.H
-                   ${SRC_DIR}/IO/NCPlotFile.H
                    ${SRC_DIR}/IO/NCBuildFABs.cpp
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
@@ -60,7 +52,6 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MOISTURE)
     target_sources(${erf_lib_name} PRIVATE
-       ${SRC_DIR}/Microphysics/Microphysics.H
        ${SRC_DIR}/Microphysics/Init.cpp
        ${SRC_DIR}/Microphysics/Cloud.cpp
        ${SRC_DIR}/Microphysics/IceFall.cpp
@@ -77,18 +68,12 @@ function(build_erf_lib erf_lib_name)
 
   target_sources(${erf_lib_name}
      PRIVATE
-       ${SRC_DIR}/DataStruct.H
-       ${SRC_DIR}/ERF_Constants.H
-       ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
-       ${SRC_DIR}/IndexDefines.H
-       ${SRC_DIR}/ERF.H
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
-       ${SRC_DIR}/prob_common.H
-       ${SRC_DIR}/BoundaryConditions/ABLMost.H
+       ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
-       ${SRC_DIR}/BoundaryConditions/MOSTAverage.H
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_xvel.cpp
@@ -98,62 +83,32 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForState_N.cpp
+       ${SRC_DIR}/Diffusion/DiffusionSrcForState_T.cpp
+       ${SRC_DIR}/Diffusion/ComputeStress_N.cpp
+       ${SRC_DIR}/Diffusion/ComputeStress_T.cpp
+       ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
+       ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
+       ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
+       ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
+       ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
-       ${SRC_DIR}/Initialization/InputSoundingData.H
        ${SRC_DIR}/IO/Checkpoint.cpp
-       ${SRC_DIR}/IO/ERF_ReadBndryPlanes.H
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
-       ${SRC_DIR}/IO/ERF_WriteBndryPlanes.H
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
-       ${SRC_DIR}/Advection/Advection.H
-       ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
-       ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
-       ${SRC_DIR}/Advection/AdvectionSrcForMom_N.H
-       ${SRC_DIR}/Advection/AdvectionSrcForMom_T.H
-       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.cpp
-       ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
-       ${SRC_DIR}/Diffusion/DiffusionSrcForState_N.cpp
-       ${SRC_DIR}/Diffusion/DiffusionSrcForState_T.cpp
-       ${SRC_DIR}/Diffusion/EddyViscosity.H
-       ${SRC_DIR}/Diffusion/ComputeStress_N.cpp
-       ${SRC_DIR}/Diffusion/ComputeStress_T.cpp
-       ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
-       ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
-       ${SRC_DIR}/Utils/ERF_Math.H
-       ${SRC_DIR}/Utils/Microphysics_Utils.H
-       ${SRC_DIR}/Utils/Interpolation.H
-       ${SRC_DIR}/Utils/Interpolation_WENO.H
-       ${SRC_DIR}/Utils/PlaneAverage.H
-       ${SRC_DIR}/Utils/VelPlaneAverage.H
-       ${SRC_DIR}/Utils/DirectionSelector.H
-       ${SRC_DIR}/Diffusion/Diffusion.H
-       ${SRC_DIR}/Diffusion/ComputeQKESourceTerm.H
-       ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/Diffusion/NumericalDiffusion.H
-       ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
-       ${SRC_DIR}/Utils/MomentumToVelocity.cpp
-       ${SRC_DIR}/Diffusion/PBLModels.cpp
-       ${SRC_DIR}/Utils/Utils.H
-       ${SRC_DIR}/Utils/TerrainMetrics.H
-       ${SRC_DIR}/Utils/TerrainMetrics.cpp
-       ${SRC_DIR}/Utils/VelocityToMomentum.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_MRI.H
-       ${SRC_DIR}/TimeIntegration/TimeIntegration.H
        ${SRC_DIR}/TimeIntegration/TimeIntegration.cpp
-       ${SRC_DIR}/TimeIntegration/TI_utils.H
-       ${SRC_DIR}/TimeIntegration/TI_no_substep_fun.H
-       ${SRC_DIR}/TimeIntegration/TI_slow_rhs_fun.H
-       ${SRC_DIR}/TimeIntegration/TI_fast_rhs_fun.H
        ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
@@ -162,6 +117,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_MT.cpp
+       ${SRC_DIR}/Utils/MomentumToVelocity.cpp
+       ${SRC_DIR}/Utils/TerrainMetrics.cpp
+       ${SRC_DIR}/Utils/VelocityToMomentum.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
@@ -193,13 +151,13 @@ function(build_erf_lib erf_lib_name)
 
   #ERF include directories
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR})
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/BoundaryConditions)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Advection)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/BoundaryConditions)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Initialization)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
 
   #Link to amrex library
