@@ -154,7 +154,8 @@ void erf_fast_rhs_T (int step, int /*level*/,
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+//  for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
         Box valid_bx = grids_to_evolve[mfi.index()];
