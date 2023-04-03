@@ -138,7 +138,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = grids_to_evolve[mfi.index()];
-        
+
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & valid_bx;
 
@@ -235,10 +235,10 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
-    {        
+    {
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
-        
+
         Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
