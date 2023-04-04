@@ -6,6 +6,18 @@
 
 using namespace amrex;
 
+/**
+ * Initializes data structures in the ERF class that specify
+ * which boundary conditions we are implementing on each face
+ * of the domain.
+ *
+ * This function also maps the selected boundary condition types
+ * (e.g. Outflow, Inflow, Periodic, Dirichlet, ...) to the
+ * specific implementation needed for each variable.
+ *
+ * Stores this information in both host and device vectors
+ * so it is available for GPU kernels.
+ */
 void ERF::init_bcs ()
 {
     auto f = [this] (std::string const& bcid, Orientation ori)
