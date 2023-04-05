@@ -61,7 +61,7 @@
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVar::cons] + nn;
                         ssum[IntVar::cons](i,j,k,n) = dJ_old(i,j,k) *  sold[IntVar::cons](i,j,k,n)
-                                          + slow_dt                 * fslow[IntVar::cons](i,j,k,n);
+                                                          + slow_dt * fslow[IntVar::cons](i,j,k,n);
                         ssum[IntVar::cons](i,j,k,n) /= dJ_new(i,j,k);
                     });
 
@@ -71,14 +71,14 @@
                         Real dJ_old_xface = 0.5 * (dJ_old(i,j,k) + dJ_old(i-1,j,k));
                         Real dJ_new_xface = 0.5 * (dJ_new(i,j,k) + dJ_new(i-1,j,k));
                         ssum[IntVar::xmom](i,j,k) = dJ_old_xface *  sold[IntVar::xmom](i,j,k)
-                                        + slow_dt                * fslow[IntVar::xmom](i,j,k);
+                                                       + slow_dt * fslow[IntVar::xmom](i,j,k);
                         ssum[IntVar::xmom](i,j,k) /= dJ_new_xface;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         Real dJ_old_yface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j-1,k));
                         Real dJ_new_yface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j-1,k));
                         ssum[IntVar::ymom](i,j,k) = dJ_old_yface *  sold[IntVar::ymom](i,j,k)
-                                        + slow_dt                * fslow[IntVar::ymom](i,j,k);
+                                                       + slow_dt * fslow[IntVar::ymom](i,j,k);
                         ssum[IntVar::ymom](i,j,k) /= dJ_new_yface;
                     });
                     ParallelFor(tbz,
@@ -90,13 +90,12 @@
                             Real dJ_old_zface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
                             Real dJ_new_zface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
                             ssum[IntVar::zmom](i,j,k) = dJ_old_zface *  sold[IntVar::zmom](i,j,k)
-                                            + slow_dt                * fslow[IntVar::zmom](i,j,k);
+                                                           + slow_dt * fslow[IntVar::zmom](i,j,k);
                             ssum[IntVar::zmom](i,j,k) /= dJ_new_zface;
                         }
                     });
 
                 } else { // Fixed or no terrain
-
                     ParallelFor(bx, ncomp_fast[IntVar::cons],
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
                         const int n = scomp_fast[IntVar::cons] + nn;
@@ -119,6 +118,12 @@
                 }
             }
         }
+
+#ifdef ERF_USE_NETCDF
+        // Update vars in relaxation zones
+        if (init_type == "real" && level == 0)
+            update_interior_ghost(slow_dt, wrfbdy_width, fine_geom, F_slow, S_old, S_sum);
+#endif
 
         // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
         int ng_cons = S_sum[IntVar::cons].nGrow();

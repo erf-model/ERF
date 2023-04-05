@@ -339,8 +339,7 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    int ng = 0;
-                    fast_rhs(ks, ng, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
+                    fast_rhs(ks, nsubsteps, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
                              time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks

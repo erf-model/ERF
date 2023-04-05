@@ -188,7 +188,9 @@ ERF::init_from_wrfinput(int lev)
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width);
-        amrex::Print() << "Read in boundary data with width " << wrfbdy_width << std::endl;
+        amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
+        amrex::Print() << "Running with specification width: " << wrfbdy_set_width
+                       << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
 
         const Box& domain = geom[lev].Domain();
 

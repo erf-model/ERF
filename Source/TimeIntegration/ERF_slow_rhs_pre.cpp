@@ -89,17 +89,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
-    // update mu_turb at the start of each RK stage
-    //if (l_use_turb)
-    //{
-    //    ComputeTurbulentViscosity(xvel, yvel,
-    //                              *Tau11, *Tau22, *Tau33,
-    //                              *Tau12, *Tau13, *Tau23,
-    //                              S_data[IntVar::cons],
-    //                              *eddyDiffs, geom, *mapfac_u, *mapfac_v,
-    //                              solverChoice, most);
-    //}
-
     // *************************************************************************
     // Combine external forcing terms
     // *************************************************************************
