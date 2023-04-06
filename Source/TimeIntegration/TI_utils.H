@@ -18,11 +18,6 @@
           amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real rho       = cons_arr(i,j,k,Rho_comp);
             Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
-            if(rho <= 0. || rho_theta <= 0.)
-                amrex::Print() << "ERR: "
-                               << IntVect(i,j,k) << ' '
-                               << rho << ' '
-                               << rho_theta << "\n";
             prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
             pi_stage_arr(i,j,k) = getExnergivenRTh(rho_theta, rdOcp);
             for (int n = 1; n < NUM_PRIM; ++n) {
