@@ -30,7 +30,7 @@ void VelocityToMomentum( BoxArray& grids_to_evolve,
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We need momentum in the interior ghost cells (init == real)
-        const Box& valid_box = mfi.validbox();
+        const Box& valid_box = amrex::grow(mfi.validbox(),IntVect(1,1,0));
         Box tbx, tby, tbz;
         if (l_use_ndiff) {
             tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow); tbx.setSmall(2,0);
