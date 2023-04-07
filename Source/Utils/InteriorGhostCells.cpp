@@ -85,9 +85,6 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     Real F1 = 1./(10.*delta_t);
     Real F2 = 1./(50.*delta_t);
 
-    // Copy of the Domain
-    Box domain = geom.Domain();
-
     // Compute interpolation factors
     Real dT = bdy_time_interval;
     int n_time = static_cast<int>(time / dT);
@@ -99,9 +96,6 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
-
-    // 4 halo boxes
-    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
 
     // Variable index map
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
@@ -115,6 +109,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
+        Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
@@ -122,6 +117,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
+        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
@@ -129,17 +125,17 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
         // Size the FABs
         if (ivar  == WRFBdyVars::U) {
-            U_xlo.resize(bx_xlo,2); U_xhi.resize(bx_xhi,2);
-            U_ylo.resize(bx_ylo,2); U_yhi.resize(bx_yhi,2);
+            U_xlo.resize(bx_xlo,1); U_xhi.resize(bx_xhi,1);
+            U_ylo.resize(bx_ylo,1); U_yhi.resize(bx_yhi,1);
         } else if (ivar  == WRFBdyVars::V) {
-            V_xlo.resize(bx_xlo,2); V_xhi.resize(bx_xhi,2);
-            V_ylo.resize(bx_ylo,2); V_yhi.resize(bx_yhi,2);
+            V_xlo.resize(bx_xlo,1); V_xhi.resize(bx_xhi,1);
+            V_ylo.resize(bx_ylo,1); V_yhi.resize(bx_yhi,1);
         } else if (ivar  == WRFBdyVars::R) {
-            R_xlo.resize(bx_xlo,2); R_xhi.resize(bx_xhi,2);
-            R_ylo.resize(bx_ylo,2); R_yhi.resize(bx_yhi,2);
+            R_xlo.resize(bx_xlo,1); R_xhi.resize(bx_xhi,1);
+            R_ylo.resize(bx_ylo,1); R_yhi.resize(bx_yhi,1);
         } else {
-            T_xlo.resize(bx_xlo,2); T_xhi.resize(bx_xhi,2);
-            T_ylo.resize(bx_ylo,2); T_yhi.resize(bx_yhi,2);
+            T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
+            T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
         }
     } // ivar
 
@@ -156,12 +152,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
-    // Populate FABs from boundary interpolation (0th comp)
+    // Populate FABs from boundary interpolation
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::T; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
+        Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
@@ -171,6 +168,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
+        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
@@ -242,12 +240,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         });
     } // ivar
 
-    // Velocity to momentum (0th comp)
+    // Velocity to momentum
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::V; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
+        Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
@@ -255,6 +254,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
+        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
@@ -319,8 +319,41 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     } // ivar
 
 
-    // Compute the RHS
+    // Compute the RHS (fill all CONS & W first)
     //==========================================================
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        {
+            // 4 halo boxes w/ no ghost cells for CC vars
+            Box domain = geom.Domain();
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(domain, domain, width,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,NVAR);
+            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xhi,Rho_comp,NVAR);
+            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_ylo,Rho_comp,NVAR);
+            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_yhi,Rho_comp,NVAR);
+        }
+
+        {
+            // 4 halo boxes w/ no ghost cells for CC vars
+            Box domain = geom.Domain();
+            domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(domain, domain, width,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
+            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
+            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
+            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+        }
+    } // mfi
+
     for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::T; ivar++)
     {
         // Variable and comp maps
@@ -328,8 +361,8 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         int icomp   = comp_map[ivar];
 
         // Convert the domain to the ixtype of the variable
+        Box domain = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
-        const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
 #ifdef _OPENMP
@@ -455,6 +488,8 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     } // ivar
 }
 
+// TODO: Figure out if this is needed for fast integrator
+//       and how to incorporate if it is needed.
 void
 update_interior_ghost(const Real& delta_t,
                       const int&  width,

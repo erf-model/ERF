@@ -13,6 +13,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 {
     int lev = 0;
 
+    // Always copy unread vars into relaxation & set region
     int width = wrfbdy_width;
 
     //
@@ -89,6 +90,9 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
     // We have read MU and PC but don't use them here so we subtract 2 from NumTypes
     // *********************************************************************************
     //
+
+    // Only populate the set region with read vars
+    width = wrfbdy_set_width;
 
     Real dT = bdy_time_interval;
 

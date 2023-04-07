@@ -18,11 +18,10 @@
         {
             for ( MFIter mfi(S_sum[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                const Box bx = mfi.tilebox() & grids_to_evolve[level][mfi.index()];
-
-                Box tbx = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),0);
-                Box tby = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),1);
-                Box tbz = surroundingNodes((mfi.tilebox() & grids_to_evolve[level][mfi.index()]),2);
+                const Box bx = mfi.tilebox();
+                Box tbx = surroundingNodes(mfi.tilebox(),0);
+                Box tby = surroundingNodes(mfi.tilebox(),1);
+                Box tbz = surroundingNodes(mfi.tilebox(),2);
 
                 Vector<Array4<Real> >  ssum_h(n_data);
                 Vector<Array4<Real> >  sold_h(n_data);
@@ -119,13 +118,8 @@
             }
         }
 
-#ifdef ERF_USE_NETCDF
-        // Update vars in relaxation zones
-        if (init_type == "real" && level == 0)
-            update_interior_ghost(slow_dt, wrfbdy_width, fine_geom, F_slow, S_old, S_sum);
-#endif
-
-        // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
+        // Even if we update all the conserved variables we don't need
+        // to fillpatch the slow ones every acoustic substep
         int ng_cons = S_sum[IntVar::cons].nGrow();
         int ng_vel  = S_sum[IntVar::xmom].nGrow();
         bool fast_only          = true;

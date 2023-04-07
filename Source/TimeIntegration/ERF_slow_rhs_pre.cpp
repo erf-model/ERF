@@ -418,7 +418,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #endif
     for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx   = grids_to_evolve[mfi.index()];
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
 
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & valid_bx;

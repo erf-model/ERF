@@ -1,4 +1,4 @@
-    auto fast_rhs_fun = [&](int fast_step, int n_sub,
+auto fast_rhs_fun = [&](int fast_step, int n_sub,
                             Vector<MultiFab>& S_slow_rhs,
                             const Vector<MultiFab>& S_old,
                             Vector<MultiFab>& S_stage,
@@ -128,12 +128,16 @@
             delete z_t_pert;
         }
 
+        // TODO: See if this can be removed like no-substepping.
+        //       Address time mismatch by doing a full update here.
 #ifdef ERF_USE_NETCDF
         // Update vars in relaxation zones
         if (init_type == "real" && level == 0 && fast_step == 0)
             update_interior_ghost(dtau*n_sub, wrfbdy_width, fine_geom, S_slow_rhs, S_old, S_data);
 #endif
-        // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
+
+        // Even if we update all the conserved variables we don't need
+        // to fillpatch the slow ones every acoustic substep
         bool fast_only          = true;
         bool vel_and_mom_synced = false;
         int ng_cons    = 1;
