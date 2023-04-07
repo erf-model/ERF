@@ -11,6 +11,11 @@ namespace {
 
 char recname[NC_MAX_NAME + 1];
 
+/**
+ * utility function for checking NetCDF error flag for an error condition
+ *
+ * @param ierr Error flag from NetCDF
+ */
 void check_nc_error(int ierr)
 {
     if (ierr != NC_NOERR) {
@@ -20,12 +25,18 @@ void check_nc_error(int ierr)
 }
 } // namespace
 
+/**
+ * Error-checking wrapper for NetCDF function nc_inq_dimname
+ */
 std::string NCDim::name() const
 {
     check_nc_error(nc_inq_dimname(ncid, dimid, recname));
     return std::string(recname);
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_inq_dimlen
+ */
 size_t NCDim::len() const
 {
     size_t dlen;
@@ -33,12 +44,18 @@ size_t NCDim::len() const
     return dlen;
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_inq_varname
+ */
 std::string NCVar::name() const
 {
     check_nc_error(nc_inq_varname(ncid, varid, recname));
     return std::string(recname);
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_inq_varndims
+ */
 int NCVar::ndim() const
 {
     int ndims;
@@ -46,6 +63,9 @@ int NCVar::ndim() const
     return ndims;
 }
 
+/**
+ * Error-checking function to get the length of each dimension from a NetCDF identity
+ */
 std::vector<size_t> NCVar::shape() const
 {
     int ndims = ndim();
@@ -61,21 +81,43 @@ std::vector<size_t> NCVar::shape() const
     return vshape;
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_var_double
+ *
+ * @param ptr Pointer to the data to put
+ */
 void NCVar::put(const double* ptr) const
 {
     check_nc_error(nc_put_var_double(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_var_float
+ *
+ * @param ptr Pointer to the data to put
+ */
 void NCVar::put(const float* ptr) const
 {
     check_nc_error(nc_put_var_float(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_var_int
+ *
+ * @param ptr Pointer to the data to put
+ */
 void NCVar::put(const int* ptr) const
 {
     check_nc_error(nc_put_var_int(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vara_double
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::put(
     const double* dptr,
     const std::vector<size_t>& start,
@@ -85,6 +127,14 @@ void NCVar::put(
         nc_put_vara_double(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vars_double
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::put(
     const double* dptr,
     const std::vector<size_t>& start,
@@ -95,6 +145,13 @@ void NCVar::put(
         ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vara_float
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::put(
     const float* dptr,
     const std::vector<size_t>& start,
@@ -104,6 +161,14 @@ void NCVar::put(
         nc_put_vara_float(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vars_float
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::put(
     const float* dptr,
     const std::vector<size_t>& start,
@@ -114,6 +179,13 @@ void NCVar::put(
         ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vara_int
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::put(
     const int* dptr,
     const std::vector<size_t>& start,
@@ -123,6 +195,14 @@ void NCVar::put(
         nc_put_vara_int(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vars_int
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::put(
     const int* dptr,
     const std::vector<size_t>& start,
@@ -133,6 +213,13 @@ void NCVar::put(
         ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vara_string
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::put(
     const char** dptr,
     const std::vector<size_t>& start,
@@ -142,6 +229,14 @@ void NCVar::put(
         nc_put_vara_string(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_put_vars_string
+ *
+ * @param dptr Pointer to the data to put
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::put(
     const char** dptr,
     const std::vector<size_t>& start,
@@ -152,21 +247,43 @@ void NCVar::put(
         ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_var_double
+ *
+ * @param ptr Pointer to the data location we use to get
+ */
 void NCVar::get(double* ptr) const
 {
     check_nc_error(nc_get_var_double(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_var_float
+ *
+ * @param ptr Pointer to the data location we use to get
+ */
 void NCVar::get(float* ptr) const
 {
     check_nc_error(nc_get_var_float(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_var_int
+ *
+ * @param ptr Pointer to the data location we use to get
+ */
 void NCVar::get(int* ptr) const
 {
     check_nc_error(nc_get_var_int(ncid, varid, ptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_vara_double
+ *
+ * @param dptr Pointer to the data location for get
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::get(
     double* dptr,
     const std::vector<size_t>& start,
@@ -176,6 +293,14 @@ void NCVar::get(
         nc_get_vara_double(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_vars_double
+ *
+ * @param dptr Pointer to the data location for get
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::get(
     double* dptr,
     const std::vector<size_t>& start,
@@ -183,9 +308,16 @@ void NCVar::get(
     const std::vector<ptrdiff_t>& stride) const
 {
     check_nc_error(nc_get_vars_double(
-        ncid, varid, start.data(), count.data(), stride.data(), dptr));
+        ncid, varid, start.data(), count.data(), stride.dat(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_vara_float
+ *
+ * @param dptr Pointer to the data location for get
+ * @param start Starting indices
+ * @param count Count sizes
+ */
 void NCVar::get(
     float* dptr,
     const std::vector<size_t>& start,
@@ -195,6 +327,14 @@ void NCVar::get(
         nc_get_vara_float(ncid, varid, start.data(), count.data(), dptr));
 }
 
+/**
+ * Error-checking wrapper for NetCDF function nc_get_vars_float
+ *
+ * @param dptr Pointer to the data location for get
+ * @param start Starting indices
+ * @param count Count sizes
+ * @param stride Stride length for the data
+ */
 void NCVar::get(
     float* dptr,
     const std::vector<size_t>& start,

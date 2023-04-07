@@ -11,10 +11,6 @@
 #include "AMReX_Print.H"
 
 using namespace amrex;
-//
-// Function to read NetCDF variables and fill the corresponding Array4's
-// fname is the name of the NetCDF file to be read
-//
 
 using RARRAY = NDArray<float>;
 
@@ -24,6 +20,14 @@ fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
                      NC_Data_Dims_Type& NC_dim_type,
                      FArrayBox& temp);
 
+/**
+ * Function to read NetCDF variables and fill the corresponding Array4's
+ *
+ * @param fname Name of the NetCDF file to be read
+ * @param nc_var_names Variable names in the NetCDF file
+ * @param NC_dim_types NetCDF data dimension types
+ * @param fab_vars Fab data we are to fill
+ */
 void
 BuildFABsFromNetCDFFile(const std::string &fname,
                         Vector<std::string> nc_var_names,
@@ -72,6 +76,16 @@ BuildFABsFromNetCDFFile(const std::string &fname,
     }
 }
 
+/**
+ * Helper function for reading data from NetCDF file into a
+ * provided FAB.
+ *
+ * @param iv Index for which variable we are going to fill
+ * @param nc_arrays Arrays of data from NetCDF file
+ * @param var_name Variable name
+ * @param NC_dim_type Dimension type for the variable as stored in the NetCDF file
+ * @param temp FAB where we store the variable data from the NetCDF Arrays
+ */
 void
 fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
                      std::string var_name,

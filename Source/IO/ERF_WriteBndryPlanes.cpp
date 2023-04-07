@@ -8,6 +8,13 @@
 
 using namespace amrex;
 
+/**
+ * Copies the contents of one boundary register to another in either x or y dimensions.
+ *
+ * @param oit Orientation iterator used for determining which dimension we are to copy
+ * @param b1 Boundary register containing the source data
+ * @param b2 Boundary register containing the destination data
+ */
 void br_shift(OrientationIter oit, const BndryRegister& b1, BndryRegister& b2)
 {
     auto ori = oit();
@@ -37,6 +44,12 @@ void br_shift(OrientationIter oit, const BndryRegister& b1, BndryRegister& b2)
 // Default to level 0
 int WriteBndryPlanes::bndry_lev = 0;
 
+/**
+ * Constructor for the WriteBndryPlanes class for writing the contents of boundary planes to an output file
+ *
+ * @param grids Vector of BoxArrays containing the grids at each level in the AMR
+ * @param geom Vector of Geometry containing the geometry at each level in the AMR
+ */
 WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
                                    Vector<Geometry>& geom): m_geom(geom)
 {
@@ -94,6 +107,13 @@ WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
     }
 }
 
+/**
+ * Function to write the specified grid data to an output file
+ *
+ * @param t_step Timestep number
+ * @param time Current time
+ * @param vars_new Grid data for all variables across the AMR hierarchy
+ */
 void WriteBndryPlanes::write_planes(const int t_step, const Real time,
                                     Vector<Vector<MultiFab>>& vars_new)
 {

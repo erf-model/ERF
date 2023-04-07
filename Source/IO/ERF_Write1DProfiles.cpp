@@ -5,6 +5,12 @@
 
 using namespace amrex;
 
+/**
+ * Writes 1-dimensional averaged quantities as profiles to output log files
+ * at the given time.
+ *
+ * @param time Current time
+ */
 void
 ERF::write_1D_profiles(Real time)
 {
@@ -112,6 +118,31 @@ ERF::write_1D_profiles(Real time)
     } // if verbose
 }
 
+/**
+ * Computes the profiles for diagnostic quantities.
+ *
+ * @param h_avg_u Profile for x-velocity on Host
+ * @param h_avg_v Profile for y-velocity on Host
+ * @param h_avg_w Profile for z-velocity on Host
+ * @param h_avg_rho Profile for density on Host
+ * @param h_avg_th Profile for potential temperature on Host
+ * @param h_avg_ksgs Profile for Kinetic Energy on Host
+ * @param h_avg_uu Profile for x-velocity squared on Host
+ * @param h_avg_uv Profile for x-velocity * y-velocity on Host
+ * @param h_avg_uw Profile for x-velocity * z-velocity on Host
+ * @param h_avg_vv Profile for y-velocity squared on Host
+ * @param h_avg_vw Profile for y-velocity * z-velocity on Host
+ * @param h_avg_ww Profile for z-velocity squared on Host
+ * @param h_avg_uth Profile for x-velocity * potential temperature on Host
+ * @param h_avg_k Profile for turbulent kinetic energy (TKE) on Host
+ * @param h_avg_ku Profile for TKE * x-velocity on Host
+ * @param h_avg_kv Profile for TKE * y-velocity on Host
+ * @param h_avg_kw Profile for TKE * z-velocity on Host
+ * @param h_avg_p Profile for pressure perturbation on Host
+ * @param h_avg_pu Profile for pressure perturbation * x-velocity on Host
+ * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
+ * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
+ */
 void
 ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
