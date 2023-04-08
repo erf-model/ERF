@@ -168,10 +168,10 @@ void erf_fast_rhs_MT (int step, int /*level*/,
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
-                theta_extrap(i,j,k) = delta_rt + beta_d * lagged_delta_rt(i,j,k,RhoTheta_comp);
+                theta_extrap(i,j,k) = delta_rt + beta_d * (delta_rt - lagged_delta_rt(i,j,k,RhoTheta_comp));
 
                 // We define lagged_delta_rt for our next step as the current delta_rt
-                lagged_delta_rt(i,j,k,RhoTheta_comp) = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
         } // if step
         } // end profile
