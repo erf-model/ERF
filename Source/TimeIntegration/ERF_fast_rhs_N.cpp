@@ -467,13 +467,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
             // so we don't update avg_zmom at k=vbx_hi.z+1
 
             temp_rhs_arr(i,j,k,0) += ( zflux_hi - zflux_lo ) * dzi;
-            // cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0) - ( zflux_hi - zflux_lo ) * dzi );
-
             temp_rhs_arr(i,j,k,1) += 0.5 * dzi *
                ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
-
-//          cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1) - 0.5 * (
-//            ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi;
         });
         } // end profile
     } // mfi

@@ -27,7 +27,7 @@ erf.most.zref = 200.0
 
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution
+erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

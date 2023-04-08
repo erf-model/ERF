@@ -11,15 +11,15 @@ amr.n_cell           =    64       64      64
 
 geometry.is_periodic = 1 1 0
 
-zhi.type = "SlipWall"
-
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type      = "Most"
 erf.most.z0   = 0.1
 erf.most.zref = 8.0
 
+zhi.type = "SlipWall"
+
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.2  # fixed time step depending on grid resolution
+erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -43,17 +43,18 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = false
 
-erf.les_type = "Smagorinsky"
-erf.Cs       = 0.1
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
-prob.T_0 = 300.0
 
 prob.U_0 = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
+prob.T_0 = 300.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
