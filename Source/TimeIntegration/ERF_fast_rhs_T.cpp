@@ -142,8 +142,20 @@ void erf_fast_rhs_T (int step, int /*level*/,
                 theta_extrap(i,j,k) = old_drho_theta(i,j,k) + beta_d *
                   ( old_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
             }
+        });
+    } // mfi
 
-            // We define lagged_delta_rt for our next step as the current delta_rt
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        // We define lagged_delta_rt for our next step as the current delta_rt
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVar::cons].array(mfi);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
     } // mfi
