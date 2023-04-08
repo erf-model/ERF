@@ -164,7 +164,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
-        } else {
+        } else if (solverChoice.use_lagged_delta_rt) {
+            // This is the default for cases with no or static terrain
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
@@ -172,6 +173,12 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+            });
+        } else {
+            // For the moving wave problem, this choice seems more robust
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                theta_extrap(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
             });
         } // if step
         } // end profile
