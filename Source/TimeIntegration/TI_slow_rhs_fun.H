@@ -86,7 +86,7 @@
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx1, Hfx2, Hfx3, Diss,
+                             Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
@@ -183,7 +183,7 @@
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx1, Hfx2, Hfx3, Diss,
+                             Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
@@ -244,7 +244,7 @@
             erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
-                              Hfx1, Hfx2, Hfx3, Diss,
+                              Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
@@ -252,7 +252,7 @@
             erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
-                              Hfx1, Hfx2, Hfx3, Diss,
+                              Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
