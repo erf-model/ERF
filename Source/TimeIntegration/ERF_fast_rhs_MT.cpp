@@ -79,13 +79,13 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     {
-
     FArrayBox temp_rhs_fab;
 
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
 
-//    for ( MFIter mfi(S_stg_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    //  NOTE: we leave tiling off here for efficiency -- to make this loop work with tiling
+    //        will require additional changes
     for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
@@ -112,7 +112,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
         const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& lagged_rtheta = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
 
         const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
         const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
@@ -155,20 +155,25 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                lagged_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-            });
-        }
-        } // end profile
+                cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
 
-        {
-        BL_PROFILE("fast_rhs_copies_2");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            theta_extrap(i,j,k)     = (1.0 + beta_d) * cur_cons(i,j,k,RhoTheta_comp)
-                                     -                 stg_cons(i,j,k,RhoTheta_comp)
-                                            -beta_d  * lagged_rtheta(i,j  ,k,RhoTheta_comp);
-        });
+                Real delta_rt  =  cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+                theta_extrap(i,j,k) = delta_rt;
+
+                // We define lagged_delta_rt for our next step as the current delta_rt
+                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+            });
+        } else {
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+                theta_extrap(i,j,k) = delta_rt + beta_d * lagged_delta_rt(i,j,k,RhoTheta_comp);
+
+                // We define lagged_delta_rt for our next step as the current delta_rt
+                lagged_delta_rt(i,j,k,RhoTheta_comp) = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+            });
+        } // if step
         } // end profile
 
         RHS_fab.resize(tbz,1);
