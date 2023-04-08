@@ -3,7 +3,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <TerrainMetrics.H>
@@ -85,7 +85,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
 
-    for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+//    for ( MFIter mfi(S_stg_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
         Box valid_bx = grids_to_evolve[mfi.index()];

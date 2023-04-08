@@ -68,19 +68,36 @@ private:
     }
 
 public:
-    MRISplitIntegrator () {}
+    MRISplitIntegrator () = default;
 
     MRISplitIntegrator (const T& S_data)
     {
         initialize_data(S_data);
     }
 
-    void initialize (const T& S_data)
+    void initialize (const T& S_data) override
     {
         initialize_data(S_data);
     }
 
-    virtual ~MRISplitIntegrator () {}
+    ~MRISplitIntegrator () override = default;
+
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    MRISplitIntegrator(MRISplitIntegrator&&)  noexcept = default;
+
+    // Declare a default move assignment operator
+    MRISplitIntegrator& operator=(MRISplitIntegrator&& other)  noexcept = default;
+
+    // Delete the copy constructor and copy assignment operators because
+    // the integrator allocates internal memory that is best initialized
+    // from scratch when needed instead of making a copy.
+
+    // Delete the copy constructor
+    MRISplitIntegrator(const MRISplitIntegrator& other) = delete;
+    //
+    // Delete the copy assignment operator
+    MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
 
     void setNoSubstepping(int _no_substepping)
     {
@@ -143,7 +160,7 @@ public:
         return rhs;
     }
 
-    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
+    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step) override
     {
     BL_PROFILE_REGION("MRI_advance");
         using namespace amrex;
@@ -350,9 +367,9 @@ public:
         return timestep;
     }
 
-    void time_interpolate (const T& /* S_new */, const T& /*S_old*/, amrex::Real /*timestep_fraction*/, T& /*data*/) {}
+    void time_interpolate (const T& /* S_new */, const T& /*S_old*/, amrex::Real /*timestep_fraction*/, T& /*data*/) override {}
 
-    void map_data (std::function<void(T&)> Map)
+    void map_data (std::function<void(T&)> Map) override
     {
         for (auto& F : T_store) {
             Map(*F);

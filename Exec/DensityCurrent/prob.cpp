@@ -5,6 +5,7 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -210,7 +211,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
         if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
-        for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
         {
             Array4<Real      > rho_arr  = rho_hse.array(mfi);
             Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);

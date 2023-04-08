@@ -61,7 +61,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 
     // Check to see if we found all the requested variables
-    for (auto plot_name : plot_var_names) {
+    for (const auto& plot_name : plot_var_names) {
       if (!containerHasElement(tmp_plot_names, plot_name)) {
            if (amrex::ParallelDescriptor::IOProcessor()) {
                Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
@@ -73,7 +73,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
 // set plotfile variable names
 Vector<std::string>
-ERF::PlotFileVarNames ( Vector<std::string> plot_var_names ) const
+ERF::PlotFileVarNames ( Vector<std::string> plot_var_names )
 {
     Vector<std::string> names;
 
@@ -138,7 +138,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
-        auto calculate_derived = [&](std::string der_name,
+        auto calculate_derived = [&](const std::string& der_name,
                                      decltype(derived::erf_dernull)& der_function)
         {
             if (containerHasElement(plot_var_names, der_name)) {

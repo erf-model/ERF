@@ -1,7 +1,7 @@
 #include <TerrainMetrics.H>
 #include <AMReX_ParmParse.H>
 #include <ERF_Constants.H>
-#include <math.h>
+#include <cmath>
 
 using namespace amrex;
 
@@ -141,8 +141,8 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
                         -> amrex::GpuTuple<Real>
                 {
                   // Get Array4s
-                  auto& h     = ma_h_s[box_no];
-                  auto& z_arr = ma_z_phys[box_no];
+                  const auto & h     = ma_h_s[box_no];
+                  const auto & z_arr = ma_z_phys[box_no];
 
                   int ii = amrex::max(amrex::min(i,imax),imin);
                   int jj = amrex::max(amrex::min(j,jmax),jmin);
@@ -194,8 +194,8 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> amrex::GpuTuple<Real>
                 {
-                    auto& h_s     = ma_h_s[box_no];
-                    auto& h_s_old = ma_h_s_old[box_no];
+                    const auto & h_s     = ma_h_s[box_no];
+                    const auto & h_s_old = ma_h_s_old[box_no];
 
                     Real h_m    = max_h; //high point of hill
                     Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
@@ -395,7 +395,7 @@ make_J(const amrex::Geometry& geom,
        amrex::MultiFab& z_phys_nd,
        amrex::MultiFab& detJ_cc)
 {
-    auto dx = geom.CellSize();
+    const auto *dx = geom.CellSize();
     amrex::Real dzInv = 1.0/dx[2];
 
     // Domain valid box (z_nd is nodal)

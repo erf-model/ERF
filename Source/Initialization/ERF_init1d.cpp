@@ -1,8 +1,9 @@
 /**
  * \file ERF_init1d.cpp
  */
-#include <ERF.H>
 #include <EOS.H>
+#include <ERF.H>
+#include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;
@@ -73,8 +74,8 @@ ERF::setRayleighRefFromSounding(bool restarting)
     for (int lev = 0; lev <= finest_level; lev++)
     {
         const int khi = geom[lev].Domain().bigEnd()[2];
-        const auto prob_lo = geom[lev].ProbLo();
-        const auto dx = geom[lev].CellSize();
+        const auto *const prob_lo = geom[lev].ProbLo();
+        const auto *const dx = geom[lev].CellSize();
 
         for (int k = 0; k <= khi; k++)
         {
@@ -136,7 +137,7 @@ ERF::erf_enforce_hse(int lev,
 
     const Box& domain = geom[lev].Domain();
 
-    for ( MFIter mfi(dens, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);

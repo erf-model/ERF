@@ -1,14 +1,10 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-//#include <AMReX_ArrayLim.H>
-//#include <AMReX_BCRec.H>
-//#include <ERF_Constants.H>
-//#include <ABLMost.H>
 #include <Advection.H>
 #include <Diffusion.H>
 #include <NumericalDiffusion.H>
 #include <TimeIntegration.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 #include <ERF.H>
 
 #include <TerrainMetrics.H>
@@ -34,7 +30,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
-                        const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
+                        const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                         std::unique_ptr<MultiFab>& z_phys_nd,
                         std::unique_ptr<MultiFab>& dJ,
                         std::unique_ptr<MultiFab>& dJ_new,

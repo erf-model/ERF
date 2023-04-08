@@ -3,9 +3,8 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
+#include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;
@@ -60,7 +59,7 @@ ERF::init_custom(int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box &bx  = mfi.tilebox();
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));

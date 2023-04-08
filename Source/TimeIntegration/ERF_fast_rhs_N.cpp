@@ -3,7 +3,7 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <TimeIntegration.H>
@@ -137,76 +137,38 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
 
-        Box tbx = surroundingNodes(bx,0);
-        Box tby = surroundingNodes(bx,1);
-        Box tbz = surroundingNodes(bx,2);
+        // Construct intersection of current tilebox and valid region for updating
+        Box bx = mfi.tilebox() & valid_bx;
+
+        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
+        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
-        const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
-        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
-        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
-        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
-
-        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
-
-        const Array4<Real>& cur_zmom       = S_data[IntVar::zmom].array(mfi);
 
         const Array4<Real>& temp_cur_xmom_arr  = temp_cur_xmom.array(mfi);
         const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
 
         const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
         const Array4<      Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         const Array4<      Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-        const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
         // Map factors
-        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
         const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
-
-        // Note: it is important to grow the tilebox rather than use growntilebox because
-        //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox();  gbx.grow(1);
-
-        Box gtbx  = mfi.nodaltilebox(0).grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1).grow(1); gtby.setSmall(2,0);
-
-        FArrayBox RHS_fab;
-        RHS_fab.resize(tbz,1);
-
-        FArrayBox soln_fab;
-        soln_fab.resize(tbz,1);
-
-        auto const& RHS_a  = RHS_fab.array();
-        auto const& soln_a = soln_fab.array();
-
-        auto const& temp_rhs_arr = temp_rhs.array(mfi);
-
-        Elixir rCeli       = RHS_fab.elixir();
-        Elixir sCeli       = soln_fab.elixir();
-
-        auto const&     coeffA_a =     coeff_A_mf.array(mfi);
-        auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
-        auto const&     coeffC_a =     coeff_C_mf.array(mfi);
-        auto const&     coeffP_a =     coeff_P_mf.array(mfi);
-        auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
@@ -266,7 +228,65 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
             temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
         });
-        } // end profile
+        } //profile
+    } //mfi
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        // Construct intersection of current tilebox and valid region for updating
+        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
+
+        Box tbz = surroundingNodes(bx,2);
+
+        const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
+        const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+        const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+        const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
+
+        const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
+        const Array4<Real>& old_drho       = Delta_rho.array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+
+        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
+
+        const Array4<Real>& cur_zmom       = S_data[IntVar::zmom].array(mfi);
+
+        const Array4<Real>& temp_cur_xmom_arr  = temp_cur_xmom.array(mfi);
+        const Array4<Real>& temp_cur_ymom_arr  = temp_cur_ymom.array(mfi);
+
+        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+
+        // These store the advection momenta which we will use to update the slow variables
+        const Array4<      Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+
+        // Map factors
+        const Array4<const Real>& mf_m = mapfac_m->const_array(mfi);
+        const Array4<const Real>& mf_u = mapfac_u->const_array(mfi);
+        const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
+
+        FArrayBox RHS_fab;
+        RHS_fab.resize(tbz,1);
+
+        FArrayBox soln_fab;
+        soln_fab.resize(tbz,1);
+
+        auto const& RHS_a  = RHS_fab.array();
+        auto const& soln_a = soln_fab.array();
+
+        auto const& temp_rhs_arr = temp_rhs.array(mfi);
+
+        Elixir rCeli       = RHS_fab.elixir();
+        Elixir sCeli       = soln_fab.elixir();
+
+        auto const&     coeffA_a =     coeff_A_mf.array(mfi);
+        auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);
+        auto const&     coeffC_a =     coeff_C_mf.array(mfi);
+        auto const&     coeffP_a =     coeff_P_mf.array(mfi);
+        auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
 
         // *********************************************************************
         {

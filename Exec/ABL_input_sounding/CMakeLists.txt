@@ -3,7 +3,6 @@ set(erf_exe_name erf_abl_input_sounding)
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
    PRIVATE
-     prob.H
      prob.cpp
 )
 

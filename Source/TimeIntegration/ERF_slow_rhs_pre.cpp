@@ -7,6 +7,7 @@
 #include <Diffusion.H>
 #include <NumericalDiffusion.H>
 #include <TimeIntegration.H>
+#include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
 
@@ -42,8 +43,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                       const Vector<amrex::BCRec> domain_bcs_type,
+                       const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                       const Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -126,7 +127,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
             // Construct intersection of current tilebox and valid region for updating
             const Box& valid_bx = grids_to_evolve[mfi.index()];
@@ -426,7 +427,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx   = grids_to_evolve[mfi.index()];
 

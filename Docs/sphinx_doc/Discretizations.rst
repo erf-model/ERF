@@ -238,7 +238,7 @@ By default, the WENO3 scheme will be employed for moisture variables if the code
    erf.spatial_order_WENO = 5      # Default is 3
 
 Ref: Muñoz-Esparza, D., Sauer, J. A., Jensen, A. A., Xue, L., & Grabowski, W. W. (2022). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Moist dynamics extension, validation and sensitivities of modeling non-precipitating shallow cumulus clouds. Journal of Advances in Modeling Earth Systems, 14, e2021MS002904.
-`doi:10.1029/2021MS002904 <https://doi.org/10.1029/2021MS002904>`_
+`https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904>`_
 
 Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 ===========================================================

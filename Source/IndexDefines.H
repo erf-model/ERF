@@ -1,5 +1,5 @@
-#ifndef _INDEX_DEFINES_H_
-#define _INDEX_DEFINES_H_
+#ifndef INDEX_DEFINES_H_
+#define INDEX_DEFINES_H_
 
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
@@ -23,18 +23,18 @@
 #endif
 
 // Cell-centered primitive variables
-#define PrimTheta_comp   RhoTheta_comp -1
-#define PrimKE_comp      RhoKE_comp    -1
-#define PrimQKE_comp     RhoQKE_comp   -1
-#define PrimScalar_comp  RhoScalar_comp-1
+#define PrimTheta_comp   (RhoTheta_comp -1)
+#define PrimKE_comp      (RhoKE_comp    -1)
+#define PrimQKE_comp     (RhoQKE_comp   -1)
+#define PrimScalar_comp  (RhoScalar_comp-1)
 #if defined(ERF_USE_MOISTURE)
-  #define PrimQt_comp    RhoQt_comp-1
-  #define PrimQp_comp    RhoQp_comp-1
+  #define PrimQt_comp    (RhoQt_comp-1)
+  #define PrimQp_comp    (RhoQp_comp-1)
 #elif defined(ERF_USE_WARM_NO_PRECIP)
   #define PrimQv_comp    RhoQv_comp-1
   #define PrimQc_comp    RhoQc_comp-1
 #endif
-#define NUM_PRIM         NVAR-1
+#define NUM_PRIM         (NVAR-1)
 
 namespace BCVars {
     enum {
