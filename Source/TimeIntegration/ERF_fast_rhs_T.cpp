@@ -291,12 +291,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    {
-
-    FArrayBox temp_rhs_fab;
-    FArrayBox RHS_fab;
-    FArrayBox soln_fab;
-
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
@@ -342,6 +336,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
 
+        FArrayBox temp_rhs_fab;
+        FArrayBox RHS_fab;
+        FArrayBox soln_fab;
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);
         temp_rhs_fab.resize(tbz,2);
@@ -586,5 +583,4 @@ void erf_fast_rhs_T (int step, int /*level*/,
         });
         } // end profile
     } // mfi
-    }
 }
