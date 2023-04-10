@@ -183,20 +183,27 @@ MOSTAverage::set_plane_normalization()
 
     for (int lev(0); lev < m_maxlev; lev++) {
         // Num components, plane avg, cells per plane
+        Array<int,AMREX_SPACEDIM> is_per = {0,0,0};
+        for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
+            if (m_geom[lev].isPeriodic(idim)) is_per[idim] = 1;
+        }
         Box domain = m_geom[lev].Domain();
-        IntVect dom_lo(domain.loVect());
-        IntVect dom_hi(domain.hiVect());
         m_ncell_plane[lev].resize(m_navg);
         m_plane_average[lev].resize(m_navg);
         for (int iavg(0); iavg < m_navg; ++iavg) {
+            // Convert domain to current index type
+            IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
+            domain.convert(ixt);
+            IntVect dom_lo(domain.loVect());
+            IntVect dom_hi(domain.hiVect());
+
             m_plane_average[lev][iavg] = 0.0;
 
             m_ncell_plane[lev][iavg] = 1;
-            IndexType ixt = m_averages[lev][iavg]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
                 if (idim != 2) {
-                    if (ixt.nodeCentered(idim)) {
-                        m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim] + 2);
+                    if (ixt.nodeCentered(idim) && is_per[idim]) {
+                        m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim]);
                     } else {
                         m_ncell_plane[lev][iavg] *= (dom_hi[idim] - dom_lo[idim] + 1);
                     }
@@ -204,6 +211,7 @@ MOSTAverage::set_plane_normalization()
             } // idim
         } // iavg
     } // lev
+
 }
 
 
@@ -537,7 +545,6 @@ MOSTAverage::compute_plane_averages(int lev)
             IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
-                    Box domain = geom.Domain();
                     int dom_hi = domain.bigEnd(idim)+1;
                     if (pbx.bigEnd(idim) < dom_hi || is_per[idim]) {
                         pbx.growHi(idim,-1);
@@ -600,10 +607,7 @@ MOSTAverage::compute_plane_averages(int lev)
             Box pbx = mfi.tilebox();
             pbx.setSmall(2,0); pbx.setBig(2,0);
 
-            AllPrint() << "PBX " << pbx << std::endl;
-
             // Last element is Umag and always cell centered
-
             auto u_mf_arr = fields[imf  ]->const_array(mfi);
             auto v_mf_arr = fields[imf+1]->const_array(mfi);
 

@@ -134,6 +134,4 @@
         int ng_cons    = 1;
         int ng_vel     = 1;
         apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
-
-        MultiFab::Copy(S_scratch[IntVar::cons], S_data[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, ng_cons);
     };
