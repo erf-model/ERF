@@ -3,10 +3,10 @@
 Building
 --------
 
-The ERF code is dependent on AMReX, and use the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure. ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
+The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
 Minimum Requirements
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard. Building with GPU support may be done with CUDA, HIP, or SYCL. For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported. Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
 
@@ -15,7 +15,7 @@ GNU Make
 
 The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
 
-Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF which is the repository of AMReX. AMReX is provided as a git submodule in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and YAKL); note, RTE-RRTMGP, and YAKL are only required if running with radiation. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
 ::
 
@@ -46,28 +46,44 @@ or if using tcsh,
 
 #. Edit the ``GNUmakefile``; options include
 
-   +-----------------+------------------------------+------------------+-------------+
-   | Option name     | Description                  | Possible values  | Default     |
-   |                 |                              |                  | value       |
-   +=================+==============================+==================+=============+
-   | COMP            | Compiler (gnu or intel)      | gnu / intel      | None        |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_MPI         | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_OMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_CUDA        | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | PROFILE         | Include profiling info       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TINY_PROFILE    | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | COMM_PROFILE    | Include comm profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TRACE_PROFILE   | Include trace profiling info | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
+   +--------------------+------------------------------+------------------+-------------+
+   | Option name        | Description                  | Possible values  | Default     |
+   |                    |                              |                  | value       |
+   +====================+==============================+==================+=============+
+   | COMP               | Compiler (gnu or intel)      | gnu / intel      | None        |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_OMP            | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | DEBUG              | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | PROFILE            | Include profiling info       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TINY_PROFILE       | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | COMM_PROFILE       | Include comm profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TRACE_PROFILE      | Include trace profiling info | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+
+
 
    .. note::
       **Do not set both USE_OMP and USE_CUDA to true.**
@@ -120,6 +136,42 @@ An example CMake configure command to build ERF with MPI is listed below:
           .. && make
 
 Typically, a user will create a ``build`` directory in the project directory and execute the configuration from said directory (``cmake <options> ..``) before building.  Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+
+Analogous to GNU Make, the list of cmake directives is as follows:
+
+   +---------------------------+------------------------------+------------------+-------------+
+   | Option name               | Description                  | Possible values  | Default     |
+   |                           |                              |                  | value       |
+   +===========================+==============================+==================+=============+
+   | CMAKE_BUILD_TYPE          | Whether to use DEBUG         | Release / Debug  | Release     |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_OPENMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_RADIATION      | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_TESTS          | Whether to enable tests      | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_FCOMPARE       | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+
 
 
 Perlmutter (NERSC)
