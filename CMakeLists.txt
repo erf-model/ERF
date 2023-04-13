@@ -34,9 +34,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(ERF_ENABLE_CUDA)
   enable_language(CUDA)
-  if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "9.0")
+  if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "11.0")
     message(FATAL_ERROR "Your nvcc version is ${CMAKE_CUDA_COMPILER_VERSION} which is unsupported."
-      "Please use CUDA toolkit version 9.0 or newer.")
+      "Please use CUDA toolkit version 11.0 or newer.")
   endif()
 endif()
 
