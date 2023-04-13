@@ -157,7 +157,7 @@ init_bx_scalars_from_input_sounding( const amrex::Box &bx,
  * @param p_hse_arr Array4 specifying the pressure HSE base state data we are to initialize
  * @param pi_hse_arr Array4 specifying the Exner pressure HSE base state data we are to initialize
  * @param geomdata GeometryData object specifying the domain geometry
- * @param l_gravity Real number specifying the gravitational acceleration constant 
+ * @param l_gravity Real number specifying the gravitational acceleration constant
  * @param l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
