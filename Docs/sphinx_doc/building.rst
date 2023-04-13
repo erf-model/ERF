@@ -5,6 +5,11 @@ Building
 
 The ERF code is dependent on AMReX, and use the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure. ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
+Minimum Requirements
+--------------------
+
+ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard. Building with GPU support may be done with CUDA, HIP, or SYCL. For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported. Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
+
 GNU Make
 ~~~~~~~~
 
