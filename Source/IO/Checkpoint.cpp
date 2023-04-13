@@ -3,7 +3,9 @@
 
 using namespace amrex;
 
-// utility to skip to next line in Header
+/**
+ * Utility to skip to next line in Header file input stream.
+ */
 void
 ERF::GotoNextLine (std::istream& is)
 {
@@ -11,6 +13,9 @@ ERF::GotoNextLine (std::istream& is)
     is.ignore(bl_ignore_max, '\n');
 }
 
+/**
+ * ERF function for writing a checkpoint file.
+ */
 void
 ERF::WriteCheckpointFile () const
 {
@@ -132,6 +137,9 @@ ERF::WriteCheckpointFile () const
    }
 }
 
+/**
+ * ERF function for reading data from a checkpoint file during restart.
+ */
 void
 ERF::ReadCheckpointFile ()
 {
