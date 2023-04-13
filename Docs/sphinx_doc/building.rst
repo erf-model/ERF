@@ -46,40 +46,42 @@ or if using tcsh,
 
 #. Edit the ``GNUmakefile``; options include
 
-   +-----------------+------------------------------+------------------+-------------+
-   | Option name     | Description                  | Possible values  | Default     |
-   |                 |                              |                  | value       |
-   +=================+==============================+==================+=============+
-   | COMP            | Compiler (gnu or intel)      | gnu / intel      | None        |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_MPI         | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_OMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_CUDA        | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_HIP         | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_SYCL        | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_NETCDF      | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_HDF5        | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_MOISTURE    | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_MULTIBLOCK  | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | PROFILE         | Include profiling info       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TINY_PROFILE    | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | COMM_PROFILE    | Include comm profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TRACE_PROFILE   | Include trace profiling info | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
+   +--------------------+------------------------------+------------------+-------------+
+   | Option name        | Description                  | Possible values  | Default     |
+   |                    |                              |                  | value       |
+   +====================+==============================+==================+=============+
+   | COMP               | Compiler (gnu or intel)      | gnu / intel      | None        |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_OMP            | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | DEBUG              | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | PROFILE            | Include profiling info       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TINY_PROFILE       | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | COMM_PROFILE       | Include comm profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TRACE_PROFILE      | Include trace profiling info | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
 
 
 
@@ -137,36 +139,38 @@ Typically, a user will create a ``build`` directory in the project directory and
 
 Analogous to GNU Make, the list of cmake directives is as follows:
 
-   +-----------------------+------------------------------+------------------+-------------+
-   | Option name           | Description                  | Possible values  | Default     |
-   |                       |                              |                  | value       |
-   +=======================+==============================+==================+=============+
-   | CMAKE_BUILD_TYPE      | Whether to use DEBUG         | Release / Debug  | Release     |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_MPI        | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_OPENMP     | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_CUDA       | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_HIP        | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_SYCL       | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_NETCDF     | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_HDF5       | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_MOISTURE   | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_MULTIBLOCK | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_RADIATION  | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_TESTS      | Whether to enable tests      | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_FCOMPARE   | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
+   +---------------------------+------------------------------+------------------+-------------+
+   | Option name               | Description                  | Possible values  | Default     |
+   |                           |                              |                  | value       |
+   +===========================+==============================+==================+=============+
+   | CMAKE_BUILD_TYPE          | Whether to use DEBUG         | Release / Debug  | Release     |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_OPENMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_RADIATION      | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_TESTS          | Whether to enable tests      | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_FCOMPARE       | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
 
 
 
