@@ -3,7 +3,7 @@
 Building
 --------
 
-The ERF code is dependent on AMReX, and use the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure. ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
+The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
 Minimum Requirements
 ~~~~~~~~~~~~~~~~~~~~
@@ -15,7 +15,7 @@ GNU Make
 
 The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
 
-Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF which is the repository of AMReX. AMReX is provided as a git submodule in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and YAKL); note, RTE-RRTMGP, and YAKL are only required if running with radiation. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
 ::
 
@@ -66,9 +66,9 @@ or if using tcsh,
    +-----------------+------------------------------+------------------+-------------+
    | USE_HDF5        | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
-   | USE_MOISTURE    | Enable use of moisture vars  | TRUE / FALSE     | FALSE       |
+   | USE_MOISTURE    | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
-   | USE_MULTIBLOCK  | Enable multiblock driver     | TRUE / FALSE     | FALSE       |
+   | USE_MULTIBLOCK  | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
    | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
@@ -141,6 +141,8 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    | Option name           | Description                  | Possible values  | Default     |
    |                       |                              |                  | value       |
    +=======================+==============================+==================+=============+
+   | CMAKE_BUILD_TYPE      | Whether to use DEBUG         | Release / Debug  | Release     |
+   +-----------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_MPI        | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
    +-----------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_OPENMP     | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
@@ -155,15 +157,15 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +-----------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_HDF5       | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
    +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_MOISTURE   | Enable use of moisture vars  | TRUE / FALSE     | FALSE       |
+   | ERF_ENABLE_MOISTURE   | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
    +-----------------------+------------------------------+------------------+-------------+
-   | ERF_ENABLE_MULTIBLOCK | Enable multiblock driver     | TRUE / FALSE     | FALSE       |
+   | ERF_ENABLE_MULTIBLOCK | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_RADIATION  | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
    +-----------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_TESTS      | Whether to enable tests      | TRUE / FALSE     | FALSE       |
    +-----------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_FCOMPARE   | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
-   +-----------------------+------------------------------+------------------+-------------+
-   | ERF_DIM               | Number of dimensions         | 1, 2, 3          | 3           |
    +-----------------------+------------------------------+------------------+-------------+
 
 
