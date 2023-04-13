@@ -6,7 +6,7 @@ Building
 The ERF code is dependent on AMReX, and use the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure. ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
 
 Minimum Requirements
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard. Building with GPU support may be done with CUDA, HIP, or SYCL. For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported. Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
 
@@ -58,6 +58,18 @@ or if using tcsh,
    +-----------------+------------------------------+------------------+-------------+
    | USE_CUDA        | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
+   | USE_HIP         | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_SYCL        | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_NETCDF      | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_HDF5        | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_MOISTURE    | Enable use of moisture vars  | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
+   | USE_MULTIBLOCK  | Enable multiblock driver     | TRUE / FALSE     | FALSE       |
+   +-----------------+------------------------------+------------------+-------------+
    | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
    | PROFILE         | Include profiling info       | TRUE / FALSE     | FALSE       |
@@ -68,6 +80,8 @@ or if using tcsh,
    +-----------------+------------------------------+------------------+-------------+
    | TRACE_PROFILE   | Include trace profiling info | TRUE / FALSE     | FALSE       |
    +-----------------+------------------------------+------------------+-------------+
+
+
 
    .. note::
       **Do not set both USE_OMP and USE_CUDA to true.**
@@ -120,6 +134,38 @@ An example CMake configure command to build ERF with MPI is listed below:
           .. && make
 
 Typically, a user will create a ``build`` directory in the project directory and execute the configuration from said directory (``cmake <options> ..``) before building.  Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+
+Analogous to GNU Make, the list of cmake directives is as follows:
+
+   +-----------------------+------------------------------+------------------+-------------+
+   | Option name           | Description                  | Possible values  | Default     |
+   |                       |                              |                  | value       |
+   +=======================+==============================+==================+=============+
+   | ERF_ENABLE_MPI        | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_OPENMP     | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_CUDA       | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HIP        | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_SYCL       | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_NETCDF     | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HDF5       | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MOISTURE   | Enable use of moisture vars  | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MULTIBLOCK | Enable multiblock driver     | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_TESTS      | Whether to enable tests      | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_FCOMPARE   | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
+   +-----------------------+------------------------------+------------------+-------------+
+   | ERF_DIM               | Number of dimensions         | 1, 2, 3          | 3           |
+   +-----------------------+------------------------------+------------------+-------------+
+
 
 
 Perlmutter (NERSC)
