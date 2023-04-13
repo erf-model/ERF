@@ -19,6 +19,8 @@ erf.use_terrain = 1         # enable terrain stencils
 erf.terrain_type = 1        # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
+erf.use_lagged_delta_rt = false
+
 erf.no_substepping     = 0
 erf.fixed_mri_dt_ratio = 20
 erf.fixed_dt           = 0.1

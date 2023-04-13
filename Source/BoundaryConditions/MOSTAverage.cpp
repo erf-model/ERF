@@ -545,7 +545,6 @@ MOSTAverage::compute_plane_averages(int lev)
             IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
-                    Box domain = geom.Domain();
                     int dom_hi = domain.bigEnd(idim)+1;
                     if (pbx.bigEnd(idim) < dom_hi || is_per[idim]) {
                         pbx.growHi(idim,-1);
