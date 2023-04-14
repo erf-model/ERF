@@ -16,7 +16,7 @@ using RARRAY = NDArray<float>;
 
 void
 fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
-                     std::string var_name,
+                     const std::string& var_name,
                      NC_Data_Dims_Type& NC_dim_type,
                      FArrayBox& temp);
 
@@ -88,7 +88,7 @@ BuildFABsFromNetCDFFile(const std::string &fname,
  */
 void
 fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
-                     std::string var_name,
+                     const std::string& var_name,
                      NC_Data_Dims_Type& NC_dim_type,
                      FArrayBox& temp)
 {

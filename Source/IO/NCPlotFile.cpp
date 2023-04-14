@@ -22,7 +22,7 @@ void
 ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
                      const Vector<const MultiFab*> &plotMF,
                      const Vector<std::string> &plot_var_names,
-                     const Vector<int> level_steps, const Real time) const
+                     const Vector<int>& level_steps, const Real time) const
 {
      // get the processor number
      int iproc = amrex::ParallelContext::MyProcAll();
@@ -135,7 +135,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
       Real dx[AMREX_SPACEDIM];
       for (int i = 0; i < AMREX_SPACEDIM; i++)
          dx[i] = geom[lev].CellSize()[i];
-      auto base = geom[lev].ProbLo();
+      const auto *base = geom[lev].ProbLo();
       RealBox rb(subdomain,dx,base);
 
       amrex::Vector<Real> probLo;
@@ -173,8 +173,8 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
       amrex::Vector<Real> CellSize;
       for (int i = lev; i <= flev; i++) {
         CellSize.clear();
-        for (int j = 0; j < AMREX_SPACEDIM; j++) {
-          CellSize.push_back(dx[j]);
+        for (double & j : dx) {
+          CellSize.push_back(j);
         }
         auto nc_CellSize = ncf.var("CellSize");
         nc_CellSize.par_access(NC_COLLECTIVE);
@@ -233,7 +233,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
            numpts = box.numPts();
 
            for (int k(0); k < ncomp; ++k) {
-              auto data = plotMF[lev]->get(fai).dataPtr(k);
+              const auto *data = plotMF[lev]->get(fai).dataPtr(k);
               auto nc_plot_var = ncf.var(plot_var_names[k]);
               nc_plot_var.par_access(NC_INDEPENDENT);
               nc_plot_var.put(data, {diff}, {numpts});
