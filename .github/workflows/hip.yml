@@ -82,10 +82,10 @@ jobs:
         # make -j ${{env.NPROCS}};
         make -j 2;
 
-    # - name: Regression Tests
-    #   run: |
-    #     ctest -L regression -VV
-    #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
+    - name: Regression Tests
+      run: |
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     # - name: Generate coverage report
     #   working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
