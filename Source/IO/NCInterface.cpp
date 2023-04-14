@@ -387,7 +387,7 @@ bool NCVar::has_attr(const std::string& name) const
 {
     int ierr;
     size_t lenp;
-    ierr = nc_inq_att(ncid, varid, name.data(), NULL, &lenp);
+    ierr = nc_inq_att(ncid, varid, name.data(), nullptr, &lenp);
     return (ierr == NC_NOERR);
 }
 
@@ -472,7 +472,7 @@ std::string NCGroup::full_name() const
 {
     size_t nlen;
     std::vector<char> grpname;
-    check_nc_error(nc_inq_grpname_full(ncid, &nlen, NULL));
+    check_nc_error(nc_inq_grpname_full(ncid, &nlen, nullptr));
     grpname.resize(nlen);
     check_nc_error(nc_inq_grpname_full(ncid, &nlen, grpname.data()));
     return std::string{grpname.begin(), grpname.end()};
@@ -509,7 +509,7 @@ NCDim NCGroup::def_dim(const std::string& name, const size_t len) const
 NCVar NCGroup::def_scalar(const std::string& name, const nc_type dtype) const
 {
     int newid;
-    check_nc_error(nc_def_var(ncid, name.data(), dtype, 0, NULL, &newid));
+    check_nc_error(nc_def_var(ncid, name.data(), dtype, 0, nullptr, &newid));
     return NCVar{ncid, newid};
 }
 
@@ -538,46 +538,46 @@ NCVar NCGroup::var(const std::string& name) const
 int NCGroup::num_groups() const
 {
     int ngrps;
-    check_nc_error(nc_inq_grps(ncid, &ngrps, NULL));
+    check_nc_error(nc_inq_grps(ncid, &ngrps, nullptr));
     return ngrps;
 }
 
 int NCGroup::num_dimensions() const
 {
     int ndims;
-    check_nc_error(nc_inq(ncid, &ndims, NULL, NULL, NULL));
+    check_nc_error(nc_inq(ncid, &ndims, nullptr, nullptr, nullptr));
     return ndims;
 }
 
 int NCGroup::num_attributes() const
 {
     int nattrs;
-    check_nc_error(nc_inq(ncid, NULL, NULL, &nattrs, NULL));
+    check_nc_error(nc_inq(ncid, nullptr, nullptr, &nattrs, nullptr));
     return nattrs;
 }
 
 int NCGroup::num_variables() const
 {
     int nvars;
-    check_nc_error(nc_inq(ncid, NULL, &nvars, NULL, NULL));
+    check_nc_error(nc_inq(ncid, nullptr, &nvars, nullptr, nullptr));
     return nvars;
 }
 
 bool NCGroup::has_group(const std::string& name) const
 {
-    int ierr = nc_inq_ncid(ncid, name.data(), NULL);
+    int ierr = nc_inq_ncid(ncid, name.data(), nullptr);
     return (ierr == NC_NOERR);
 }
 
 bool NCGroup::has_dim(const std::string& name) const
 {
-    int ierr = nc_inq_dimid(ncid, name.data(), NULL);
+    int ierr = nc_inq_dimid(ncid, name.data(), nullptr);
     return (ierr == NC_NOERR);
 }
 
 bool NCGroup::has_var(const std::string& name) const
 {
-    int ierr = nc_inq_varid(ncid, name.data(), NULL);
+    int ierr = nc_inq_varid(ncid, name.data(), nullptr);
     return (ierr == NC_NOERR);
 }
 
@@ -585,7 +585,7 @@ bool NCGroup::has_attr(const std::string& name) const
 {
     int ierr;
     size_t lenp;
-    ierr = nc_inq_att(ncid, NC_GLOBAL, name.data(), NULL, &lenp);
+    ierr = nc_inq_att(ncid, NC_GLOBAL, name.data(), nullptr, &lenp);
     return (ierr == NC_NOERR);
 }
 

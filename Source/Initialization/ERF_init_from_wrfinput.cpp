@@ -72,7 +72,7 @@ init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
                            const Vector<FArrayBox>& NC_PHB_fab);
 
 void
-init_base_state_from_wrfinput(int lev, const Box& bx, const Real l_rdOcp,
+init_base_state_from_wrfinput(int lev, const Box& bx, Real l_rdOcp,
                               FArrayBox& p_hse, FArrayBox& pi_hse,
                               FArrayBox& r_hse,
                               const Vector<FArrayBox>& NC_ALB_fab,
@@ -107,7 +107,7 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
 
     // amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
-    if (nc_init_file.size() == 0)
+    if (nc_init_file.empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)

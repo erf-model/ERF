@@ -171,8 +171,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
     {
         // Construct intersection of current tilebox and valid region for updating
         Box valid_bx = grids_to_evolve[mfi.index()];
-        Box bx = mfi.tilebox() & valid_bx;
-
         Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
         Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
 

@@ -35,8 +35,8 @@ public:
     // not called when we return an object of this class by value
     MOSTAverage(MOSTAverage&&)  noexcept = default;
 
-    // Declare a default move assignment operator
-    MOSTAverage& operator=(MOSTAverage&& other)  noexcept = default;
+    // Delete the move assignment operator
+    MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
 
     // Delete the copy constructor
     MOSTAverage(const MOSTAverage& other) = delete;
