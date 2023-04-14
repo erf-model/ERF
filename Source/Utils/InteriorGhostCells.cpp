@@ -6,15 +6,15 @@ using namespace amrex;
 // Get the boxes for looping over interior/exterior ghost cells
 // for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
 //
-// NOTE: x-face boxes take ownership of the overlapping region.
-//       If we have exterior ghost cells (ng_vect != 0), then
-//       the x-face boxes will have exterior ghost cells in both
-//       x and y.
+// NOTE: X-face boxes take ownership of the overlapping region.
+//       With exterior ghost cells (ng_vect != 0), the x-face
+//       boxes will have exterior ghost cells in both x & y.
 //
 void
 compute_interior_ghost_bxs_xy(const Box& bx,
                               const Box& domain,
                               const int& width,
+                              const int& set_width,
                               Box& bx_xlo,
                               Box& bx_xhi,
                               Box& bx_ylo,
@@ -44,17 +44,23 @@ compute_interior_ghost_bxs_xy(const Box& bx,
     // NOTE: 4 boxes now encompass interior cells with thickness 'width'
     //==================================================================
 
+    gdom_xlo.growLo(0,-set_width); gdom_xhi.growHi(0,-set_width);
+    gdom_xlo.grow  (1,-set_width); gdom_xhi.grow  (1,-set_width);
+    gdom_ylo.growLo(1,-set_width); gdom_yhi.growHi(1,-set_width);
+
+    //==================================================================
+    // NOTE: 4 boxes now exclude the regions being set by bndry
+    //==================================================================
+
     // Grow boxes to get external ghost cells only
     gdom_xlo.growLo(0,ng_vect[0]); gdom_xhi.growHi(0,ng_vect[0]);
-    gdom_xlo.growLo(1,ng_vect[1]); gdom_xhi.growLo(1,ng_vect[1]);
-    gdom_xlo.growHi(1,ng_vect[1]); gdom_xhi.growHi(1,ng_vect[1]);
+    gdom_xlo.grow  (1,ng_vect[1]); gdom_xhi.grow  (1,ng_vect[1]);
     gdom_ylo.growLo(1,ng_vect[1]); gdom_yhi.growHi(1,ng_vect[1]);
 
     // Grow boxes to get internal ghost cells
     if (get_int_ng) {
         gdom_xlo.growHi(0,ng_vect[0]); gdom_xhi.growLo(0,ng_vect[0]);
-        gdom_ylo.growLo(0,ng_vect[0]); gdom_yhi.growLo(0,ng_vect[0]);
-        gdom_ylo.growHi(0,ng_vect[0]); gdom_yhi.growHi(0,ng_vect[0]);
+        gdom_ylo.grow  (0,ng_vect[0]); gdom_yhi.grow  (0,ng_vect[0]);
         gdom_ylo.growHi(1,ng_vect[1]); gdom_yhi.growLo(1,ng_vect[1]);
     }
 
@@ -113,12 +119,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         domain.convert(S_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
+        // NOTE: 2 ghost cells needed for U -> rho*U
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -164,12 +171,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         const auto& dom_hi = ubound(domain);
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
+        // NOTE: 2 ghost cells needed for U -> rho*U
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -250,12 +258,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         domain.convert(S_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
+        // NOTE: 1 ghost cell needed for Laplacian
         IntVect ng_vect{1,1,0};
         Box gdom(domain); gdom.grow(ng_vect);
 
         // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -330,7 +339,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             // 4 halo boxes w/ no ghost cells for CC vars
             Box domain = geom.Domain();
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(domain, domain, width,
+            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,NVAR);
@@ -344,7 +353,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             Box domain = geom.Domain();
             domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(domain, domain, width,
+            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
@@ -374,8 +383,9 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             Box tbx = mfi.tilebox();
 
             // Intersection of tilebox and 4 boxes w/o ANY ghost cells
+            // NOTE: 0 ghost cells needed
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
                                           tbx_ylo, tbx_yhi);
 
@@ -530,7 +540,7 @@ update_interior_ghost(const Real& delta_t,
 
             // Intersection of tilebox and 4 boxes w/o ANY ghost cells
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
                                           tbx_ylo, tbx_yhi);
 

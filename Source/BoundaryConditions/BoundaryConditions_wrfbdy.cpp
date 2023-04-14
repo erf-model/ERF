@@ -14,7 +14,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
     int lev = 0;
 
     // Always copy unread vars into relaxation & set region
-    int width = wrfbdy_width;
+    int width = wrfbdy_width - 1;
 
     //
     // *********************************************************************************
@@ -53,7 +53,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                 const Array4<Real>& dest_arr = mf.array(mfi);
 
                 Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(gbx, domain, width,
+                compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi, ng_vect);
 
@@ -169,7 +169,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
             // Call w/o interior ghost cells
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(gbx, domain, width,
+            compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi, ng_vect);
 

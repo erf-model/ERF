@@ -1519,7 +1519,7 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 void
 ERF::define_grids_to_evolve (int lev) // NOLINT
 {
-   int width = wrfbdy_width;
+   int width = wrfbdy_width - 1;
    Box domain(geom[lev].Domain());
    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
    {
