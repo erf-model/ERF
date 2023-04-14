@@ -128,12 +128,15 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             delete z_t_pert;
         }
 
-        // TODO: See if this can be removed like no-substepping.
-        //       Address time mismatch by doing a full update here.
+
 #ifdef ERF_USE_NETCDF
         // Update vars in relaxation zones
-        if (init_type == "real" && level == 0 && fast_step == 0)
-            update_interior_ghost(dtau*n_sub, wrfbdy_width, fine_geom, S_slow_rhs, S_old, S_data);
+        if (init_type == "real" && level == 0)
+            if (fast_step == 0 ) {
+                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_old, S_data);
+            } else {
+                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_data, S_data);
+            }
 #endif
 
         // Even if we update all the conserved variables we don't need

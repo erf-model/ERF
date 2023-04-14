@@ -308,7 +308,7 @@ void NCVar::get(
     const std::vector<ptrdiff_t>& stride) const
 {
     check_nc_error(nc_get_vars_double(
-        ncid, varid, start.data(), count.data(), stride.dat(), dptr));
+        ncid, varid, start.data(), count.data(), stride.data(), dptr));
 }
 
 /**

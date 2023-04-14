@@ -31,7 +31,9 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
            ncomp = 1;
            domain.growHi(2,1); domain.setType(amrex::IndexType(IntVect(0,0,1)));
         } else if (var_idx == Vars::cons) {
-            ncomp = Cons::NumVars;
+            // NOTE: Don't overwrite relaxation zone data!
+            ncomp = Cons::NumVars - 2; // Rho & RhoTheta
+            icomp = RhoTheta_comp + 1; // Start afer RhoTheta
         }
 
         if (var_idx == Vars::cons || var_idx == Vars::zvel)
@@ -100,8 +102,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
     amrex::Real alpha = (time - n_time * dT) / dT;
     amrex::Real oma   = 1.0 - alpha;
 
-    //for (int ivar = 0; ivar < WRFBdyVars::NumTypes-2; ivar++)
-    for (int ivar = 0; ivar < WRFBdyVars::T; ivar++)
+    for (int ivar = 0; ivar < WRFBdyVars::NumTypes-2; ivar++)
+    //for (int ivar = 0; ivar <= WRFBdyVars::T; ivar++)
     {
         int icomp   = -1;
         int var_idx = -1;
