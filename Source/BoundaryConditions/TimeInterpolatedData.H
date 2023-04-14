@@ -51,7 +51,7 @@ struct TimeInterpolatedData {
     void clear() {
         // clear all data owned by this object
         for (int i = 0; i < num_vars(); ++i) {
-            if (m_owns_data[i] == owning) {
+            if (m_owns_data[i] == 1) {
                 m_data[i]->clear();
                 delete m_data[i];
             }
@@ -62,9 +62,6 @@ struct TimeInterpolatedData {
         m_owns_data.clear();
         m_time = 0.;
     }
-
-    const int owning = 1;
-    const int non_owning = 0;
 
 private:
     amrex::Vector<amrex::MultiFab*> m_data;
