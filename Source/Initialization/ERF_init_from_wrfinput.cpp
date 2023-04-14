@@ -26,7 +26,7 @@ read_from_wrfinput(int lev, const std::string& fname,
                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab);
 
 Real
-read_from_wrfbdy(const std::string nc_bdy_file, const Box& domain,
+read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
