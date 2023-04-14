@@ -40,7 +40,6 @@ endif()
 
 if(ERF_ENABLE_HIP)
   set(AMReX_GPU_BACKEND HIP CACHE STRING "AMReX GPU type" FORCE)
-  set(AMReX_AMD_ARCH gfx908 CACHE STRING "AMReX AMD architecture" FORCE)
 endif()
 
 if(ERF_ENABLE_SYCL)
