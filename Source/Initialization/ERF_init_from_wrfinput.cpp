@@ -78,6 +78,11 @@ init_base_state_from_wrfinput(int lev, const Box& bx, const Real l_rdOcp,
                               const Vector<FArrayBox>& NC_ALB_fab,
                               const Vector<FArrayBox>& NC_PB_fab);
 
+/**
+ * ERF function that initializes data from a WRF dataset
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::init_from_wrfinput(int lev)
 {
@@ -222,6 +227,20 @@ ERF::init_from_wrfinput(int lev)
     }
 }
 
+/**
+ * Helper function to initialize state and velocity data in a Fab from a WRF dataset.
+ *
+ * @param lev Integer specifying current level
+ * @param state_fab FArrayBox object holding the state data we initialize
+ * @param x_vel_fab FArrayBox object holding the x-velocity data we initialize
+ * @param y_vel_fab FArrayBox object holding the y-velocity data we initialize
+ * @param z_vel_fab FArrayBox object holding the z-velocity data we initialize
+ * @param NC_xvel_fab Vector of FArrayBox objects with the WRF dataset specifying x-velocity
+ * @param NC_yvel_fab Vector of FArrayBox objects with the WRF dataset specifying y-velocity
+ * @param NC_zvel_fab Vector of FArrayBox objects with the WRF dataset specifying z-velocity
+ * @param NC_rho_fab Vector of FArrayBox objects with the WRF dataset specifying density
+ * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
+ */
 void
 init_state_from_wrfinput(int lev, FArrayBox& state_fab,
                          FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
@@ -259,6 +278,17 @@ init_state_from_wrfinput(int lev, FArrayBox& state_fab,
     } // idx
 }
 
+/**
+ * Helper function initializing velocity map factors from WRF data
+ *
+ * @param lev Integer specifying the current level
+ * @param msfu_fab FArrayBox specifying the x-velocity map factors we initialize
+ * @param msfv_fab FArrayBox specifying the y-velocity map factors we initialize
+ * @param msfm_fab FArrayBox specifying the z-velocity map factors we initialize
+ * @param NC_MSFU_fab Vector of FArrayBoxes holding WRF data specifying x-velocity map factors
+ * @param NC_MSFV_fab Vector of FArrayBoxes holding WRF data specifying y-velocity map factors
+ * @param NC_MSFM_fab Vector of FArrayBoxes holding WRF data specifying z-velocity map factors
+ */
 void
 init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
                         FArrayBox& msfv_fab, FArrayBox& msfm_fab,
@@ -284,6 +314,18 @@ init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
     } // idx
 }
 
+/**
+ * Helper function to initialize hydrostatic base state data from WRF dataset
+ *
+ * @param lev Integer specifying current level
+ * @param valid_bx Box specifying the index space we are to initialize
+ * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param p_hse FArrayBox specifying the hydrostatic base state pressure we initialize
+ * @param pi_hse FArrayBox specifying the hydrostatic base state Exner pressure we initialize
+ * @param r_hse FArrayBox specifying the hydrostatic base state density we initialize
+ * @param NC_ALB_fab Vector of FArrayBox objects containing WRF data specifying 1/density
+ * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
+ */
 void
 init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
                               FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
@@ -311,6 +353,14 @@ init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
     } // idx
 }
 
+/**
+ * Helper function for initializing terrain coordinates from a WRF dataset.
+ *
+ * @param lev Integer specifying the current level
+ * @param z_phys FArrayBox specifying the node-centered z coordinates of the terrain
+ * @param NC_PH_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
+ * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
+ */
 void
 init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
                            const Vector<FArrayBox>& NC_PH_fab,

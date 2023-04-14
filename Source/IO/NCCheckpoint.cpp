@@ -4,6 +4,9 @@
 
 using namespace amrex;
 
+/**
+ * Writes a checkpoint file in NetCDF format
+ */
 void
 ERF::WriteNCCheckpointFile () const
 {
@@ -115,9 +118,9 @@ ERF::WriteNCCheckpointFile () const
    }
 }
 
-//
-// read NetCDF checkpoint to restart ERF
-//
+/**
+ * Read NetCDF checkpoint to restart ERF
+ */
 void
 ERF::ReadNCCheckpointFile ()
 {

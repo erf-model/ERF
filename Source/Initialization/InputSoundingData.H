@@ -12,6 +12,11 @@
 #include <ERF_Constants.H>
 #include <ERF_Math.H>
 
+/**
+ * Data structure storing input sounding data. Also
+ * handles reading the input file for sounding data and
+ * hydrostatic column integration.
+ */
 struct InputSoundingData {
 public:
     InputSoundingData() {}
