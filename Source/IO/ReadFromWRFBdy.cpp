@@ -51,7 +51,7 @@ std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTim
 }
 
 Real
-read_from_wrfbdy(std::string nc_bdy_file, const Box& domain,
+read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -586,7 +586,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
         int jlo  = domain.smallEnd()[1];
         int jhi  = domain.bigEnd()[1];
 
-        auto& bx_u  = bdy_data[0][WRFBdyVars::U].box();
+        const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
         amrex::ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
             if (i == ilo) {
@@ -618,7 +618,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
         }
 #endif
 
-        auto& bx_v  = bdy_data[0][WRFBdyVars::V].box();
+        const auto & bx_v  = bdy_data[0][WRFBdyVars::V].box();
         amrex::ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
             if (j == jlo) {
@@ -650,7 +650,7 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
         }
 #endif
 
-        auto& bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
+        const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
 
         // Define density
         amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

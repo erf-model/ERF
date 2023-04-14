@@ -43,7 +43,7 @@ init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
                        const Vector<FArrayBox>& NC_MSFV_fab,
                        const Vector<FArrayBox>& NC_MSFM_fab);
 void
-init_base_state_from_metgrid(int lev, const Box& valid_bx, const Real l_rdOcp,
+init_base_state_from_metgrid(int lev, const Box& valid_bx, Real l_rdOcp,
                              FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
                              const Vector<FArrayBox>& NC_ALB_fab,
                              const Vector<FArrayBox>& NC_PB_fab);
@@ -72,10 +72,10 @@ ERF::init_from_metgrid(int lev)
 
     int nboxes = num_boxes_at_level[lev];
 
-    if (nc_init_file.size() == 0)
+    if (nc_init_file.empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
-    if (nc_init_file[lev].size() == 0)
+    if (nc_init_file[lev].empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
     for (int idx = 0; idx < nboxes; idx++)
