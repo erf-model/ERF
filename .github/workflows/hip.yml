@@ -60,7 +60,7 @@ jobs:
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
           -DERF_DIM:STRING=3 \
-          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_MPI:BOOL=OFF \
           -DERF_ENABLE_HIP:BOOL=ON \
           -DAMReX_AMD_ARCH=gfx908 \
           -DERF_ENABLE_TESTS:BOOL=ON \
