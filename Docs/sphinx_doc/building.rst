@@ -8,7 +8,14 @@ The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) wh
 Minimum Requirements
 ~~~~~~~~~~~~~~~~~~~~
 
-ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard. Building with GPU support may be done with CUDA, HIP, or SYCL. For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported. Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
+ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard.
+Building with GPU support may be done with CUDA, HIP, or SYCL.
+For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported.
+Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available
+in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
+
+   .. note::
+      **While ERF is designed to work with SYCL, we do not make any guarantees that it will build and run on your Intel platform.**
 
 GNU Make
 ~~~~~~~~
@@ -82,8 +89,6 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | TRACE_PROFILE      | Include trace profiling info | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
-
-
 
    .. note::
       **Do not set both USE_OMP and USE_CUDA to true.**
