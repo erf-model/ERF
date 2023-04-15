@@ -345,10 +345,13 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         {
+             // Tilebox
+            Box tbx = mfi.tilebox();
+
             // 4 halo boxes w/ no ghost cells for CC vars
             Box domain = geom.Domain();
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,NVAR);
@@ -358,11 +361,14 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
 
         {
-            // 4 halo boxes w/ no ghost cells for CC vars
+            // Tilebox
+            Box tbx = mfi.tilebox(IntVect(0,0,1));
+
+            // 4 halo boxes w/ no ghost cells for Z-face vars
             Box domain = geom.Domain();
             domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
