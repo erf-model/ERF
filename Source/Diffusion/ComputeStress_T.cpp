@@ -244,6 +244,7 @@ ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //       Boxes are copied here for extrapolations in the second block operations
     //***********************************************************************************
     Box bxcc2  = bxcc;
+    bxcc2.grow(IntVect(-1,-1,0));
 
     // First block: compute S-D
     //***********************************************************************************
