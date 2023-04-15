@@ -362,7 +362,7 @@ ERF::InitData ()
 
     last_plot_file_step_1 = -1;
     last_plot_file_step_2 = -1;
-    last_check_file_step = -1;
+    last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
         // start simulation from the beginning
@@ -447,6 +447,10 @@ ERF::InitData ()
             }
         }
     }
+
+    // Define after wrfbdy_width is known
+    for (int lev = 0; lev <= finest_level; lev++)
+        define_grids_to_evolve(lev);
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
@@ -878,8 +882,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
-
-    define_grids_to_evolve(lev);
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
@@ -1517,24 +1519,25 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 void
 ERF::define_grids_to_evolve (int lev) // NOLINT
 {
+   int width = wrfbdy_width - 1;
    Box domain(geom[lev].Domain());
    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
    {
       Box shrunk_domain(domain);
-      shrunk_domain.grow(0,-1);
-      shrunk_domain.grow(1,-1);
+      shrunk_domain.grow(0,-width);
+      shrunk_domain.grow(1,-width);
       grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
    } else if (lev == 1) {
       Box shrunk_domain(boxes_at_level[lev][0]);
-      shrunk_domain.grow(0,-1);
-      shrunk_domain.grow(1,-1);
+      shrunk_domain.grow(0,-width);
+      shrunk_domain.grow(1,-width);
       grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
 #if 0
       if (num_boxes_at_level[lev] > 1) {
           for (int i = 1; i < num_boxes_at_level[lev]; i++) {
               Box shrunk_domain(boxes_at_level[lev][i]);
-              shrunk_domain.grow(0,-1);
-              shrunk_domain.grow(1,-1);
+              shrunk_domain.grow(0,-width);
+              shrunk_domain.grow(1,-width);
               grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
           }
       }

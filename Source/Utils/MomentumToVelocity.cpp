@@ -24,10 +24,8 @@ MomentumToVelocity( BoxArray& grids_to_evolve,
 #endif
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        // We need velocity in the interior ghost cells (init == real)
+        Box bx = mfi.tilebox();
 
         const Box& tbx = surroundingNodes(bx,0);
         const Box& tby = surroundingNodes(bx,1);
