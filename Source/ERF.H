@@ -725,11 +725,11 @@ private:
     int
     ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
                       const int& spatial_order_WENO,  const bool& use_WENO,
-                      const bool& use_numerical_diff) {
-      int nGhostCells;
-
+                      const bool& use_numerical_diff)
+    {
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
 
+      int nGhostCells = 0;
       if (use_numerical_diff) {
           nGhostCells = 3;
       } else if(use_WENO) {

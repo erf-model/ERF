@@ -55,7 +55,7 @@ struct SolverChoice {
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
-        if (!use_lagged_delta_rt && !terrain_type == 1) {
+        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
             amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
         }
 
