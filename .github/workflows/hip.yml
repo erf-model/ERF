@@ -64,7 +64,6 @@ jobs:
           -DERF_ENABLE_HIP:BOOL=ON \
           -DAMReX_AMD_ARCH=gfx908 \
           -DERF_ENABLE_TESTS:BOOL=ON \
-          -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
@@ -166,7 +165,6 @@ jobs:
           -DERF_ENABLE_HIP:BOOL=ON \
           -DAMReX_AMD_ARCH=gfx908 \
           -DERF_ENABLE_TESTS:BOOL=ON \
-          -DERF_ENABLE_MASA:BOOL=OFF \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DERF_ENABLE_MOISTURE:BOOL=ON \
