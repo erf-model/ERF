@@ -3,6 +3,27 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the stress with constant viscosity and with terrain.
+ *
+ * @param bxcc cell center box for tau_ii
+ * @param tbxxy nodal xy box for tau_12
+ * @param tbxxz nodal xz box for tau_13
+ * @param tbxyz nodal yz box for tau_23
+ * @param mu_eff constant molecular viscosity
+ * @param tau11 hold 11 strain
+ * @param tau22 hold 22 strain
+ * @param tau33 hold 33 strain
+ * @param tau12 hold 12 strain
+ * @param tau13 hold 13 strain
+ * @param tau21 hold 21 strain
+ * @param tau23 hold 23 strain
+ * @param tau31 hold 31 strain
+ * @param tau32 hold 32 strain
+ * @param er_arr expansion rate
+ * @param z_nd nodal array of physical z heights
+ * @param dxInv inverse cell size array
+ */
 void
 ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
@@ -226,7 +247,28 @@ ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     });
 }
 
-
+/**
+ * Function for computing the stress with constant viscosity and with terrain.
+ *
+ * @param bxcc cell center box for tau_ii
+ * @param tbxxy nodal xy box for tau_12
+ * @param tbxxz nodal xz box for tau_13
+ * @param tbxyz nodal yz box for tau_23
+ * @param mu_eff constant molecular viscosity
+ * @param mu_turb variable turbulent viscosity
+ * @param tau11 hold 11 strain
+ * @param tau22 hold 22 strain
+ * @param tau33 hold 33 strain
+ * @param tau12 hold 12 strain
+ * @param tau13 hold 13 strain
+ * @param tau21 hold 21 strain
+ * @param tau23 hold 23 strain
+ * @param tau31 hold 31 strain
+ * @param tau32 hold 32 strain
+ * @param er_arr expansion rate
+ * @param z_nd nodal array of physical z heights
+ * @param dxInv inverse cell size array
+ */
 void
 ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                        const Array4<const Real>& mu_turb,

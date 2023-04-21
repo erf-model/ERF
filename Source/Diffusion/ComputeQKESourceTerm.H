@@ -1,10 +1,19 @@
 #ifndef _PBLMODELS_H_
 #define _PBLMODELS_H_
 
-//#include "AMReX_MultiFab.H"
-//#include "ABLMost.H"
-//#include "DirectionSelector.H"
-
+/**
+ * Function for computing the QKE source terms.
+ *
+ * @param u velocity in x-dir
+ * @param v velocity in y-dir
+ * @param cell_data conserved cell center vars
+ * @param cell_prim primitive cell center vars
+ * @param K_turb turbulent viscosity
+ * @param cellSizeInv inverse cell size array
+ * @param domain box of the whole domain
+ * @param solverChoice container of solver params
+ * @param theta_mean average theta
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
