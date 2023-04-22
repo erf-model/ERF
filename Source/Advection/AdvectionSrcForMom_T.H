@@ -3,6 +3,24 @@
 #include <Interpolation.H>
 #include <Interpolation_WENO.H>
 
+/**
+ * Function for computing the advective tendency for the x-component of momentum
+ * with metric terms and for spatial order > 2 when not using WENO
+ *
+ * @param[in] i,j,k indices of x-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] u     x-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -83,6 +101,24 @@ AdvectionSrcForXMom_T (int i, int j, int k,
 
     return advectionSrc;
 }
+
+/**
+ * Function for computing the advective tendency for the y-component of momentum
+ * with metric terms and for spatial order > 2 when not using WENO
+ *
+ * @param[in] i,j,k indices of y-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] v     y-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -165,6 +201,26 @@ AdvectionSrcForYMom_T (int i, int j, int k,
 
     return advectionSrc;
 }
+
+/**
+ * Function for computing the advective tendency for the z-component of momentum
+ * with metric terms and for spatial order > 2 when not using WENO
+ *
+ * @param[in] i,j,k indices of z-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] w     z-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor on cell centers
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] domhi_z maximum k value in the domain
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -260,6 +316,22 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the x-component of momentum
+ * with metric terms and for spatial order > 2 when using WENO
+ *
+ * @param[in] i,j,k indices of x-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] u     x-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -342,6 +414,23 @@ AdvectionSrcForXMom_WENO_T (int i, int j, int k,
     return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the y-component of momentum
+ * with metric terms and for spatial order > 2 when using WENO
+ *
+ * @param[in] i,j,k indices of y-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] v     y-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -423,6 +512,25 @@ AdvectionSrcForYMom_WENO_T (int i, int j, int k,
 
     return advectionSrc;
 }
+
+/**
+ * Function for computing the advective tendency for the z-component of momentum
+ * with metric terms and for spatial order > 2 when using WENO
+ *
+ * @param[in] i,j,k indices of z-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] w     z-component of velocity
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor on cell centers
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ * @param[in] domhi_z maximum k value in the domain
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

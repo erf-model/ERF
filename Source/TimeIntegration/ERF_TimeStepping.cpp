@@ -131,11 +131,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, V_crse.nGrow());
         rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
 
-        VelocityToMomentum(grids_to_evolve[lev],
-                           U_crse, U_crse.nGrowVect(),
+        MultiFab density(*S_crse, make_alias, Rho_comp, 1);
+        VelocityToMomentum(U_crse, U_crse.nGrowVect(),
                            V_crse, V_crse.nGrowVect(),
                            W_crse, W_crse.nGrowVect(),
-                          *S_crse,rU_crse,rV_crse,rW_crse,
+                           density ,rU_crse, rV_crse, rW_crse,
                            solverChoice.use_NumDiff);
     }
 

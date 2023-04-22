@@ -56,6 +56,9 @@
 class MultiBlockContainer;
 #endif
 
+/**
+ * Enum of possible coarse/fine interpolation options
+*/
 namespace InterpType {
     enum {
         PCInterp = 0,
@@ -68,10 +71,9 @@ namespace InterpType {
     };
 }
 
-template<typename V, typename T>
-bool containerHasElement(const V& iterable, const T& query) {
-    return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
-}
+/**
+ * Main class in ERF code, instantiated from main.cpp
+*/
 
 class ERF
     : public amrex::AmrCore

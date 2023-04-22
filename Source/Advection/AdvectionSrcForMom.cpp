@@ -3,6 +3,37 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the advective tendency for the momentum equations
+ * This routine has explicit expressions for all cases (terrain or not) when
+ * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * functions when either (or both) spatial order(s) is greater than 2.
+ *
+ * @param[in] bxx box over which the x-momentum is updated
+ * @param[in] bxy box over which the y-momentum is updated
+ * @param[in] bxz box over which the z-momentum is updated
+ * @param[out] rho_u_rhs tendency for the x-momentum equation
+ * @param[out] rho_v_rhs tendency for the y-momentum equation
+ * @param[out] rho_w_rhs tendency for the z-momentum equation
+ * @param[in] u x-component of the velocity
+ * @param[in] v y-component of the velocity
+ * @param[in] w z-component of the velocity
+ * @param[in] rho_u x-component of the momentum
+ * @param[in] rho_v y-component of the momentum
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_u map factor at x-faces
+ * @param[in] mf_v map factor at y-faces
+ * @param[in] all_use_WENO defines whether all variables (or just moisture variables) use WENO advection scheme
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ * @param[in] horiz_spatial_order sets the spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order sets the spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
+ * @param[in] domhi_z maximum k value in the domain
+ */
 void
 AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<      Real>& rho_u_rhs, const Array4<      Real>& rho_v_rhs,

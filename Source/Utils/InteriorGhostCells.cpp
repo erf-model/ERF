@@ -2,14 +2,22 @@
 
 using namespace amrex;
 
-//
-// Get the boxes for looping over interior/exterior ghost cells
-// for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
-//
-// NOTE: X-face boxes take ownership of the overlapping region.
-//       With exterior ghost cells (ng_vect != 0), the x-face
-//       boxes will have exterior ghost cells in both x & y.
-//
+/**
+ * Get the boxes for looping over interior/exterior ghost cells
+ * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
+ *
+ * @param[in] bx
+ * @param[in] domain
+ * @param[in] width
+ * @param[in] set_width
+ * @param[out] bx_xlo
+ * @param[out] bx_xhi
+ * @param[out] bx_ylo
+ * @param[out] bx_yhi
+ * @param[in] ng_vect
+ * @param[in] get_int_ng
+ */
+
 void
 compute_interior_ghost_bxs_xy(const Box& bx,
                               const Box& domain,
@@ -23,6 +31,12 @@ compute_interior_ghost_bxs_xy(const Box& bx,
                               const bool get_int_ng)
 {
     AMREX_ALWAYS_ASSERT(bx.ixType() == domain.ixType());
+
+    //
+    // NOTE: X-face boxes take ownership of the overlapping region.
+    //       With exterior ghost cells (ng_vect != 0), the x-face
+    //       boxes will have exterior ghost cells in both x & y.
+    //
 
     // Domain bounds without ghost cells
     const auto& dom_lo = lbound(domain);
@@ -71,6 +85,22 @@ compute_interior_ghost_bxs_xy(const Box& bx,
     bx_yhi = (bx & gdom_yhi);
 }
 
+/**
+ * Compute the RHS in the relaxation zone
+ *
+ * @param[in] bdy_time_interval time interval between boundary condition time stamps
+ * @param[in] time    current time
+ * @param[in] delta_t timestep
+ * @param[in] width   number of cells in (relaxation+specified) zone
+ * @param[in] set_width
+ * @param[in] geom     container for geometric information
+ * @param[out] S_rhs   RHS to be computed here
+ * @param[in] S_data   current value of the solution
+ * @param[in] bdy_data_xlo boundary data on interior of low x-face
+ * @param[in] bdy_data_xhi boundary data on interior of high x-face
+ * @param[in] bdy_data_ylo boundary data on interior of low y-face
+ * @param[in] bdy_data_yhi boundary data on interior of high y-face
+ */
 void
 compute_interior_ghost_RHS(const Real& bdy_time_interval,
                            const Real& time,
@@ -516,8 +546,19 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     } // ivar
 }
 
-// TODO: Figure out if this is needed for fast integrator
-//       and how to incorporate if it is needed.
+// Update the variables in the four boxes comprising the relaxation zone
+
+/**
+ * Update the solution in the relaxation zone
+ *
+ * @param[in]  delta_t timestep
+ * @param[in]  width   number of cells in (relaxation+specified) zone
+ * @param[in]  geom    container for geometric information
+ * @param[in]  S_rhs  RHS to be added here
+ * @param[in]  S_old  previous value of the solution
+ * @param[old] S_data new value of the solution defined here
+ */
+
 void
 update_interior_ghost(const Real& delta_t,
                       const int&  width,
@@ -531,8 +572,6 @@ update_interior_ghost(const Real& delta_t,
     // Copy of the Domain
     Box domain = geom.Domain();
 
-    // Update the vars on the 4 halo regions
-    //==========================================================
     for (int ivar(IntVar::cons); ivar < IntVar::NumVars; ivar++)
     {
         // Variable and comp maps

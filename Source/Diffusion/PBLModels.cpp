@@ -10,7 +10,7 @@
  * @param cons_in cell center conserved quantities
  * @param eddyViscosity holds turbulent viscosity
  * @param geom problem geometry
- * @param solverChoic container with solver parameters
+ * @param solverChoice container with solver parameters
  * @param most pointer to Monin-Obukhov class if instantiated
  */
 void
