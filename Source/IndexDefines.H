@@ -4,6 +4,10 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
 
+/**
+ * Definition of indexing parameters
+*/
+
 // Cell-centered state variables
 #define Rho_comp       0
 #define RhoTheta_comp  1

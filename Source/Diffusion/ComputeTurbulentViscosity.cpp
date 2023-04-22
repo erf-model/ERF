@@ -35,7 +35,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
  * @param geom problem geometry
  * @param mapfac_u map factor at x-face
  * @param mapfac_v map factor at y-face
- * @param solverChoic container with solver parameters
+ * @param solverChoice container with solver parameters
  */
 void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
@@ -357,7 +357,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
  * @param geom problem geometry
  * @param mapfac_u map factor at x-face
  * @param mapfac_v map factor at y-face
- * @param solverChoic container with solver parameters
+ * @param solverChoice container with solver parameters
  * @param most pointer to Monin-Obukhov class if instantiated
  * @param vert_only flag for vertical components of eddyViscosity
  */

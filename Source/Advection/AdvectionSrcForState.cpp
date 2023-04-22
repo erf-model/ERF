@@ -6,6 +6,36 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the advective tendency for the update equations for rho and (rho theta)
+ * This routine has explicit expressions for all cases (terrain or not) when
+ * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * functions when either (or both) spatial order(s) is greater than 2.
+ *
+ * @param[in] bx box over which the scalars are updated
+ * @param[in] valid_bx box that contains only the cells not in the specified or relaxation zones
+ * @param[out] advectionSrc tendency for the scalar update equation
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] Omega component of momentum normal to the z-coordinate surface
+ * @param[in] fac weighting factor for use in defining time-averaged momentum
+ * @param[out] avg_xmom x-component of time-averaged momentum defined in this routine
+ * @param[out] avg_ymom y-component of time-averaged momentum defined in this routine
+ * @param[out] avg_zmom z-component of time-averaged momentum defined in this routine
+ * @param[in] cell_prim primtive form of scalar variales, here only potential temperature theta
+ * @param[in] z_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor at cell centers
+ * @param[in] mf_u map factor at x-faces
+ * @param[in] mf_v map factor at y-faces
+ * @param[in] all_use_WENO whether all variables (or just moisture variables) use WENO advection scheme
+ * @param[in] spatial_order_WENO spatial order if using WENO (3,5, or 7)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
+ */
+
 void
 AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<Real>& advectionSrc,
@@ -281,6 +311,31 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         });
     }
 }
+
+/**
+ * Function for computing the advective tendency for the update equations for all scalars other than rho and (rho theta)
+ * This routine has explicit expressions for all cases (terrain or not) when
+ * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * functions when either (or both) spatial order(s) is greater than 2.
+ *
+ * @param[in] bx box over which the scalars are updated if no external boundary conditions
+ * @param[in] icomp component of first scalar to be updated
+ * @param[in] ncomp number of components to be updated
+ * @param[in] avg_xmom x-component of time-averaged momentum defined in this routine
+ * @param[in] avg_ymom y-component of time-averaged momentum defined in this routine
+ * @param[in] avg_zmom z-component of time-averaged momentum defined in this routine
+ * @param[in] cell_prim primtive form of scalar variales, here only potential temperature theta
+ * @param[out] advectionSrc tendency for the scalar update equation
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor at cell centers
+ * @param[in] all_use_WENO whether all variables use WENO advection scheme
+ * @param[in] moist_use_WENO whether moisture variables use WENO advection scheme
+ * @param[in] spatial_order_WENO spatial order if using WENO (3,5, or 7)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
+ */
 
 void
 AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,

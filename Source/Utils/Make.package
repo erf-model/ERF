@@ -12,8 +12,6 @@ CEXE_headers += Interpolation_WENO.H
 CEXE_sources += TerrainMetrics.cpp
 
 CEXE_headers += DirectionSelector.H
-CEXE_headers += PlaneAverage.H
-CEXE_headers += VelPlaneAverage.H
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp

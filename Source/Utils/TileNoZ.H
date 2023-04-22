@@ -3,7 +3,10 @@
 
 #include <AMReX.H>
 
-// This function returns explicit tile size that prevents tiling in z
+/**
+ * Function returns explicit tile size that prevents tiling in z
+ */
+
 AMREX_FORCE_INLINE
 amrex::IntVect TileNoZ()
 {

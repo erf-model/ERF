@@ -2,6 +2,10 @@
  * \file ERF.cpp
  */
 
+/**
+ * Main class in ERF code, instantiated from main.cpp
+*/
+
 #include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>

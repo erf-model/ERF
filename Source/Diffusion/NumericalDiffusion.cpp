@@ -8,7 +8,7 @@ using namespace amrex;
  * @param bx box to loop over
  * @param start_comp staring component index
  * @param num_comp number of total components
- * @param solverChoic container with solver parameters
+ * @param solverChoice container with solver parameters
  * @param data variables used to compute RHS
  * @param rhs stor the right hand side
  * @param mf_x map factor at x-face
