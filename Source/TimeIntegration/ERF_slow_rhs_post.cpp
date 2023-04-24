@@ -28,10 +28,10 @@ using namespace amrex;
  * @param[in]  yvel y-component of velocity
  * @param[in]  zvel z-component of velocity
  * @param[in] source source terms for conserved variables
- * @param[in] SmnSmn SmnSmn
+ * @param[in] SmnSmn magnitude of strain rate
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
- * @param[in] Hfx3
- * @param[in] Diss
+ * @param[in] Hfx3 z-dir heat flux
+ * @param[in] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom   Container for geometric informaiton
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition

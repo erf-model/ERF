@@ -5,18 +5,18 @@ using namespace amrex;
 /**
  * Function for computing the stress with constant viscosity and without terrain.
  *
- * @param bxcc cell center box for tau_ii
- * @param tbxxy nodal xy box for tau_12
- * @param tbxxz nodal xz box for tau_13
- * @param tbxyz nodal yz box for tau_23
- * @param mu_eff constant molecular viscosity
- * @param tau11 hold 11 strain
- * @param tau22 hold 22 strain
- * @param tau33 hold 33 strain
- * @param tau12 hold 12 strain
- * @param tau13 hold 13 strain
- * @param tau23 hold 23 strain
- * @param er_arr expansion rate
+ * @param[in]  bxcc cell center box for tau_ii
+ * @param[in]  tbxxy nodal xy box for tau_12
+ * @param[in]  tbxxz nodal xz box for tau_13
+ * @param[in]  tbxyz nodal yz box for tau_23
+ * @param[in]  mu_eff constant molecular viscosity
+ * @param[out] tau11 11 stress
+ * @param[out] tau22 22 stress
+ * @param[out] tau33 33 stress
+ * @param[out] tau12 12 stress
+ * @param[out] tau13 13 stress
+ * @param[out] tau23 23 stress
+ * @param[in]  er_arr expansion rate
  */
 void
 ComputeStressConsVisc_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -51,19 +51,19 @@ ComputeStressConsVisc_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 /**
  * Function for computing the stress with variable viscosity and without terrain.
  *
- * @param bxcc cell center box for tau_ii
- * @param tbxxy nodal xy box for tau_12
- * @param tbxxz nodal xz box for tau_13
- * @param tbxyz nodal yz box for tau_23
- * @param mu_eff constant molecular viscosity
- * @param mu_turb variable turbulent viscosity
- * @param tau11 hold 11 strain
- * @param tau22 hold 22 strain
- * @param tau33 hold 33 strain
- * @param tau12 hold 12 strain
- * @param tau13 hold 13 strain
- * @param tau23 hold 23 strain
- * @param er_arr expansion rate
+ * @param[in]  bxcc cell center box for tau_ii
+ * @param[in]  tbxxy nodal xy box for tau_12
+ * @param[in]  tbxxz nodal xz box for tau_13
+ * @param[in]  tbxyz nodal yz box for tau_23
+ * @param[in]  mu_eff constant molecular viscosity
+ * @param[in] mu_turb variable turbulent viscosity
+ * @param[out] tau11 11 stress
+ * @param[out] tau22 22 stress
+ * @param[out] tau33 33 stress
+ * @param[out] tau12 12 stress
+ * @param[out] tau13 13 stress
+ * @param[out] tau23 23 stress
+ * @param[in]  er_arr expansion rate
  */
 void
 ComputeStressVarVisc_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,

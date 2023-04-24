@@ -5,24 +5,24 @@ using namespace amrex;
 /**
  * Function for computing the strain rates without terrain.
  *
- * @param bxcc cell center box for tau_ii
- * @param tbxxy nodal xy box for tau_12
- * @param tbxxz nodal xz box for tau_13
- * @param tbxyz nodal yz box for tau_23
- * @param u x-direction velocity
- * @param v y-direction velocity
- * @param w z-direction velocity
- * @param tau11 hold 11 strain
- * @param tau22 hold 22 strain
- * @param tau33 hold 33 strain
- * @param tau12 hold 12 strain
- * @param tau13 hold 13 strain
- * @param tau23 hold 23 strain
- * @param bc_ptr container with boundary condition types
- * @param dxInv inverse cell size array
- * @param mf_m map factor at cell center
- * @param mf_u map factor at x-face
- * @param mf_v map factor at y-face
+ * @param[in] bxcc cell center box for tau_ii
+ * @param[in] tbxxy nodal xy box for tau_12
+ * @param[in] tbxxz nodal xz box for tau_13
+ * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] u x-direction velocity
+ * @param[in] v y-direction velocity
+ * @param[in] w z-direction velocity
+ * @param[out] tau11 11 strain
+ * @param[out] tau22 22 strain
+ * @param[out] tau33 33 strain
+ * @param[out] tau12 12 strain
+ * @param[out] tau13 13 strain
+ * @param[out] tau23 23 strain
+ * @param[in] bc_ptr container with boundary condition types
+ * @param[in] dxInv inverse cell size array
+ * @param[in] mf_m map factor at cell center
+ * @param[in] mf_u map factor at x-face
+ * @param[in] mf_v map factor at y-face
  */
 void
 ComputeStrain_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
