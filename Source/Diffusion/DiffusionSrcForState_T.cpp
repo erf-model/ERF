@@ -8,32 +8,32 @@ using namespace amrex;
 /**
  * Function for computing the scalar RHS for diffusion operator without terrain.
  *
- * @param bx cell center box to loop over
- * @param domain box of the whole domain
- * @param start_comp starting component index
- * @param num_comp number of components
- * @param u velocity in x-dir
- * @param v velocity in y-dir
- * @param cell_data conserved cell center vars
- * @param cell_prim primitive cell center vars
- * @param cell_rhs RHS for cell center vars
- * @param xflux flux in x-dir
- * @param yflux flux in y-dir
- * @param zflux flux in z-dir
- * @param z_nd physical z height
- * @param detJ Jacobian determinant
- * @param cellSizeInv inverse cell size array
- * @param SmnSmn_a strain rate magnitude
- * @param mf_m map factor at cell center
- * @param mf_u map factor at x-face
- * @param mf_v map factor at y-face
- * @param hfx_z heat flux in z-dir
- * @param diss dissipation of TKE
- * @param mu_turb turbulent viscosity
- * @param solverChoice container of solver params
- * @param tm_arr theta mean array
- * @param grav_gpu gravity vector
- * @param bc_ptr container with boundary conditions
+ * @param[in]  bx cell center box to loop over
+ * @param[in]  domain box of the whole domain
+ * @param[in]  start_comp starting component index
+ * @param[in]  num_comp number of components
+ * @param[in]  u velocity in x-dir
+ * @param[in]  v velocity in y-dir
+ * @param[in]  cell_data conserved cell center vars
+ * @param[in]  cell_prim primitive cell center vars
+ * @param[out] cell_rhs RHS for cell center vars
+ * @param[in]  xflux flux in x-dir
+ * @param[in]  yflux flux in y-dir
+ * @param[in]  zflux flux in z-dir
+ * @param[in]  z_nd physical z height
+ * @param[in]  detJ Jacobian determinant
+ * @param[in]  cellSizeInv inverse cell size array
+ * @param[in]  SmnSmn_a strain rate magnitude
+ * @param[in]  mf_m map factor at cell center
+ * @param[in]  mf_u map factor at x-face
+ * @param[in]  mf_v map factor at y-face
+ * @param[in]  hfx_z heat flux in z-dir
+ * @param[in]  diss dissipation of TKE
+ * @param[in]  mu_turb turbulent viscosity
+ * @param[in]  solverChoice container of solver params
+ * @param[in]  tm_arr theta mean array
+ * @param[in]  grav_gpu gravity vector
+ * @param[in]  bc_ptr container with boundary conditions
  */
 void
 DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,

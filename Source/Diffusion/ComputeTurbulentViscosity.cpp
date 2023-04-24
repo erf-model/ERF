@@ -20,22 +20,22 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 /**
  * Function for computing the turbulent viscosity with LES.
  *
- * @param Tau11 holds 11 strain
- * @param Tau22 holds 22 strain
- * @param Tau33 holds 33 strain
- * @param Tau12 holds 12 strain
- * @param Tau13 holds 13 strain
- * @param Tau23 holds 23 strain
- * @param cons_in cell center conserved quantities
- * @param eddyViscosity holds turbulent viscosity
- * @param Hfx1 heat flux in x-dir
- * @param Hfx2 heat flux in y-dir
- * @param Hfx3 heat flux in z-dir
- * @param Diss dissipation rate of TKE
- * @param geom problem geometry
- * @param mapfac_u map factor at x-face
- * @param mapfac_v map factor at y-face
- * @param solverChoice container with solver parameters
+ * @param[in]  Tau11 11 strain
+ * @param[in]  Tau22 22 strain
+ * @param[in]  Tau33 33 strain
+ * @param[in]  Tau12 12 strain
+ * @param[in]  Tau13 13 strain
+ * @param[in]  Tau23 23 strain
+ * @param[in]  cons_in cell center conserved quantities
+ * @param[out] eddyViscosity turbulent viscosity
+ * @param[in]  Hfx1 heat flux in x-dir
+ * @param[in]  Hfx2 heat flux in y-dir
+ * @param[in]  Hfx3 heat flux in z-dir
+ * @param[in]  Diss dissipation rate of TKE
+ * @param[in]  geom problem geometry
+ * @param[in]  mapfac_u map factor at x-face
+ * @param[in]  mapfac_v map factor at y-face
+ * @param[in]  solverChoice container with solver parameters
  */
 void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                    const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
@@ -340,26 +340,26 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 /**
  * Wrapper to compute turbulent viscosity with LES or PBL.
  *
- * @param xvel velocity in x-dir
- * @param yvel velocity in y-dir
- * @param Tau11 holds 11 strain
- * @param Tau22 holds 22 strain
- * @param Tau33 holds 33 strain
- * @param Tau12 holds 12 strain
- * @param Tau13 holds 13 strain
- * @param Tau23 holds 23 strain
- * @param cons_in cell center conserved quantities
- * @param eddyViscosity holds turbulent viscosity
- * @param Hfx1 heat flux in x-dir
- * @param Hfx2 heat flux in y-dir
- * @param Hfx3 heat flux in z-dir
- * @param Diss dissipation rate of TKE
- * @param geom problem geometry
- * @param mapfac_u map factor at x-face
- * @param mapfac_v map factor at y-face
- * @param solverChoice container with solver parameters
- * @param most pointer to Monin-Obukhov class if instantiated
- * @param vert_only flag for vertical components of eddyViscosity
+ * @param[in]  xvel velocity in x-dir
+ * @param[in]  yvel velocity in y-dir
+ * @param[in]  Tau11 11 strain
+ * @param[in]  Tau22 22 strain
+ * @param[in]  Tau33 33 strain
+ * @param[in]  Tau12 12 strain
+ * @param[in]  Tau13 13 strain
+ * @param[in]  Tau23 23 strain
+ * @param[in]  cons_in cell center conserved quantities
+ * @param[out] eddyViscosity turbulent viscosity
+ * @param[in]  Hfx1 heat flux in x-dir
+ * @param[in]  Hfx2 heat flux in y-dir
+ * @param[in]  Hfx3 heat flux in z-dir
+ * @param[in]  Diss dissipation rate of TKE
+ * @param[in]  geom problem geometry
+ * @param[in]  mapfac_u map factor at x-face
+ * @param[in]  mapfac_v map factor at y-face
+ * @param[in]  solverChoice container with solver parameters
+ * @param[in]  most pointer to Monin-Obukhov class if instantiated
+ * @param[in]  vert_only flag for vertical components of eddyViscosity
  */
 void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
                                 const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,

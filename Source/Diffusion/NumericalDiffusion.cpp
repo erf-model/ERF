@@ -5,16 +5,16 @@ using namespace amrex;
 /**
  * Function to compute 6th order numerical diffusion RHS.
  *
- * @param bx box to loop over
- * @param start_comp staring component index
- * @param num_comp number of total components
- * @param solverChoice container with solver parameters
- * @param data variables used to compute RHS
- * @param rhs stor the right hand side
- * @param mf_x map factor at x-face
- * @param mf_y map factor at y-face
- * @param avg_mf_x_y flag to average map factor x in y-dir
- * @param avg_mf_y_x flag to average map factor y in x-dir
+ * @param[in]  bx box to loop over
+ * @param[in]  start_comp staring component index
+ * @param[in]  num_comp number of total components
+ * @param[in]  solverChoice container with solver parameters
+ * @param[in]  data variables used to compute RHS
+ * @param[out] rhs stor the right hand side
+ * @param[in]  mf_x map factor at x-face
+ * @param[in]  mf_y map factor at y-face
+ * @param[in]  avg_mf_x_y flag to average map factor x in y-dir
+ * @param[in]  avg_mf_y_x flag to average map factor y in x-dir
  */
 void
 NumericalDiffusion (const Box& bx,
