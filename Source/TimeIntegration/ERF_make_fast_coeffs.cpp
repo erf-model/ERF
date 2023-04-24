@@ -7,6 +7,23 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the coefficients for the tridiagonal solver used in the fast
+ * integrator (the acoustic substepping).
+ *
+ * @param[in]  level level of refinement
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
+ * @param[in]  S_stage_data solution at the last stage
+ * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
+ * @param[in]  pi_stage Exner function at the last stage
+ * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  r0     Reference (hydrostatically stratified) density
+ * @param[in]  pi0     Reference (hydrostatically stratified) Exner function
+ * @param[in]  dtau    Fast time step
+ */
+
 void make_fast_coeffs (int /*level*/,
                        BoxArray& grids_to_evolve,
                        MultiFab& fast_coeffs,

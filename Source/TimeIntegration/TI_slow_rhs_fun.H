@@ -1,8 +1,8 @@
 #include "prob_common.H"
 
-    // *************************************************************
-    // The "slow" integrator for MRI and the only integrator for SRI
-    // *************************************************************
+/**
+ *  Wrapper for calling the routine that creates the slow RHS
+ */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,

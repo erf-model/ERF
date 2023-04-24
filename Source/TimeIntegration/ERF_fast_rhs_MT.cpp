@@ -12,6 +12,38 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the fast RHS with moving terrain
+ *
+ * @param[in]  step  which fast time step
+ * @param[in]  level level of resolution
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out]  S_slow_rhs RHS computed here
+ * @param[in]  S_prev previous solution
+ * @param[in]  S_stg_data solution            at previous RK stage
+ * @param[in]  S_stg_prim primitive variables at previous RK stage
+ * @param[in]  pi_stage   Exner function      at previous RK stage
+ * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in]  S_data current solution
+ * @param[in]  S_scratch scratch space
+ * @param[in]  geom container for geometric information
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  Omega component of the momentum normal to the z-coordinate surface
+ * @param[in]  z_t_rk rate of change of grid height -- only relevant for moving terrain
+ * @param[in]  z_t_pert rate of change of grid height -- interpolated between RK stages
+ * @param[in] z_phys_nd_old height coordinate at nodes at old time
+ * @param[in] z_phys_nd_new height coordinate at nodes at new time
+ * @param[in] z_phys_nd_stg height coordinate at nodes at previous stage
+ * @param[in] detJ_cc_old Jacobian of the metric transformation at old time
+ * @param[in] detJ_cc_new Jacobian of the metric transformation at new time
+ * @param[in] detJ_cc_stg Jacobian of the metric transformation at previous stage
+ * @param[in]  dtau fast time step
+ * @param[in]  facinv inverse factor for time-averaging the momenta
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ */
+
 void erf_fast_rhs_MT (int step, int /*level*/,
                       BoxArray& grids_to_evolve,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
