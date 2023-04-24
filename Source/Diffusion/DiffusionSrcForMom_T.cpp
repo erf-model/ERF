@@ -4,6 +4,30 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the momentum RHS for diffusion operator with terrain.
+ *
+ * @param bxx nodal x box for x-mom
+ * @param bxy nodal y box for y-mom
+ * @param bxz nodal z box for z-mom
+ * @param rho_u_rhs RHS for x-mom
+ * @param rho_v_rhs RHS for y-mom
+ * @param rho_w_rhs RHS for z-mom
+ * @param tau11 hold 11 strain
+ * @param tau22 hold 22 strain
+ * @param tau33 hold 33 strain
+ * @param tau12 hold 12 strain
+ * @param tau13 hold 13 strain
+ * @param tau21 hold 21 strain
+ * @param tau23 hold 23 strain
+ * @param tau31 hold 31 strain
+ * @param tau32 hold 32 strain
+ * @param cons conserved cell center quantities
+ * @param detJ Jacobian determinant
+ * @param solverChoice container with solver parameters
+ * @param dxInv inverse cell size array
+ * @param mf_m map factor at cell center
+ */
 void
 DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
                       const Array4<Real>& rho_u_rhs  ,

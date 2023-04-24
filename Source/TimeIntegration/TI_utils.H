@@ -84,9 +84,8 @@
 
             // Here we don't use include any of the ghost region because we have only updated
             //      momentum on valid faces
-            MomentumToVelocity(grids_to_evolve[level],
-                               xvel_new, yvel_new, zvel_new,
-                               S_data[IntVar::cons],
+            MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
+            MomentumToVelocity(xvel_new, yvel_new, zvel_new, density,
                                S_data[IntVar::xmom],
                                S_data[IntVar::ymom],
                                S_data[IntVar::zmom]);
@@ -137,11 +136,11 @@
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
-        VelocityToMomentum(grids_to_evolve[level],
-                           xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
+        MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
+        VelocityToMomentum(xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            yvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            zvel_new, IntVect(ng_vel,ng_vel,0),
-                           S_data[IntVar::cons],
+                           density,
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
                            S_data[IntVar::zmom],

@@ -120,6 +120,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/MomentumToVelocity.cpp
        ${SRC_DIR}/Utils/TerrainMetrics.cpp
        ${SRC_DIR}/Utils/VelocityToMomentum.cpp
+       ${SRC_DIR}/Utils/InteriorGhostCells.cpp 
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")

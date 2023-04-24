@@ -193,11 +193,11 @@ void ERF::erf_advance(int level,
     // ***********************************************************************************************
     {
     BL_PROFILE("pre_set_up_mri");
-    VelocityToMomentum(grids_to_evolve[level],
-                       xvel_old, xvel_old.nGrowVect(),
+    MultiFab density(state_old[IntVar::cons], make_alias, Rho_comp, 1);
+    VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
                        yvel_old, yvel_old.nGrowVect(),
                        zvel_old, zvel_old.nGrowVect(),
-                       state_old[IntVar::cons],
+                       density,
                        state_old[IntVar::xmom],
                        state_old[IntVar::ymom],
                        state_old[IntVar::zmom],

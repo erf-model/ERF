@@ -8,6 +8,11 @@
 
 using namespace amrex;
 
+/**
+ * Initialization function for host and device vectors
+ * used to store averaged quantities when calculating
+ * the effects of Rayleigh Damping.
+ */
 void
 ERF::initRayleigh()
 {
@@ -55,6 +60,13 @@ ERF::initRayleigh()
     }
 }
 
+/**
+ * Sets the Rayleigh Damping averaged quantities from an
+ * externally supplied input sounding data file.
+ *
+ * @param restarting Boolean parameter that indicates whether
+ *                   we are currently restarting from a checkpoint file.
+ */
 void
 ERF::setRayleighRefFromSounding(bool restarting)
 {
@@ -106,6 +118,10 @@ ERF::setRayleighRefFromSounding(bool restarting)
     }
 }
 
+/**
+ * Initialize density and pressure base state in
+ * hydrostatic equilibrium.
+ */
 void
 ERF::initHSE()
 {
@@ -121,7 +137,16 @@ ERF::initHSE()
     }
 }
 
-//terrain
+/**
+ * Enforces hydrostatic equilibrium when using terrain.
+ *
+ * @param lev  Integer specifying the current level
+ * @param dens MultiFab storing density
+ * @param pres MultiFab storing pressure
+ * @param pi   MultiFab storing pressure perturbation
+ * @param z_cc Pointer to MultiFab storing cell centered z-coordinates
+ * @param z_nd Pointer to MultiFab storing node centered z-coordinates
+ */
 void
 ERF::erf_enforce_hse(int lev,
                      MultiFab& dens, MultiFab& pres, MultiFab& pi,

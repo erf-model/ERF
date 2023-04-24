@@ -56,6 +56,9 @@
 class MultiBlockContainer;
 #endif
 
+/**
+ * Enum of possible coarse/fine interpolation options
+*/
 namespace InterpType {
     enum {
         PCInterp = 0,
@@ -68,10 +71,9 @@ namespace InterpType {
     };
 }
 
-template<typename V, typename T>
-bool containerHasElement(const V& iterable, const T& query) {
-    return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
-}
+/**
+ * Main class in ERF code, instantiated from main.cpp
+*/
 
 class ERF
     : public amrex::AmrCore
@@ -244,9 +246,9 @@ public:
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile(const int lev,
-                             const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc,
-                             const amrex::Real time);
+    void writeToNCColumnFile(int lev,
+                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
+                             amrex::Real time);
 #endif //ERF_USE_NETCDF
 
     void init_from_input_sounding(int lev);
@@ -282,7 +284,7 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           const amrex::Real time);
+                           amrex::Real time);
 #endif
 
 private:
@@ -373,8 +375,8 @@ private:
     //! Write plotfile using NETCDF
     void writeNCPlotFile(int lev, int which, const std::string& dir,
                          const amrex::Vector<const amrex::MultiFab*> &mf,
-                         const amrex::Vector<std::string> &varnames,
-                         const amrex::Vector<int> level_steps, const amrex::Real time) const;
+                         const amrex::Vector<std::string> &plot_var_names,
+                         const amrex::Vector<int>& level_steps, amrex::Real time) const;
 
     //! Write checkpointFile using NetCdf
     void WriteNCCheckpointFile () const;
@@ -383,19 +385,19 @@ private:
     void ReadNCCheckpointFile ();
 
     //! Write MultiFab in NetCDF format
-    void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
+    static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
                           const std::string& name,
-                          bool set_ghost = false) const;
+                          bool set_ghost = false) ;
 
     //! Read MultiFab in NetCDF format
-    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &fab,
+    void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &mf,
                          const std::string &name,
                          int coordinatorProc = amrex::ParallelDescriptor::IOProcessorNumber(),
                          int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
-    void createNCColumnFile(const int lev,
-                            const std::string& colfile_name, const amrex::Real xloc, const amrex::Real yloc);
+    void createNCColumnFile(int lev,
+                            const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
 
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
@@ -648,6 +650,7 @@ private:
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
     int wrfbdy_width;
+    int wrfbdy_set_width{1};
 
     // Text input_sounding file
     static std::string input_sounding_file;
@@ -724,11 +727,11 @@ private:
     int
     ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
                       const int& spatial_order_WENO,  const bool& use_WENO,
-                      const bool& use_numerical_diff) {
-      int nGhostCells;
-
+                      const bool& use_numerical_diff)
+    {
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
 
+      int nGhostCells = 0;
       if (use_numerical_diff) {
           nGhostCells = 3;
       } else if(use_WENO) {

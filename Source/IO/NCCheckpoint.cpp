@@ -4,6 +4,9 @@
 
 using namespace amrex;
 
+/**
+ * Writes a checkpoint file in NetCDF format
+ */
 void
 ERF::WriteNCCheckpointFile () const
 {
@@ -84,7 +87,7 @@ ERF::WriteNCCheckpointFile () const
        for (auto lev{0}; lev <= finest_level; ++lev) {
            auto box_array = boxArray(lev);
            for (int nb(0); nb < box_array.size(); ++nb) {
-              long unsigned int nbb = static_cast<long unsigned int>(nb);
+              auto nbb = static_cast<long unsigned int>(nb);
               auto box = box_array[nb];
               ncf.var(lo_names[lev][nb] ).put(box.smallEnd().begin(), {nbb, 0}, {1, AMREX_SPACEDIM});
               ncf.var(hi_names[lev][nb] ).put(box.bigEnd().begin()  , {nbb, 0}, {1, AMREX_SPACEDIM});
@@ -115,9 +118,9 @@ ERF::WriteNCCheckpointFile () const
    }
 }
 
-//
-// read NetCDF checkpoint to restart ERF
-//
+/**
+ * Read NetCDF checkpoint to restart ERF
+ */
 void
 ERF::ReadNCCheckpointFile ()
 {

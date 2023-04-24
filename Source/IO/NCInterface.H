@@ -42,10 +42,10 @@ struct NCDim
     const int dimid;
 
     //! Name of this dimension
-    std::string name() const;
+    [[nodiscard]] std::string name() const;
 
     //! Length of this dimension
-    size_t len() const;
+    [[nodiscard]] size_t len() const;
 };
 
 //! Representation of a NetCDF variable
@@ -58,13 +58,13 @@ struct NCVar
     const int varid;
 
     //! Name of this variable
-    std::string name() const;
+    [[nodiscard]] std::string name() const;
 
     //! Number of array dimensions for this variable
-    int ndim() const;
+    [[nodiscard]] int ndim() const;
 
     //! Shape of the array (size in each array dimension)
-    std::vector<size_t> shape() const;
+    [[nodiscard]] std::vector<size_t> shape() const;
 
     //! Write out the entire variable
     void put(const double*) const;
@@ -159,7 +159,7 @@ struct NCVar
         const std::vector<size_t>&,
         const std::vector<ptrdiff_t>&) const;
 
-    bool has_attr(const std::string& name) const;
+    [[nodiscard]] bool has_attr(const std::string& name) const;
     void put_attr(const std::string& name, const std::string& value) const;
     void
     put_attr(const std::string& name, const std::vector<double>& value) const;
@@ -167,11 +167,11 @@ struct NCVar
     put_attr(const std::string& name, const std::vector<float>& value) const;
     void put_attr(const std::string& name, const std::vector<int>& value) const;
 
-    std::string get_attr(const std::string& name) const;
+    [[nodiscard]] std::string get_attr(const std::string& name) const;
     void get_attr(const std::string& name, std::vector<double>& value) const;
     void get_attr(const std::string& name, std::vector<float>& value) const;
     void get_attr(const std::string& name, std::vector<int>& value) const;
-    void par_access(const int cmode) const; //Uncomment for parallel NetCDF
+    void par_access(int cmode) const; //Uncomment for parallel NetCDF
 };
 
 //! Representation of a NetCDF group
@@ -182,64 +182,64 @@ public:
     const int ncid;
 
     //! Name of this group
-    std::string name() const;
+    [[nodiscard]] std::string name() const;
 
     //! Full name for this group
-    std::string full_name() const;
+    [[nodiscard]] std::string full_name() const;
 
     //! Number of sub-groups within this group
-    int num_groups() const;
+    [[nodiscard]] int num_groups() const;
 
     //! Number of dimensions in this group
-    int num_dimensions() const;
+    [[nodiscard]] int num_dimensions() const;
 
     //! Number of variables within this group
-    int num_variables() const;
+    [[nodiscard]] int num_variables() const;
 
     //! Number of attributes within this group
-    int num_attributes() const;
+    [[nodiscard]] int num_attributes() const;
 
     //! Check if a group exists
-    bool has_group(const std::string&) const;
+    [[nodiscard]] bool has_group(const std::string&) const;
 
     //! Check if a dimension exists by name
-    bool has_dim(const std::string&) const;
+    [[nodiscard]] bool has_dim(const std::string&) const;
 
     //! Check if a variable exists by name
-    bool has_var(const std::string&) const;
+    [[nodiscard]] bool has_var(const std::string&) const;
 
     //! Check if an attribute exists
-    bool has_attr(const std::string&) const;
+    [[nodiscard]] bool has_attr(const std::string&) const;
 
     /** Get the group by name
      *
      *  Throws error if the group doesn't exist, use `has_group` to check
      */
-    NCGroup group(const std::string&) const;
+    [[nodiscard]] NCGroup group(const std::string&) const;
 
     //! Get the dimension instance by name
-    NCDim dim(const std::string&) const;
+    [[nodiscard]] NCDim dim(const std::string&) const;
 
     //! Get the variable instance by name
-    NCVar var(const std::string&) const;
+    [[nodiscard]] NCVar var(const std::string&) const;
 
     //! Define new group
-    NCGroup def_group(const std::string&) const;
+    [[nodiscard]] NCGroup def_group(const std::string&) const;
 
     //! Define new dimension
-    NCDim def_dim(const std::string&, const size_t len) const;
+    [[nodiscard]] NCDim def_dim(const std::string&, size_t len) const;
 
     //! Define a scalar variable, i.e., 0-dimensional array
-    NCVar def_scalar(const std::string& name, const nc_type dtype) const;
+    [[nodiscard]] NCVar def_scalar(const std::string& name, nc_type dtype) const;
 
     //! Define an array
-    NCVar def_array(
+    [[nodiscard]] NCVar def_array(
         const std::string& name,
-        const nc_type dtype,
+        nc_type dtype,
         const std::vector<std::string>&) const;
 
     //! Define a variable (wrapper for def_array)
-    NCVar def_var(
+    [[nodiscard]] NCVar def_var(
         const std::string& name,
         const nc_type dtype,
         const std::vector<std::string>& dnames) const
@@ -252,19 +252,19 @@ public:
     void put_attr(const std::string& name, const std::vector<float>& value) const;
     void put_attr(const std::string& name, const std::vector<int>& value) const;
 
-    std::string get_attr(const std::string& name) const;
+    [[nodiscard]] std::string get_attr(const std::string& name) const;
     void get_attr(const std::string& name, std::vector<double>& value) const;
     void get_attr(const std::string& name, std::vector<float>& value) const;
     void get_attr(const std::string& name, std::vector<int>& value) const;
 
     //! Return a list of all groups defined in this group
-    std::vector<NCGroup> all_groups() const;
+    [[nodiscard]] std::vector<NCGroup> all_groups() const;
 
     //! Return a list of all dimensions defined in this group
-    std::vector<NCDim> all_dims() const;
+    [[nodiscard]] std::vector<NCDim> all_dims() const;
 
     //! Return a list of all variables defined in this group
-    std::vector<NCVar> all_vars() const;
+    [[nodiscard]] std::vector<NCVar> all_vars() const;
 
     //! Enter definition mode (not needed for NetCDF4 format)
     void enter_def_mode() const;

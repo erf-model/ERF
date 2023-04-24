@@ -26,7 +26,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
-                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3, MultiFab* Diss,
+                        MultiFab* Hfx3, MultiFab* Diss,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
@@ -112,8 +112,10 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 
+        const Box& tbx = mfi.tilebox();
+
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        Box bx = tbx & valid_bx;
 
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
@@ -135,7 +137,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
-        const Array4<const Real> & w = zvel.array(mfi);
 
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
@@ -201,8 +202,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             Array4<Real> diffflux_y = dflux_y->array(mfi);
             Array4<Real> diffflux_z = dflux_z->array(mfi);
 
-            Array4<Real> hfx_x = Hfx1->array(mfi);
-            Array4<Real> hfx_y = Hfx2->array(mfi);
             Array4<Real> hfx_z = Hfx3->array(mfi);
             Array4<Real> diss  = Diss->array(mfi);
 
@@ -212,22 +211,22 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 start_comp = RhoKE_comp;
                   num_comp = 1;
                 if (l_use_terrain) {
-                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
+                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_x, hfx_y, hfx_z, diss,
+                                           hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 } else {
-                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
+                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_x, hfx_y, hfx_z, diss,
+                                           hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
@@ -235,48 +234,51 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 start_comp = RhoQKE_comp;
                   num_comp = 1;
                 if (l_use_terrain) {
-                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
+                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_x, hfx_y, hfx_z, diss,
+                                           hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 } else {
-                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
+                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                           hfx_x, hfx_y, hfx_z, diss,
+                                           hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
             start_comp = RhoScalar_comp;
               num_comp = S_data[IntVar::cons].nComp() - start_comp;
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v, w,
+                DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_x, hfx_y, hfx_z, diss,
+                                       hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
-                DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v, w,
+                DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_x, hfx_y, hfx_z, diss,
+                                       hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
             if (l_use_ndiff) {
-                NumericalDiffusion(valid_bx, start_comp, num_comp, dt, solverChoice,
+                NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
                                    new_cons, cell_rhs, mf_u, mf_v, false, false);
             }
         }
 
+        // NOTE: Computing the RHS is done over bx (union w/ grids to evolve).
+        //       However, the update is over tbx (no union). The interior ghost
+        //       cells have their RHS populated already.
 
         // This updates just the "slow" conserved variables
         {
@@ -286,7 +288,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         {
             auto const& src_arr = source.const_array(mfi);
             num_comp = S_data[IntVar::cons].nComp() - start_comp;
-            ParallelFor(bx, num_comp,
+            ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -297,7 +299,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
               num_comp   = 1;
-              ParallelFor(bx, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -308,7 +310,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
               num_comp   = 1;
-              ParallelFor(bx, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -319,7 +321,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         } else {
             auto const& src_arr = source.const_array(mfi);
             num_comp = S_data[IntVar::cons].nComp() - start_comp;
-            ParallelFor(bx, num_comp,
+            ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -331,7 +333,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
               start_comp = RhoKE_comp;
               num_comp = 1;
               amrex::Real eps = std::numeric_limits<Real>::epsilon();
-              ParallelFor(bx, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -343,7 +345,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
               num_comp   = 1;
-              ParallelFor(bx, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -357,15 +359,15 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         BL_PROFILE("rhs_post_9");
         // This updates all the conserved variables (not just the "slow" ones)
         int   num_comp_all = S_data[IntVar::cons].nComp();
-        ParallelFor(bx, num_comp_all,
+        ParallelFor(tbx, num_comp_all,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             new_cons(i,j,k,n)  = cur_cons(i,j,k,n);
         });
         } // end profile
 
-        Box gtbx = mfi.growntilebox(S_old[IntVar::xmom].nGrowVect()); gtbx & valid_bx; gtbx.surroundingNodes(0);
-        Box gtby = mfi.growntilebox(S_old[IntVar::ymom].nGrowVect()); gtby & valid_bx; gtby.surroundingNodes(1);
-        Box gtbz = mfi.growntilebox(S_old[IntVar::zmom].nGrowVect()); gtbz & valid_bx; gtbz.surroundingNodes(2);
+        Box gtbx = mfi.tilebox(IntVect(1,0,0),S_old[IntVar::xmom].nGrowVect());
+        Box gtby = mfi.tilebox(IntVect(0,1,0),S_old[IntVar::ymom].nGrowVect());
+        Box gtbz = mfi.tilebox(IntVect(0,0,1),S_old[IntVar::zmom].nGrowVect());
 
         {
         BL_PROFILE("rhs_post_10()");

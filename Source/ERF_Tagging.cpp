@@ -2,9 +2,14 @@
 
 using namespace amrex;
 
-//
-// Tag cells for refinement -- this overrides the pure virtual function in AmrCore
-//
+/**
+ * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
+ *
+ * @param[in] level level of refinement (0 is coarsest leve)
+ * @param[out] tags array of tagged cells
+ * @param[in] time current time
+*/
+
 void
 ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
@@ -18,6 +23,10 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
         ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
   }
 }
+
+/**
+ * Function to define the refinement criteria based on user input
+*/
 
 void
 ERF::refinement_criteria_setup()

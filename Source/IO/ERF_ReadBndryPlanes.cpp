@@ -8,7 +8,9 @@
 
 using namespace amrex;
 
-//! Return closest index (from lower) of value in vector
+/**
+ * Return closest index (from lower) of value in vector
+ */
 AMREX_FORCE_INLINE int
 closest_index(const Vector<Real>& vec, const Real value)
 {
@@ -19,7 +21,9 @@ closest_index(const Vector<Real>& vec, const Real value)
     return std::max(idx - 1, 0);
 }
 
-//! Return offset vector
+/**
+ * Return offset vector
+ */
 AMREX_FORCE_INLINE IntVect offset(const int face_dir, const int normal)
 {
     IntVect offset(IntVect::TheDimensionVector(normal));
@@ -31,6 +35,10 @@ AMREX_FORCE_INLINE IntVect offset(const int face_dir, const int normal)
     return offset;
 }
 
+/**
+ * Function in ReadBndryPlanes class for allocating space
+ * for the boundary plane data ERF will need.
+ */
 void ReadBndryPlanes::define_level_data(int /*lev*/)
 {
     amrex::Print() << "ReadBndryPlanes::define_level_data" << std::endl;
@@ -65,6 +73,12 @@ void ReadBndryPlanes::define_level_data(int /*lev*/)
     }
 }
 
+/**
+ * Function in ReadBndryPlanes class for interpolating boundary
+ * data in time.
+ *
+ * @param time Constant specifying the time for interpolation
+ */
 Vector<std::unique_ptr<PlaneVector>>&
 ReadBndryPlanes::interp_in_time(const Real& time)
 {
@@ -116,6 +130,12 @@ ReadBndryPlanes::interp_in_time(const Real& time)
     return m_data_interp;
 }
 
+/**
+ * ReadBndryPlanes class constructor. Handles initialization from inputs file parameters.
+ *
+ * @param geom Geometry for the domain
+ * @param rdOcp_in Real constant for the Rhydberg constant ($R_d$) divided by the specific heat at constant pressure ($c_p$)
+ */
 ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
 :
     m_geom(geom),
@@ -180,6 +200,10 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
     m_data_interp.resize(size);
 }
 
+/**
+ * Function in ReadBndryPlanes class for reading the external file
+ * specifying time data and broadcasting this data across MPI ranks.
+ */
 void ReadBndryPlanes::read_time_file()
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_time_file");
@@ -242,6 +266,14 @@ void ReadBndryPlanes::read_time_file()
     amrex::Print() << "Successfully read time file and allocated data" << std::endl;
 }
 
+/**
+ * Function in ReadBndryPlanes for reading boundary data
+ * at a specific time and at the next timestep from input files.
+ *
+ * @param time Current time
+ * @param dt Current timestep
+ * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
+ */
 void ReadBndryPlanes::read_input_files(Real time, Real dt,
     Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
 {
@@ -307,6 +339,14 @@ void ReadBndryPlanes::read_input_files(Real time, Real dt,
     AMREX_ASSERT(time+dt >= m_tn && time+dt <= m_tnp2);
 }
 
+/**
+ * Function in ReadBndryPlanes to read boundary data for each face and variable
+ * from files.
+ *
+ * @param idx Specifies the index corresponding to the timestep we want
+ * @param data_to_fill Container for face data on boundaries
+ * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
+ */
 void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
     Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
 {
