@@ -5,6 +5,9 @@
 
 using namespace amrex;
 
+/**
+ * Compute Cloud-related Microphysics quantities.
+ */
 void Microphysics::Cloud() {
 
   constexpr Real an   = 1.0/(tbgmax-tbgmin);
