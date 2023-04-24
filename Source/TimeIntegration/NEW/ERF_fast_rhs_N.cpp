@@ -11,29 +11,6 @@
 
 using namespace amrex;
 
-/**
- * Function for computing the fast RHS with no terrain
- *
- * @param[in]  step  which fast time step
- * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
- * @param[out]  S_slow_rhs RHS computed here
- * @param[in]  S_prev previous solution
- * @param[in]  S_stage_data solution            at previous RK stage
- * @param[in]  S_stage_prim primitive variables at previous RK stage
- * @param[in]  pi_stage   Exner function      at previous RK stage
- * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
- * @param[in]  S_data current solution
- * @param[in]  S_scratch scratch space
- * @param[in]  geom container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  dtau fast time step
- * @param[in]  facinv inverse factor for time-averaging the momenta
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
- */
-
 void erf_fast_rhs_N (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
@@ -58,12 +35,16 @@ void erf_fast_rhs_N (int step, int /*level*/,
     // Per p2902 of Klemp-Skamarock-Dudhia-2007
     // beta_s = -1.0 : fully explicit
     // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
+    // Real beta_s = 0.1;
+    // HACK HACK HACK
+    Real beta_s = -1.0;
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = 0.1;
+    // Real beta_d = 0.1;
+    // HACK HACK HACK
+    Real beta_d = 0.0;
 
     const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -523,8 +504,11 @@ void erf_fast_rhs_N (int step, int /*level*/,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0));
-            cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1));
+            // cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0));
+            // cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1));
+            // HACK
+            cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0));
+            cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1));
         });
 
         const Array4<Real>& cur_xmom       = S_data[IntVar::xmom].array(mfi);

@@ -8,7 +8,10 @@
 #include "IndexDefines.H"
 #include "ABLMost.H"
 
-// This is the slow RHS when doing multi-rate, and the only RHS when doing RK3
+/**
+ * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
+ *
+ */
 void erf_slow_rhs_pre(int level, int nrk,
                       amrex::Real dt,
                       amrex::BoxArray& grids_to_evolve,
@@ -56,6 +59,10 @@ void erf_slow_rhs_pre(int level, int nrk,
                       const amrex::Real* dptr_rayleigh_wbar,
                       const amrex::Real* dptr_rayleigh_thetabar);
 
+/**
+ * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
+ *
+ */
 void erf_slow_rhs_post(int level, amrex::Real dt,
                        amrex::BoxArray& grids_to_evolve,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -83,6 +90,10 @@ void erf_slow_rhs_post(int level, amrex::Real dt,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
+/**
+ * Function for computing the fast RHS with no terrain
+ *
+ */
 void erf_fast_rhs_N (int step, int level,
                      amrex::BoxArray& grids_to_evolve,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
@@ -100,6 +111,10 @@ void erf_fast_rhs_N (int step, int level,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
+/**
+ * Function for computing the fast RHS with fixed terrain
+ *
+ */
 void erf_fast_rhs_T (int step, int level,
                      amrex::BoxArray& grids_to_evolve,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
@@ -120,6 +135,10 @@ void erf_fast_rhs_T (int step, int level,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
+/**
+ * Function for computing the fast RHS with moving terrain
+ *
+ */
 void erf_fast_rhs_MT (int step, int level,
                       amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab >& S_slow_rhs,
@@ -146,6 +165,10 @@ void erf_fast_rhs_MT (int step, int level,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
 
+/**
+ * Function for computing the coefficients for the tridiagonal solver used in the fast
+ * integrator (the acoustic substepping).
+ */
 void make_fast_coeffs (int level,
                        amrex::BoxArray& grids_to_evolve,
                        amrex::MultiFab& fast_coeffs,
@@ -159,6 +182,11 @@ void make_fast_coeffs (int level,
                        const amrex::MultiFab* pi0,
                        const amrex::Real dtau);
 
+/**
+ * Function for computing the buoyancy term to be used in the evolution
+ * equation for the z-component of momentum in the slow integrator.  There
+ * are three options for how buoyancy is computed (two are the same in the absence of moisture).
+ */
 void make_buoyancy(amrex::BoxArray& grids_to_evolve,
                    amrex::Vector<  amrex::MultiFab>& S_data,
                    const           amrex::MultiFab & S_prim,
