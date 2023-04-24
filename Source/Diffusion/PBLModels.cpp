@@ -5,13 +5,13 @@
 /**
  * Function to compute turbulent viscosity with PBL.
  *
- * @param xvel velocity in x-dir
- * @param yvel velocity in y-dir
- * @param cons_in cell center conserved quantities
- * @param eddyViscosity holds turbulent viscosity
- * @param geom problem geometry
- * @param solverChoice container with solver parameters
- * @param most pointer to Monin-Obukhov class if instantiated
+ * @param[in] xvel velocity in x-dir
+ * @param[in] yvel velocity in y-dir
+ * @param[in] cons_in cell center conserved quantities
+ * @param[out] eddyViscosity holds turbulent viscosity
+ * @param[in] geom problem geometry
+ * @param[in] solverChoice container with solver parameters
+ * @param[in] most pointer to Monin-Obukhov class if instantiated
  */
 void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
