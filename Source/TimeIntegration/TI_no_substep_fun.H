@@ -1,6 +1,3 @@
-/**
- *  Wrapper for advancing the solution with the slow RHS in the absence of acoustic substepping
- */
     auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,

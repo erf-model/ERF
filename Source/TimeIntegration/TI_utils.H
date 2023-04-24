@@ -1,6 +1,6 @@
-/**
- *  Define the primitive variables by dividing the conserved variables by density
- */
+    // **************************************************************************************
+    // Temporary array that we use to store primitive advected quantities for the RHS
+    // **************************************************************************************
     auto cons_to_prim = [&](const MultiFab& cons_state, int ng)
     {
         BL_PROFILE("cons_to_prim()");
@@ -27,12 +27,12 @@
       } // mfi
     };
 
-/**
- *  This routine is called before the first step of the time integration, *and* in the case
- *  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
- *  before every subsequent stage.  Since we advance the variables in conservative form,
- *  we must convert momentum to velocity before imposing the bcs.
- */
+    // ***************************************************************************************
+    // This routine is called before the first step of the time integration, *and* in the case
+    //  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
+    //  before every subsequent stage.  Since we advance the variables in conservative form,
+    //  we must convert momentum to velocity before imposing the bcs.
+    // ***************************************************************************************
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
                          const Real time_for_fp, int ng_cons, int ng_vel,
                          bool fast_only, bool vel_and_mom_synced)

@@ -16,26 +16,6 @@
 
 using namespace amrex;
 
-/**
- * Function for computing the buoyancy term to be used in the evolution
- * equation for the z-component of momentum in the slow integrator.  There
- * are three options for how buoyancy is computed (two are the same in the absence of moisture).
- *
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
- * @param[in]  S_data current solution
- * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
- * @param[out] buoyancy the buoyancy term computed here
- * @param[in]  qvapor water vapor
- * @param[in]  qcloud cloud water
- * @param[in]  qice   cloud ice
- * @param[in]  qv_d   lateral average of cloud vapor
- * @param[in]  qc_d   lateral average of cloud vapor
- * @param[in]  qd_d   lateral average of cloud vapor
- * @param[in]  geom   Container for geometric informaiton
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  r0     Reference (hydrostatically stratified) density
- */
-
 void make_buoyancy (BoxArray& grids_to_evolve,
                     Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,

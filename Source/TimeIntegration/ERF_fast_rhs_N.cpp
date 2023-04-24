@@ -11,29 +11,6 @@
 
 using namespace amrex;
 
-/**
- * Function for computing the fast RHS with no terrain
- *
- * @param[in]  step  which fast time step
- * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
- * @param[out]  S_slow_rhs RHS computed here
- * @param[in]  S_prev previous solution
- * @param[in]  S_stage_data solution            at previous RK stage
- * @param[in]  S_stage_prim primitive variables at previous RK stage
- * @param[in]  pi_stage   Exner function      at previous RK stage
- * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
- * @param[in]  S_data current solution
- * @param[in]  S_scratch scratch space
- * @param[in]  geom container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  dtau fast time step
- * @param[in]  facinv inverse factor for time-averaging the momenta
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
- */
-
 void erf_fast_rhs_N (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed

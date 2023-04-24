@@ -4,15 +4,8 @@
 
 using namespace amrex;
 
-/**
- * Function that coordinates the evolution across levels -- this calls Advance to do the
- * actual advance at this level,  then recursively calls itself at finer levels
- *
- * @param[in] lev level of refinement (coarsest level is 0)
- * @param[in] time start time for time advance
- * @param[in] iteration time step counter
- */
-
+// Advance a level by dt
+// includes a recursive call for finer levels
 void
 ERF::timeStep (int lev, Real time, int iteration)
 {
@@ -80,15 +73,7 @@ ERF::timeStep (int lev, Real time, int iteration)
     }
 }
 
-/**
- * Function that advances the solution at one level for a single time step --
- * this does some preliminaries then calls erf_advance
- *
- * @param[in] lev level of refinement (coarsest level is 0)
- * @param[in] time start time for time advance
- * @param[in] dt_lev time step for this time advance
- */
-
+// advance a single level for a single time step
 void
 ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/)
 {
