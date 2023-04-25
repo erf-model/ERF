@@ -30,7 +30,7 @@ using namespace amrex;
  * @param[in] source source terms for conserved variables
  * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
- * @param[in] Hfx3 z-dir heat flux
+ * @param[in] Hfx3 heat flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom   Container for geometric informaiton
  * @param[in]  solverChoice  Container for solver parameters
