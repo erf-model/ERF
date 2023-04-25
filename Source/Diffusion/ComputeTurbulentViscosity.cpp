@@ -31,7 +31,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
  * @param[in]  Hfx1 heat flux in x-dir
  * @param[in]  Hfx2 heat flux in y-dir
  * @param[in]  Hfx3 heat flux in z-dir
- * @param[in]  Diss dissipation rate of TKE
+ * @param[in]  Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
  * @param[in]  mapfac_u map factor at x-face
  * @param[in]  mapfac_v map factor at y-face
@@ -350,10 +350,10 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
  * @param[in]  Tau23 23 strain
  * @param[in]  cons_in cell center conserved quantities
  * @param[out] eddyViscosity turbulent viscosity
- * @param[in]  Hfx1 heat flux in x-dir
- * @param[in]  Hfx2 heat flux in y-dir
- * @param[in]  Hfx3 heat flux in z-dir
- * @param[in]  Diss dissipation rate of TKE
+ * @param[in]  Hfx1 x-dir heat flux
+ * @param[in]  Hfx2 y-dir heat flux
+ * @param[in]  Hfx3 z-dir heat flux
+ * @param[in]  Diss dissipation of turbulent kinetic energy
  * @param[in]  geom problem geometry
  * @param[in]  mapfac_u map factor at x-face
  * @param[in]  mapfac_v map factor at y-face

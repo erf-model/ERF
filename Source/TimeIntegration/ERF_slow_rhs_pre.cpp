@@ -45,7 +45,7 @@ using namespace amrex;
  * @param[in] Tau23 tau_23 component of stress tensor
  * @param[in] Tau31 tau_31 component of stress tensor
  * @param[in] Tau32 tau_32 component of stress tensor
- * @param[in] SmnSmn magnitude of strain rate
+ * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 z-dir heat flux
  * @param[in] Diss dissipation of turbulent kinetic energy
