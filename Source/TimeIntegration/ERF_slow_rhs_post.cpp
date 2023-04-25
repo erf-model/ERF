@@ -28,7 +28,7 @@ using namespace amrex;
  * @param[in]  yvel y-component of velocity
  * @param[in]  zvel z-component of velocity
  * @param[in] source source terms for conserved variables
- * @param[in] SmnSmn magnitude of strain rate
+ * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 z-dir heat flux
  * @param[in] Diss dissipation of turbulent kinetic energy
