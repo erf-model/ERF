@@ -7,11 +7,14 @@ using namespace amrex;
 
 PhysBCFunctNoOp null_bc;
 
-//
-// Fill valid and ghost data in the MultiFab "mf"
-// This version fills the MultiFab mf in valid regions with the "state data" at the given time;
-// values in mf when it is passed in are *not* used.
-//
+/*
+ * Fill valid and ghost data with the "state data" at the given time
+ *
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
+ * @param[out] mfs Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ */
+
 void
 ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 {
@@ -89,12 +92,23 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
 }
 
-//
-// Fill valid and ghost data in the MultiFabs in "mfs"
-// mfs is a Vector<std::reference_wrapper<MultiFab> > containing, in order: cons, xvel, yvel, and zvel data
-// This version fills the MultiFabs mfs in valid regions with the values in "mfs" when it is passed in;
-// it is used only to compute ghost values for intermediate stages of a time integrator.
-//
+/*
+ * Fill valid and ghost data
+ * This version fills mfs in valid regions with the values in "mfs" when it is passed in;
+ * it is used only to compute ghost values for intermediate stages of a time integrator.
+ *
+ * @param[in]  lev            level of refinement at which to fill the data
+ * @param[in]  time           time at which the data should be filled
+ * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ * @param[in]  ng_cons        number of ghost cells to be filled for conserved (cell-centered) variables
+ * @param[in]  ng_vel         number of ghost cells to be filled for velocity components
+ * @param[in]  cons_only      if 1 then only fill conserved variables
+ * @param[in]  icomp_cons     starting component for conserved variables
+ * @param[in]  ncomp_cons     number of components for conserved variables
+ * @param[in]  eddyDiffs      diffusion coefficients for LES turbulence models
+ * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
+ */
+
 void
 ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
@@ -193,9 +207,19 @@ ERF::FillIntermediatePatch (int lev, Real time,
         m_most->impose_most_bcs(lev,mfs,eddyDiffs);
 }
 
-// Fill an entire multifab by interpolating from the coarser level -- this is used
-//     only when a new level of refinement is being created during a run (i.e not at initialization)
-//     This will never be used with static refinement.
+//
+
+/*
+ * Fill valid and ghost data.
+ * This version sill an entire MultiFab by interpolating from the coarser level -- this is used
+ * only when a new level of refinement is being created during a run (i.e not at initialization)
+ * This will never be used with static refinement.
+ *
+ * @param[in]  lev            level of refinement at which to fill the data
+ * @param[in]  time           time at which the data should be filled
+ * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ */
+
 void
 ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 {

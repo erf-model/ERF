@@ -5,13 +5,14 @@
 
 using namespace amrex;
 
-//*****************************************************************************************
-// Compute the terrain grid from BTF, STF, or Sullivan TF model
-//
-// NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
-//       but (we think) the issue is deep in ERF and this code will work once the deeper
-//       problem is fixed. For now, make sure to run on a single level. -mmsanders
-//*****************************************************************************************
+/**
+ * Computation of the terrain grid from BTF, STF, or Sullivan TF model
+ *
+ * NOTE: Multilevel is not yet working for either of these terrain-following coordinates,
+ *       but (we think) the issue is deep in ERF and this code will work once the deeper
+ *       problem is fixed. For now, make sure to run on a single level. -mmsanders
+ */
+
 void
 init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
 {
@@ -387,9 +388,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
   */
 }
 
-//*****************************************************************************************
-// Compute detJ at cell-center
-//*****************************************************************************************
+/**
+ * Computation of detJ at cell-center
+ */
 void
 make_J(const amrex::Geometry& geom,
        amrex::MultiFab& z_phys_nd,
@@ -423,9 +424,9 @@ make_J(const amrex::Geometry& geom,
     detJ_cc.FillBoundary(geom.periodicity());
 }
 
-//*****************************************************************************************
-// Compute detJ & z_phys at cell-center
-//*****************************************************************************************
+/**
+ * Computation of z_phys at cell-center
+ */
 void
 make_zcc(const amrex::Geometry& geom,
          amrex::MultiFab& z_phys_nd,

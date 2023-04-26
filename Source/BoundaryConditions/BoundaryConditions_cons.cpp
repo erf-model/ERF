@@ -3,17 +3,17 @@
 
 using namespace amrex;
 
-//
-// mf is the multifab to be filled
-// icomp is the index into the MultiFab -- if cell-centered this can be any value
-//       from 0 to NVAR-1, if face-centered this must be 0
-// ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
-//       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this
-//       must be 1
-// time is the time at which the data should be filled
-// bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
-//     so this follows the BCVars enum
-//
+/*
+ * Impose lateral boundary conditions on conserved scalars (at cell centers)
+ *
+ * @param[in] mf     the MultiFab to be filled
+ * @param[in] icomp  the index into the MultiFab -- this can be any value from 0 to NVAR-1
+ * @param[in] ncomp  the number of components -- this can be any value from 1 to NVAR
+ *                   as long as icomp+ncomp <= NVAR-1.
+ * @param[in] time   the time at which the data should be filled
+ * @param[in] bccomp index into m_domain_bcs_type
+ */
+
 void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                               int icomp, int ncomp, Real /*time*/, int bccomp)
 {
@@ -154,8 +154,25 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     }
     Gpu::streamSynchronize();
 }
+
+/*
+ * Impose vertical boundary conditions on conserved scalars (at cell centers)
+ *
+ * param
+ * @param[in] dest_arr  the Array4 of the quantity to be filled
+ * @param[in] bx        the box associated with this data
+ * @param[in] domain    the compuational domain
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] dxInv     inverse cell size array
+ * @param[in] icomp     the index of the first component to be filled
+ * @param[in] ncomp     the number of components -- this can be any value from 1 to NVAR
+ *                      as long as icomp+ncomp <= NVAR-1.
+ * @param[in] time      the time at which the data should be filled
+ * @param[in] bccomp    index into m_domain_bcs_type
+ */
+
 void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_nd,
+                                               const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                int icomp, int ncomp, Real /*time*/, int bccomp)
 {
@@ -285,9 +302,9 @@ void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, con
                     int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
                     // Get metrics
-                    Real met_h_xi   = Compute_h_xi_AtCellCenter  (ii,jj,k0,dxInv,z_nd);
-                    Real met_h_eta  = Compute_h_eta_AtCellCenter (ii,jj,k0,dxInv,z_nd);
-                    Real met_h_zeta = Compute_h_zeta_AtCellCenter(ii,jj,k0,dxInv,z_nd);
+                    Real met_h_xi   = Compute_h_xi_AtCellCenter  (ii,jj,k0,dxInv,z_phys_nd);
+                    Real met_h_eta  = Compute_h_eta_AtCellCenter (ii,jj,k0,dxInv,z_phys_nd);
+                    Real met_h_zeta = Compute_h_zeta_AtCellCenter(ii,jj,k0,dxInv,z_phys_nd);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero

@@ -10,7 +10,7 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
-#include <ERF_Math.H>
+#include <Interpolation_1D.H>
 
 /**
  * Data structure storing input sounding data. Also

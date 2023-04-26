@@ -4,10 +4,13 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
-//
-// mf is the MultiFab to be filled with data read in from wrfbdy
-// time is the time at which the data should be filled
-//
+/*
+ * Impose boundary conditions using data read in from wrfbdy files
+ *
+ * @param[out] mfs  Vector of MultiFabs to be filled
+ * @param[in] time  time at which the data should be filled
+ */
+
 void
 ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 {
