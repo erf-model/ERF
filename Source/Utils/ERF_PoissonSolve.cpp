@@ -6,6 +6,11 @@
 
 using namespace amrex;
 
+/**
+ * Define the domain boundary conditions for the (optional) Poisson solve
+ * if we want to enforce incompressibility of the initial conditions
+ */
+
 Array<LinOpBCType,AMREX_SPACEDIM>
 ERF::get_projection_bc (Orientation::Side side) const noexcept
 {
@@ -26,6 +31,11 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
     amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
     return r;
 }
+
+
+/**
+ * Project the initial velocity field to enforce incompressibility
+ */
 
 void
 ERF::project_initial_velocities()

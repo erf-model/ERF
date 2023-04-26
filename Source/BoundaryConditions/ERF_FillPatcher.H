@@ -36,6 +36,14 @@ private:
     amrex::MultiFab m_cf_fine_data;
 };
 
+/*
+ * Fill data at the coarse-fine boundary
+ *
+ * @param[out] mf    MultiFab to be filled
+ * @param[in]  time  Time at which to fill data
+ * @param[in]  cbc   Coarse boundary condition
+ * @param[in]  bcs   Vector of boundary conditions
+ */
 template <typename BC>
 void
 ERFFillPatcher::fillCoarseFineBoundary (amrex::MultiFab& mf, amrex::Real time,

@@ -9,17 +9,23 @@
 #include <IndexDefines.H>
 #include <ABLMost.H>
 
-/** Create the Jacobian for the metric transformation when use_terrain is true */
+/*
+ * Create the Jacobian for the metric transformation when use_terrain is true
+ */
 void make_J   (const amrex::Geometry& geom,
                      amrex::MultiFab& z_phys_nd,
                      amrex::MultiFab& detJ_cc);
 
-/** Average z_phys_nd on nodes to cell centers */
+/*
+ * Average z_phys_nd on nodes to cell centers
+ */
 void make_zcc (const amrex::Geometry& geom,
                      amrex::MultiFab& z_phys_nd,
                      amrex::MultiFab& z_phys_cc);
 
-/** Convert momentum to velocity by dividing by density averaged onto faces */
+/*
+ * Convert momentum to velocity by dividing by density averaged onto faces
+ */
 void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          amrex::MultiFab& yvel_out,
                          amrex::MultiFab& zvel_out,
@@ -28,7 +34,9 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& ymom_in,
                          const amrex::MultiFab& zmom_in);
 
-/** Convert velocity to momentum by multiplying by density averaged onto faces */
+/*
+ * Convert velocity to momentum by multiplying by density averaged onto faces
+ */
 void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::IntVect& xvel_ngrow,
                          const amrex::MultiFab& yvel_in,
@@ -41,8 +49,10 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& zmom_out,
                          bool l_use_ndiff);
 
-/** Compute boxes for looping over interior/exterior ghost cells
-    for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post */
+/*
+ * Compute boxes for looping over interior/exterior ghost cells
+ * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post
+ */
 void compute_interior_ghost_bxs_xy(const amrex::Box& bx,
                                    const amrex::Box& domain,
                                    const int& width,
@@ -54,7 +64,9 @@ void compute_interior_ghost_bxs_xy(const amrex::Box& bx,
                                    const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0),
                                    const bool get_int_ng=false);
 
-/** Compute boxes to be used for specifying where in the relaxation zone to compute the RHS */
+/*
+ * Compute boxes to be used for specifying where in the relaxation zone to compute the RHS
+ */
 void compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
                                 const amrex::Real& time,
                                 const amrex::Real& delta_t,
@@ -68,7 +80,9 @@ void compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
                                 amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                                 amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
-/** Update the variables in the relaxation zone */
+/*
+ * Update the variables in the relaxation zone
+ */
 void update_interior_ghost(const amrex::Real& delta_t,
                            const int& width,
                            const amrex::Geometry& geom,

@@ -1,5 +1,5 @@
 /*
- * utilitity tools for microphysics are here
+ * utility tools for microphysics
  *
  */
 #ifndef Microphysics_Utils_H

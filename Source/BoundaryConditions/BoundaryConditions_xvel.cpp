@@ -3,12 +3,16 @@
 
 using namespace amrex;
 
-//
-// dest_arr is the Array4 to be filled
-// time is the time at which the data should be filled
-// bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals
-//     so this follows the BCVars enum
-//
+/*
+ * Impose lateral boundary conditions on x-component of velocity
+ *
+ * @param[in] dest_arr Array4 of the quantity to be filled
+ * @param[in] bx       box associated with this data
+ * @param[in] domain   compuational domain
+ * @param[in] time     time at which the data should be filled
+ * @param[in] bccomp   index into m_domain_bcs_type
+ */
+
 void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
                                               const Box& bx, const Box& domain,
                                               Real /*time*/, int bccomp)
@@ -132,12 +136,20 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
     Gpu::streamSynchronize();
 }
 
-//
-// Impose boundary conditions on top and bottom boundaries only
-//
+/*
+ * Impose vertical boundary conditions on x-component of velocity
+ *
+ * @param[in] dest_arr  the Array4 of the quantity to be filled
+ * @param[in] bx        the box associated with this data
+ * @param[in] domain    the compuational domain
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] dxInv     inverse cell size array
+ * @param[in] time      the time at which the data should be filled
+ * @param[in] bccomp    index into m_domain_bcs_type
+ */
 void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_nd,
+                                               const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                Real /*time*/, int bccomp)
 {
@@ -228,9 +240,9 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                     int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
                     // Get metrics
-                    Real met_h_xi   = Compute_h_xi_AtIface  (ii, jj, k0, dxInv, z_nd);
-                    Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_nd);
-                    Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_nd);
+                    Real met_h_xi   = Compute_h_xi_AtIface  (ii, jj, k0, dxInv, z_phys_nd);
+                    Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_phys_nd);
+                    Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_phys_nd);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero

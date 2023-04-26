@@ -6,6 +6,10 @@
 #include <AMReX_MultiFab.H>
 #include <IndexDefines.H>
 
+/**
+ * Utility routines for constructing terrain metric terms
+ */
+
 // Declare function for ERF.cpp
 void init_terrain_grid( const amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
 

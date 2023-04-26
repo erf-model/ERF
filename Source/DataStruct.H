@@ -31,6 +31,10 @@ enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
 
+/**
+ * Container holding many of the algorithmic options and parameters
+ */
+
 struct SolverChoice {
   public:
     void init_params()

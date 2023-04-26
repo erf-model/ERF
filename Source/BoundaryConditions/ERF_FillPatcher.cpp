@@ -3,6 +3,20 @@
 
 using namespace amrex;
 
+/*
+ * Fill valid and ghost data with the "state data" at the given time
+ *
+ * @param[in] fba    BoxArray of data to be filled at fine level
+ * @param[in] fdm    DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom  container of geometry infomation at fine level
+ * @param[in] cba    BoxArray of data to be filled at coarse level
+ * @param[in] cdm    DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom  container of geometry infomation at coarse level
+ * @param[in] nghost number of ghost cells to be filled
+ * @param[in] ncomp  number of components to be filled
+ * @param[in] interp interpolation operator to be used
+ */
+
 ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
                                 Geometry const& fgeom,
                                 BoxArray  cba, DistributionMapping  cdm,
@@ -46,6 +60,14 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
     m_cf_fine_data.define(cf_fba, cf_dm, m_ncomp, 0);
     m_cf_crse_data.emplace_back(BoxArray(std::move(cbl)), cf_dm, m_ncomp, 0);
 }
+
+
+/*
+ * Register the coarse data to be used by the ERFFillPatcher
+ *
+ * @param[in] crse_data data at old and new time at coarse level
+ * @param[in] crse_time times at which crse_data is defined
+ */
 
 void ERFFillPatcher::registerCoarseData (Vector<MultiFab const*> const& crse_data,
                                          Vector<amrex::Real> const& /*crse_time*/)
