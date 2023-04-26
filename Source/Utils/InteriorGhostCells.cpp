@@ -6,16 +6,16 @@ using namespace amrex;
  * Get the boxes for looping over interior/exterior ghost cells
  * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
  *
- * @param[in] bx
- * @param[in] domain
- * @param[in] width
- * @param[in] set_width
- * @param[out] bx_xlo
- * @param[out] bx_xhi
- * @param[out] bx_ylo
- * @param[out] bx_yhi
- * @param[in] ng_vect
- * @param[in] get_int_ng
+ * @param[in] bx box to intersect with 4 halo regions
+ * @param[in] domain box of the whole domain
+ * @param[in] width number of cells in (relaxation+specified) zone
+ * @param[in] set_width number of cells in (specified) zone
+ * @param[out] bx_xlo halo box at x_lo boundary
+ * @param[out] bx_xhi halo box at x_hi boundary
+ * @param[out] bx_ylo halo box at y_lo boundary
+ * @param[out] bx_yhi halo box at y_hi boundary
+ * @param[in] ng_vect number of ghost cells in each direction
+ * @param[in] get_int_ng flag to get ghost cells inside the domain
  */
 
 void
@@ -92,7 +92,7 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] time    current time
  * @param[in] delta_t timestep
  * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width
+ * @param[in] set_width number of cells in (specified) zone
  * @param[in] geom     container for geometric information
  * @param[out] S_rhs   RHS to be computed here
  * @param[in] S_data   current value of the solution
@@ -556,7 +556,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
  * @param[in]  geom    container for geometric information
  * @param[in]  S_rhs  RHS to be added here
  * @param[in]  S_old  previous value of the solution
- * @param[old] S_data new value of the solution defined here
+ * @param[out] S_data new value of the solution defined here
  */
 
 void
