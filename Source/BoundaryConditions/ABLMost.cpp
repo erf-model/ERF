@@ -4,7 +4,7 @@
 using namespace amrex;
 
 /**
- * Function to update the fluxs (u^star and t^star) for Monin Obukov similarity theory.
+ * Function to update the fluxs (u^star and t^star) for Monin Obukhov similarity theory.
  *
  * @param[in] lev Current level
  * @param[in] max_iters maximum iterations to use
