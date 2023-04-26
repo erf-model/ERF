@@ -98,7 +98,18 @@ public:
     // Get z_ref (may be computed from specified k_indx)
     [[nodiscard]] amrex::Real get_zref() const { return m_zref; }
 
-    // Interpolate fields to a specified position (w/ terrain)
+    /**
+     * Function to compute trilinear interpolation with terrain.
+     *
+     * @param[in] xp X-position
+     * @param[in] yp Y-position
+     * @param[out] interp_vals Values interpolated
+     * @param[in] interp_array Array to interpolate on
+     * @param[in] z_arr Physical heights
+     * @param[in] plo Problem lower bounds
+     * @param[in] dxi Inverse cell size array
+     * @param[in] interp_comp Number of components to interpolate
+     */
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void trilinear_interp_T (const amrex::Real& xp,
                              const amrex::Real& yp,
