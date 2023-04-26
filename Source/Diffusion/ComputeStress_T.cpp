@@ -11,15 +11,15 @@ using namespace amrex;
  * @param[in]  tbxxz nodal xz box for tau_13
  * @param[in]  tbxyz nodal yz box for tau_23
  * @param[in]  mu_eff constant molecular viscosity
- * @param[out] tau11 11 stress
- * @param[out] tau22 22 stress
- * @param[out] tau33 33 stress
- * @param[out] tau12 12 stress
- * @param[out] tau13 13 stress
- * @param[out] tau21 21 stress
- * @param[out] tau23 23 stress
- * @param[out] tau31 31 stress
- * @param[out] tau32 32 stress
+ * @param[in,out] tau11 11 strain -> stress
+ * @param[in,out] tau22 22 strain -> stress
+ * @param[in,out] tau33 33 strain -> stress
+ * @param[in,out] tau12 12 strain -> stress
+ * @param[in,out] tau13 13 strain -> stress
+ * @param[in,out] tau21 21 strain -> stress
+ * @param[in,out] tau23 23 strain -> stress
+ * @param[in,out] tau31 31 strain -> stress
+ * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
@@ -256,15 +256,15 @@ ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  tbxyz nodal yz box for tau_23
  * @param[in]  mu_eff constant molecular viscosity
  * @param[in] mu_turb variable turbulent viscosity
- * @param[out] tau11 11 stress
- * @param[out] tau22 22 stress
- * @param[out] tau33 33 stress
- * @param[out] tau12 12 stress
- * @param[out] tau13 13 stress
- * @param[out] tau21 21 stress
- * @param[out] tau23 23 stress
- * @param[out] tau31 31 stress
- * @param[out] tau32 32 stress
+ * @param[in,out] tau11 11 strain -> stress
+ * @param[in,out] tau22 22 strain -> stress
+ * @param[in,out] tau33 33 strain -> stress
+ * @param[in,out] tau12 12 strain -> stress
+ * @param[in,out] tau13 13 strain -> stress
+ * @param[in,out] tau21 21 strain -> stress
+ * @param[in,out] tau23 23 strain -> stress
+ * @param[in,out] tau31 31 strain -> stress
+ * @param[in,out] tau32 32 strain -> stress
  * @param[in]  er_arr expansion rate
  * @param[in]  z_nd nodal array of physical z heights
  * @param[in]  dxInv inverse cell size array
