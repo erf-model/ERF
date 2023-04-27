@@ -55,12 +55,19 @@ To build the code and run a sample problem:
 
 * Notes:
 
-   A. In the exec line above, ``xxx.yyy`` is a tag identifying your compiler and various build options, for example, ``gnu.MPI`` and will vary across pltaform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
+   A. In the exec line above, ``xxx.yyy`` is a tag identifying your compiler and various build options, for example, ``gnu.MPI`` and will vary across platform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
    B. In addition to informative output to the terminal, periodic plot files are written in the run folder.  These may be viewed with CCSE's `Amrvis <https://ccse.lbl.gov/Downloads/downloadAmrvis.html>`_ or `Vis-It <http://vis.lbl.gov/NERSC/Software/visit/>`_ (!! FIX the URLs !!):
 
       1. In Vis-It, direct the File->Open dialogue to select the file named "Header" that is inside each plotfile folder.
       2. With Amrvis, ``amrvis3d plt00030``, for example.
 
+
+Documentation
+~~~~~~~~~~~~~~~~~
+
+Documentation of the ERF theory and implementation is available `here <https://erf.readthedocs.io/en/latest/>`_ .
+
+In addition, there is doxygen documentation available `here <https://erf-model.github.io/docs/index.html>`_
 
 Development model
 ~~~~~~~~~~~~~~~~~
