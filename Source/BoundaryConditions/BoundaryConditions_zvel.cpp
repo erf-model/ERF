@@ -9,7 +9,7 @@ using namespace amrex;
  *
  * @param[in] dest_arr  Array4 of the quantity to be filled
  * @param[in] bx        box associated with this data
- * @param[in] domain    compuational domain
+ * @param[in] domain    computational domain
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] time      time at which the data should be filled
  * @param[in] bccomp    index into m_domain_bcs_type
@@ -139,13 +139,12 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
 /*
  * Impose vertical boundary conditions on z-component of velocity
  *
- * param
- * @param[in] dest_arr  the Array4 of the quantity to be filled
- * @param[in] bx        the box associated with this data
- * @param[in] domain    the compuational domain
+ * @param[in] dest_arr  Array4 of the quantity to be filled
+ * @param[in] bx        box associated with this data
+ * @param[in] domain    computational domain
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] dxInv     inverse cell size array
- * @param[in] time      the time at which the data should be filled
+ * @param[in] time      time at which the data should be filled
  * @param[in] bccomp_u  index into m_domain_bcs_type corresponding to u
  * @param[in] bccomp_v  index into m_domain_bcs_type corresponding to v
  * @param[in] bccomp_w  index into m_domain_bcs_type corresponding to w
