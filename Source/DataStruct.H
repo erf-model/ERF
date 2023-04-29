@@ -10,7 +10,6 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
-#include <ERF_Math.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -32,6 +31,10 @@ enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
 
+/**
+ * Container holding many of the algorithmic options and parameters
+ */
+
 struct SolverChoice {
   public:
     void init_params()
@@ -52,6 +55,12 @@ struct SolverChoice {
 
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
+
+        // Use lagged_delta_rt in the fast integrator?
+        pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
+            amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
+        }
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -361,6 +370,9 @@ struct SolverChoice {
     bool        rayleigh_damp_V        = false;
     bool        rayleigh_damp_W        = true;
     bool        rayleigh_damp_T        = false;
+
+    // This defaults to true but can be set to false for moving terrain cases only
+    bool        use_lagged_delta_rt    = true;
 
     // Constants
     amrex::Real gravity;

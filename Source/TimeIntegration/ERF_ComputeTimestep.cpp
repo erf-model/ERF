@@ -3,7 +3,10 @@
 
 using namespace amrex;
 
-// a wrapper for estTimeStep
+/**
+ * Function that calls estTimeStep for each level
+ *
+ */
 void
 ERF::ComputeDt ()
 {
@@ -36,6 +39,12 @@ ERF::ComputeDt ()
     }
 }
 
+/**
+ * Function that calls estTimeStep for each level
+ *
+ * @param[in] level level of refinement (coarsest level i 0)
+ * @param[out] dt_fast_ratio ratio of slow to fast time step
+ */
 Real
 ERF::estTimeStep(int level, long& dt_fast_ratio) const
 {

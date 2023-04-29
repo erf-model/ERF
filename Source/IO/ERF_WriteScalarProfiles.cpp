@@ -4,6 +4,12 @@
 
 using namespace amrex;
 
+/**
+ * Computes the integrated quantities on the grid such as the
+ * total scalar and total mass quantities. Prints and writes to output file.
+ *
+ * @param time Current time
+ */
 void
 ERF::sum_integrated_quantities(Real time)
 {
@@ -111,6 +117,14 @@ ERF::sum_integrated_quantities(Real time)
     }
 }
 
+/**
+ * Utility function for sampling MultiFab data at a specified cell index.
+ *
+ * @param lev Level for the associated MultiFab data
+ * @param time Current time
+ * @param cell IntVect containing the indexes for the cell where we want to sample
+ * @param mf MultiFab from which we wish to sample data
+ */
 void
 ERF::sample_points(int lev, Real time, IntVect cell, MultiFab& mf)
 {
@@ -140,6 +154,15 @@ ERF::sample_points(int lev, Real time, IntVect cell, MultiFab& mf)
     } // only write from processor that holds the cell
 }
 
+/**
+ * Utility function for sampling data along a line along the z-dimension
+ * at the (x,y) indices specified and writes it to an output file.
+ *
+ * @param lev Current level
+ * @param time Current time
+ * @param cell IntVect containing the x,y-dimension indices to sample along z
+ * @param mf MultiFab from which we sample the data
+ */
 void
 ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
 {
@@ -222,6 +245,15 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
     } // mfi
 }
 
+/**
+ * Utility function for computing a volume weighted sum of MultiFab data for a single component
+ *
+ * @param lev Current level
+ * @param mf MultiFab on which we do the volume weighted sum
+ * @param comp Index of the component we want to sum
+ * @param local Boolean sets whether or not to reduce the sum over the domain (false) or compute sums local to each MPI rank (true)
+ * @param finemask If a finer level is available, determines whether we mask fine data
+ */
 amrex::Real
 ERF::volWgtSumMF(int lev,
   const amrex::MultiFab& mf, int comp, bool local, bool finemask)
@@ -251,6 +283,13 @@ ERF::volWgtSumMF(int lev,
     return sum;
 }
 
+/**
+ * Helper function for constructing a fine mask, that is, a MultiFab
+ * masking coarser data at a lower level by zeroing out covered cells
+ * in the fine mask MultiFab we compute.
+ *
+ * @param level Fine level index which masks underlying coarser data
+ */
 amrex::MultiFab&
 ERF::build_fine_mask(int level)
 {
@@ -288,6 +327,17 @@ ERF::build_fine_mask(int level)
     return fine_mask;
 }
 
+/**
+ * Helper function which uses the current step number, time, and timestep to
+ * determine whether it is time to take an action specified at every interval
+ * of timesteps.
+ *
+ * @param nstep Timestep number
+ * @param time Current time
+ * @param dtlev Timestep for the current level
+ * @param action_interval Interval in number of timesteps for taking action
+ * @param action_per Interval in simulation time for taking action
+ */
 bool
 ERF::is_it_time_for_action(int nstep, Real time, Real dtlev, int action_interval, amrex::Real action_per)
 {

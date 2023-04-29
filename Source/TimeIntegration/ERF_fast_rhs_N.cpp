@@ -11,6 +11,29 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the fast RHS with no terrain
+ *
+ * @param[in]  step  which fast time step
+ * @param[in]  level level of resolution
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out]  S_slow_rhs RHS computed here
+ * @param[in]  S_prev previous solution
+ * @param[in]  S_stage_data solution            at previous RK stage
+ * @param[in]  S_stage_prim primitive variables at previous RK stage
+ * @param[in]  pi_stage   Exner function      at previous RK stage
+ * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in]  S_data current solution
+ * @param[in]  S_scratch scratch space
+ * @param[in]  geom container for geometric information
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  dtau fast time step
+ * @param[in]  facinv inverse factor for time-averaging the momenta
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ */
+
 void erf_fast_rhs_N (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
@@ -89,7 +112,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
         const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
-        const Array4<Real>& scratch_rtheta   = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt   = S_scratch[IntVar::cons].array(mfi);
 
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
@@ -106,7 +129,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
         } // step = 0
 
@@ -123,8 +145,29 @@ void erf_fast_rhs_N (int step, int /*level*/,
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
 
-            theta_extrap(i,j,k)     = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+            if (step == 0) {
+                theta_extrap(i,j,k) = old_drho_theta(i,j,k);
+            } else {
+                theta_extrap(i,j,k) = old_drho_theta(i,j,k) + beta_d *
+                  ( old_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
+            }
+        });
+    } // mfi
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        // We define lagged_delta_rt for our next step as the current delta_rt
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+
+        const Array4<Real>& lagged_delta_rt   = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
     } // mfi
 
@@ -461,13 +504,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
             // so we don't update avg_zmom at k=vbx_hi.z+1
 
             temp_rhs_arr(i,j,k,0) += ( zflux_hi - zflux_lo ) * dzi;
-            // cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0) - ( zflux_hi - zflux_lo ) * dzi );
-
             temp_rhs_arr(i,j,k,1) += 0.5 * dzi *
                ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
-
-//          cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1) - 0.5 * (
-//            ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1)) - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) ) * dzi;
         });
         } // end profile
     } // mfi
@@ -486,7 +524,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) - temp_rhs_arr(i,j,k,0));
-
             cur_cons(i,j,k,1) += dtau * (slow_rhs_cons(i,j,k,1) - temp_rhs_arr(i,j,k,1));
         });
 

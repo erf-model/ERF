@@ -6,6 +6,10 @@
 #include "AMReX_GpuContainers.H"
 #include "DirectionSelector.H"
 
+/**
+ * Basic averaging and interpolation operations
+ */
+
 class PlaneAverage {
 public:
     AMREX_FORCE_INLINE

@@ -1,4 +1,7 @@
-    auto fast_rhs_fun = [&](int fast_step, int /*ng_sub*/,
+/**
+ *  Wrapper for calling the routine that creates the fast RHS
+ */
+auto fast_rhs_fun = [&](int fast_step, int n_sub,
                             Vector<MultiFab>& S_slow_rhs,
                             const Vector<MultiFab>& S_old,
                             Vector<MultiFab>& S_stage,
@@ -128,12 +131,22 @@
             delete z_t_pert;
         }
 
-        // Even if we update all the conserved variables we don't need to fillpatch the slow ones every acoustic substep
+
+#ifdef ERF_USE_NETCDF
+        // Update vars in relaxation zones
+        if (init_type == "real" && level == 0)
+            if (fast_step == 0 ) {
+                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_old, S_data);
+            } else {
+                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_data, S_data);
+            }
+#endif
+
+        // Even if we update all the conserved variables we don't need
+        // to fillpatch the slow ones every acoustic substep
         bool fast_only          = true;
         bool vel_and_mom_synced = false;
         int ng_cons    = 1;
         int ng_vel     = 1;
         apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
-
-        MultiFab::Copy(S_scratch[IntVar::cons], S_data[IntVar::cons], Cons::RhoTheta, Cons::RhoTheta, 1, ng_cons);
     };

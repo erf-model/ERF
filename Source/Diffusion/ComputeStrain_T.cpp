@@ -3,6 +3,31 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the strain rates with terrain.
+ *
+ * @param[in] bxcc cell center box for tau_ii
+ * @param[in] tbxxy nodal xy box for tau_12
+ * @param[in] tbxxz nodal xz box for tau_13
+ * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] u x-direction velocity
+ * @param[in] v y-direction velocity
+ * @param[in] w z-direction velocity
+ * @param[out] tau11 11 strain
+ * @param[out] tau22 22 strain
+ * @param[out] tau33 33 strain
+ * @param[out] tau12 12 strain
+ * @param[out] tau13 13 strain
+ * @param[out] tau21 21 strain
+ * @param[out] tau23 23 strain
+ * @param[out] tau31 31 strain
+ * @param[out] tau32 32 strain
+ * @param[in] z_nd nodal array of physical z heights
+ * @param[in] bc_ptr container with boundary condition types
+ * @param[in] dxInv inverse cell size array
+ * @param[in] mf_u map factor at x-face
+ * @param[in] mf_v map factor at y-face
+ */
 void
 ComputeStrain_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
                 const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,

@@ -5,12 +5,41 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the scalar RHS for diffusion operator without terrain.
+ *
+ * @param[in]  bx cell center box to loop over
+ * @param[in]  domain box of the whole domain
+ * @param[in]  start_comp starting component index
+ * @param[in]  num_comp number of components
+ * @param[in]  u velocity in x-dir
+ * @param[in]  v velocity in y-dir
+ * @param[in]  cell_data conserved cell center vars
+ * @param[in]  cell_prim primitive cell center vars
+ * @param[out] cell_rhs RHS for cell center vars
+ * @param[in]  xflux flux in x-dir
+ * @param[in]  yflux flux in y-dir
+ * @param[in]  zflux flux in z-dir
+ * @param[in]  z_nd physical z height
+ * @param[in]  detJ Jacobian determinant
+ * @param[in]  cellSizeInv inverse cell size array
+ * @param[in]  SmnSmn_a strain rate magnitude
+ * @param[in]  mf_m map factor at cell center
+ * @param[in]  mf_u map factor at x-face
+ * @param[in]  mf_v map factor at y-face
+ * @param[in]  hfx_z heat flux in z-dir
+ * @param[in]  diss dissipation of TKE
+ * @param[in]  mu_turb turbulent viscosity
+ * @param[in]  solverChoice container of solver params
+ * @param[in]  tm_arr theta mean array
+ * @param[in]  grav_gpu gravity vector
+ * @param[in]  bc_ptr container with boundary conditions
+ */
 void
 DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                         int start_comp, int num_comp,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
-                        const Array4<const Real>& w,
                         const Array4<const Real>& cell_data,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& cell_rhs,
@@ -24,8 +53,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
-                              Array4<      Real>& hfx_x,
-                              Array4<      Real>& hfx_y,
                               Array4<      Real>& hfx_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,

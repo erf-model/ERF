@@ -40,7 +40,7 @@ erf_init_rayleigh(Vector<Real>& tau,
     << ztop-parms.zdamp << " and " << ztop << std::endl;
 
   const Real* prob_lo = geom.ProbLo();
-  const auto dx       = geom.CellSize();
+  const auto *const dx       = geom.CellSize();
   const int khi       = geom.Domain().bigEnd()[2];
 
   for (int k = 0; k <= khi; k++)

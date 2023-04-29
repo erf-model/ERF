@@ -3,6 +3,22 @@
 #include <Interpolation.H>
 #include <Interpolation_WENO.H>
 
+/**
+ * Function for computing the advective tendency for the x-component of momentum
+ * without metric terms and for spatial order > 2
+ *
+ * @param[in] i,j,k indices of x-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] u     x-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -54,6 +70,22 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the y-component of momentum
+ * without metric terms and for spatial order > 2
+ *
+ * @param[in] i,j,k indices of y-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] v     y-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -104,6 +136,24 @@ AdvectionSrcForYMom_N (int i, int j, int k,
 
    return advectionSrc;
 }
+
+/**
+ * Function for computing the advective tendency for the z-component of momentum
+ * without metric terms and for spatial order > 2
+ *
+ * @param[in] i,j,k indices of z-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] w     z-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_m map factor on cell centers
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] domhi_z maximum k value in the domain
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -174,6 +224,20 @@ AdvectionSrcForZMom_N (int i, int j, int k,
    return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the x-component of momentum
+ * without metric terms and for spatial order > 2 when using the WENO scheme
+ *
+ * @param[in] i,j,k indices of x-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] u     x-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -224,6 +288,21 @@ AdvectionSrcForXMom_WENO_N (int i, int j, int k,
     return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the y-component of momentum
+ * without metric terms and for spatial order > 2 when using the WENO scheme
+ *
+ * @param[in] i,j,k indices of y-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] v     y-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -273,6 +352,22 @@ AdvectionSrcForYMom_WENO_N (int i, int j, int k,
    return advectionSrc;
 }
 
+/**
+ * Function for computing the advective tendency for the z-component of momentum
+ * without metric terms and for spatial order > 2 when using the WENO scheme
+ *
+ * @param[in] i,j,k indices of y-face at which to create tendency
+ * @param[in] rho_u x-component of momentum
+ * @param[in] rho_v y-component of momentum
+ * @param[in] rho_w z-component of momentum
+ * @param[in] w     z-component of velocity
+ * @param[in] cellSizeInv inverse of the mesh spacing
+ * @param[in] mf_u map factor on x-faces
+ * @param[in] mf_v map factor on y-faces
+ * @param[in] spatial_order_WENO sets the spatial order if using WENO (3,5, or 7)
+ */
+
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -285,7 +380,6 @@ AdvectionSrcForZMom_WENO_N (int i, int j, int k,
                             const amrex::Array4<const amrex::Real>& mf_v,
                             int spatial_order_WENO, int domhi_z)
 {
-
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::Real rho_u_avg, rho_v_avg, rho_w_avg;

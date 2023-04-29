@@ -4,7 +4,14 @@
 
 using namespace amrex;
 
-// Constructor
+/**
+ * Constructor for MOSTAverage class.
+ *
+ * @param[in] geom Container for geometric information at each level
+ * @param[in] vars_old Conserved variables at each level
+ * @param[in] Theta_prim Primitive theta component at each level
+ * @param[in] z_phys_nd Physical heights at each level
+ */
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           Vector<Vector<MultiFab>>& vars_old,
                           Vector<std::unique_ptr<MultiFab>>& Theta_prim,
@@ -161,7 +168,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
 }
 
 
-// Reset the pointers to field MFs
+/**
+ * Function to reset the pointers to field variables.
+ *
+ * @param[in] lev Current level
+ * @param[in] vars_old Conserved variables at each level
+ * @param[in] Theta_prim Primitive theta component at each level
+ */
 void
 MOSTAverage::update_field_ptrs(int lev,
                                Vector<Vector<MultiFab>>& vars_old,
@@ -173,7 +186,10 @@ MOSTAverage::update_field_ptrs(int lev,
 }
 
 
-// Compute ncells per plane
+/**
+ * Function to compute normalization for plane average.
+ *
+ */
 void
 MOSTAverage::set_plane_normalization()
 {
@@ -215,7 +231,10 @@ MOSTAverage::set_plane_normalization()
 }
 
 
-// Populate a 2D iMF with the k indices for averaging (w/o terrain)
+/**
+ * Function to set K indices without terrain.
+ *
+ */
 void
 MOSTAverage::set_k_indices_N()
 {
@@ -254,7 +273,10 @@ MOSTAverage::set_k_indices_N()
 }
 
 
-// Populate a 2D iMF with the k indices for averaging (w/ terrain)
+/**
+ * Function to set K indices with terrain.
+ *
+ */
 void
 MOSTAverage::set_k_indices_T()
 {
@@ -299,7 +321,10 @@ MOSTAverage::set_k_indices_T()
 }
 
 
-// Populate all 2D iMFs for averaging (w/ terrain & norm vector)
+/**
+ * Function to set I,J,K indices with terrain normals.
+ *
+ */
 void
 MOSTAverage::set_norm_indices_T()
 {
@@ -365,7 +390,10 @@ MOSTAverage::set_norm_indices_T()
 }
 
 
-// Populate positions (w/ terrain & interpolation)
+/**
+ * Function to set positions with terrain and e_z vector.
+ *
+ */
 void
 MOSTAverage::set_z_positions_T()
 {
@@ -405,7 +433,10 @@ MOSTAverage::set_z_positions_T()
 }
 
 
-// Populate positions (w/ terrain & norm vector & interpolation)
+/**
+ * Function to set positions with terrain and normal vector.
+ *
+ */
 void
 MOSTAverage::set_norm_positions_T()
 {
@@ -460,7 +491,11 @@ MOSTAverage::set_norm_positions_T()
 }
 
 
-// Driver to call appropriate average member function
+/**
+ * Function to call the type of average computation.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::compute_averages(int lev)
 {
@@ -480,7 +515,11 @@ MOSTAverage::compute_averages(int lev)
 }
 
 
-// Fill plane storage with averages
+/**
+ * Function to compute average over a plane.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::compute_plane_averages(int lev)
 {
@@ -545,7 +584,6 @@ MOSTAverage::compute_plane_averages(int lev)
             IndexType ixt = averages[imf]->boxArray().ixType();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
                 if ( ixt.nodeCentered(idim)  && (pbx.bigEnd(idim) == vbx.bigEnd(idim)) ) {
-                    Box domain = geom.Domain();
                     int dom_hi = domain.bigEnd(idim)+1;
                     if (pbx.bigEnd(idim) < dom_hi || is_per[idim]) {
                         pbx.growHi(idim,-1);
@@ -663,7 +701,11 @@ MOSTAverage::compute_plane_averages(int lev)
 }
 
 
-// Fill 2D MF with local averages
+/**
+ * Function to compute average over local region.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::compute_region_averages(int lev)
 {
@@ -879,7 +921,11 @@ MOSTAverage::compute_region_averages(int lev)
 }
 
 
-// Write k indices
+/**
+ * Function to write the K indices to text file.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::write_k_indices(int lev)
 {
@@ -914,7 +960,11 @@ MOSTAverage::write_k_indices(int lev)
 }
 
 
-// Write ijk indices
+/**
+ * Function to write I,J,K indices to text file.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::write_norm_indices(int lev)
 {
@@ -958,7 +1008,12 @@ MOSTAverage::write_norm_indices(int lev)
 }
 
 
-// Write position of XZ plane
+/**
+ * Function to write X & Z positions to text file.
+ *
+ * @param[in] lev Current level
+ * @param[in] j Index in y-dir
+ */
 void
 MOSTAverage::write_xz_positions(int lev, int j)
 {
@@ -984,7 +1039,11 @@ MOSTAverage::write_xz_positions(int lev, int j)
 }
 
 
-// Write averages
+/**
+ * Function to write averages to text file.
+ *
+ * @param[in] lev Current level
+ */
 void
 MOSTAverage::write_averages(int lev)
 {

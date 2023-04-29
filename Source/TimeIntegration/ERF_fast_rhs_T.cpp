@@ -12,6 +12,32 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the fast RHS with fixed terrain
+ *
+ * @param[in]  step  which fast time step
+ * @param[in]  level level of resolution
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out]  S_slow_rhs RHS computed here
+ * @param[in]  S_prev previous solution
+ * @param[in]  S_stage_data solution            at previous RK stage
+ * @param[in]  S_stage_prim primitive variables at previous RK stage
+ * @param[in]  pi_stage   Exner function      at previous RK stage
+ * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in]  S_data current solution
+ * @param[in]  S_scratch scratch space
+ * @param[in]  geom container for geometric information
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] detJ_cc Jacobian of the metric transformation
+ * @param[in]  dtau fast time step
+ * @param[in]  facinv inverse factor for time-averaging the momenta
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ */
+
 void erf_fast_rhs_T (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
@@ -89,7 +115,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
         const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
-        const Array4<Real>& scratch_rtheta   = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVar::cons].array(mfi);
 
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
@@ -113,7 +139,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                scratch_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
         } // step = 0
 
@@ -137,8 +162,27 @@ void erf_fast_rhs_T (int step, int /*level*/,
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
-            theta_extrap(i,j,k)   = old_drho_theta(i,j,k) + beta_d * (
-              (cur_cons(i,j  ,k,RhoTheta_comp) - scratch_rtheta(i,j  ,k,RhoTheta_comp)));
+            if (step == 0) {
+                theta_extrap(i,j,k) = old_drho_theta(i,j,k);
+            } else {
+                theta_extrap(i,j,k) = old_drho_theta(i,j,k) + beta_d *
+                  ( old_drho_theta(i,j,k) - lagged_delta_rt(i,j,k,RhoTheta_comp) );
+            }
+        });
+    } // mfi
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        // We define lagged_delta_rt for our next step as the current delta_rt
+        Box valid_bx = grids_to_evolve[mfi.index()];
+        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
+        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVar::cons].array(mfi);
+        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
     } // mfi
 
@@ -153,8 +197,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
     {
         // Construct intersection of current tilebox and valid region for updating
         Box valid_bx = grids_to_evolve[mfi.index()];
-        Box bx = mfi.tilebox() & valid_bx;
-
         Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
         Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
 
@@ -273,12 +315,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    {
-
-    FArrayBox temp_rhs_fab;
-    FArrayBox RHS_fab;
-    FArrayBox soln_fab;
-
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
@@ -324,6 +360,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
         // Initialize New_rho_u/v/w to Delta_rho_u/v/w so that
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
 
+        FArrayBox temp_rhs_fab;
+        FArrayBox RHS_fab;
+        FArrayBox soln_fab;
         RHS_fab.resize(tbz,1);
         soln_fab.resize(tbz,1);
         temp_rhs_fab.resize(tbz,2);
@@ -568,5 +607,4 @@ void erf_fast_rhs_T (int step, int /*level*/,
         });
         } // end profile
     } // mfi
-    }
 }

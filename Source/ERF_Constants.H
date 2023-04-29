@@ -3,6 +3,10 @@
 
 #include <AMReX_REAL.H>
 
+/**
+ * Constants used in the ERF model
+*/
+
 constexpr amrex::Real PI           = 3.14159265358979323846264338327950288;
 constexpr amrex::Real PIoTwo       = PI/2.0;
 

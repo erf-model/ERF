@@ -2,6 +2,17 @@
 #include "DirectionSelector.H"
 #include "Diffusion.H"
 
+/**
+ * Function to compute turbulent viscosity with PBL.
+ *
+ * @param[in] xvel velocity in x-dir
+ * @param[in] yvel velocity in y-dir
+ * @param[in] cons_in cell center conserved quantities
+ * @param[out] eddyViscosity holds turbulent viscosity
+ * @param[in] geom problem geometry
+ * @param[in] solverChoice container with solver parameters
+ * @param[in] most pointer to Monin-Obukhov class if instantiated
+ */
 void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,

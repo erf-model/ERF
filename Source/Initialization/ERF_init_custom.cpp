@@ -9,6 +9,18 @@
 
 using namespace amrex;
 
+/**
+ * Wrapper for custom problem-specific initialization routines that can be
+ * defined by the user as they set up a new problem in ERF. This wrapper
+ * handles all the overhead of defining both the background and perturbation
+ * state as well as initializing the random seed.
+ *
+ * This wrapper calls a user function to customize initialization on a per-Fab
+ * level inside an MFIter loop, so all the MultiFab operations are hidden from
+ * the user.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::init_custom(int lev)
 {
