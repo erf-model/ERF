@@ -320,7 +320,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 tbxyz.grow(IntVect(-1,-1,0));
 
                 Real mu_eff = 0.;
-                if (cons_visc) {
+                if (cons_visc && !l_use_turb) {
                     mu_eff += 2.0 * solverChoice.dynamicViscosity;
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             s11, s22, s33,
@@ -418,7 +418,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 tbxyz.grow(IntVect(-1,-1,0));
 
                 Real mu_eff = 0.;
-                if (cons_visc) {
+                if (cons_visc && !l_use_turb) {
                     mu_eff += 2.0 * solverChoice.dynamicViscosity;
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             s11, s22, s33,
