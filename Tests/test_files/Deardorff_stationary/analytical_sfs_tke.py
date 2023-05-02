@@ -41,7 +41,7 @@ plt.xlabel('time [s]')
 plt.ylabel('SFS e [m$^2$ s$^{-2}$]')
 plt.savefig('evolve_e.png',bbox_inches='tight')
 
-# 
+#
 # expected output:
 # e = 0.000656292002688172
 #
