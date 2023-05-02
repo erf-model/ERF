@@ -18,13 +18,13 @@ using namespace amrex;
  * @param[in]  step  which fast time step
  * @param[in]  level level of resolution
  * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
- * @param[out]  S_slow_rhs RHS computed here
+ * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
  * @param[in]  S_prev previous solution
  * @param[in]  S_stg_data solution            at previous RK stage
  * @param[in]  S_stg_prim primitive variables at previous RK stage
  * @param[in]  pi_stage   Exner function      at previous RK stage
  * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
- * @param[in]  S_data current solution
+ * @param[out] S_data current solution
  * @param[in]  S_scratch scratch space
  * @param[in]  geom container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
@@ -38,6 +38,7 @@ using namespace amrex;
  * @param[in] detJ_cc_new Jacobian of the metric transformation at new time
  * @param[in] detJ_cc_stg Jacobian of the metric transformation at previous stage
  * @param[in]  dtau fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in]  facinv inverse factor for time-averaging the momenta
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
@@ -65,7 +66,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
                       std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
                       std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
-                      const amrex::Real dtau, const amrex::Real facinv,
+                      const Real dtau, const Real beta_s,
+                      const Real facinv,
                       std::unique_ptr<MultiFab>& /*mapfac_m*/,
                       std::unique_ptr<MultiFab>& mapfac_u,
                       std::unique_ptr<MultiFab>& mapfac_v)
@@ -74,10 +76,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     AMREX_ASSERT(solverChoice.terrain_type == 1);
 
-    // Per p2902 of Klemp-Skamarock-Dudhia-2007
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
