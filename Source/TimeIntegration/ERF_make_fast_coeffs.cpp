@@ -22,6 +22,7 @@ using namespace amrex;
  * @param[in]  r0     Reference (hydrostatically stratified) density
  * @param[in]  pi0     Reference (hydrostatically stratified) Exner function
  * @param[in]  dtau    Fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  */
 
 void make_fast_coeffs (int /*level*/,
@@ -34,13 +35,10 @@ void make_fast_coeffs (int /*level*/,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       amrex::Real dtau)
+                       Real dtau, Real beta_s)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
     Real c_v = solverChoice.c_p - R_d;
