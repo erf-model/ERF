@@ -106,7 +106,8 @@ void erf_fast_rhs_N (int step, int level,
                      amrex::Vector<amrex::MultiFab >& S_scratch,
                      const amrex::Geometry geom,
                      const SolverChoice& solverChoice,
-                     const amrex::Real dtau, const amrex::Real facinv,
+                     const amrex::Real dtau, const amrex::Real beta_s,
+                     const amrex::Real facinv,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
@@ -130,7 +131,8 @@ void erf_fast_rhs_T (int step, int level,
                            amrex::MultiFab& Omega,
                      std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc,
-                     const amrex::Real dtau, const amrex::Real facinv,
+                     const amrex::Real dtau, const amrex::Real beta_s,
+                     const amrex::Real facinv,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
@@ -160,7 +162,8 @@ void erf_fast_rhs_MT (int step, int level,
                       std::unique_ptr<amrex::MultiFab>& detJ_cc_old,
                       std::unique_ptr<amrex::MultiFab>& detJ_cc_new,
                       std::unique_ptr<amrex::MultiFab>& detJ_cc_stg,
-                      const amrex::Real dtau, const amrex::Real facinv,
+                      const amrex::Real dtau, const amrex::Real beta_s,
+                      const amrex::Real facinv,
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
@@ -180,7 +183,8 @@ void make_fast_coeffs (int level,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,
                        const amrex::MultiFab* r0,
                        const amrex::MultiFab* pi0,
-                       const amrex::Real dtau);
+                       const amrex::Real dtau,
+                       const amrex::Real beta_s);
 
 /**
  * Function for computing the buoyancy term to be used in the evolution
