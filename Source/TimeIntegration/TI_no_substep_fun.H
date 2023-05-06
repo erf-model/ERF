@@ -85,7 +85,7 @@
                     ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (k == 0) {
-                            // Here we take advantage of the fact that moving terrain has a slip wall 
+                            // Here we take advantage of the fact that moving terrain has a slip wall
                             // so we can just use the new value at (i,j,0).
                             Real rho_on_face =  ssum[IntVar::cons](i,j,k,Rho_comp);
                             ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),

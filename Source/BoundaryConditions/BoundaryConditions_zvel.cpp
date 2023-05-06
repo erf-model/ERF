@@ -14,9 +14,9 @@ using namespace amrex;
  * @param[in] time      time at which the data should be filled
  * @param[in] bccomp    index into m_domain_bcs_type
  */
-void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, 
-                                              const Array4<Real const>& xvel_arr, 
-                                              const Array4<Real const>& yvel_arr, 
+void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
+                                              const Array4<Real const>& xvel_arr,
+                                              const Array4<Real const>& yvel_arr,
                                               const Box& bx, const Box& domain,
                                               const Array4<Real const>& z_phys_nd,
                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
@@ -154,9 +154,9 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
  * @param[in] terrain_type if 1 then the terrain is moving; otherwise fixed
  */
 
-void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, 
-                                               const Array4<Real const>& xvel_arr, 
-                                               const Array4<Real const>& yvel_arr, 
+void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
+                                               const Array4<Real const>& xvel_arr,
+                                               const Array4<Real const>& yvel_arr,
                                                const Box& bx, const Box& domain,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
