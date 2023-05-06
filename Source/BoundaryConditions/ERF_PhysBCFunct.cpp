@@ -109,7 +109,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                         impose_lateral_yvel_bcs(vely_arr,ybx,domain,time,BCVars::yvel_bc);
                     }
 
-                    impose_lateral_zvel_bcs(velz_arr,zbx,domain,z_nd_arr,dxInv,time,BCVars::zvel_bc);
+                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,time,BCVars::zvel_bc);
                 } // !cons_only
             } // init_type != "real"
 
@@ -126,7 +126,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                                          time,BCVars::xvel_bc);
                 impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
                                          time,BCVars::yvel_bc);
-                impose_vertical_zvel_bcs(velz_arr,zbx,domain,z_nd_arr,dxInv,time,
+                impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,time,
                                          BCVars::xvel_bc, BCVars::yvel_bc, BCVars::zvel_bc,
                                          m_terrain_type);
             } // !cons_only

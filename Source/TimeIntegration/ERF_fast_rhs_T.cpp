@@ -219,7 +219,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
-        const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
@@ -497,8 +496,8 @@ void erf_fast_rhs_T (int step, int /*level*/,
                  coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = detJ_on_kface * old_drho_w(i,j,k) + dtau * (detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp
-                                                                     + dtau*beta_2*R1_tmp);
+            RHS_a(i,j,k) = detJ_on_kface * old_drho_w(i,j,k) + dtau * (
+                 detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             RHS_a(i,j,k) += detJ_on_kface * OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
@@ -576,7 +575,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd,dxInv);
+              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
         });
         } // end profile

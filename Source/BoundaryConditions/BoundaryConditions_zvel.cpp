@@ -14,7 +14,10 @@ using namespace amrex;
  * @param[in] time      time at which the data should be filled
  * @param[in] bccomp    index into m_domain_bcs_type
  */
-void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, 
+                                              const Array4<Real const>& xvel_arr, 
+                                              const Array4<Real const>& yvel_arr, 
+                                              const Box& bx, const Box& domain,
                                               const Array4<Real const>& z_phys_nd,
                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                               Real /*time*/, int bccomp)
@@ -70,7 +73,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
                 if (bc_ptr_w[n].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
                     if (l_use_terrain) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),z_phys_nd,dxInv);
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
@@ -85,7 +88,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
                 if (bc_ptr_w[n].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
                     if (l_use_terrain) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),z_phys_nd,dxInv);
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[n].hi(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
@@ -108,7 +111,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
             if (bc_ptr_w[n].lo(1) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
                 if (l_use_terrain) {
-                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),z_phys_nd,dxInv);
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                 }
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
@@ -122,7 +125,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
             int jflip =  2*dom_hi.y + 1 - j;
             if (bc_ptr_w[n].hi(1) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),z_phys_nd,dxInv);
+                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_even) {
@@ -151,7 +154,10 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr, cons
  * @param[in] terrain_type if 1 then the terrain is moving; otherwise fixed
  */
 
-void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, 
+                                               const Array4<Real const>& xvel_arr, 
+                                               const Array4<Real const>& yvel_arr, 
+                                               const Box& bx, const Box& domain,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                Real /*time*/, int bccomp_u,
@@ -237,11 +243,11 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, con
                 if (bc_ptr_w[n].lo(2) == ERFBCType::ext_dir) {
                     if (bc_ptr_u[n].lo(2) == ERFBCType::ext_dir &&
                         bc_ptr_v[n].lo(2) == ERFBCType::ext_dir) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],z_phys_nd,dxInv);
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
 
                     } else if (bc_ptr_u[n].lo(2) != ERFBCType::ext_dir &&
                                bc_ptr_v[n].lo(2) != ERFBCType::ext_dir) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],z_phys_nd,dxInv);
+                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     } else {
 #ifndef AMREX_USE_GPU
                        amrex::Abort("Bad combination of boundary conditions");
@@ -274,7 +280,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr, con
           bx_zhi_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
             if (bc_ptr_w[n].hi(2) == ERFBCType::ext_dir) {
                 if (l_use_terrain)
-                    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],z_phys_nd,dxInv);
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
                 else
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
             }
