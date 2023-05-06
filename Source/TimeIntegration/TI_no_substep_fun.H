@@ -54,6 +54,7 @@
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);
 
+                    const Array4<const Real>& z_nd_old =     z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& z_nd_new = z_phys_nd_new[level]->const_array(mfi);
 
                     const Array4<Real      >& z_t_arr  =  z_t_rk[level]->array(mfi);
@@ -70,30 +71,31 @@
                     // We have already scaled the slow source term to have the extra factor of dJ
                     ParallelFor(tbx, tby,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        Real dJ_old_xface = 0.5 * (dJ_old(i,j,k) + dJ_old(i-1,j,k));
-                        Real dJ_new_xface = 0.5 * (dJ_new(i,j,k) + dJ_new(i-1,j,k));
-                        ssum[IntVar::xmom](i,j,k) = dJ_old_xface *  sold[IntVar::xmom](i,j,k)
-                                                       + slow_dt * fslow[IntVar::xmom](i,j,k);
-                        ssum[IntVar::xmom](i,j,k) /= dJ_new_xface;
+                        Real h_zeta_old = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_old);
+                        Real h_zeta_new = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_new);
+                        ssum[IntVar::xmom](i,j,k) = ( h_zeta_old *  sold[IntVar::xmom](i,j,k)
+                                                       + slow_dt * fslow[IntVar::xmom](i,j,k) ) / h_zeta_new;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        Real dJ_old_yface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j-1,k));
-                        Real dJ_new_yface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j-1,k));
-                        ssum[IntVar::ymom](i,j,k) = dJ_old_yface *  sold[IntVar::ymom](i,j,k)
-                                                       + slow_dt * fslow[IntVar::ymom](i,j,k);
-                        ssum[IntVar::ymom](i,j,k) /= dJ_new_yface;
+                        Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);
+                        Real h_zeta_new = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_new);
+                        ssum[IntVar::ymom](i,j,k) = ( h_zeta_old *  sold[IntVar::ymom](i,j,k)
+                                                       + slow_dt * fslow[IntVar::ymom](i,j,k) ) / h_zeta_new;
                     });
                     ParallelFor(tbz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (k == 0) {
-                            Real rho_on_face = 0.5 * ( sold[IntVar::cons](i,j,k,Rho_comp) +sold[IntVar::cons](i,j,k-1,Rho_comp) );
-                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),z_nd_new,dxInv);
+                            // Here we take advantage of the fact that moving terrain has a slip wall
+                            // so we can just use the new value at (i,j,0).
+                            Real rho_on_face =  ssum[IntVar::cons](i,j,k,Rho_comp);
+                            ssum[IntVar::zmom](i,j,k) = WFromOmega(i,j,k,rho_on_face*z_t_arr(i,j,k),
+                                                                   ssum[IntVar::xmom], ssum[IntVar::ymom],
+                                                                   z_nd_new,dxInv);
                         } else {
-                            Real dJ_old_zface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
-                            Real dJ_new_zface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
-                            ssum[IntVar::zmom](i,j,k) = dJ_old_zface *  sold[IntVar::zmom](i,j,k)
-                                                           + slow_dt * fslow[IntVar::zmom](i,j,k);
-                            ssum[IntVar::zmom](i,j,k) /= dJ_new_zface;
+                            Real dJ_old_kface = 0.5 * (dJ_old(i,j,k) + dJ_old(i,j,k-1));
+                            Real dJ_new_kface = 0.5 * (dJ_new(i,j,k) + dJ_new(i,j,k-1));
+                            ssum[IntVar::zmom](i,j,k) = ( dJ_old_kface *  sold[IntVar::zmom](i,j,k)
+                                                             + slow_dt * fslow[IntVar::zmom](i,j,k) ) / dJ_new_kface;
                         }
                     });
 
