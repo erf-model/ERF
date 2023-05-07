@@ -196,6 +196,8 @@ ERF::~ERF ()
 void
 ERF::Evolve ()
 {
+    BL_PROFILE_VAR("ERF::Evolve()", evolve);
+
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
@@ -273,6 +275,7 @@ ERF::Evolve ()
         }
     }
 
+    BL_PROFILE_VAR_STOP(evolve);
 }
 
 // Called after every coarse timestep
@@ -351,6 +354,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 void
 ERF::InitData ()
 {
+    BL_PROFILE_VAR("ERF::InitData()", InitData);
+
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
 
@@ -714,6 +719,7 @@ ERF::InitData ()
         }
 
     }
+    BL_PROFILE_VAR_STOP(InitData);
 }
 
 void
