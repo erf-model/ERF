@@ -64,8 +64,8 @@ ERF::initRayleigh()
  * Sets the Rayleigh Damping averaged quantities from an
  * externally supplied input sounding data file.
  *
- * @param restarting Boolean parameter that indicates whether
- *                   we are currently restarting from a checkpoint file.
+ * @param[in] restarting Boolean parameter that indicates whether
+                         we are currently restarting from a checkpoint file.
  */
 void
 ERF::setRayleighRefFromSounding(bool restarting)
@@ -140,12 +140,12 @@ ERF::initHSE()
 /**
  * Enforces hydrostatic equilibrium when using terrain.
  *
- * @param lev  Integer specifying the current level
- * @param dens MultiFab storing density
- * @param pres MultiFab storing pressure
- * @param pi   MultiFab storing pressure perturbation
- * @param z_cc Pointer to MultiFab storing cell centered z-coordinates
- * @param z_nd Pointer to MultiFab storing node centered z-coordinates
+ * @param[in]  lev  Integer specifying the current level
+ * @param[out] dens MultiFab storing base state density
+ * @param[out] pres MultiFab storing base state pressure
+ * @param[out] pi   MultiFab storing base state Exner function
+ * @param[in]  z_cc Pointer to MultiFab storing cell centered z-coordinates
+ * @param[in]  z_nd Pointer to MultiFab storing node centered z-coordinates
  */
 void
 ERF::erf_enforce_hse(int lev,
@@ -214,25 +214,9 @@ ERF::erf_enforce_hse(int lev,
             Real dens_interp;
             if (l_use_terrain) {
                 for (int k = 1; k <= nz; k++) {
-#if 0
                     Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
-#else
-                    Real z_face_lo  = 0.25  * (znd_arr(i,j,k-1) + znd_arr(i+1,j,k-1) + znd_arr(i,j+1,k-1) + znd_arr(i+1,j+1,k-1));
-                    Real z_face_md  = 0.25  * (znd_arr(i,j,k  ) + znd_arr(i+1,j,k  ) + znd_arr(i,j+1,k  ) + znd_arr(i+1,j+1,k  ));
-                    Real z_face_hi  = 0.25  * (znd_arr(i,j,k+1) + znd_arr(i+1,j,k+1) + znd_arr(i,j+1,k+1) + znd_arr(i+1,j+1,k+1));
-                    Real z_cc_hi = 0.5 * (z_face_md + z_face_hi);
-                    Real z_cc_lo = 0.5 * (z_face_md + z_face_lo);
-
-                    // Real dz_lo = z_face_md - z_cc_lo;
-                    // Real dz_hi = z_cc_hi - z_face_md;
-                    Real dz_lo = 0.5 * (z_cc_hi - z_cc_lo);
-                    Real dz_hi = 0.5 * (z_cc_hi - z_cc_lo);
-                    pres_arr(i,j,k) = pres_arr(i,j,k-1) - (dz_lo * rho_arr(i,j,k-1)) * l_gravity
-                                                        - (dz_hi * rho_arr(i,j,k  )) * l_gravity;
-#endif
-
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                 }
             } else {

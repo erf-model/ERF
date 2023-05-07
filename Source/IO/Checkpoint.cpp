@@ -123,12 +123,14 @@ ERF::WriteCheckpointFile () const
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
-       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
-       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),0);
+       // Note that we write the ghost cells of the base state (unlike above)
+       IntVect ngvect_base = base_state[lev].nGrowVect();
+       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
+       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ngvect_base);
        VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
        if (solverChoice.use_terrain)  {
-           // Note that we write the ghost cells of z_phys_nd (unlike above)
+           // Note that we also write the ghost cells of z_phys_nd
            IntVect ngvect = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
            MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ngvect);
@@ -251,13 +253,15 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
-        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
+        // Note that we read the ghost cells of the base state (unlike above)
+        IntVect ngvect_base = base_state[lev].nGrowVect();
+        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
         VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
-        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),0);
+        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),ngvect_base);
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
-       if (solverChoice.use_terrain)  {
-           // Note that we read the ghost cells of z_phys_nd (unlike above)
+        if (solverChoice.use_terrain)  {
+           // Note that we also read the ghost cells of z_phys_nd
            IntVect ngvect = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
