@@ -32,14 +32,10 @@ import sys
 # ones.
 extensions = [ 'sphinx.ext.mathjax']
 
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 #breathe_projects = {"ERF": "../doxygen_output/xml/"}
 #breathe_default_project = "ERF"
-
-fortran_src ='../../Source/Src_2d/'
-#fortran_ext =[' 'F90']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:

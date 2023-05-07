@@ -2,9 +2,6 @@
  .. role:: cpp(code)
     :language: c++
 
- .. role:: fortran(code)
-    :language: fortran
-
  .. _CouplingToAMRWind:
 
 Coupling To AMR-Wind

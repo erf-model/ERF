@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec:domainBCs:
+.. _sec:BoundaryConditions:
 
 Filling Ghost Values
 --------------------------

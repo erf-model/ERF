@@ -1,16 +1,7 @@
-.. role:: cpp(code)
+ .. role:: cpp(code)
     :language: c++
 
- .. role:: f(code)
-    :language: fortran
-
-.. _Performance:
-
-***********
-Performance
-***********
-.. toctree::
-   :maxdepth: 1
+ .. _Performance:
 
 GPU weak scaling
 ================
