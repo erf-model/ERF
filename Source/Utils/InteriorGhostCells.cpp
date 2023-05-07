@@ -6,16 +6,16 @@ using namespace amrex;
  * Get the boxes for looping over interior/exterior ghost cells
  * for use by fillpatch, erf_slow_rhs_pre, and erf_slow_rhs_post.
  *
- * @param[in] bx
- * @param[in] domain
- * @param[in] width
- * @param[in] set_width
- * @param[out] bx_xlo
- * @param[out] bx_xhi
- * @param[out] bx_ylo
- * @param[out] bx_yhi
- * @param[in] ng_vect
- * @param[in] get_int_ng
+ * @param[in] bx box to intersect with 4 halo regions
+ * @param[in] domain box of the whole domain
+ * @param[in] width number of cells in (relaxation+specified) zone
+ * @param[in] set_width number of cells in (specified) zone
+ * @param[out] bx_xlo halo box at x_lo boundary
+ * @param[out] bx_xhi halo box at x_hi boundary
+ * @param[out] bx_ylo halo box at y_lo boundary
+ * @param[out] bx_yhi halo box at y_hi boundary
+ * @param[in] ng_vect number of ghost cells in each direction
+ * @param[in] get_int_ng flag to get ghost cells inside the domain
  */
 
 void
@@ -92,7 +92,7 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] time    current time
  * @param[in] delta_t timestep
  * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width
+ * @param[in] set_width number of cells in (specified) zone
  * @param[in] geom     container for geometric information
  * @param[out] S_rhs   RHS to be computed here
  * @param[in] S_data   current value of the solution
@@ -132,16 +132,27 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
+#endif
 
-    // Variable index map
+    // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
 
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
+#if defined(ERF_USE_MOISTURE)
+      var_map.push_back( Vars::cons );
+     comp_map.push_back( RhoQt_comp );
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+      var_map.push_back( Vars::cons );
+     comp_map.push_back( RhoQv_comp );
+#endif
+
     // Size the FABs for each variable
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::T; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -170,9 +181,16 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         } else if (ivar  == WRFBdyVars::R) {
             R_xlo.resize(bx_xlo,1); R_xhi.resize(bx_xhi,1);
             R_ylo.resize(bx_ylo,1); R_yhi.resize(bx_yhi,1);
-        } else {
+        } else if (ivar  == WRFBdyVars::T){
             T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
             T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        } else if (ivar  == WRFBdyVars::QV ) {
+            Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
+            Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
+#endif
+        } else {
+            continue;
         }
     } // ivar
 
@@ -189,9 +207,14 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
+    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
+#endif
+
     // Populate FABs from boundary interpolation
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::T; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -224,9 +247,16 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         } else if (ivar  == WRFBdyVars::R) {
             arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
             arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-        } else {
+        } else if (ivar  == WRFBdyVars::T){
             arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
             arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        } else if (ivar  == WRFBdyVars::QV ) {
+            arr_xlo = Q_xlo.array(); arr_xhi = Q_xhi.array();
+            arr_ylo = Q_ylo.array(); arr_yhi = Q_yhi.array();
+#endif
+        } else {
+            continue;
         }
 
         // Boundary data at fixed time intervals
@@ -408,7 +438,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
     } // mfi
 
-    for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::T; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
     {
         // Variable and comp maps
         int var_idx =  var_map[ivar];
@@ -453,11 +483,20 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
                 arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
-            } else {
+            } else if (ivar  == WRFBdyVars::T){
                 arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+            } else if (ivar  == WRFBdyVars::QV ) {
+                arr_xlo  = Q_xlo.array(); arr_xhi = Q_xhi.array();
+                arr_ylo  = Q_ylo.array(); arr_yhi = Q_yhi.array();
+                rhs_arr  = S_rhs[IntVar::cons].array(mfi);
+                data_arr = S_data[IntVar::cons].array(mfi);
+#endif
+            } else {
+                continue;
             }
 
             // RHS computation
@@ -556,7 +595,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
  * @param[in]  geom    container for geometric information
  * @param[in]  S_rhs  RHS to be added here
  * @param[in]  S_old  previous value of the solution
- * @param[old] S_data new value of the solution defined here
+ * @param[out] S_data new value of the solution defined here
  */
 
 void

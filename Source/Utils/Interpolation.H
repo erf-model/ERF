@@ -3,6 +3,10 @@
 
 #include "DataStruct.H"
 
+/**
+ * Interpolation operators used in construction of advective fluxes using non-WENO schemes
+ */
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real

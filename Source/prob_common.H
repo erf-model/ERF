@@ -15,7 +15,7 @@ void amrex_probinit (
 /**
  * Function to initialize the hydrostatic reference density
  *
- * @param[out] rho_hse box over which the x-momentum is updated
+ * @param[out] rho_hse hydrostatic reference density
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] z_phys_cc height coordinate at cell centers
  * @param[in] geom container for geometric information

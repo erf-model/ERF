@@ -26,7 +26,6 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#include <ERF_Math.H>
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>

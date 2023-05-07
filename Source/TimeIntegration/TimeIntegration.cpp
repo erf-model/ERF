@@ -13,6 +13,39 @@
 
 using namespace amrex;
 
+/**
+ * Function that advances the solution at one level for a single time step --
+ * this sets up the multirate time integrator and calls the integrator's advance function
+ *
+ * @param[in] level level of refinement (coarsest level is 0)
+ * @param[in] cons_old old-time conserved variables on cell centers
+ * @param[in] cons_new new-time conserved variables on cell centers
+ * @param[in] xvel_old old-time x-component of velocity
+ * @param[in] yvel_old old-time y-component of velocity
+ * @param[in] zvel_old old-time z-component of velocity
+ * @param[in] xvel_new new-time x-component of velocity
+ * @param[in] yvel_new new-time y-component of velocity
+ * @param[in] zvel_new new-time z-component of velocity
+ * @param[in] xmom_old old-time x-component of momentum
+ * @param[in] ymom_old old-time y-component of momentum
+ * @param[in] zmom_old old-time z-component of momentum
+ * @param[in] xmom_new new-time x-component of momentum
+ * @param[in] ymom_new new-time y-component of momentum
+ * @param[in] zmom_new new-time z-component of momentum
+ * @param[in] xmom_crse old-time x-component of momentum at coarser level
+ * @param[in] ymom_crse old-time y-component of momentum at coarser level
+ * @param[in] zmom_crse old-time z-component of momentum at coarser level
+ * @param[in] source source term for conserved variables
+ * @param[in] buoyancy buoyancy source term for z-component of momentum
+ * @param[in] qvapor water vapor
+ * @param[in] qcloud cloud water
+ * @param[in] qice cloud ice
+ * @param[in] fine_geom container for geometry information at current level
+ * @param[in] dt_advance time step for this time advance
+ * @param[in] old_time old time for this time advance
+ * @param[in] ifr  pointer to InterpFaceRegister to be used to fill boundary conditions from the coarser level
+ */
+
 void ERF::erf_advance(int level,
                       MultiFab& cons_old,  MultiFab& cons_new,
                       MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,

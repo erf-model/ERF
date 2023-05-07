@@ -42,18 +42,18 @@ public:
 
     ~ERFPhysBCFunct () {}
 
-    //
-    // mfs is the vector of MultiFabs to be filled
-    // icomp is the index into the MultiFab -- if cell-centered this can be any value
-    //       from 0 to NVAR-1, if face-centered this must be 0
-    // ncomp is the number of components -- if cell-centered (var_idx = 0) this can be any value
-    //       from 1 to NVAR as long as icomp+ncomp <= NVAR-1.  If face-centered this
-    //       must be 1
-    // nghost is how many ghost cells to be filled
-    // time is the time at which the data should be filled
-    // bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals for icomp = 0  --
-    //     so this follows the BCVars enum
-    //
+   /*
+    * Impose physical boundary conditions at domain boundaries
+    *
+    * @param[out] mfs        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+    * @param[in] icomp_cons  starting component for conserved variables
+    * @param[in] ncomp_cons  number of components for conserved variables
+    * @param[in] nghost_cons number of ghost cells to be filled for conserved variables
+    * @param[in] nghost_vels number of ghost cells to be filled for velocity components
+    * @param[in] time        time at which the data should be filled
+    * @param[in] init_type   if "real" then we fill boundary conditions for interior locations
+    * @param[in] cons_only   if 1 then only fill conserved variables
+    */
     void operator() (const amrex::Vector<amrex::MultiFab*>& mfs, int icomp, int ncomp,
                      amrex::IntVect const& nghost_cons, amrex::IntVect const& nghost_vels,
                      amrex::Real time, std::string& init_type, bool cons_only);
@@ -78,11 +78,15 @@ public:
 
 
     void impose_lateral_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                  const amrex::Array4<amrex::Real const>& xvel_arr,
+                                  const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                   amrex::Real time, int bccomp_w);
     void impose_vertical_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                   const amrex::Array4<amrex::Real const>& xvel_arr,
+                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,

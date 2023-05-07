@@ -37,6 +37,11 @@ public:
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
 
+    /**
+     * Function to compute psi_m.
+     *
+     * @param[in] zeta Ratio of the query heigh to the Obukhov length scale
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real calc_psi_m(amrex::Real zeta) const
     {
@@ -49,6 +54,11 @@ public:
         }
     }
 
+    /**
+     * Function to compute psi_h.
+     *
+     * @param[in] zeta Ratio of the query heigh to the Obukhov length scale
+     */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real calc_psi_h(amrex::Real zeta) const
     {

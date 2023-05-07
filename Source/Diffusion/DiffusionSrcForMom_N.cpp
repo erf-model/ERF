@@ -7,22 +7,22 @@ using namespace amrex;
 /**
  * Function for computing the momentum RHS for diffusion operator without terrain.
  *
- * @param bxx nodal x box for x-mom
- * @param bxy nodal y box for y-mom
- * @param bxz nodal z box for z-mom
- * @param rho_u_rhs RHS for x-mom
- * @param rho_v_rhs RHS for y-mom
- * @param rho_w_rhs RHS for z-mom
- * @param tau11 hold 11 strain
- * @param tau22 hold 22 strain
- * @param tau33 hold 33 strain
- * @param tau12 hold 12 strain
- * @param tau13 hold 13 strain
- * @param tau23 hold 23 strain
- * @param cons conserved cell center quantities
- * @param solverChoice container with solver parameters
- * @param dxInv inverse cell size array
- * @param mf_m map factor at cell center
+ * @param[in]  bxx nodal x box for x-mom
+ * @param[in]  bxy nodal y box for y-mom
+ * @param[in]  bxz nodal z box for z-mom
+ * @param[out] rho_u_rhs RHS for x-mom
+ * @param[out] rho_v_rhs RHS for y-mom
+ * @param[out] rho_w_rhs RHS for z-mom
+ * @param[in]  tau11 11 stress
+ * @param[in]  tau22 22 stress
+ * @param[in]  tau33 33 stress
+ * @param[in]  tau12 12 stress
+ * @param[in]  tau13 13 stress
+ * @param[in]  tau23 23 stress
+ * @param[in]  cons conserved cell center quantities
+ * @param[in]  solverChoice container with solver parameters
+ * @param[in]  dxInv inverse cell size array
+ * @param[in]  mf_m map factor at cell center
  */
 void
 DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,

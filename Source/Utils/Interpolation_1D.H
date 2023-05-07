@@ -1,5 +1,5 @@
-#ifndef ERF_Math_H
-#define ERF_Math_H
+#ifndef Initialization_1D_H
+#define Initialization_1D_H
 #include <AMReX_REAL.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

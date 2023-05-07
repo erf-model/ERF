@@ -12,6 +12,33 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the fast RHS with fixed terrain
+ *
+ * @param[in]  step  which fast time step
+ * @param[in]  level level of resolution
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
+ * @param[in]  S_prev previous solution
+ * @param[in]  S_stage_data solution            at previous RK stage
+ * @param[in]  S_stage_prim primitive variables at previous RK stage
+ * @param[in]  pi_stage   Exner function      at previous RK stage
+ * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[out] S_data current solution
+ * @param[in]  S_scratch scratch space
+ * @param[in]  geom container for geometric information
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] detJ_cc Jacobian of the metric transformation
+ * @param[in]  dtau fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  facinv inverse factor for time-averaging the momenta
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ */
+
 void erf_fast_rhs_T (int step, int /*level*/,
                      BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
@@ -27,7 +54,8 @@ void erf_fast_rhs_T (int step, int /*level*/,
                            MultiFab& Omega,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
-                     const amrex::Real dtau, const amrex::Real facinv,
+                     const Real dtau, const Real beta_s,
+                     const Real facinv,
                      std::unique_ptr<MultiFab>& mapfac_m,
                      std::unique_ptr<MultiFab>& mapfac_u,
                      std::unique_ptr<MultiFab>& mapfac_v)
@@ -36,10 +64,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
 
     AMREX_ASSERT(solverChoice.terrain_type == 0);
 
-    // Per p2902 of Klemp-Skamarock-Dudhia-2007
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
@@ -195,7 +219,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
-        const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);
 
         const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
@@ -473,8 +496,8 @@ void erf_fast_rhs_T (int step, int /*level*/,
                  coeff_Q * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // line 1
-            RHS_a(i,j,k) = detJ_on_kface * old_drho_w(i,j,k) + dtau * (detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp
-                                                                     + dtau*beta_2*R1_tmp);
+            RHS_a(i,j,k) = detJ_on_kface * old_drho_w(i,j,k) + dtau * (
+                 detJ_on_kface * slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
             RHS_a(i,j,k) += detJ_on_kface * OmegaFromW(i,j,k,0.,new_drho_u,new_drho_v,z_nd,dxInv);
@@ -552,7 +575,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         tbz.setBig(2,hi.z);
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd,dxInv);
+              Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
         });
         } // end profile

@@ -3,6 +3,18 @@
 #include "IndexDefines.H"
 #include "TileNoZ.H"
 
+/**
+ * Updates conserved and microphysics variables in the provided MultiFabs from
+ * the internal MultiFabs that store Microphysics module data.
+ *
+ * @param[out] cons_in Conserved variables
+ * @param[out] qv_in Water vapor component
+ * @param[out] qc_in Cloud liquid component
+ * @param[out] qi_in Cloud ice component
+ * @param[out] qrain_in Precipitation liquid component
+ * @param[out] qsnow_in Precipitation ice component
+ * @param[out] qgraup_in Graup component
+ */
 void Microphysics::Update(amrex::MultiFab& cons_in,
                           amrex::MultiFab& qv_in,
                           amrex::MultiFab& qc_in,

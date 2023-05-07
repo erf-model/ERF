@@ -66,5 +66,4 @@ erf.KE_0  = 0.000656292002688172 # exact soln in uniform density field, e = Ck/C
 
 # INITIAL PROFILES
 erf.init_type = "input_sounding"
-erf.input_sounding_file = "ideal_linear_sounding"
-
+erf.input_sounding_file = "input_sounding" # with linear wind profile

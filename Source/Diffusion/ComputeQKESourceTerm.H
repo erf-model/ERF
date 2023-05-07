@@ -4,15 +4,15 @@
 /**
  * Function for computing the QKE source terms.
  *
- * @param u velocity in x-dir
- * @param v velocity in y-dir
- * @param cell_data conserved cell center vars
- * @param cell_prim primitive cell center vars
- * @param K_turb turbulent viscosity
- * @param cellSizeInv inverse cell size array
- * @param domain box of the whole domain
- * @param solverChoice container of solver params
- * @param theta_mean average theta
+ * @param[in] u velocity in x-dir
+ * @param[in] v velocity in y-dir
+ * @param[in] cell_data conserved cell center vars
+ * @param[in] cell_prim primitive cell center vars
+ * @param[in] K_turb turbulent viscosity
+ * @param[in] cellSizeInv inverse cell size array
+ * @param[in] domain box of the whole domain
+ * @param[in] solverChoice container of solver params
+ * @param[in] theta_mean average theta
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
