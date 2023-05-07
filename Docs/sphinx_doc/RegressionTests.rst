@@ -5,7 +5,7 @@ Regression Tests
 ================
 
 There are currently 26 tests which are run as part of every PR.
-he CI tests use cmake and are based on the version
+The CI tests use cmake and are based on the version
 of AMReX in the ERF submodule.
 
 In addition there are nightly tests that use GNUMake and use the current
