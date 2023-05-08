@@ -1,14 +1,14 @@
-#ifndef INTERPOLATE_WENO_H_
-#define INTERPOLATE_WENO_H_
+#ifndef INTERPOLATE_WENO_Z_H_
+#define INTERPOLATE_WENO_Z_H_
 
 #include "DataStruct.H"
 
 /**
- * Interpolation operators used for WENO-5 scheme
+ * Interpolation operators used for WENO_Z-3 scheme
  */
-struct WENO3
+struct WENO_Z3
 {
-    WENO3(const amrex::Array4<const amrex::Real>& phi): m_phi(phi) {}
+    WENO_Z3(const amrex::Array4<const amrex::Real>& phi): m_phi(phi) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -79,8 +79,9 @@ struct WENO3
         b2 = (sp1 - s) * (sp1 - s);
 
         // Weight factors
-        w1 = g1 / ( (eps + b1) * (eps + b1) );
-        w2 = g2 / ( (eps + b2) * (eps + b2) );
+        t5 = std::abs(b2 - b1);
+        w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
 
         // Weight factor norm
         wsum = w1 + w2;
@@ -96,7 +97,7 @@ struct WENO3
 private:
     const amrex::Array4<const amrex::Real>& m_phi;
     amrex::Real eps=1.0e-6;
-    amrex::Real b1=0. , b2=0.;
+    amrex::Real b1=0. , b2=0., t5=0.  ;
     amrex::Real w1=0. , w2=0., wsum=0.;
     amrex::Real v1=0. , v2=0.;
     static constexpr amrex::Real g1=(1.0/3.0);
@@ -104,11 +105,11 @@ private:
 };
 
 /**
- * Interpolation operators used for WENO-5 scheme
+ * Interpolation operators used for WENO_Z-5 scheme
  */
-struct WENO5
+struct WENO_Z5
 {
-    WENO5(const amrex::Array4<const amrex::Real>& phi): m_phi(phi) {}
+    WENO_Z5(const amrex::Array4<const amrex::Real>& phi): m_phi(phi) {}
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -191,9 +192,10 @@ struct WENO5
              0.25 * (3.0 * s - 4.0 * sp1 + sp2) * (3.0 * s - 4.0 * sp1 + sp2);
 
         // Weight factors
-        w1 = g1 / ( (eps + b1) * (eps + b1) );
-        w2 = g2 / ( (eps + b2) * (eps + b2) );
-        w3 = g3 / ( (eps + b3) * (eps + b3) );
+        t5 = std::abs(b3 - b1);
+        w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        w3 = g3 * ( 1.0 + (t5*t5) / ((eps + b3) * (eps + b3)) );
 
         // Weight factor norm
         wsum = w1 + w2 + w3;
@@ -210,7 +212,7 @@ struct WENO5
 private:
     const amrex::Array4<const amrex::Real>& m_phi;
     amrex::Real eps=1.0e-6;
-    amrex::Real b1=0. , b2=0. , b3=0. ;
+    amrex::Real b1=0. , b2=0. , b3=0. , t5=0.  ;
     amrex::Real w1=0. , w2=0. , w3=0. , wsum=0.;
     amrex::Real v1=0. , v2=0. , v3=0. ;
     amrex::Real g1=0.1, g2=0.6, g3=0.3;
