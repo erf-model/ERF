@@ -78,11 +78,15 @@ public:
 
 
     void impose_lateral_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                  const amrex::Array4<amrex::Real const>& xvel_arr,
+                                  const amrex::Array4<amrex::Real const>& yvel_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
                                   amrex::Real time, int bccomp_w);
     void impose_vertical_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
+                                   const amrex::Array4<amrex::Real const>& xvel_arr,
+                                   const amrex::Array4<amrex::Real const>& yvel_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
                                    const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,

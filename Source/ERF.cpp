@@ -196,6 +196,8 @@ ERF::~ERF ()
 void
 ERF::Evolve ()
 {
+    BL_PROFILE_VAR("ERF::Evolve()", evolve);
+
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
@@ -273,6 +275,7 @@ ERF::Evolve ()
         }
     }
 
+    BL_PROFILE_VAR_STOP(evolve);
 }
 
 // Called after every coarse timestep
@@ -351,6 +354,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 void
 ERF::InitData ()
 {
+    BL_PROFILE_VAR("ERF::InitData()", InitData);
+
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
 
@@ -482,8 +487,11 @@ ERF::InitData ()
     //    after interpolation.
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p().
-    if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
-        initHSE();
+    // If we are restarting, the base state is read from the restart file, including ghost cell data
+    if (restart_chkfile.empty()) {
+        if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
+            initHSE();
+        }
     }
 
 #ifdef ERF_USE_MOISTURE
@@ -714,6 +722,7 @@ ERF::InitData ()
         }
 
     }
+    BL_PROFILE_VAR_STOP(InitData);
 }
 
 void

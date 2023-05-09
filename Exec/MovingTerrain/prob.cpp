@@ -362,7 +362,7 @@ init_custom_terrain (const Geometry& geom,
             // Location of nodes
             Real x = ii  * dx[0];
 
-            // Wave heigght
+            // Wave height
             Real height = Ampl * std::sin(kp * x - omega * time);
 
             // Populate terrain height

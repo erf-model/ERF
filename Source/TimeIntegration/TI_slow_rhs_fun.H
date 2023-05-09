@@ -167,8 +167,9 @@
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
 
-        } else { // if moving_terrain
+        } else {
 
+            // If not moving_terrain
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
@@ -189,7 +190,7 @@
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
-        } // if not moving_terrain
+        }
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones

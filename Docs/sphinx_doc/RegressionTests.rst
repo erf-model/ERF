@@ -1,12 +1,14 @@
 
+ .. _RegressionTests:
 
 Regression Tests
 ================
-Last update: 2021-11-11.
 
-There are currently 12 tests which are run as part of every PR and also as part
-of a nightly regression suite.  The CI tests use cmake and are based on the version
-of AMReX in the ERF submodule; the nightly tests use GNUMake and use the current
+There are currently 26 tests which are run as part of every PR.
+The CI tests use cmake and are based on the version
+of AMReX in the ERF submodule.
+
+In addition there are nightly tests that use GNUMake and use the current
 development branch of AMReX.
 
 Results from the nightly CPU tests can be found here: `CPU tests`_
@@ -22,11 +24,28 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other                 |
 +===============================+==========+==========+==========+============+=======+=======================+
+| Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | USE_MOISTURE=TRUE     |
+|                               |          | Outflow  |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | CouetteFlow                   | 32 4  16 | Periodic | Periodic | SlipWall   | None  | inhomogeneous         |
 |                               |          |          |          | SlipWall   |       | bc at zhi             |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
-| DensityCurrent                | 256 4 64 | Outflow  | Periodic | SlipWall   | None  | +gravity              |
-|                               |          |          |          | SlipWall   |       |                       |
+| DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity              |
+|                               |          | Outflow  |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| DensityCurrent_detJ2          | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | use_terrain = true    |
+|                               |          | Outflow  |          | SlipWall   |       | uses zlevels          |
+|                               |          | Outflow  |          | SlipWall   |       | detJ = 2 everywhere   |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| DensityCurrent_detJ2_nosub    | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | use_terrain = true    |
+|                               |          | Outflow  |          | SlipWall   |       | uses zlevels          |
+|                               |          |          |          |            |       | detJ = 2 everywhere   |
+|                               |          |          |          |            |       | no substepping        |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| DensityCurrent_detJ2_MT       | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | use_terrain = true    |
+|                               |          | Outflow  |          | SlipWall   |       | uses zlevels          |
+|                               |          | Outflow  |          | SlipWall   |       | detJ = 2 everywhere   |
+|                               |          |          |          |            |       | terrain_type = 1      |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis             |
 |                               |          |          |          | SlipWall   |       | +gravity              |
@@ -36,6 +55,12 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | IsentropicVortexStationary    | 48 48  4 | Periodic | Periodic | SlipWall   | None  |                       |
 |                               |          |          |          | SlipWall   |       |                       |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| MSF_NoSub_IsentropicVortexAdv | 48 48  4 | Periodic | Periodic | SlipWall   | None  | tests map factors     |
+|                               |          |          |          | SlipWall   |       | without substepping   |
++-------------------------------+----------+----------+----------+------------+-------+-----------------------+
+| MSF_Sub_IsentropicVortexAdv   | 48 48  4 | Periodic | Periodic | SlipWall   | None  | tests map factors     |
+|                               |          |          |          | SlipWall   |       | with substepping      |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | PoiseuilleFlow                | 32 4  16 | Periodic | Periodic | NoSlipWall | GradP |                       |
 |                               |          |          |          | NoSlipWall | in x  |                       |

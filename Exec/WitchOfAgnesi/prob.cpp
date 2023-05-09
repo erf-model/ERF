@@ -268,7 +268,7 @@ init_custom_prob(
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, z_nd, dxInv);
+      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
   });
 
   amrex::Gpu::streamSynchronize();

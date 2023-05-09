@@ -564,30 +564,25 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             if (l_use_terrain) {
+
+                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+                amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = 0.;
+                });
+                Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+                amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+
                 if (z_t) {
-                    Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                    amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = 0.;
-                    });
-                    Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                    amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
-                    Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                    amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = 0.;
-                    });
-                    Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                    amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
@@ -824,7 +819,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             }
 
             if (l_moving_terrain) {
-                rho_u_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i-1,j,k));
+                Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                rho_u_rhs(i, j, k) *= h_zeta;
             }
         });
 
@@ -929,7 +925,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               }
 
               if (l_moving_terrain) {
-                  rho_v_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j-1,k));
+                  Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                  rho_v_rhs(i, j, k) *= h_zeta;
               }
           });
 
