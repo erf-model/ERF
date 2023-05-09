@@ -28,13 +28,12 @@ AdvectionSrcForXMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u,
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& Omega,
-                       InterpType interp_u,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
+                       InterpType interp_u,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u, const
-                       amrex::Array4<const amrex::Real>& mf_v,
-                       int horiz_spatial_order, int vert_spatial_order)
+                       amrex::Array4<const amrex::Real>& mf_v)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -79,7 +78,8 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i-1, j, k+1));
     Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i-1, j, k  ));
 
-    interp_u.InterpolateInZ(i,j,k,0,interp_hi,interp_lo,Omega_avg_hi,Omega_avg_lo);
+    interp_u.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+    interp_u.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo);
 
     amrex::Real edgeFluxXZNext = Omega_avg_hi * interp_hi;
     amrex::Real edgeFluxXZPrev = Omega_avg_lo * interp_lo;
@@ -121,13 +121,12 @@ AdvectionSrcForYMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u,
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& Omega,
-                       InterpType interp_v,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
+                       InterpType interp_v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u,
-                       const amrex::Array4<const amrex::Real>& mf_v,
-                       int horiz_spatial_order, int vert_spatial_order)
+                       const amrex::Array4<const amrex::Real>& mf_v)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -171,7 +170,8 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     Omega_avg_hi = 0.5 * (Omega(i, j, k+1) + Omega(i, j-1, k+1));
     Omega_avg_lo = 0.5 * (Omega(i, j, k  ) + Omega(i, j-1, k  ));
 
-    interp_v.InterpolateInZ(i,j,k,0,interp_hi,interp_lo,Omega_avg_hi,Omega_avg_lo);
+    interp_v.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+    interp_v.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo);
 
     amrex::Real edgeFluxYZNext = Omega_avg_hi * interp_hi;
     amrex::Real edgeFluxYZPrev = Omega_avg_lo * interp_lo;
@@ -207,7 +207,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
  * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  * @param[in] domhi_z maximum k value in the domain
  */
-template<typename InterpType>
+template<typename InterpType, typename WallInterpType>
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
@@ -215,14 +215,17 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& rho_u,
                        const amrex::Array4<const amrex::Real>& rho_v,
                        const amrex::Array4<const amrex::Real>& Omega,
-                       InterpType interp_omega,
+                       const amrex::Array4<const amrex::Real>& w,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
+                       InterpType interp_omega,
+                       WallInterpType interp_omega_wall,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       int domhi_z)
+                       const int vert_spatial_order,
+                       const int domhi_z)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -261,15 +264,43 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // ****************************************************************************************
     // z-fluxes (at cell centers)
     // ****************************************************************************************
+
     Omega_avg_hi = (k == domhi_z+1) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k+1));
-    Omega_avg_lo = (k == 0)         ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k-1));
+    amrex::Real centFluxZZNext = Omega_avg_hi;
 
-    interp_omega.InterpolateInZ(i,j,k,0,interp_hi,interp_lo,Omega_avg_hi,Omega_avg_lo);
-
-    amrex::Real centFluxZZNext = Omega_avg_hi * interp_hi;
-    amrex::Real centFluxZZPrev = Omega_avg_lo * interp_lo;
+    // If k == domhi_z   and spatial_order >= 3 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,2)
+    // If k == domhi_z-1 and spatial_order >= 5 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,4)
+    int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    if (k == domhi_z+1) {
+        centFluxZZNext *=  w(i,j,k);
+    } else if (l_spatial_order_hi < vert_spatial_order) {
+        interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,l_spatial_order_hi);
+        centFluxZZNext *=  interp_hi;
+    } else {
+        interp_omega.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+        centFluxZZNext *=  interp_hi;
+    }
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+    Omega_avg_lo = (k == 0) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k-1));
+    amrex::Real centFluxZZPrev = Omega_avg_lo;
+
+    // If k == 1 and spatial_order >= 3 we would reach to k = -1 so we set to spatial_order = min(spatial_order,2)
+    // If k == 2 and spatial_order >= 5 we would reach to k = -1 so we set to spatial_order = min(spatial_order,4)
+    int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
+    if (k == 0) {
+        centFluxZZPrev *=  w(i,j,k);
+    } else if (l_spatial_order_hi < vert_spatial_order) {
+        interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,l_spatial_order_hi);
+        centFluxZZPrev *=  interp_hi;
+    } else {
+        interp_omega.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+        centFluxZZPrev *=  interp_hi;
+    }
+
+    // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
 
     amrex::Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
@@ -281,4 +312,50 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     advectionSrc /= denom;
 
     return advectionSrc;
+}
+
+/**
+ * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ */
+template<typename InterpType, typename WallInterpType>
+void
+AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                            const amrex::Array4<amrex::Real>& rho_u_rhs,
+                            const amrex::Array4<amrex::Real>& rho_v_rhs,
+                            const amrex::Array4<amrex::Real>& rho_w_rhs,
+                            InterpType interp_u,
+                            InterpType interp_v,
+                            InterpType interp_omega,
+                            WallInterpType interp_omega_wall,
+                            const amrex::Array4<const amrex::Real>& rho_u,
+                            const amrex::Array4<const amrex::Real>& rho_v,
+                            const amrex::Array4<const amrex::Real>& Omega,
+                            const amrex::Array4<const amrex::Real>& w,
+                            const amrex::Array4<const amrex::Real>& z_nd,
+                            const amrex::Array4<const amrex::Real>& detJ,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& mf_m,
+                            const amrex::Array4<const amrex::Real>& mf_u,
+                            const amrex::Array4<const amrex::Real>& mf_v,
+                            const int vert_spatial_order,
+                            const int domhi_z)
+{
+    amrex::ParallelFor(bxx, bxy, bxz,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_T(i, j, k, rho_u, rho_v, Omega, z_nd, detJ,
+                                                    interp_u, cellSizeInv, mf_u, mf_v);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_T(i, j, k, rho_u, rho_v, Omega, z_nd, detJ,
+                                                    interp_v, cellSizeInv, mf_u, mf_v);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, Omega, w, z_nd, detJ,
+                                                    interp_omega, interp_omega_wall,
+                                                    cellSizeInv, mf_m, mf_u, mf_v,
+                                                    vert_spatial_order, domhi_z);
+    });
 }

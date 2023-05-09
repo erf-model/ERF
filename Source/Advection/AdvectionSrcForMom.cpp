@@ -142,51 +142,71 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         // Get struct for higher order interpolation
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
-                UPWIND3 interp_u(u,rho_u,rho_v,Omega); // X-MOM
-                UPWIND3 interp_v(v,rho_u,rho_v,Omega); // Y-MOM
-                UPWIND3 interp_w(w,rho_u,rho_v,Omega); // Z-MOM
-
-                amrex::ParallelFor(bxx, bxy, bxz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, Omega, interp_u,
-                                                                cellSizeInv, mf_u, mf_v);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, Omega, interp_v,
-                                                                cellSizeInv, mf_u, mf_v);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, Omega, interp_w,
-                                                                cellSizeInv, mf_m, mf_u, mf_v, domhi_z);
-                });
-
-            /*
+                UPWIND3 interp_u(u); // X-MOM
+                UPWIND3 interp_v(v); // Y-MOM
+                UPWIND3 interp_w(w); // Z-MOM
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
-
+                UPWIND4 interp_u(u);
+                UPWIND4 interp_v(v);
+                UPWIND4 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
-
+                UPWIND5 interp_u(u);
+                UPWIND5 interp_v(v);
+                UPWIND5 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
-
+                UPWIND6 interp_u(u);
+                UPWIND6 interp_v(v);
+                UPWIND6 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else if (all_use_WENO && spatial_order_WENO==3) {
                 WENO3 interp_u(u);
                 WENO3 interp_v(v);
                 WENO3 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else if (all_use_WENO && spatial_order_WENO==5) {
                 WENO5 interp_u(u);
                 WENO5 interp_v(v);
                 WENO5 interp_w(w);
-            } else if (all_use_WENO_Z && spatial_order_WENO==3) {
-                WENO_Z3 interp_u(u);
-                WENO_Z3 interp_v(v);
-                WENO_Z3 interp_w(w);
-            } else if (all_use_WENO_Z && spatial_order_WENO==5) {
-                WENO_Z5 interp_u(u);
-                WENO_Z5 interp_v(v);
-                WENO_Z5 interp_w(w);
-             */
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_N(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
             } else {
                 exit(0);
             }
@@ -289,7 +309,75 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
         // Get struct for higher order interpolation
         } else {
-            exit(0);
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
+                UPWIND3 interp_u(u); // X-MOM
+                UPWIND3 interp_v(v); // Y-MOM
+                UPWIND3 interp_w(w); // Z-MOM
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
+                UPWIND4 interp_u(u);
+                UPWIND4 interp_v(v);
+                UPWIND4 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
+                UPWIND5 interp_u(u);
+                UPWIND5 interp_v(v);
+                UPWIND5 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
+                UPWIND6 interp_u(u);
+                UPWIND6 interp_v(v);
+                UPWIND6 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else if (all_use_WENO && spatial_order_WENO==3) {
+                WENO3 interp_u(u);
+                WENO3 interp_v(v);
+                WENO3 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else if (all_use_WENO && spatial_order_WENO==5) {
+                WENO5 interp_u(u);
+                WENO5 interp_v(v);
+                WENO5 interp_w(w);
+                UPWINDALL interp_w_wall(w);
+                AdvectionSrcForMomWrapper_T(bxx, bxy, bxz,
+                                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                            interp_u, interp_v, interp_w, interp_w_wall,
+                                            rho_u, rho_v, Omega, w, z_nd, detJ,
+                                            cellSizeInv, mf_m, mf_u, mf_v,
+                                            vert_spatial_order, domhi_z);
+            } else {
+                exit(0);
+            }
         }
     }
 }
