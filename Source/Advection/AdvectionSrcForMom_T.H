@@ -322,13 +322,11 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<amrex::Real>& rho_u_rhs,
                             const amrex::Array4<amrex::Real>& rho_v_rhs,
                             const amrex::Array4<amrex::Real>& rho_w_rhs,
-                            InterpType interp_u,
-                            InterpType interp_v,
-                            InterpType interp_omega,
-                            WallInterpType interp_omega_wall,
                             const amrex::Array4<const amrex::Real>& rho_u,
                             const amrex::Array4<const amrex::Real>& rho_v,
                             const amrex::Array4<const amrex::Real>& Omega,
+                            const amrex::Array4<const amrex::Real>& u,
+                            const amrex::Array4<const amrex::Real>& v,
                             const amrex::Array4<const amrex::Real>& w,
                             const amrex::Array4<const amrex::Real>& z_nd,
                             const amrex::Array4<const amrex::Real>& detJ,
@@ -339,6 +337,11 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const int vert_spatial_order,
                             const int domhi_z)
 {
+    // Instantiate the appropriate structs
+    InterpType interp_u(u); // X-MOM
+    InterpType interp_v(v); // Y-MOM
+    InterpType interp_w(w); // Z-MOM
+    WallInterpType interp_w_wall(w); // Z-MOM @ wall
     amrex::ParallelFor(bxx, bxy, bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -353,7 +356,7 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, Omega, w, z_nd, detJ,
-                                                    interp_omega, interp_omega_wall,
+                                                    interp_w, interp_w_wall,
                                                     cellSizeInv, mf_m, mf_u, mf_v,
                                                     vert_spatial_order, domhi_z);
     });

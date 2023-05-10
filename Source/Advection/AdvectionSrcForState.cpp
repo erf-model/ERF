@@ -1,145 +1,8 @@
 #include <IndexDefines.H>
 #include <TerrainMetrics.H>
 #include <Advection.H>
-#include <Interpolation.H>
-
-struct UPWIND3TEST
-{
-    UPWIND3TEST(const amrex::Array4<const amrex::Real>& phi)
-        : m_phi(phi) {}
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    InterpolateInX(const int& i,
-                   const int& j,
-                   const int& k,
-                   const int& qty_index,
-                   amrex::Real& val_hi,
-                   amrex::Real& val_lo,
-                   amrex::Real upw_hi,
-                   amrex::Real upw_lo)
-    {
-        // Data to interpolate on
-        amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
-        amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
-        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
-        amrex::Real sm1 = m_phi(i-1, j  , k  , qty_index);
-        amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
-
-        // Upwinding flags
-        if (upw_hi != 0.) upw_hi = (upw_hi > 0) ? 1. : -1.;
-        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
-
-        // Interpolate hi
-        val_hi = Evaluate(sp2,sp1,s,sm1,upw_hi);
-
-        // Interpolate lo
-        val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    InterpolateInY(const int& i,
-                   const int& j,
-                   const int& k,
-                   const int& qty_index,
-                   amrex::Real& val_hi,
-                   amrex::Real& val_lo,
-                   amrex::Real upw_hi,
-                   amrex::Real upw_lo)
-    {
-        // Data to interpolate on
-        amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
-        amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
-        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
-        amrex::Real sm1 = m_phi(i  , j-1, k  , qty_index);
-        amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
-
-        // Upwinding flags
-        if (upw_hi != 0.) upw_hi = (upw_hi > 0) ? 1. : -1.;
-        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
-
-        // Interpolate hi
-        val_hi = Evaluate(sp2,sp1,s,sm1,upw_hi);
-
-        // Interpolate lo
-        val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    InterpolateInZ_lo(const int& i,
-                      const int& j,
-                      const int& k,
-                      const int& qty_index,
-                      amrex::Real& val_lo,
-                      amrex::Real upw_lo)
-    {
-        // Data to interpolate on
-        amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
-        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
-        amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
-        amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
-
-        // Upwinding flags
-        if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
-
-        // Interpolate lo
-        val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    void
-    InterpolateInZ_hi(const int& i,
-                      const int& j,
-                      const int& k,
-                      const int& qty_index,
-                      amrex::Real& val_hi,
-                      amrex::Real upw_hi)
-    {
-        // Data to interpolate on
-        amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
-        amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
-        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
-        amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
-
-        // Upwinding flags
-        if (upw_hi != 0.) upw_hi = (upw_hi > 0) ? 1. : -1.;
-
-        // Interpolate lo
-        val_hi = Evaluate(sp2,sp1,s,sm1,upw_hi);
-    }
-
-    AMREX_GPU_DEVICE
-    AMREX_FORCE_INLINE
-    amrex::Real
-    Evaluate(const amrex::Real& sp1,
-             const amrex::Real& s,
-             const amrex::Real& sm1,
-             const amrex::Real& sm2,
-             const amrex::Real& upw)
-    {
-        // Averages and diffs
-        a1 = (s   + sm1);
-        d1 = (s   - sm1);
-        a2 = (sp1 + sm2);
-        d2 = (sp1 - sm2);
-
-        // Interpolated value
-        return ( g1*a1 - g2*a2 + upw * g2 * (d2 - 3.0*d1) );
-    }
-
-private:
-    const amrex::Array4<const amrex::Real>& m_phi;   // Quantity to interpolate
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.;
-    static constexpr amrex::Real g1=(7.0/12.0);
-    static constexpr amrex::Real g2=(1.0/12.0);
-};
+#include <AdvectionSrcForState_N.H>
+#include <AdvectionSrcForState_T.H>
 
 using namespace amrex;
 
@@ -241,87 +104,37 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
-                UPWIND3TEST interp_prim(cell_prim);
-
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                  Real xflux_lo = rho_u(i  ,j,k) / mf_u(i  ,j  ,0);
-                  Real xflux_hi = rho_u(i+1,j,k) / mf_u(i+1,j  ,0);
-                  Real yflux_lo = rho_v(i,j  ,k) / mf_v(i  ,j  ,0);
-                  Real yflux_hi = rho_v(i,j+1,k) / mf_v(i  ,j+1,0);
-                  Real zflux_lo = Omega(i,j,k  );
-                  Real zflux_hi = Omega(i,j,k+1);
-                  
-                  avg_xmom(i  ,j,k) += fac*xflux_lo;
-                  if (i == vbx_hi.x) avg_xmom(i+1,j,k) += fac*xflux_hi;
-                  
-                  avg_ymom(i,j  ,k) += fac*yflux_lo;
-                  if (j == vbx_hi.y) avg_ymom(i,j+1,k) += fac*yflux_hi;
-                  
-                  avg_zmom(i,j,k  ) += fac*zflux_lo;
-                  if (k == vbx_hi.z) avg_zmom(i,j,k+1) += fac*zflux_hi;
-                  
-                  Real mf   = mf_m(i,j,0);
-                  Real mfsq = mf*mf;
-                  
-                  advectionSrc(i,j,k,0) = -(
-                                            ( xflux_hi - xflux_lo ) * dxInv * mfsq +
-                                            ( yflux_hi - yflux_lo ) * dyInv * mfsq +
-                                            ( zflux_hi - zflux_lo ) * dzInv);
-                  
-                  const int prim_index = 0;
-                  Real interpx_hi(0.), interpx_lo(0.);
-                  Real interpy_hi(0.), interpy_lo(0.);
-                  Real interpz_hi(0.), interpz_lo(0.);
-                  interp_prim.InterpolateInX(i,j,k,0,interpx_hi,interpx_lo,1.0,1.0);
-                  //interp_prim.InterpolateInX(i,j,k,0,interpy_hi,interpy_lo,rho_v(i  ,j+1,k  ),rho_v(i  ,j  ,k  ));
-                  //interp_prim.InterpolateInX(i,j,k,0,interpz_hi,interpz_lo,rho_w(i  ,j  ,k+1),rho_w(i  ,j  ,k  ));
-                  advectionSrc(i,j,k,1) = -(
-                                            ( xflux_hi * interpx_hi - xflux_lo * interpx_lo ) * dxInv * mfsq +
-                                            ( yflux_hi * interpy_hi - yflux_lo * interpy_lo ) * dyInv * mfsq +
-                                            ( zflux_hi * interpz_hi - zflux_lo * interpz_lo ) * dzInv);
-                });
-
-            /*
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
-            */
-                /*
+                AdvectionSrcForRhoThetaWrapper_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          cellSizeInv, mf_m, mf_u, mf_v);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
-                UPWIND4 interp_prim(cell_prim);
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
+                AdvectionSrcForRhoThetaWrapper_N<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          cellSizeInv, mf_m, mf_u, mf_v);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
-                UPWIND5 interp_prim(cell_prim);
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
+                AdvectionSrcForRhoThetaWrapper_N<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          cellSizeInv, mf_m, mf_u, mf_v);
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
-                UPWIND6 interp_prim(cell_prim);
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
+                AdvectionSrcForRhoThetaWrapper_N<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          cellSizeInv, mf_m, mf_u, mf_v);
             } else if (all_use_WENO && spatial_order_WENO==3) {
-                WENO3 interp_prim(cell_prim);
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
+                AdvectionSrcForRhoThetaWrapper_N<WENO3>(bx, vbx_hi, fac, advectionSrc,
+                                                        cell_prim, rho_u, rho_v, Omega,
+                                                        avg_xmom, avg_ymom, avg_zmom,
+                                                        cellSizeInv, mf_m, mf_u, mf_v);
             } else if (all_use_WENO && spatial_order_WENO==5) {
-                WENO5 interp_prim(cell_prim);
-                AdvectionSrcForRhoThetaWrapper_N(bx, vbx_hi, fac, interp_prim,
-                                                 advectionSrc, rho_u, rho_v, Omega,
-                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                 cellSizeInv, mf_m, mf_u, mf_v);
-                */
+                AdvectionSrcForRhoThetaWrapper_N<WENO5>(bx, vbx_hi, fac, advectionSrc,
+                                                        cell_prim, rho_u, rho_v, Omega,
+                                                        avg_xmom, avg_ymom, avg_zmom,
+                                                        cellSizeInv, mf_m, mf_u, mf_v);
             } else {
-                exit(0);
+                AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
         }
 
@@ -376,7 +189,39 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                   zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
             });
         } else {
-            // NOTE: TODO!
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
+                AdvectionSrcForRhoThetaWrapper_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
+                AdvectionSrcForRhoThetaWrapper_T<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
+                AdvectionSrcForRhoThetaWrapper_T<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
+                AdvectionSrcForRhoThetaWrapper_T<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
+                                                          cell_prim, rho_u, rho_v, Omega,
+                                                          avg_xmom, avg_ymom, avg_zmom,
+                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else if (all_use_WENO && spatial_order_WENO==3) {
+                AdvectionSrcForRhoThetaWrapper_T<WENO3>(bx, vbx_hi, fac, advectionSrc,
+                                                        cell_prim, rho_u, rho_v, Omega,
+                                                        avg_xmom, avg_ymom, avg_zmom,
+                                                        z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else if (all_use_WENO && spatial_order_WENO==5) {
+                AdvectionSrcForRhoThetaWrapper_T<WENO5>(bx, vbx_hi, fac, advectionSrc,
+                                                        cell_prim, rho_u, rho_v, Omega,
+                                                        avg_xmom, avg_ymom, avg_zmom,
+                                                        z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            } else {
+                AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
+            }
         }
     }
 }
@@ -456,6 +301,38 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
         });
 
     } else {
-        // NOTE: TODO!
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
+            AdvectionSrcForScalarsWrapper_N<UPWIND3>(bx, ncomp_end, icomp,
+                                                     use_terrain, advectionSrc, cell_prim,
+                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                     cellSizeInv, mf_m);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
+                AdvectionSrcForScalarsWrapper_N<UPWIND4>(bx, ncomp_end, icomp,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
+                AdvectionSrcForScalarsWrapper_N<UPWIND5>(bx, ncomp_end, icomp,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
+                AdvectionSrcForScalarsWrapper_N<UPWIND6>(bx, ncomp_end, icomp,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
+            } else if (all_use_WENO && spatial_order_WENO==3) {
+                AdvectionSrcForScalarsWrapper_N<WENO3>(bx, ncomp_end, icomp,
+                                                       use_terrain, advectionSrc, cell_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                       cellSizeInv, mf_m);
+            } else if (all_use_WENO && spatial_order_WENO==5) {
+                AdvectionSrcForScalarsWrapper_N<WENO5>(bx, ncomp_end, icomp,
+                                                       use_terrain, advectionSrc, cell_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                       cellSizeInv, mf_m);
+            } else {
+                AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
+            }
     }
 }

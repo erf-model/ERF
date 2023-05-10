@@ -21,7 +21,7 @@ struct UPWIND3
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real upw_hi,
-                   amrex::Real upw_lo)
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -51,7 +51,7 @@ struct UPWIND3
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real upw_hi,
-                   amrex::Real upw_lo)
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -79,7 +79,7 @@ struct UPWIND3
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real upw_lo)
+                      amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -102,7 +102,7 @@ struct UPWIND3
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_hi,
-                      amrex::Real upw_hi)
+                      amrex::Real upw_hi) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -124,13 +124,13 @@ struct UPWIND3
              const amrex::Real& s,
              const amrex::Real& sm1,
              const amrex::Real& sm2,
-             const amrex::Real& upw)
+             const amrex::Real& upw) const
     {
         // Averages and diffs
-        a1 = (s   + sm1);
-        d1 = (s   - sm1);
-        a2 = (sp1 + sm2);
-        d2 = (sp1 - sm2);
+        amrex::Real a1 = (s   + sm1);
+        amrex::Real d1 = (s   - sm1);
+        amrex::Real a2 = (sp1 + sm2);
+        amrex::Real d2 = (sp1 - sm2);
 
         // Interpolated value
         return ( g1*a1 - g2*a2 + upw * g2 * (d2 - 3.0*d1) );
@@ -138,8 +138,6 @@ struct UPWIND3
 
 private:
     const amrex::Array4<const amrex::Real>& m_phi;   // Quantity to interpolate
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.;
     static constexpr amrex::Real g1=(7.0/12.0);
     static constexpr amrex::Real g2=(1.0/12.0);
 };
@@ -163,7 +161,7 @@ struct UPWIND4
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/)
+                   amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -189,7 +187,7 @@ struct UPWIND4
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/)
+                   amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -213,7 +211,7 @@ struct UPWIND4
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real /*upw_lo*/)
+                      amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -233,7 +231,7 @@ struct UPWIND4
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_hi,
-                      amrex::Real /*upw_hi*/)
+                      amrex::Real /*upw_hi*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -251,13 +249,11 @@ struct UPWIND4
     Evaluate(const amrex::Real& sp1,
              const amrex::Real& s,
              const amrex::Real& sm1,
-             const amrex::Real& sm2)
+             const amrex::Real& sm2) const
     {
         // Averages and diffs
-        a1 = (s   + sm1);
-        d1 = (s   - sm1);
-        a2 = (sp1 + sm2);
-        d2 = (sp1 - sm2);
+        amrex::Real a1 = (s   + sm1);
+        amrex::Real a2 = (sp1 + sm2);
 
         // Interpolated value
         return ( g1*a1 - g2*a2 );
@@ -265,8 +261,6 @@ struct UPWIND4
 
 private:
     const amrex::Array4<const amrex::Real>& m_phi;   // Quantity to interpolate
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.;
     static constexpr amrex::Real g1=(7.0/12.0);
     static constexpr amrex::Real g2=(1.0/12.0);
 };
@@ -289,7 +283,7 @@ struct UPWIND5
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real upw_hi,
-                   amrex::Real upw_lo)
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i+3, j  , k  , qty_index);
@@ -321,7 +315,7 @@ struct UPWIND5
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real upw_hi,
-                   amrex::Real upw_lo)
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j+3, k  , qty_index);
@@ -351,7 +345,7 @@ struct UPWIND5
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real upw_lo)
+                      amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -376,7 +370,7 @@ struct UPWIND5
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_hi,
-                      amrex::Real upw_hi)
+                      amrex::Real upw_hi) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j  , k+3, qty_index);
@@ -402,15 +396,15 @@ struct UPWIND5
              const amrex::Real& sm1,
              const amrex::Real& sm2,
              const amrex::Real& sm3,
-             const amrex::Real& upw)
+             const amrex::Real& upw) const
     {
         // Averages and diffs
-        a1 = (s   + sm1);
-        a2 = (sp1 + sm2);
-        a3 = (sp2 + sm3);
-        d1 = (s   - sm1);
-        d2 = (sp1 - sm2);
-        d3 = (sp2 - sm3);
+        amrex::Real a1 = (s   + sm1);
+        amrex::Real a2 = (sp1 + sm2);
+        amrex::Real a3 = (sp2 + sm3);
+        amrex::Real d1 = (s   - sm1);
+        amrex::Real d2 = (sp1 - sm2);
+        amrex::Real d3 = (sp2 - sm3);
 
         // Interpolated value
         return ( g1*a1 - g2*a2 + g3*a3 - upw * g3 * (d3 - 5.0*d2 + 10.0*d1) );
@@ -418,8 +412,6 @@ struct UPWIND5
 
 private:
     const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.; amrex::Real a3 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.; amrex::Real d3 = 0.;
     static constexpr amrex::Real g1=(37.0/60.0);
     static constexpr amrex::Real g2=(2.0/15.0);
     static constexpr amrex::Real g3=(1.0/60.0);
@@ -443,7 +435,7 @@ struct UPWIND6
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/)
+                   amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i+3, j  , k  , qty_index);
@@ -471,7 +463,7 @@ struct UPWIND6
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
                    amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/)
+                   amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j+3, k  , qty_index);
@@ -497,7 +489,7 @@ struct UPWIND6
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real /*upw_lo*/)
+                      amrex::Real /*upw_lo*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -519,7 +511,7 @@ struct UPWIND6
                    const int& k,
                    const int& qty_index,
                    amrex::Real& val_hi,
-                   amrex::Real /*upw_hi*/)
+                   amrex::Real /*upw_hi*/) const
     {
         // Data to interpolate on
         amrex::Real sp3 = m_phi(i  , j  , k+3, qty_index);
@@ -541,15 +533,12 @@ struct UPWIND6
              const amrex::Real& s,
              const amrex::Real& sm1,
              const amrex::Real& sm2,
-             const amrex::Real& sm3)
+             const amrex::Real& sm3) const
     {
         // Averages and diffs
-        a1 = (s   + sm1);
-        a2 = (sp1 + sm2);
-        a3 = (sp2 + sm3);
-        d1 = (s   - sm1);
-        d2 = (sp1 - sm2);
-        d3 = (sp2 - sm3);
+        amrex::Real a1 = (s   + sm1);
+        amrex::Real a2 = (sp1 + sm2);
+        amrex::Real a3 = (sp2 + sm3);
 
         // Interpolated value
         return ( g1*a1 - g2*a2 + g3*a3 );
@@ -557,8 +546,6 @@ struct UPWIND6
 
 private:
     const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.; amrex::Real a3 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.; amrex::Real d3 = 0.;
     static constexpr amrex::Real g1=(37.0/60.0);
     static constexpr amrex::Real g2=(2.0/15.0);
     static constexpr amrex::Real g3=(1.0/60.0);
@@ -581,7 +568,7 @@ struct UPWINDALL
                       const int& qty_index,
                       amrex::Real& val_lo,
                       amrex::Real upw_lo,
-                      const int& spatial_order)
+                      const int& spatial_order) const
     {
         if (spatial_order == 2) {
             val_lo = 0.5 * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k-1,qty_index) );
@@ -612,7 +599,7 @@ struct UPWINDALL
                       const int& qty_index,
                       amrex::Real& val_hi,
                       amrex::Real upw_hi,
-                      const int& spatial_order)
+                      const int& spatial_order) const
     {
         if (spatial_order == 2) {
             val_hi = 0.5 * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k+1,qty_index) );
@@ -644,17 +631,18 @@ struct UPWINDALL
              const amrex::Real& sm2,
              const amrex::Real& sm3,
              const amrex::Real& upw,
-             const int& spatial_order)
+             const int& spatial_order) const
     {
         // Averages and diffs
-        a1 = (s   + sm1);
-        a2 = (sp1 + sm2);
-        d1 = (s   - sm1);
-        d2 = (sp1 - sm2);
-        a3 = (sp2 + sm3);
-        d3 = (sp2 - sm3);
+        amrex::Real a1 = (s   + sm1);
+        amrex::Real a2 = (sp1 + sm2);
+        amrex::Real d1 = (s   - sm1);
+        amrex::Real d2 = (sp1 - sm2);
+        amrex::Real a3 = (sp2 + sm3);
+        amrex::Real d3 = (sp2 - sm3);
 
         // Interpolated value
+        amrex::Real iv;
         switch (spatial_order) {
         case 2:
             iv = 0.5 * a1;
@@ -677,9 +665,6 @@ struct UPWINDALL
 
 private:
     const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
-    amrex::Real iv = 0.;
-    amrex::Real a1 = 0.; amrex::Real a2 = 0.; amrex::Real a3 = 0.;
-    amrex::Real d1 = 0.; amrex::Real d2 = 0.; amrex::Real d3 = 0.;
     static constexpr amrex::Real g1_3_4=( 7.0/12.0);
     static constexpr amrex::Real g2_3_4=( 1.0/12.0);
     static constexpr amrex::Real g1_5_6=(37.0/60.0);
