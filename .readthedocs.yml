@@ -6,7 +6,7 @@ build:
     python: "3.11"
 
 sphinx:
-   configuration: Docs/source/conf.py
+   configuration: Docs/sphinx_doc/conf.py
 
 formats:
   - htmlzip
