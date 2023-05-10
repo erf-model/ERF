@@ -300,7 +300,6 @@ AdvectionSrcForZMom_T (int i, int j, int k,
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-
     amrex::Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
     advectionSrc = (edgeFluxZXNext - edgeFluxZXPrev) * dxInv * mfsq

@@ -64,9 +64,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-    // Not using terrain height coords
     if (!use_terrain) {
-        // Directly compute RHS for second order for efficiency
+        // Inline with 2nd order for efficiency
         if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -138,8 +137,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                   + (zflux_hi - zflux_lo) * dzInv;
                 rho_w_rhs(i, j, k) = -advectionSrc;
             });
-
-        // Get struct for higher order interpolation
+        // Template higher order methods
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForMomWrapper_N<UPWIND3, UPWINDALL>(bxx, bxy, bxz,
@@ -147,7 +145,6 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                                                 rho_u, rho_v, Omega, u, v, w,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-
             } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
                 AdvectionSrcForMomWrapper_N<UPWIND4, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
@@ -171,22 +168,20 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                               rho_u, rho_v, Omega, u, v, w,
                                                               cellSizeInv, mf_m, mf_u, mf_v,
-                                                              vert_spatial_order, domhi_z);
+                                                              spatial_order_WENO, domhi_z);
             } else if (all_use_WENO && spatial_order_WENO==5) {
                 AdvectionSrcForMomWrapper_N<WENO5, UPWINDALL>(bxx, bxy, bxz,
                                                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                               rho_u, rho_v, Omega, u, v, w,
                                                               cellSizeInv, mf_m, mf_u, mf_v,
-                                                              vert_spatial_order, domhi_z);
+                                                              spatial_order_WENO, domhi_z);
 
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
         }
-
-    // Using terrain height coordinates
     } else {
-        // Directly compute RHS for second order for efficiency
+        // Inline with 2nd order for efficiency
         if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -278,8 +273,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 rho_w_rhs(i, j, k) = -advectionSrc / (0.5*(detJ(i,j,k) + detJ(i,j,k-1)));
             });
-
-        // Get struct for higher order interpolation
+        // Template higher order methods
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForMomWrapper_T<UPWIND3, UPWINDALL>(bxx, bxy, bxz,
@@ -310,13 +304,13 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                               rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                               cellSizeInv, mf_m, mf_u, mf_v,
-                                                              vert_spatial_order, domhi_z);
+                                                              spatial_order_WENO, domhi_z);
             } else if (all_use_WENO && spatial_order_WENO==5) {
                 AdvectionSrcForMomWrapper_T<WENO5, UPWINDALL>(bxx, bxy, bxz,
                                                               rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                               rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                               cellSizeInv, mf_m, mf_u, mf_v,
-                                                              vert_spatial_order, domhi_z);
+                                                              spatial_order_WENO, domhi_z);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }

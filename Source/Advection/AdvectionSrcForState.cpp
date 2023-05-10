@@ -63,9 +63,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
     // We note that valid_bx is the actual grid, while bx may be a tile within that grid
     const auto& vbx_hi = ubound(valid_bx);
 
-    // Not using terrain height coords
     if (!use_terrain) {
-        // Directly compute RHS w/ second order for efficiency
+        // Inline with 2nd order for efficiency
         if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -102,6 +101,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
               ( zflux_hi * (cell_prim(i,j,k+1,prim_index) + cell_prim(i,j,k,prim_index)) -
                 zflux_lo * (cell_prim(i,j,k-1,prim_index) + cell_prim(i,j,k,prim_index)) ) * dzInv);
             });
+        // Template higher order methods
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForRhoThetaWrapper_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
@@ -139,7 +139,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
         }
 
     } else {
-        // Directly compute RHS w/ second order for efficiency
+        // Inline with 2nd order for efficiency
         if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -188,6 +188,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                 ( zflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
                   zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
             });
+        // Template higher order methods
         } else {
             if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForRhoThetaWrapper_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
@@ -277,8 +278,26 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
     moist_off = RhoQv_comp;
 #endif
 
-    if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
+    // Running with WENO for moisture but not for other vars
+    if(moist_use_WENO && ((icomp+ncomp)==NVAR) ) {
+        ncomp_end -= 2;
+        if (spatial_order_WENO==3) {
+            AdvectionSrcForScalarsWrapper_N<WENO3>(bx, 2, moist_off,
+                                                   use_terrain, advectionSrc, cell_prim,
+                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                   cellSizeInv, mf_m);
+        } else if (all_use_WENO && spatial_order_WENO==5) {
+            AdvectionSrcForScalarsWrapper_N<WENO5>(bx, 2, moist_off,
+                                                   use_terrain, advectionSrc, cell_prim,
+                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                   cellSizeInv, mf_m);
+        } else {
+            AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
+        }
+    }
 
+    // Inline with 2nd order for efficiency
+    if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
         amrex::ParallelFor(bx, ncomp_end, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
@@ -299,7 +318,7 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
               ( avg_zmom(i,j,k+1) * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
                 avg_zmom(i,j,k  ) * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
         });
-
+    // Template higher order methods
     } else {
         if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
             AdvectionSrcForScalarsWrapper_N<UPWIND3>(bx, ncomp_end, icomp,

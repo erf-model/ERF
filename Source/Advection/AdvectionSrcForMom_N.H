@@ -60,9 +60,9 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     yflux_lo = rho_v_avg_lo * interp_lo;
 
     rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
-    rho_w_avg_lo = 0.5 * (rho_w(i, j, k) + rho_w(i-1, j, k));
-    interp_u.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_u_avg_lo);
-    interp_u.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_u_avg_hi);
+    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i-1, j, k  ));
+    interp_u.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
+    interp_u.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
     zflux_hi = rho_w_avg_hi * interp_hi;
     zflux_lo = rho_w_avg_lo * interp_lo;
 
@@ -133,8 +133,8 @@ AdvectionSrcForYMom_N (int i, int j, int k,
 
     rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
     rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i, j-1, k  ));
-    interp_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_v_avg_lo);
-    interp_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_v_avg_hi);
+    interp_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
+    interp_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
     zflux_hi = rho_w_avg_hi * interp_hi;
     zflux_lo = rho_w_avg_lo * interp_lo;
 
