@@ -1,5 +1,4 @@
 #include <IndexDefines.H>
-#include <TerrainMetrics.H>
 #include <Interpolation.H>
 
 /**

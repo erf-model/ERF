@@ -1,7 +1,6 @@
 #include <IndexDefines.H>
 #include <TerrainMetrics.H>
 #include <Interpolation.H>
-#include <Interpolation_WENO.H>
 
 /**
  * Function for computing the advective tendency for the x-component of momentum
@@ -291,12 +290,12 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
     if (k == 0) {
         centFluxZZPrev *=  w(i,j,k);
-    } else if (l_spatial_order_hi < vert_spatial_order) {
-        interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,l_spatial_order_hi);
-        centFluxZZPrev *=  interp_hi;
+    } else if (l_spatial_order_lo < vert_spatial_order) {
+        interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,l_spatial_order_lo);
+        centFluxZZPrev *=  interp_lo;
     } else {
-        interp_omega.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
-        centFluxZZPrev *=  interp_hi;
+        interp_omega.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo);
+        centFluxZZPrev *=  interp_lo;
     }
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
