@@ -247,10 +247,6 @@ struct SolverChoice {
             pp.query("spatial_order_WENO", spatial_order_WENO);
             AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
                                       "WENO advection only supports orders 3 & 5.");
-
-            // Not valid with WENO
-            horiz_spatial_order = -1;
-            vert_spatial_order  = -1;
         }
 
         // Use numerical diffusion?

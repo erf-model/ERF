@@ -66,7 +66,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -139,25 +139,25 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             });
         // Template higher order methods
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_N<UPWIND3, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_N<UPWIND4, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_N<UPWIND5, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_N<UPWIND6, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w,
@@ -182,7 +182,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
         }
     } else {
         // Inline with 2nd order for efficiency
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -275,25 +275,25 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             });
         // Template higher order methods
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_T<UPWIND3, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_T<UPWIND4, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_T<UPWIND5, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                 cellSizeInv, mf_m, mf_u, mf_v,
                                                                 vert_spatial_order, domhi_z);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
                 AdvectionSrcForMomWrapper_T<UPWIND6, UPWINDALL>(bxx, bxy, bxz,
                                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                 rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
