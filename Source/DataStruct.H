@@ -238,9 +238,11 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        moist_use_WENO = true;
+        moist_use_WENO = true; // THIS IS NOT FULLY READY YET
 #endif
 
+
+        // THIS IS NOT FULLY READY YET
         // Use WENO for advection?
         pp.query("all_use_WENO", all_use_WENO);
         if (all_use_WENO || moist_use_WENO) {
@@ -248,6 +250,7 @@ struct SolverChoice {
             AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
                                       "WENO advection only supports orders 3 & 5.");
         }
+
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
