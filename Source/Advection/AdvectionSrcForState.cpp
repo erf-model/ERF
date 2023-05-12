@@ -51,8 +51,6 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<const Real>& mf_m,
                             const Array4<const Real>& mf_u,
                             const Array4<const Real>& mf_v,
-                            const bool all_use_WENO,
-                            const int  spatial_order_WENO,
                             const int horiz_spatial_order,
                             const int vert_spatial_order,
                             const int use_terrain)
@@ -65,7 +63,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real xflux_lo = rho_u(i  ,j,k) / mf_u(i  ,j  ,0);
@@ -103,36 +101,26 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         // Template higher order methods
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForRhoThetaWrapper_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
                 AdvectionSrcForRhoThetaWrapper_N<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
                 AdvectionSrcForRhoThetaWrapper_N<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
                 AdvectionSrcForRhoThetaWrapper_N<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (all_use_WENO && spatial_order_WENO==3) {
-                AdvectionSrcForRhoThetaWrapper_N<WENO3>(bx, vbx_hi, fac, advectionSrc,
-                                                        cell_prim, rho_u, rho_v, Omega,
-                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                        cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (all_use_WENO && spatial_order_WENO==5) {
-                AdvectionSrcForRhoThetaWrapper_N<WENO5>(bx, vbx_hi, fac, advectionSrc,
-                                                        cell_prim, rho_u, rho_v, Omega,
-                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                        cellSizeInv, mf_m, mf_u, mf_v);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
@@ -140,7 +128,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
     } else {
         // Inline with 2nd order for efficiency
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 2) {
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real invdetJ = 1./ detJ(i,j,k);
@@ -190,36 +178,26 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         // Template higher order methods
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
+            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
                 AdvectionSrcForRhoThetaWrapper_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
                 AdvectionSrcForRhoThetaWrapper_T<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
                 AdvectionSrcForRhoThetaWrapper_T<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
+            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
                 AdvectionSrcForRhoThetaWrapper_T<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
                                                           cell_prim, rho_u, rho_v, Omega,
                                                           avg_xmom, avg_ymom, avg_zmom,
                                                           z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (all_use_WENO && spatial_order_WENO==3) {
-                AdvectionSrcForRhoThetaWrapper_T<WENO3>(bx, vbx_hi, fac, advectionSrc,
-                                                        cell_prim, rho_u, rho_v, Omega,
-                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                        z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (all_use_WENO && spatial_order_WENO==5) {
-                AdvectionSrcForRhoThetaWrapper_T<WENO5>(bx, vbx_hi, fac, advectionSrc,
-                                                        cell_prim, rho_u, rho_v, Omega,
-                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                        z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
@@ -264,7 +242,8 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
                         const bool all_use_WENO,
                         const bool moist_use_WENO,
                         const int  spatial_order_WENO,
-                        const int horiz_spatial_order, const int vert_spatial_order,
+                        const int horiz_spatial_order,
+                        const int vert_spatial_order,
                         const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);

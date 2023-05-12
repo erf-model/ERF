@@ -20,16 +20,31 @@ struct WENO_Z3
                    const int& qty_index,
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
-                   amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/) const
+                   amrex::Real upw_hi,
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
+        amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i-1, j  , k  , qty_index);
+        amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
 
-        val_hi = Evaluate(sm1,s,sp1);
-        val_lo = Evaluate(sp1,s,sm1);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm1,s  ,sp1);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp2,sp1,s  );
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
+
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm2,sm1,s  );
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp1,s  ,sm1);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -41,16 +56,31 @@ struct WENO_Z3
                    const int& qty_index,
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
-                   amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/) const
+                   amrex::Real upw_hi,
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
+        amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j-1, k  , qty_index);
+        amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
 
-        val_hi = Evaluate(sm1,s,sp1);
-        val_lo = Evaluate(sp1,s,sm1);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm1,s  ,sp1);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp2,sp1,s  );
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
+
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm2,sm1,s  );
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp1,s  ,sm1);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -61,32 +91,46 @@ struct WENO_Z3
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real /*upw_lo*/) const
+                      amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
+        amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
 
-        val_lo = Evaluate(sp1,s,sm1);
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm2,sm1,s  );
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp1,s  ,sm1);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
-    InterpolateInZ(const int& i,
-                   const int& j,
-                   const int& k,
-                   const int& qty_index,
-                   amrex::Real& val_hi,
-                   amrex::Real /*upw_hi*/) const
+    InterpolateInZ_hi(const int& i,
+                      const int& j,
+                      const int& k,
+                      const int& qty_index,
+                      amrex::Real& val_hi,
+                      amrex::Real upw_hi) const
     {
         // Data to interpolate on
+        amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
 
-        val_hi = Evaluate(sm1,s,sp1);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm1,s  ,sp1);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp2,sp1,s  );
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -119,6 +163,7 @@ struct WENO_Z3
 private:
     const amrex::Array4<const amrex::Real>& m_phi;
     const amrex::Real eps=1.0e-6;
+    const amrex::Real tol=1.0e-12;
     static constexpr amrex::Real g1=(1.0/3.0);
     static constexpr amrex::Real g2=(2.0/3.0);
 };
@@ -140,18 +185,33 @@ struct WENO_Z5
                    const int& qty_index,
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
-                   amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/) const
+                   amrex::Real upw_hi,
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
+        amrex::Real sp3 = m_phi(i+3, j  , k  , qty_index);
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i-1, j  , k  , qty_index);
         amrex::Real sm2 = m_phi(i-2, j  , k  , qty_index);
+        amrex::Real sm3 = m_phi(i-3, j  , k  , qty_index);
 
-        val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
-        val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp3,sp2,sp1,s  ,sm1);
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
+
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm3,sm2,sm1,s  ,sp1);
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -163,18 +223,33 @@ struct WENO_Z5
                    const int& qty_index,
                    amrex::Real& val_hi,
                    amrex::Real& val_lo,
-                   amrex::Real /*upw_hi*/,
-                   amrex::Real /*upw_lo*/) const
+                   amrex::Real upw_hi,
+                   amrex::Real upw_lo) const
     {
         // Data to interpolate on
+        amrex::Real sp3 = m_phi(i  , j+3, k  , qty_index);
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j-1, k  , qty_index);
         amrex::Real sm2 = m_phi(i  , j-2, k  , qty_index);
+        amrex::Real sm3 = m_phi(i  , j-3, k  , qty_index);
 
-        val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
-        val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp3,sp2,sp1,s  ,sm1);
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
+
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm3,sm2,sm1,s  ,sp1);
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -185,7 +260,7 @@ struct WENO_Z5
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_lo,
-                      amrex::Real /*upw_lo*/) const
+                      amrex::Real upw_lo) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -193,8 +268,15 @@ struct WENO_Z5
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
         amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
+        amrex::Real sm3 = m_phi(i  , j  , k-3, qty_index);
 
-        val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        if (upw_lo > tol) {
+            val_lo = Evaluate(sm3,sm2,sm1,s  ,sp1);
+        } else if (upw_lo < -tol) {
+            val_lo = Evaluate(sp2,sp1,s,sm1,sm2);
+        } else {
+            val_lo = 0.5 * (s + sm1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -205,16 +287,23 @@ struct WENO_Z5
                       const int& k,
                       const int& qty_index,
                       amrex::Real& val_hi,
-                      amrex::Real /*upw_hi*/) const
+                      amrex::Real upw_hi) const
     {
         // Data to interpolate on
+        amrex::Real sp3 = m_phi(i  , j  , k+3, qty_index);
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
         amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
         amrex::Real sm2 = m_phi(i  , j  , k-2, qty_index);
 
-        val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
+        if (upw_hi > tol){
+            val_hi = Evaluate(sm2,sm1,s,sp1,sp2);
+        } else if (upw_hi < -tol) {
+            val_hi = Evaluate(sp3,sp2,sp1,s  ,sm1);
+        } else {
+            val_hi = 0.5 * (s + sp1);
+        }
     }
 
     AMREX_GPU_DEVICE
@@ -255,6 +344,7 @@ struct WENO_Z5
 private:
     const amrex::Array4<const amrex::Real>& m_phi;
     const amrex::Real eps=1.0e-6;
+    const amrex::Real tol=1.0e-12;
     static constexpr amrex::Real c1=(13.0/12.0);
     static constexpr amrex::Real g1=(1.0/10.0);
     static constexpr amrex::Real g2=(3.0/5.0);
