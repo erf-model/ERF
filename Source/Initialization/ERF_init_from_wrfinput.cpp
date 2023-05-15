@@ -22,6 +22,12 @@ read_from_wrfinput(int lev, const std::string& fname,
                    FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
                    FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
                    FArrayBox& NC_RDNW_fab,
+#if defined(ERF_USE_MOISTURE)
+                   FArrayBox& NC_QVAPOR_fab,
+                   FArrayBox& NC_QCLOUD_fab,
+                   FArrayBox& NC_QRAIN_fab,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
                    FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab);
 
@@ -54,6 +60,12 @@ void
 init_state_from_wrfinput(int lev, FArrayBox& state_fab,
                          FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
+#if defined(ERF_USE_MOISTURE)
+                         const Vector<FArrayBox>& NC_QVAPOR_fab,
+                         const Vector<FArrayBox>& NC_QCLOUD_fab,
+                         const Vector<FArrayBox>& NC_QRAIN_fab,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
                          const Vector<FArrayBox>& NC_xvel_fab,
                          const Vector<FArrayBox>& NC_yvel_fab,
                          const Vector<FArrayBox>& NC_zvel_fab,
@@ -105,6 +117,12 @@ ERF::init_from_wrfinput(int lev)
     Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_ALB_fab  ; NC_ALB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
+#if defined(ERF_USE_MOISTURE)
+    Vector<FArrayBox> NC_QVAPOR_fab; NC_QVAPOR_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_QCLOUD_fab; NC_QCLOUD_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_QRAIN_fab ; NC_QRAIN_fab.resize(num_boxes_at_level[lev]);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
 
     // amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
     if (nc_init_file.empty())
@@ -116,6 +134,10 @@ ERF::init_from_wrfinput(int lev)
                            NC_rhop_fab[idx],NC_rhoth_fab[idx], NC_MUB_fab[idx],
                            NC_MSFU_fab[idx],NC_MSFV_fab[idx],NC_MSFM_fab[idx],
                            NC_SST_fab[idx], NC_C1H_fab[idx],NC_C2H_fab[idx],NC_RDNW_fab[idx],
+#if defined(ERF_USE_MOISTURE)
+                           NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
                            NC_PH_fab[idx],NC_PHB_fab[idx],NC_ALB_fab[idx],NC_PB_fab[idx]);
     }
 
@@ -134,6 +156,10 @@ ERF::init_from_wrfinput(int lev)
         FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
         init_state_from_wrfinput(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
+#if defined(ERF_USE_MOISTURE)
+                                 NC_QVAPOR_fab, NC_QCLOUD_fab, NC_QRAIN_fab,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
                                  NC_rho_fab, NC_rhoth_fab);
     } // mf
@@ -245,6 +271,12 @@ void
 init_state_from_wrfinput(int lev, FArrayBox& state_fab,
                          FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
+#if defined(ERF_USE_MOISTURE)
+                         const Vector<FArrayBox>& NC_QVAPOR_fab,
+                         const Vector<FArrayBox>& NC_QCLOUD_fab,
+                         const Vector<FArrayBox>& NC_QRAIN_fab,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
                          const Vector<FArrayBox>& NC_xvel_fab,
                          const Vector<FArrayBox>& NC_yvel_fab,
                          const Vector<FArrayBox>& NC_zvel_fab,
@@ -275,6 +307,16 @@ init_state_from_wrfinput(int lev, FArrayBox& state_fab,
 
         // This copies (rho*theta)
         state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[idx], 0, RhoTheta_comp, 1);
+
+#if defined(ERF_USE_MOISTURE)
+        state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQt_comp, 1);
+        state_fab.template plus<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQt_comp, 1);
+        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQt_comp, 1);
+
+        state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQp_comp, 1);
+        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQp_comp, 1);
+# elif defined(ERF_USE_WARM_NO_PRECIP)
+#endif
     } // idx
 }
 
