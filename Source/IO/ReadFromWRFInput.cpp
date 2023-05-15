@@ -98,23 +98,5 @@ read_from_wrfinput(int lev, const std::string& fname,
 
     // Now multiply by rho to get (rho theta) instead of theta
     NC_rhotheta_fab.template mult<RunOn::Device>(NC_rho_fab,0,0,1);
-
-    /*
-    // DEBUG
-    {
-    const Box& bx = NC_QVAPOR_fab.box();
-    const Array4<Real>    qv_arr = NC_QVAPOR_fab.array();
-    const Array4<Real>    qc_arr = NC_QCLOUD_fab.array();
-    const Array4<Real>    qr_arr = NC_QRAIN_fab.array();
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-        amrex::Print() << "TEST: " << IntVect(i,j,k) << ' '
-                       << qv_arr(i,j,k) << ' '
-                       << qc_arr(i,j,k) << ' '
-                       << qr_arr(i,j,k) << "\n";
-    });
-    exit(0);
-    }
-    */
 }
 #endif // ERF_USE_NETCDF
