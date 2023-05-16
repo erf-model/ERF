@@ -137,7 +137,7 @@ struct UPWIND3
     }
 
 private:
-    const amrex::Array4<const amrex::Real>& m_phi;   // Quantity to interpolate
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(7.0/12.0);
     static constexpr amrex::Real g2=(1.0/12.0);
 };
@@ -260,7 +260,7 @@ struct UPWIND4
     }
 
 private:
-    const amrex::Array4<const amrex::Real>& m_phi;   // Quantity to interpolate
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(7.0/12.0);
     static constexpr amrex::Real g2=(1.0/12.0);
 };
@@ -411,7 +411,7 @@ struct UPWIND5
     }
 
 private:
-    const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(37.0/60.0);
     static constexpr amrex::Real g2=(2.0/15.0);
     static constexpr amrex::Real g3=(1.0/60.0);
@@ -545,7 +545,7 @@ struct UPWIND6
     }
 
 private:
-    const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1=(37.0/60.0);
     static constexpr amrex::Real g2=(2.0/15.0);
     static constexpr amrex::Real g3=(1.0/60.0);
@@ -664,7 +664,7 @@ struct UPWINDALL
     }
 
 private:
-    const amrex::Array4<const amrex::Real>& m_phi; // Quantity to interpolate
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
     static constexpr amrex::Real g1_3_4=( 7.0/12.0);
     static constexpr amrex::Real g2_3_4=( 1.0/12.0);
     static constexpr amrex::Real g1_5_6=(37.0/60.0);
