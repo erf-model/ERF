@@ -715,6 +715,18 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                 amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on hi y face: " << diff.norm(0) << std::endl;
         }
 #endif
+
+        // Define Qv
+        const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
+        amrex::ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
+            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+
+            Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
+
+            bdy_qv_arr(i,j,k) = new_bdy_QV * bdy_r_arr(i,j,k);
+        });
     } // ntimes
 }
 #endif // ERF_USE_NETCDF
