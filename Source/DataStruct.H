@@ -238,17 +238,26 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        moist_use_WENO = true; // THIS IS NOT FULLY READY YET
+        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
+        if(!moist_use_WENO_Z) moist_use_WENO = true;
 #endif
 
-
-        // THIS IS NOT FULLY READY YET
         // Use WENO for advection?
         pp.query("all_use_WENO", all_use_WENO);
         if (all_use_WENO || moist_use_WENO) {
             pp.query("spatial_order_WENO", spatial_order_WENO);
             AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
                                       "WENO advection only supports orders 3 & 5.");
+        }
+
+        // Use WENO-Z for advection?
+        pp.query("all_use_WENO_Z", all_use_WENO_Z);
+        if (all_use_WENO_Z || moist_use_WENO_Z) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
+            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
+                                      "WENO and WENO-Z cannot be specified together.");
         }
 
 
@@ -454,6 +463,8 @@ struct SolverChoice {
     // Positive definite advection scheme (3/5 order)
     bool all_use_WENO{false};
     bool moist_use_WENO{false};
+    bool all_use_WENO_Z{false};
+    bool moist_use_WENO_Z{false};
     int  spatial_order_WENO{3};
 
     // Numerical diffusion
