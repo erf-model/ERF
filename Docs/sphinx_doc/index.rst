@@ -92,6 +92,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    Performance.rst
    RegressionTests.rst
+   Performance.rst
 
 .. toctree::
    :caption: GOALS
