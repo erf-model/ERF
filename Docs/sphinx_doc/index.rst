@@ -8,8 +8,9 @@ ERF solves the compressible Navier-Stokes on a Arakawa C-grid for large-scale we
 ERF is built on `AMReX <https://github.com/AMReX-Codes/amrex>`_,
 an adaptive mesh refinement software framework, which provides the underlying software infrastructure
 and performance portability.
-The full AMReX documentation can be found `here <https://amrex-codes.github.io/amrex/docs_html/>`_
-and tutorials can be found `here <https://amrex-codes.github.io/amrex/tutorials_html/>`_.
+Visit the
+`AMReX documentation <https://amrex-codes.github.io/amrex/docs_html/>`_
+and `AMRex tutorials <https://amrex-codes.github.io/amrex/tutorials_html/>`_ for more information.
 
 ERF is designed to run on machines from laptops to multicore CPU and hybrid CPU/GPU systems.
 
@@ -65,7 +66,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    Discretizations.rst
    MeshRefinement.rst
    BoundaryConditions.rst
-   Derived.rst
+   DerivedQuantities.rst
    Checkpoint.rst
    Plotfiles.rst
    Visualization.rst
@@ -89,6 +90,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
    :hidden:
 
+   Performance.rst
    RegressionTests.rst
 
 .. toctree::

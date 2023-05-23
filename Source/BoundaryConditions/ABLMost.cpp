@@ -3,6 +3,12 @@
 
 using namespace amrex;
 
+/**
+ * Function to update the fluxs (u^star and t^star) for Monin Obukhov similarity theory.
+ *
+ * @param[in] lev Current level
+ * @param[in] max_iters maximum iterations to use
+ */
 void ABLMost::update_fluxes(int lev, int max_iters)
 {
     // Compute plane averages for all vars
@@ -138,7 +144,13 @@ void ABLMost::update_fluxes(int lev, int max_iters)
     }
 }
 
-
+/**
+ * Function to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs Multifabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ */
 void
 ABLMost::impose_most_bcs(const int lev,
                          const Vector<MultiFab*>& mfs,

@@ -10,7 +10,6 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
-#include <ERF_Math.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -31,6 +30,10 @@ enum class PBLType {
 enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
+
+/**
+ * Container holding many of the algorithmic options and parameters
+ */
 
 struct SolverChoice {
   public:
@@ -55,7 +58,7 @@ struct SolverChoice {
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
-        if (!use_lagged_delta_rt && !terrain_type == 1) {
+        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
             amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
         }
 
@@ -235,7 +238,8 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        moist_use_WENO = true;
+        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
+        if(!moist_use_WENO_Z) moist_use_WENO = true;
 #endif
 
         // Use WENO for advection?
@@ -245,6 +249,17 @@ struct SolverChoice {
             AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
                                       "WENO advection only supports orders 3 & 5.");
         }
+
+        // Use WENO-Z for advection?
+        pp.query("all_use_WENO_Z", all_use_WENO_Z);
+        if (all_use_WENO_Z || moist_use_WENO_Z) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
+            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
+                                      "WENO and WENO-Z cannot be specified together.");
+        }
+
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
@@ -448,6 +463,8 @@ struct SolverChoice {
     // Positive definite advection scheme (3/5 order)
     bool all_use_WENO{false};
     bool moist_use_WENO{false};
+    bool all_use_WENO_Z{false};
+    bool moist_use_WENO_Z{false};
     int  spatial_order_WENO{3};
 
     // Numerical diffusion

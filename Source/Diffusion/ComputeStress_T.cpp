@@ -3,6 +3,27 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the stress with constant viscosity and with terrain.
+ *
+ * @param[in]  bxcc cell center box for tau_ii
+ * @param[in]  tbxxy nodal xy box for tau_12
+ * @param[in]  tbxxz nodal xz box for tau_13
+ * @param[in]  tbxyz nodal yz box for tau_23
+ * @param[in]  mu_eff constant molecular viscosity
+ * @param[in,out] tau11 11 strain -> stress
+ * @param[in,out] tau22 22 strain -> stress
+ * @param[in,out] tau33 33 strain -> stress
+ * @param[in,out] tau12 12 strain -> stress
+ * @param[in,out] tau13 13 strain -> stress
+ * @param[in,out] tau21 21 strain -> stress
+ * @param[in,out] tau23 23 strain -> stress
+ * @param[in,out] tau31 31 strain -> stress
+ * @param[in,out] tau32 32 strain -> stress
+ * @param[in]  er_arr expansion rate
+ * @param[in]  z_nd nodal array of physical z heights
+ * @param[in]  dxInv inverse cell size array
+ */
 void
 ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
@@ -226,7 +247,28 @@ ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     });
 }
 
-
+/**
+ * Function for computing the stress with constant viscosity and with terrain.
+ *
+ * @param[in]  bxcc cell center box for tau_ii
+ * @param[in]  tbxxy nodal xy box for tau_12
+ * @param[in]  tbxxz nodal xz box for tau_13
+ * @param[in]  tbxyz nodal yz box for tau_23
+ * @param[in]  mu_eff constant molecular viscosity
+ * @param[in] mu_turb variable turbulent viscosity
+ * @param[in,out] tau11 11 strain -> stress
+ * @param[in,out] tau22 22 strain -> stress
+ * @param[in,out] tau33 33 strain -> stress
+ * @param[in,out] tau12 12 strain -> stress
+ * @param[in,out] tau13 13 strain -> stress
+ * @param[in,out] tau21 21 strain -> stress
+ * @param[in,out] tau23 23 strain -> stress
+ * @param[in,out] tau31 31 strain -> stress
+ * @param[in,out] tau32 32 strain -> stress
+ * @param[in]  er_arr expansion rate
+ * @param[in]  z_nd nodal array of physical z heights
+ * @param[in]  dxInv inverse cell size array
+ */
 void
 ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                        const Array4<const Real>& mu_turb,
@@ -244,6 +286,7 @@ ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //       Boxes are copied here for extrapolations in the second block operations
     //***********************************************************************************
     Box bxcc2  = bxcc;
+    bxcc2.grow(IntVect(-1,-1,0));
 
     // First block: compute S-D
     //***********************************************************************************

@@ -2,6 +2,10 @@
  * \file ERF.cpp
  */
 
+/**
+ * Main class in ERF code, instantiated from main.cpp
+*/
+
 #include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
@@ -192,6 +196,8 @@ ERF::~ERF ()
 void
 ERF::Evolve ()
 {
+    BL_PROFILE_VAR("ERF::Evolve()", evolve);
+
     Real cur_time = t_new[0];
 
     // Take one coarse timestep by calling timeStep -- which recursively calls timeStep
@@ -269,6 +275,7 @@ ERF::Evolve ()
         }
     }
 
+    BL_PROFILE_VAR_STOP(evolve);
 }
 
 // Called after every coarse timestep
@@ -347,6 +354,8 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 void
 ERF::InitData ()
 {
+    BL_PROFILE_VAR("ERF::InitData()", InitData);
+
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
 
@@ -362,7 +371,7 @@ ERF::InitData ()
 
     last_plot_file_step_1 = -1;
     last_plot_file_step_2 = -1;
-    last_check_file_step = -1;
+    last_check_file_step  = -1;
 
     if (restart_chkfile.empty()) {
         // start simulation from the beginning
@@ -448,6 +457,10 @@ ERF::InitData ()
         }
     }
 
+    // Define after wrfbdy_width is known
+    for (int lev = 0; lev <= finest_level; lev++)
+        define_grids_to_evolve(lev);
+
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -474,8 +487,11 @@ ERF::InitData ()
     //    after interpolation.
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p().
-    if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
-        initHSE();
+    // If we are restarting, the base state is read from the restart file, including ghost cell data
+    if (restart_chkfile.empty()) {
+        if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
+            initHSE();
+        }
     }
 
 #ifdef ERF_USE_MOISTURE
@@ -706,6 +722,7 @@ ERF::InitData ()
         }
 
     }
+    BL_PROFILE_VAR_STOP(InitData);
 }
 
 void
@@ -878,8 +895,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
-
-    define_grids_to_evolve(lev);
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
@@ -1517,24 +1532,25 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 void
 ERF::define_grids_to_evolve (int lev) // NOLINT
 {
+   int width = wrfbdy_width - 1;
    Box domain(geom[lev].Domain());
    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
    {
       Box shrunk_domain(domain);
-      shrunk_domain.grow(0,-1);
-      shrunk_domain.grow(1,-1);
+      shrunk_domain.grow(0,-width);
+      shrunk_domain.grow(1,-width);
       grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
    } else if (lev == 1) {
       Box shrunk_domain(boxes_at_level[lev][0]);
-      shrunk_domain.grow(0,-1);
-      shrunk_domain.grow(1,-1);
+      shrunk_domain.grow(0,-width);
+      shrunk_domain.grow(1,-width);
       grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
 #if 0
       if (num_boxes_at_level[lev] > 1) {
           for (int i = 1; i < num_boxes_at_level[lev]; i++) {
               Box shrunk_domain(boxes_at_level[lev][i]);
-              shrunk_domain.grow(0,-1);
-              shrunk_domain.grow(1,-1);
+              shrunk_domain.grow(0,-width);
+              shrunk_domain.grow(1,-width);
               grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
           }
       }
@@ -1594,6 +1610,8 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     for (int lev = 1; lev <= max_level; ++lev) {
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
+
+    grids_to_evolve.resize(nlevs_max);
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);

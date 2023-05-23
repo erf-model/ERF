@@ -4,6 +4,14 @@
 
 using namespace amrex;
 
+/**
+ * Creates a NetCDF file containing column data we write to during runtime
+ *
+ * @param lev Current level
+ * @param colfile_name Name of the NetCDF file containing column data
+ * @param xloc Location of the column in the x-dimension
+ * @param yloc Location of the column in the y-dimension
+ */
 void
 ERF::createNCColumnFile(int lev,
                         const std::string& colfile_name,
@@ -44,6 +52,15 @@ ERF::createNCColumnFile(int lev,
   }
 }
 
+/**
+ * Writes column data from a given level to the NetCDF column data file
+ *
+ * @param lev Current level
+ * @param colfile_name Name of the NetCDF file containing column data
+ * @param xloc Location of the column in the x-dimension
+ * @param yloc Location of the column in the y-dimension
+ * @param cumtime Current time
+ */
 void
 ERF::writeToNCColumnFile(const int lev,
                          const std::string& colfile_name, const Real xloc, const Real yloc,

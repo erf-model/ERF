@@ -5,7 +5,10 @@
 #include "AMReX_Box.H"
 #include "AMReX_Gpu.H"
 
-/** select index based on direction input */
+/**
+ * Utility routines for selecting index based on direction input
+ */
+
 template <int Index>
 struct DirectionSelector
 {
@@ -34,9 +37,15 @@ using XDir = DirectionSelector<0>;
 using YDir = DirectionSelector<1>;
 using ZDir = DirectionSelector<2>;
 
-// Given a box, return a 2D box perpendicular to the selected axis.
-// For example, if we're using ZDir, return a box covering the x-y plane.
-// The IntVect is used to set the constant index in the parallel direction.
+/**
+ * Given a box, return a 2D box perpendicular to the selected axis.
+ * For example, if we're using ZDir, return a box covering the x-y plane.
+ * The IntVect is used to set the constant index in the parallel direction.
+ *
+ * @param[in] bx Initial box for computing of perpendicular box
+ * @param[in] iv IntVect defining the perpendicular direction
+ */
+
 template <typename IndexSelector>
 AMREX_GPU_HOST_DEVICE amrex::Box
 PerpendicularBox(const amrex::Box& bx, const amrex::IntVect& iv)
@@ -59,10 +68,16 @@ PerpendicularBox(const amrex::Box& bx, const amrex::IntVect& iv)
     return pbx;
 }
 
-// Given a box, return a 1D box parallel to the selected axis.
-// For example, if we're using ZDir, return a box covering the z axis.
-// The IntVect is used to set the constant indices in the perpendicular
-// direction.
+/**
+ * Given a box, return a 1D box parallel to the selected axis.
+ * For example, if we're using ZDir, return a box covering the z axis.
+ * The IntVect is used to set the constant indices in the perpendicular
+ * direction.
+ *
+ * @param[in] bx Initial box for computing of perpendicular box
+ * @param[in] iv IntVect defining the perpendicular direction
+ */
+
 template <typename IndexSelector>
 AMREX_GPU_HOST_DEVICE amrex::Box
 ParallelBox(const amrex::Box& bx, const amrex::IntVect& iv)

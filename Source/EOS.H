@@ -6,6 +6,12 @@
 #include <AMReX_MFIter.H>
 #include <cmath>
 
+/**
+ * Function to return temperature given density and potential temperatue
+ *
+ * @params[in] rho density
+ * @params[in] rhotheta density times potential temperature theta
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)
 {
@@ -13,6 +19,13 @@ amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta)
     return p_loc / (R_d * rho);
 }
 
+/**
+ * Function to return potential temperature given density and temperatue
+ *
+ * @params[in] rho density
+ * @params[in] T temperature
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const amrex::Real rdOcp)
 {
@@ -20,6 +33,12 @@ amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const am
     return T * std::pow((p_0/p_loc),rdOcp);
 }
 
+/**
+ * Function to return pressure given density times theta
+ *
+ * @params[in] rhotheta density times potential temperature
+ * @params[in] qv water vapor
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
 {
@@ -38,18 +57,37 @@ amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
 #endif
 }
 
+/**
+ * Function to return density given theta and pressure
+ *
+ * @params[in] theta potential temperature
+ * @params[in] p pressure
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getRhogivenThetaPress (const amrex::Real theta, const amrex::Real p, const amrex::Real rdOcp)
 {
     return std::pow(p_0, rdOcp) * std::pow(p, iGamma) / (R_d * theta);
 }
 
+/**
+ * Function to return dP/drho at constant theta
+ *
+ * @params[in] theta potential temperature
+ * @params[in] p pressure
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real theta)
 {
     return Gamma * p_0 * std::pow( (R_d * theta * ip_0), Gamma) * std::pow(rho, Gamma-1.0) ;
 }
 
+/**
+ * Function to return the Exner function pi given pressure
+ * @params[in] p pressure
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getExnergivenP(const amrex::Real P, const amrex::Real rdOcp)
 {
@@ -57,6 +95,12 @@ amrex::Real getExnergivenP(const amrex::Real P, const amrex::Real rdOcp)
     return std::pow(P * ip_0, rdOcp);
 }
 
+/**
+ * Function to return the Exner function pi given densith times potential temperature
+ *
+ * @params[in] rhotheta density times potential temperature
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getExnergivenRTh(const amrex::Real rhotheta, const amrex::Real rdOcp)
 {
@@ -64,6 +108,11 @@ amrex::Real getExnergivenRTh(const amrex::Real rhotheta, const amrex::Real rdOcp
     return std::pow(R_d * rhotheta * ip_0, Gamma * rdOcp);
 }
 
+/**
+ * Function to return the density given pressure
+ *
+ * @params[in] p pressure
+*/
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getRhoThetagivenP(const amrex::Real p)
 {

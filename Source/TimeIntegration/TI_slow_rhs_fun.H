@@ -1,8 +1,8 @@
 #include "prob_common.H"
 
-    // *************************************************************
-    // The "slow" integrator for MRI and the only integrator for SRI
-    // *************************************************************
+/**
+ *  Wrapper for calling the routine that creates the slow RHS
+ */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,
@@ -14,6 +14,8 @@
         BL_PROFILE("slow_rhs_fun_pre");
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
+
+        Real slow_dt = new_stage_time - old_step_time;
 
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
@@ -40,7 +42,6 @@
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
-            Real slow_dt = new_stage_time - old_step_time;
             Real inv_dt  = 1./slow_dt;
 
 #ifdef _OPENMP
@@ -166,10 +167,9 @@
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
 
-        } else { // if moving_terrain
+        } else {
 
-            Real slow_dt      = new_stage_time - old_step_time;
-
+            // If not moving_terrain
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qvapor, qcloud, qice, qv_d, qc_d, qi_d,
@@ -190,7 +190,16 @@
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
-        } // if not moving_terrain
+        }
+
+#ifdef ERF_USE_NETCDF
+        // Populate RHS for relaxation zones
+        if (init_type == "real" && level == 0)
+            compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
+                                       wrfbdy_width-1, wrfbdy_set_width, fine_geom,
+                                       S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
+                                       bdy_data_ylo, bdy_data_yhi);
+#endif
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());

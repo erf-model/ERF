@@ -47,7 +47,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
           amrex::IntVect bigend(AMREX_SPACEDIM);
           amrex::IntVect btype(AMREX_SPACEDIM);
 
-          long unsigned int nbb = static_cast<unsigned long int>(nb);
+          auto nbb = static_cast<unsigned long int>(nb);
           ncf.var("SmallEnd").get(smallend.begin(), {0}, {nbb, AMREX_SPACEDIM});
           ncf.var("BigEnd"  ).get(bigend.begin()  , {0}, {nbb, AMREX_SPACEDIM});
           ncf.var("BoxType" ).get(btype.begin()   , {0}, {nbb, AMREX_SPACEDIM});
@@ -69,7 +69,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
            auto num_pts_mf  = static_cast<long unsigned int>(mf.get(mfi).numPts());
 
            for (int k(0); k < ncomp_mf; ++k) {
-               auto dataPtr = mf.get(mfi).dataPtr(k);
+               auto *dataPtr = mf.get(mfi).dataPtr(k);
                ncf.var(plt_var_names[mfi.index()*ncomp_mf+k]).get(dataPtr, {0}, {num_pts_mf});
             }
       }
@@ -82,7 +82,7 @@ ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
 void
 ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
                       const std::string& name,
-                      bool /*set_ghost*/) const {
+                      bool /*set_ghost*/) {
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
@@ -113,7 +113,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
            }
         }
 
-        auto box_array = fab.boxArray();
+        const auto& box_array = fab.boxArray();
         auto nvar      = plt_var_names.size();
         auto nbox      = fab.local_size();
 
@@ -161,7 +161,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
             ncf.var(typ_names[mfi.index()]).put(itype.begin()   , {index, 0}, {1, AMREX_SPACEDIM});
 
             for (int k(0); k < ncomp_mf; ++k) {
-                auto dataPtr = fab.get(mfi).dataPtr(k);
+                const auto *dataPtr = fab.get(mfi).dataPtr(k);
                 ncf.var(plt_var_names[mfi.index()*ncomp_mf+k]).put(dataPtr, {0}, {static_cast<long unsigned int>(num_pts_mf)});
              }
         }
