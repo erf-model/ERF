@@ -487,8 +487,11 @@ ERF::InitData ()
     //    after interpolation.
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p().
-    if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
-        initHSE();
+    // If we are restarting, the base state is read from the restart file, including ghost cell data
+    if (restart_chkfile.empty()) {
+        if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
+            initHSE();
+        }
     }
 
 #ifdef ERF_USE_MOISTURE

@@ -1,14 +1,14 @@
-#ifndef INTERPOLATE_WENO_H_
-#define INTERPOLATE_WENO_H_
+#ifndef INTERPOLATE_WENO_Z_H_
+#define INTERPOLATE_WENO_Z_H_
 
 #include "DataStruct.H"
 
 /**
- * Interpolation operators used for WENO-5 scheme
+ * Interpolation operators used for WENO_Z-3 scheme
  */
-struct WENO3
+struct WENO_Z3
 {
-    WENO3(const amrex::Array4<const amrex::Real>& phi)
+    WENO_Z3(const amrex::Array4<const amrex::Real>& phi)
         : m_phi(phi) {}
 
     AMREX_GPU_DEVICE
@@ -145,8 +145,9 @@ struct WENO3
         amrex::Real b2 = (sp1 - s) * (sp1 - s);
 
         // Weight factors
-        amrex::Real w1 = g1 / ( (eps + b1) * (eps + b1) );
-        amrex::Real w2 = g2 / ( (eps + b2) * (eps + b2) );
+        amrex::Real t5 = std::abs(b2 - b1);
+        amrex::Real w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2;
@@ -168,11 +169,11 @@ private:
 };
 
 /**
- * Interpolation operators used for WENO-5 scheme
+ * Interpolation operators used for WENO_Z-5 scheme
  */
-struct WENO5
+struct WENO_Z5
 {
-    WENO5(const amrex::Array4<const amrex::Real>& phi)
+    WENO_Z5(const amrex::Array4<const amrex::Real>& phi)
         : m_phi(phi) {}
 
     AMREX_GPU_DEVICE
@@ -323,9 +324,10 @@ struct WENO5
                        0.25 * (3.0 * s - 4.0 * sp1 + sp2) * (3.0 * s - 4.0 * sp1 + sp2);
 
         // Weight factors
-        amrex::Real w1 = g1 / ( (eps + b1) * (eps + b1) );
-        amrex::Real w2 = g2 / ( (eps + b2) * (eps + b2) );
-        amrex::Real w3 = g3 / ( (eps + b3) * (eps + b3) );
+        amrex::Real t5 = std::abs(b3 - b1);
+        amrex::Real w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real w3 = g3 * ( 1.0 + (t5*t5) / ((eps + b3) * (eps + b3)) );
 
         // Weight factor norm
         amrex::Real wsum = w1 + w2 + w3;

@@ -129,8 +129,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
-    const bool l_all_WENO       = solverChoice.all_use_WENO;
-    const int  l_spatial_order_WENO = solverChoice.spatial_order_WENO;
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -642,7 +640,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
                                    cell_prim, z_nd, detJ_arr,
                                    dxInv, mf_m, mf_u, mf_v,
-                                   l_all_WENO, l_spatial_order_WENO,
                                    l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
@@ -724,7 +721,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
-                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v, l_all_WENO, l_spatial_order_WENO,
+                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
                            l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_diff) {

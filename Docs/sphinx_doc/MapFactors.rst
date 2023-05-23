@@ -2,11 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
- .. role:: f(code)
-    :language: fortran
-
-
-.. _Equations:
+.. _MapFactors:
 
 Map Factors (Dry)
 =============================
