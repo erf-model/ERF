@@ -17,7 +17,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
+erf.fixed_dt           = 0.05  # fixed time step depending on grid resolution
 
 erf.use_terrain = true
 
@@ -36,7 +36,7 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 10         # number of timesteps between plotfiles
+erf.plot_int_1      = 1          # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys
 
 # SOLVER CHOICE

@@ -100,12 +100,13 @@ fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
 
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     Box my_box(IntVect(0,0,0), IntVect(ns3-1,ns2-1,ns1-1));
+    amrex::Print() << " " << var_name << "    " << my_box << std::endl;
     // amrex::Print() <<" MY BOX " << my_box << std::endl;
 
     if (var_name == "U" || var_name == "UU" ||
-        var_name == "MACFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(IntVect(1,0,0)));
+        var_name == "MAPFAC_U" || var_name == "MAPFAC_UY") my_box.setType(amrex::IndexType(IntVect(1,0,0)));
     if (var_name == "V" || var_name == "VV" ||
-        var_name == "MACFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(IntVect(0,1,0)));
+        var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(IntVect(0,1,0)));
     if (var_name == "W" || var_name == "WW") my_box.setType(amrex::IndexType(IntVect(0,0,1)));
 
 #ifdef AMREX_USE_GPU

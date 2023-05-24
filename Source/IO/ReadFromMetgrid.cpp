@@ -8,7 +8,8 @@ void
 read_from_metgrid(int lev, const std::string& fname,
                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
-                  FArrayBox& NC_pres_fab, FArrayBox& NC_hgt_fab,
+                  FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
+                  FArrayBox& NC_hgt_fab,  FArrayBox& NC_psfc_fab,
                   FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
                   FArrayBox& NC_msfm_fab)
 {
@@ -25,16 +26,16 @@ read_from_metgrid(int lev, const std::string& fname,
     NC_fabs.push_back(&NC_temp_fab);      NC_names.push_back("TT");        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_rhum_fab);      NC_names.push_back("RH");        NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
     NC_fabs.push_back(&NC_pres_fab);      NC_names.push_back("PRES");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
+    NC_fabs.push_back(&NC_ght_fab);       NC_names.push_back("GHT");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);
 
     NC_fabs.push_back(&NC_hgt_fab);       NC_names.push_back("HGT_M");     NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
+    NC_fabs.push_back(&NC_psfc_fab);      NC_names.push_back("PSFC");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfu_fab);      NC_names.push_back("MAPFAC_U");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfv_fab);      NC_names.push_back("MAPFAC_V");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
     NC_fabs.push_back(&NC_msfm_fab);      NC_names.push_back("MAPFAC_M");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     // Read the netcdf file and fill these FABs
-    amrex::Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
-
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //

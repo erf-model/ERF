@@ -993,6 +993,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         b.setRange(2,0);
     }
     BoxArray ba2d(std::move(bl2d));
+    amrex::Print() << " Setting map factors, ba2d = " << ba2d << std::endl;
 
     mapfac_m.resize(lev+1);
     mapfac_u.resize(lev+1);

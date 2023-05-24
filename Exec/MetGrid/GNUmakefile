@@ -27,9 +27,12 @@ USE_ASSERTION = TRUE
 
 USE_NETCDF = TRUE
 
+USE_MOISTURE = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MetGrid
 include $(ERF_HOME)/Exec/Make.ERF
+
