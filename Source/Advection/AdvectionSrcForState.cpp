@@ -288,7 +288,8 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
     }
 
     // Inline with 2nd order for efficiency
-    if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
+    bool not_WENO = !(all_use_WENO || all_use_WENO_Z);
+    if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && not_WENO) {
         amrex::ParallelFor(bx, ncomp_end, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
@@ -311,22 +312,22 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
         });
     // Template higher order methods
     } else {
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
+        if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && not_WENO) {
             AdvectionSrcForScalarsWrapper_N<UPWIND3>(bx, ncomp_end, icomp,
                                                      use_terrain, advectionSrc, cell_prim,
                                                      avg_xmom, avg_ymom, avg_zmom, detJ,
                                                      cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
+        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && not_WENO) {
             AdvectionSrcForScalarsWrapper_N<UPWIND4>(bx, ncomp_end, icomp,
                                                      use_terrain, advectionSrc, cell_prim,
                                                      avg_xmom, avg_ymom, avg_zmom, detJ,
                                                      cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
+        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && not_WENO) {
             AdvectionSrcForScalarsWrapper_N<UPWIND5>(bx, ncomp_end, icomp,
                                                      use_terrain, advectionSrc, cell_prim,
                                                      avg_xmom, avg_ymom, avg_zmom, detJ,
                                                      cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
+        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && not_WENO) {
             AdvectionSrcForScalarsWrapper_N<UPWIND6>(bx, ncomp_end, icomp,
                                                      use_terrain, advectionSrc, cell_prim,
                                                      avg_xmom, avg_ymom, avg_zmom, detJ,
