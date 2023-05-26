@@ -207,3 +207,57 @@ void make_buoyancy(amrex::BoxArray& grids_to_evolve,
                    const SolverChoice& solverChoice,
                    const amrex::MultiFab* r0);
 #endif
+
+#ifdef ERF_USE_POISSON_SOLVE
+/**
+ * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
+ *
+ */
+void erf_slow_rhs_inc(int level, int nrk,
+                      amrex::Real dt,
+                      amrex::BoxArray& grids_to_evolve,
+                      amrex::Vector<amrex::MultiFab>& S_rhs,
+                      amrex::Vector<amrex::MultiFab>& S_old,
+                      amrex::Vector<amrex::MultiFab>& S_data,
+                      const amrex::MultiFab& S_prim,
+                            amrex::Vector<amrex::MultiFab >& S_scratch,
+                      const amrex::MultiFab& xvel,
+                      const amrex::MultiFab& yvel,
+                      const amrex::MultiFab& zvel,
+#if defined(ERF_USE_MOISTURE)
+                     const amrex::MultiFab& qvapor,
+#endif
+                      std::unique_ptr<amrex::MultiFab>& z_t,
+                            amrex::MultiFab& Omega,
+                      const amrex::MultiFab& source,
+                      const amrex::MultiFab& buoyancy,
+                            amrex::MultiFab* Tau11,
+                            amrex::MultiFab* Tau22,
+                            amrex::MultiFab* Tau33,
+                            amrex::MultiFab* Tau12,
+                            amrex::MultiFab* Tau13,
+                            amrex::MultiFab* Tau21,
+                            amrex::MultiFab* Tau23,
+                            amrex::MultiFab* Tau31,
+                            amrex::MultiFab* Tau32,
+                            amrex::MultiFab* SmnSmn,
+                            amrex::MultiFab* eddyDiffs,
+                            amrex::MultiFab* Hfx3,
+                            amrex::MultiFab* Diss,
+                      const amrex::Geometry geom,
+                      const SolverChoice& solverChoice,
+                      std::unique_ptr<ABLMost>& most,
+                      const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                      const amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                      std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                      std::unique_ptr<amrex::MultiFab>& dJ,
+                      const amrex::MultiFab* p0,
+                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
+                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
+                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      const amrex::Real* dptr_rayleigh_tau,
+                      const amrex::Real* dptr_rayleigh_ubar,
+                      const amrex::Real* dptr_rayleigh_vbar,
+                      const amrex::Real* dptr_rayleigh_wbar,
+                      const amrex::Real* dptr_rayleigh_thetabar);
+#endif

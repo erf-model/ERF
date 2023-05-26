@@ -5,82 +5,6 @@
 using namespace amrex;
 
 /**
- * Function that coordinates the evolution across levels -- this calls Advance to do the
- * actual advance at this level,  then recursively calls itself at finer levels
- *
- * @param[in] lev level of refinement (coarsest level is 0)
- * @param[in] time start time for time advance
- * @param[in] iteration time step counter
- */
-
-void
-ERF::timeStep (int lev, Real time, int iteration)
-{
-    if (regrid_int > 0)  // We may need to regrid
-    {
-        // help keep track of whether a level was already regridded
-        // from a coarser level call to regrid
-        static Vector<int> last_regrid_step(max_level+1, 0);
-
-        // regrid changes level "lev+1" so we don't regrid on max_level
-        // also make sure we don't regrid fine levels again if
-        // it was taken care of during a coarser regrid
-        if (lev < max_level && istep[lev] > last_regrid_step[lev])
-        {
-            if (istep[lev] % regrid_int == 0)
-            {
-                // regrid could add newly refine levels (if finest_level < max_level)
-                // so we save the previous finest level index
-                int old_finest = finest_level;
-                regrid(lev, time);
-
-                // mark that we have regridded this level already
-                for (int k = lev; k <= finest_level; ++k) {
-                    last_regrid_step[k] = istep[k];
-                }
-
-                // if there are newly created levels, set the time step
-                for (int k = old_finest+1; k <= finest_level; ++k) {
-                    dt[k] = dt[k-1] / MaxRefRatio(k-1);
-                }
-            }
-        }
-    }
-
-    // Update what we call "old" and "new" time
-    t_old[lev] = t_new[lev];
-    t_new[lev] += dt[lev];
-
-    if (Verbose()) {
-        amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
-        amrex::Print() << "ADVANCE from time = " << t_old[lev] << " to " << t_new[lev]
-                       << " with dt = " << dt[lev] << std::endl;
-    }
-
-    // Advance a single level for a single time step
-    Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
-
-    ++istep[lev];
-
-    if (Verbose())
-    {
-        amrex::Print() << "[Level " << lev << " step " << istep[lev] << "] ";
-        amrex::Print() << "Advanced " << CountCells(lev) << " cells" << std::endl;
-    }
-
-    if (lev < finest_level)
-    {
-        // recursive call for next-finer level
-        for (int i = 1; i <= nsubsteps[lev+1]; ++i)
-        {
-            timeStep(lev+1, time+(i-1)*dt[lev+1], i);
-        }
-
-        AverageDownTo(lev); // average lev+1 down to lev
-    }
-}
-
-/**
  * Function that advances the solution at one level for a single time step --
  * this does some preliminaries then calls erf_advance
  *
@@ -189,54 +113,28 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
-    // *****************************************************************
-    // Update the cell-centered state and face-based velocity using
-    // a time integrator.
-    // Inputs:
-    //          S_old    (state on cell centers)
-    //          U_old    (x-velocity on x-faces)
-    //          V_old    (y-velocity on y-faces)
-    //          W_old    (z-velocity on z-faces)
-    //          source   (source term on cell centers)
-    // Outputs:
-    //          S_new    (state on cell centers)
-    //          U_new    (x-velocity on x-faces)
-    //          V_new    (y-velocity on y-faces)
-    //          W_new    (z-velocity on z-faces)
-    // *****************************************************************
-
-    erf_advance(lev,
-                cons_mf, S_new,
-                U_old, V_old, W_old,
-                U_new, V_new, W_new,
-                rU_old[lev], rV_old[lev], rW_old[lev],
-                rU_new[lev], rV_new[lev], rW_new[lev],
-                rU_crse, rV_crse, rW_crse,
-                source, buoyancy,
+    // Update the dycore
+    advance_dycore(lev,
+                  cons_mf, S_new,
+                  U_old, V_old, W_old,
+                  U_new, V_new, W_new,
+                  rU_old[lev], rV_old[lev], rW_old[lev],
+                  rU_new[lev], rV_new[lev], rW_new[lev],
+                  rU_crse, rV_crse, rW_crse,
+                  source, buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                qv[lev], qc[lev], qi[lev],
+                  qv[lev], qc[lev], qi[lev],
 #endif
-                Geom(lev), dt_lev, time, &ifr);
+                  Geom(lev), dt_lev, time, &ifr);
 
 #if defined(ERF_USE_MOISTURE)
-    micro.Init(S_new,
-               qc[lev],
-               qv[lev],
-               qi[lev],
-               grids_to_evolve[lev],
-               Geom(lev),
-               dt_lev);
-    micro.Cloud();
-    micro.Diagnose();
-    micro.IceFall();
-    micro.Precip();
-    micro.MicroPrecipFall();
-    micro.Update(S_new,
-                 qv[lev],
-                 qc[lev],
-                 qi[lev],
-                 qrain[lev],
-                 qsnow[lev],
-                 qgraup[lev]);
+    // Update the microphysics
+    advance_microphyics(S_new,
+                        qc[lev],
+                        qv[lev],
+                        qi[lev],
+                        grids_to_evolve[lev],
+                        Geom(lev),
+                        dt_lev);
 #endif
 }

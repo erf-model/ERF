@@ -4,7 +4,7 @@
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <functional>
 
 template<class T>
@@ -16,7 +16,8 @@ private:
     */
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
-    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> slow_rhs_post;
+    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
+    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real   )> slow_rhs_post;
     std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
                                                            const amrex::Real, const amrex::Real)> fast_rhs;
 
@@ -34,6 +35,11 @@ private:
     * \brief Should we not do acoustic substepping
     */
     int no_substepping;
+
+   /**
+    * \brief Should we use the incompressible integrator
+    */
+    int incompressible;
 
    /**
     * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
@@ -56,7 +62,7 @@ private:
 
     void initialize_data (const T& S_data)
     {
-        // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch and F_pert
+        // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch
         //       have only 2 components, not Cons::NumVars components
         const bool include_ghost = true;
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
@@ -99,6 +105,11 @@ public:
     // Delete the copy assignment operator
     MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
 
+    void setIncompressible(int _incompressible)
+    {
+        incompressible = _incompressible;
+    }
+
     void setNoSubstepping(int _no_substepping)
     {
         no_substepping = _no_substepping;
@@ -109,14 +120,13 @@ public:
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
-    void set_rhs (std::function<void(T&, const T&, const amrex::Real, const amrex::Real, int)> F)
-    {
-        rhs = F;
-    }
-
     void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_pre = F;
+    }
+    void set_slow_rhs_inc (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    {
+        slow_rhs_inc = F;
     }
     void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
     {
@@ -194,7 +204,6 @@ public:
         // S_old  = S^n
         // S_sum  = S(t)
         // F_slow = F(S_stage)
-        // F_pert = G(S(t)-S_stage, S_stage)
 
         int n_data = IntVar::NumVars;
 
@@ -294,8 +303,10 @@ public:
         amrex::Real time_stage = time;
         amrex::Real old_time_stage;
 
-        for (int nrk = 0; nrk < 3; nrk++)
-        {
+        if (!incompressible) {
+          // RK3 for compressible integrator
+          for (int nrk = 0; nrk < 3; nrk++)
+          {
             // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
 
             // Capture the time we got to in the previous RK step
@@ -360,7 +371,38 @@ public:
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
             post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
-        } // nrk
+          } // nrk
+
+        } else {
+          // RK2 for incompressible integrator
+          for (int nrk = 0; nrk < 2; nrk++)
+          {
+            // Capture the time we got to in the previous RK step
+            old_time_stage = time_stage;
+
+            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time; }
+            if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
+
+            // All pre_update does is call cons_to_prim, and we have done this with the old
+            //     data already before starting the RK steps
+            if (nrk > 0) {
+                pre_update(S_new, S_new[IntVar::cons].nGrow());
+            }
+
+            // S_scratch also holds the average momenta over the fast iterations --
+            //    to be used to update the slow variables -- we will initialize with
+            //    the momenta used in the first call to the slow_rhs, then update
+            //    inside fast_rhs, then use these values in the later call to slow_rhs
+
+            slow_rhs_inc(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
+
+            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage);
+
+            post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+          } // nrk
+        }
 
         // Return timestep
         return timestep;
