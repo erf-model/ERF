@@ -5,7 +5,7 @@
 #include <EOS.H>
 #include <ERF.H>
 #include <TerrainMetrics.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <PlaneAverage.H>
 #include <Diffusion.H>
 #include <TileNoZ.H>
@@ -46,23 +46,23 @@ using namespace amrex;
  * @param[in] ifr  pointer to InterpFaceRegister to be used to fill boundary conditions from the coarser level
  */
 
-void ERF::erf_advance(int level,
-                      MultiFab& cons_old,  MultiFab& cons_new,
-                      MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
-                      MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                      MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
-                      MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
-                      MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
-                      MultiFab& source, MultiFab& buoyancy,
+void ERF::advance_dycore(int level,
+                         MultiFab& cons_old,  MultiFab& cons_new,
+                         MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
+                         MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
+                         MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
+                         MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
+                         MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
+                         MultiFab& source, MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                      const MultiFab& qvapor, const MultiFab& qcloud, const MultiFab& qice,
+                         const MultiFab& qvapor, const MultiFab& qcloud, const MultiFab& qice,
 #endif
-                      const amrex::Geometry fine_geom,
-                      const amrex::Real dt_advance, const amrex::Real old_time,
-                      amrex::InterpFaceRegister* ifr)
+                         const amrex::Geometry fine_geom,
+                         const amrex::Real dt_advance, const amrex::Real old_time,
+                         amrex::InterpFaceRegister* ifr)
 {
-    BL_PROFILE_VAR("erf_advance()",erf_advance);
-    if (verbose) amrex::Print() << "Starting advance at level " << level << std::endl;
+    BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
+    if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
 
     int nvars = cons_old.nComp();
 
@@ -295,6 +295,12 @@ void ERF::erf_advance(int level,
     mri_integrator.set_pre_update (pre_update_fun);
     mri_integrator.set_post_update(post_update_fun);
 
+#ifdef ERF_USE_POISSON_SOLVE
+    if (incompressible) {
+        mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
+    }
+#endif
+
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
@@ -302,5 +308,5 @@ void ERF::erf_advance(int level,
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
-    if (verbose) Print() << "Done with advance at level " << level << std::endl;
+    if (verbose) Print() << "Done with advance_dycore at level " << level << std::endl;
 }

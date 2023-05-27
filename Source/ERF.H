@@ -110,8 +110,9 @@ public:
     void InitData ();
 
 #ifdef ERF_USE_POISSON_SOLVE
-    // Project the initial velocities to be divergence-free
-    void project_initial_velocities ();
+    // Project the velocities to be divergence-free
+    void project_velocities (              amrex::Vector<amrex::MultiFab >& vars);
+    void project_velocities (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -190,21 +191,24 @@ public:
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
-    void erf_advance(int level,
-                      amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
-                      amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
-                      amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
-                      amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
-                      amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
-                      amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
-                      amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
+    void advance_dycore(int level,
+                        amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
+                        amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
+                        amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
+                        amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
+                        amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
+                        amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
+                        amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                      const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
+                        const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                      amrex::Geometry fine_geom,
-                      amrex::Real dt, amrex::Real time,
-                      amrex::InterpFaceRegister* ifr);
+                        amrex::Geometry fine_geom,
+                        amrex::Real dt, amrex::Real time,
+                        amrex::InterpFaceRegister* ifr);
+
+    void advance_microphysics(int lev, amrex::MultiFab& cons_in,
+                              const amrex::Real& dt_advance);
 
     amrex::MultiFab& build_fine_mask(int lev);
 
@@ -597,7 +601,6 @@ private:
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
-    const amrex::Vector<std::string> velocity_names {"x_velocity", "y_velocity", "z_velocity"};
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
 #if defined(ERF_USE_MOISTURE)
                                                      ,"rhoQt", "rhoQp"
@@ -627,6 +630,8 @@ private:
     static int use_native_mri;
     static int no_substepping;
     static int force_stage1_single_substep;
+
+    static int incompressible;
 
     // mesh refinement
     static std::string coupling_type;
