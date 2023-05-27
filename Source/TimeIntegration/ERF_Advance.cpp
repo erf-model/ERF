@@ -129,12 +129,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
 #if defined(ERF_USE_MOISTURE)
     // Update the microphysics
-    advance_microphysics(S_new,
-                         qc[lev],
-                         qv[lev],
-                         qi[lev],
-                         grids_to_evolve[lev],
-                         Geom(lev),
-                         dt_lev);
+    advance_microphysics(lev, S_new, dt_lev);
 #endif
 }

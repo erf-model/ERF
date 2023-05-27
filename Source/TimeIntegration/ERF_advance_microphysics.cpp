@@ -2,28 +2,26 @@
 
 using namespace amrex;
 
-void ERF::advance_microphysics(const MultiFab& cons_in,
-                               const MultiFab& qc_in,
-                                     MultiFab& qv_in,
-                               const MultiFab& qi_in,
-                               const BoxArray& grids_to_evolve,
-                               const Geometry& geom,
+void ERF::advance_microphysics(int lev,
+                               MultiFab& cons,
                                const Real& dt_advance)
 {
 #if defined(ERF_USE_MOISTURE)
-    micro.Init(S_new,
+    micro.Init(cons,
                qc[lev],
                qv[lev],
                qi[lev],
                grids_to_evolve[lev],
                Geom(lev),
-               dt_lev);
+               dt_advance);
+
     micro.Cloud();
     micro.Diagnose();
     micro.IceFall();
     micro.Precip();
     micro.MicroPrecipFall();
-    micro.Update(S_new,
+
+    micro.Update(cons,
                  qv[lev],
                  qc[lev],
                  qi[lev],

@@ -207,12 +207,7 @@ public:
                         amrex::Real dt, amrex::Real time,
                         amrex::InterpFaceRegister* ifr);
 
-    void advance_microphysics(const amrex::MultiFab& cons_in,
-                              const amrex::MultiFab& qc_in,
-                                    amrex::MultiFab& qv_in,
-                              const amrex::MultiFab& qi_in,
-                              const amrex::BoxArray& grids_to_evolve,
-                              const amrex::Geometry& geom,
+    void advance_microphysics(int lev, amrex::MultiFab& cons_in,
                               const amrex::Real& dt_advance);
 
     amrex::MultiFab& build_fine_mask(int lev);
