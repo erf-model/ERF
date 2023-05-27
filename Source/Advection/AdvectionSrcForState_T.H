@@ -5,7 +5,7 @@
 /**
  * Wrapper function for computing the advective tendency w/ spatial order > 2.
  */
-template<typename InterpType>
+template<typename InterpType_H, typename InterpType_V>
 void
 AdvectionSrcForRhoThetaWrapper_T(const amrex::Box& bx,
                                  const amrex::Dim3& vbx_hi,
@@ -26,7 +26,9 @@ AdvectionSrcForRhoThetaWrapper_T(const amrex::Box& bx,
                                  const amrex::Array4<const amrex::Real>& mf_v)
 {
     // Instantiate struct
-    InterpType interp_prim(cell_prim);
+    InterpType_H interp_prim_h(cell_prim);
+    InterpType_V interp_prim_v(cell_prim);
+
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -71,15 +73,74 @@ AdvectionSrcForRhoThetaWrapper_T(const amrex::Box& bx,
       amrex::Real interpy_hi(0.), interpy_lo(0.);
       amrex::Real interpz_hi(0.), interpz_lo(0.);
 
-      interp_prim.InterpolateInX(i,j,k,prim_index,interpx_hi,interpx_lo,rho_u(i+1,j  ,k  ),rho_u(i  ,j  ,k  ));
-      interp_prim.InterpolateInY(i,j,k,prim_index,interpy_hi,interpy_lo,rho_v(i  ,j+1,k  ),rho_v(i  ,j  ,k  ));
+      interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx_hi,interpx_lo,rho_u(i+1,j  ,k  ),rho_u(i  ,j  ,k  ));
+      interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy_hi,interpy_lo,rho_v(i  ,j+1,k  ),rho_v(i  ,j  ,k  ));
 
-      interp_prim.InterpolateInZ_hi(i,j,k,prim_index,interpz_hi,Omega(i  ,j  ,k+1));
-      interp_prim.InterpolateInZ_lo(i,j,k,prim_index,interpz_lo,Omega(i  ,j  ,k  ));
+      interp_prim_v.InterpolateInZ_hi(i,j,k,prim_index,interpz_hi,Omega(i  ,j  ,k+1));
+      interp_prim_v.InterpolateInZ_lo(i,j,k,prim_index,interpz_lo,Omega(i  ,j  ,k  ));
 
       advectionSrc(i,j,k,1) = - invdetJ * (
                                            ( xflux_hi * interpx_hi - xflux_lo * interpx_lo ) * dxInv * mfsq +
                                            ( yflux_hi * interpy_hi - yflux_lo * interpy_lo ) * dyInv * mfsq +
                                            ( zflux_hi * interpz_hi - zflux_lo * interpz_lo ) * dzInv);
     });
+}
+
+/**
+ * Wrapper function for computing the advective tendency w/ spatial order > 2.
+ */
+template<typename InterpType_H>
+void
+AdvectionSrcForRhoThetaVert_T(const amrex::Box& bx,
+                              const amrex::Dim3& vbx_hi,
+                              const amrex::Real fac,
+                              const amrex::Array4<      amrex::Real>& advectionSrc,
+                              const amrex::Array4<const amrex::Real>& cell_prim,
+                              const amrex::Array4<const amrex::Real>& rho_u,
+                              const amrex::Array4<const amrex::Real>& rho_v,
+                              const amrex::Array4<const amrex::Real>& Omega,
+                              const amrex::Array4<      amrex::Real>& avg_xmom,
+                              const amrex::Array4<      amrex::Real>& avg_ymom,
+                              const amrex::Array4<      amrex::Real>& avg_zmom,
+                              const amrex::Array4<const amrex::Real>& z_nd,
+                              const amrex::Array4<const amrex::Real>& detJ,
+                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                              const amrex::Array4<const amrex::Real>& mf_m,
+                              const amrex::Array4<const amrex::Real>& mf_u,
+                              const amrex::Array4<const amrex::Real>& mf_v,
+                              const int& vert_spatial_order)
+{
+    if (vert_spatial_order == 2) {
+        AdvectionSrcForRhoThetaWrapper_T<InterpType_H,UPWIND2>(bx, vbx_hi, fac, advectionSrc,
+                                                               cell_prim, rho_u, rho_v, Omega,
+                                                               avg_xmom, avg_ymom, avg_zmom,
+                                                               z_nd, detJ, cellSizeInv, mf_m,
+                                                               mf_u, mf_v);
+    } else if (vert_spatial_order == 3) {
+        AdvectionSrcForRhoThetaWrapper_T<InterpType_H,UPWIND3>(bx, vbx_hi, fac, advectionSrc,
+                                                               cell_prim, rho_u, rho_v, Omega,
+                                                               avg_xmom, avg_ymom, avg_zmom,
+                                                               z_nd, detJ, cellSizeInv, mf_m,
+                                                               mf_u, mf_v);
+    } else if (vert_spatial_order == 4) {
+        AdvectionSrcForRhoThetaWrapper_T<InterpType_H,UPWIND4>(bx, vbx_hi, fac, advectionSrc,
+                                                               cell_prim, rho_u, rho_v, Omega,
+                                                               avg_xmom, avg_ymom, avg_zmom,
+                                                               z_nd, detJ, cellSizeInv, mf_m,
+                                                               mf_u, mf_v);
+    } else if (vert_spatial_order == 5) {
+        AdvectionSrcForRhoThetaWrapper_T<InterpType_H,UPWIND5>(bx, vbx_hi, fac, advectionSrc,
+                                                               cell_prim, rho_u, rho_v, Omega,
+                                                               avg_xmom, avg_ymom, avg_zmom,
+                                                               z_nd, detJ, cellSizeInv, mf_m,
+                                                               mf_u, mf_v);
+    } else if (vert_spatial_order == 6) {
+        AdvectionSrcForRhoThetaWrapper_T<InterpType_H,UPWIND6>(bx, vbx_hi, fac, advectionSrc,
+                                                               cell_prim, rho_u, rho_v, Omega,
+                                                               avg_xmom, avg_ymom, avg_zmom,
+                                                               z_nd, detJ, cellSizeInv, mf_m,
+                                                               mf_u, mf_v);
+    } else {
+        AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
+    }
 }
