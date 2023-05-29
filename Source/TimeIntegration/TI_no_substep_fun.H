@@ -120,8 +120,8 @@
                                                   + slow_dt * fslow[IntVar::zmom](i,j,k);
                     });
                 }
-            }
-        }
+            } // mfi
+        } // omp
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
@@ -130,4 +130,10 @@
         bool fast_only          = true;
         bool vel_and_mom_synced = false;
         apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
+
+#ifdef ERF_USE_POISSON_SOLVE
+        if (incompressible) {
+            project_velocities(S_sum);
+        }
+#endif
     };

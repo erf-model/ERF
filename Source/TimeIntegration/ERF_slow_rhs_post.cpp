@@ -3,7 +3,7 @@
 #include <Advection.H>
 #include <Diffusion.H>
 #include <NumericalDiffusion.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <TileNoZ.H>
 #include <ERF.H>
 
@@ -92,6 +92,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                     solverChoice.pbl_type == PBLType::MYNN25 );
     const bool l_all_WENO       = solverChoice.all_use_WENO;
     const bool l_moist_WENO     = solverChoice.moist_use_WENO;
+    const bool l_all_WENO_Z     = solverChoice.all_use_WENO_Z;
+    const bool l_moist_WENO_Z   = solverChoice.moist_use_WENO_Z;
     const int  l_spatial_order_WENO = solverChoice.spatial_order_WENO;
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
@@ -211,23 +213,26 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
               num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr,
-                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
-                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
+                                   l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                                   l_use_terrain);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr,
-                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
-                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
+                                   l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                                   l_use_terrain);
         }
         start_comp = RhoScalar_comp;
           num_comp = S_data[IntVar::cons].nComp() - start_comp;
         AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr,
-                               dxInv, mf_m, l_all_WENO, l_moist_WENO, l_spatial_order_WENO,
-                               l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                               dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
+                               l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                               l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);

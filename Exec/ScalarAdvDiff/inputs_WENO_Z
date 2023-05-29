@@ -19,8 +19,8 @@ erf.use_lowM_dt    = 1
 erf.cfl            = 0.5     # cfl number for hyperbolic system
 
 # TEST WENO SCHEMES
-erf.all_use_WENO = true
-erf.spatial_order_WENO = 5 # MUST BE 3 or 5
+erf.all_use_WENO_Z = true
+erf.spatial_order_WENO = 3 # MUST BE 3 or 5
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -53,7 +53,7 @@ prob.rho_0 = 1.0
 prob.T_0   = 1.0
 prob.A_0   = 1.0
 prob.B_0   = 0.0
-prob.u_0   = -10.0
+prob.u_0   = 10.0
 prob.v_0   = 0.0
 prob.rad_0 = 0.125
 prob.uRef  = 0.0

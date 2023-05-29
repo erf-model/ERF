@@ -27,8 +27,6 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& mf_m,
                                  const amrex::Array4<const amrex::Real>& mf_u,
                                  const amrex::Array4<const amrex::Real>& mf_v,
-                                 const bool all_use_WENO,
-                                 const int  spatial_order_WENO,
                                  const int horiz_spatial_order, const int vert_spatial_order,
                                  const int use_terrain);
 
@@ -45,6 +43,8 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const bool all_use_WENO,
                              const bool moist_use_WENO,
+                             const bool all_use_WENO_Z,
+                             const bool moist_use_WENO_Z,
                              const int  spatial_order_WENO,
                              const int horiz_spatial_order, const int vert_spatial_order, const int use_terrain);
 
@@ -61,8 +61,6 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const bool all_use_WENO,
-                         const int  spatial_order_WENO,
                          const int horiz_spatial_order, const int vert_spatial_order,
                          const int use_terrain, const int domhi_z);
 
