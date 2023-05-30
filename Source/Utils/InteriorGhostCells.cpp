@@ -142,17 +142,22 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
+    // End of loop for WRFBdyVars
+    int WRFBdyEnd = WRFBdyVars::NumTypes-3;
+
 #if defined(ERF_USE_MOISTURE)
-      var_map.push_back( Vars::cons );
-     comp_map.push_back( RhoQt_comp );
+     var_map.push_back( Vars::cons );
+    comp_map.push_back( RhoQt_comp );
+    WRFBdyEnd +=1;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-      var_map.push_back( Vars::cons );
-     comp_map.push_back( RhoQv_comp );
+     var_map.push_back( Vars::cons );
+    comp_map.push_back( RhoQv_comp );
+    WRFBdyEnd +=1;
 #endif
 
     // Size the FABs for each variable
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -214,7 +219,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Populate FABs from boundary interpolation
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -438,9 +443,9 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
     } // mfi
 
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyVars::NumTypes-2; ivar++)
+    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
-        // Variable and comp maps
+        // Variable & comp maps
         int var_idx =  var_map[ivar];
         int icomp   = comp_map[ivar];
 
