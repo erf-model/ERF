@@ -107,8 +107,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_TimeStepping.cpp
-       ${SRC_DIR}/TimeIntegration/TimeIntegration.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_advance_dycore.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_advance_microphysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp

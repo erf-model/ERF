@@ -3,7 +3,7 @@
 #include <Advection.H>
 #include <Diffusion.H>
 #include <NumericalDiffusion.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <TileNoZ.H>
 #include <ERF.H>
 

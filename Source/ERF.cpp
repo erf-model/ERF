@@ -49,6 +49,7 @@ int         ERF::verbose       = 0;
 int         ERF::use_native_mri = 1;
 int         ERF::no_substepping = 0;
 int         ERF::force_stage1_single_substep = 1;
+int         ERF::incompressible = 0;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -632,7 +633,7 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_initial_velocities();
+            project_velocities(vars_new);
         }
     }
 #endif
@@ -1138,6 +1139,7 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
+    mri_integrator_mem[lev]->setIncompressible(incompressible);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
@@ -1227,6 +1229,13 @@ ERF::ReadParameters ()
         pp.query("use_native_mri", use_native_mri);
         pp.query("no_substepping", no_substepping);
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
+        pp.query("incompressible", incompressible);
+
+        // If this is set, it must be even
+        if (incompressible != 0 && no_substepping == 0)
+        {
+            amrex::Abort("If you specify incompressible, you must specific no_substepping");
+        }
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1695,14 +1704,12 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
-
         // DEBUG
         // Multiblock: hook for erf2 to fill from erf1
         if(domain_p[0].bigEnd(0) < 500) {
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
                 m_mbc->FillPatchBlocks(var_idx,var_idx);
         }
-
 
         cur_time  += dt[0];
 

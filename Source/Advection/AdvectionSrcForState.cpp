@@ -101,26 +101,36 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         // Template higher order methods
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
-                AdvectionSrcForRhoThetaWrapper_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
-                AdvectionSrcForRhoThetaWrapper_N<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
-                AdvectionSrcForRhoThetaWrapper_N<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
-                AdvectionSrcForRhoThetaWrapper_N<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          cellSizeInv, mf_m, mf_u, mf_v);
+            if (horiz_spatial_order == 2) {
+                AdvectionSrcForRhoThetaVert_N<UPWIND2>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       cellSizeInv, mf_m, mf_u, mf_v,
+                                                       vert_spatial_order);
+            } else if (horiz_spatial_order == 3) {
+                AdvectionSrcForRhoThetaVert_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       cellSizeInv, mf_m, mf_u, mf_v,
+                                                       vert_spatial_order);
+            } else if (horiz_spatial_order == 4) {
+                AdvectionSrcForRhoThetaVert_N<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       cellSizeInv, mf_m, mf_u, mf_v,
+                                                       vert_spatial_order);
+            } else if (horiz_spatial_order == 5) {
+                AdvectionSrcForRhoThetaVert_N<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       cellSizeInv, mf_m, mf_u, mf_v,
+                                                       vert_spatial_order);
+            } else if (horiz_spatial_order == 6) {
+                AdvectionSrcForRhoThetaVert_N<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       cellSizeInv, mf_m, mf_u, mf_v,
+                                                       vert_spatial_order);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
@@ -176,28 +186,38 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                 ( zflux_hi * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
                   zflux_lo * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
             });
-        // Template higher order methods
+        // Template higher order methods (horizontal first)
         } else {
-            if (std::max(horiz_spatial_order,vert_spatial_order) == 3) {
-                AdvectionSrcForRhoThetaWrapper_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4) {
-                AdvectionSrcForRhoThetaWrapper_T<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5) {
-                AdvectionSrcForRhoThetaWrapper_T<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
-            } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6) {
-                AdvectionSrcForRhoThetaWrapper_T<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
-                                                          cell_prim, rho_u, rho_v, Omega,
-                                                          avg_xmom, avg_ymom, avg_zmom,
-                                                          z_nd, detJ, cellSizeInv, mf_m, mf_u, mf_v);
+            if (horiz_spatial_order == 2) {
+                AdvectionSrcForRhoThetaVert_T<UPWIND2>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       z_nd, detJ, cellSizeInv, mf_m,
+                                                       mf_u, mf_v, vert_spatial_order);
+            } else if (horiz_spatial_order == 3) {
+                AdvectionSrcForRhoThetaVert_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       z_nd, detJ, cellSizeInv, mf_m,
+                                                       mf_u, mf_v, vert_spatial_order);
+            } else if (horiz_spatial_order == 4) {
+                AdvectionSrcForRhoThetaVert_T<UPWIND4>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       z_nd, detJ, cellSizeInv, mf_m,
+                                                       mf_u, mf_v, vert_spatial_order);
+            } else if (horiz_spatial_order == 5) {
+                AdvectionSrcForRhoThetaVert_T<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       z_nd, detJ, cellSizeInv, mf_m,
+                                                       mf_u, mf_v, vert_spatial_order);
+            } else if (horiz_spatial_order == 6) {
+                AdvectionSrcForRhoThetaVert_T<UPWIND6>(bx, vbx_hi, fac, advectionSrc,
+                                                       cell_prim, rho_u, rho_v, Omega,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       z_nd, detJ, cellSizeInv, mf_m,
+                                                       mf_u, mf_v, vert_spatial_order);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
@@ -262,33 +282,34 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
     // Running with WENO for moisture but not for other vars
     if(moist_use_WENO && ((icomp+ncomp)==NVAR) ) {
         ncomp_end -= 2;
-        if (moist_use_WENO && spatial_order_WENO==3) {
-            AdvectionSrcForScalarsWrapper_N<WENO3>(bx, 2, moist_off,
-                                                   use_terrain, advectionSrc, cell_prim,
-                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                   cellSizeInv, mf_m);
-        } else if (moist_use_WENO && spatial_order_WENO==5) {
-            AdvectionSrcForScalarsWrapper_N<WENO5>(bx, 2, moist_off,
-                                                   use_terrain, advectionSrc, cell_prim,
-                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                   cellSizeInv, mf_m);
-        } else if (moist_use_WENO_Z && spatial_order_WENO==3) {
-            AdvectionSrcForScalarsWrapper_N<WENO_Z3>(bx, 2, moist_off,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
-        } else if (moist_use_WENO_Z && spatial_order_WENO==5) {
-            AdvectionSrcForScalarsWrapper_N<WENO_Z5>(bx, 2, moist_off,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
+        if (spatial_order_WENO==3) {
+            AdvectionSrcForScalarsWrapper_N<WENO3,WENO3>(bx, 2, moist_off,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
+        } else if (spatial_order_WENO==5) {
+            AdvectionSrcForScalarsWrapper_N<WENO5,WENO5>(bx, 2, moist_off,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
+        } else if (spatial_order_WENO==3) {
+            AdvectionSrcForScalarsWrapper_N<WENO_Z3,WENO_Z3>(bx, 2, moist_off,
+                                                             use_terrain, advectionSrc, cell_prim,
+                                                             avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                             cellSizeInv, mf_m);
+        } else if (spatial_order_WENO==5) {
+            AdvectionSrcForScalarsWrapper_N<WENO_Z5,WENO_Z5>(bx, 2, moist_off,
+                                                             use_terrain, advectionSrc, cell_prim,
+                                                             avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                             cellSizeInv, mf_m);
         } else {
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }
     }
 
     // Inline with 2nd order for efficiency
-    if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && !all_use_WENO) {
+    bool not_WENO = !(all_use_WENO || all_use_WENO_Z);
+    if (std::max(horiz_spatial_order,vert_spatial_order) == 2 && not_WENO) {
         amrex::ParallelFor(bx, ncomp_end, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
@@ -309,48 +330,53 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
               ( avg_zmom(i,j,k+1) * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index)) -
                 avg_zmom(i,j,k  ) * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index)) ) * dzInv);
         });
-    // Template higher order methods
+    // Template higher order methods (horizontal first)
     } else {
-        if (std::max(horiz_spatial_order,vert_spatial_order) == 3 && !all_use_WENO) {
-            AdvectionSrcForScalarsWrapper_N<UPWIND3>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 4 && !all_use_WENO) {
-            AdvectionSrcForScalarsWrapper_N<UPWIND4>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 5 && !all_use_WENO) {
-            AdvectionSrcForScalarsWrapper_N<UPWIND5>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
-        } else if (std::max(horiz_spatial_order,vert_spatial_order) == 6 && !all_use_WENO) {
-            AdvectionSrcForScalarsWrapper_N<UPWIND6>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
+        if (horiz_spatial_order == 2 && not_WENO) {
+            AdvectionSrcForScalarsVert_N<UPWIND2>(bx, ncomp_end, icomp,
+                                                  use_terrain, advectionSrc, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                  cellSizeInv, mf_m, vert_spatial_order);
+        } else if (horiz_spatial_order == 3 && not_WENO) {
+            AdvectionSrcForScalarsVert_N<UPWIND3>(bx, ncomp_end, icomp,
+                                                  use_terrain, advectionSrc, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                  cellSizeInv, mf_m, vert_spatial_order);
+        } else if (horiz_spatial_order == 4 && not_WENO) {
+            AdvectionSrcForScalarsVert_N<UPWIND4>(bx, ncomp_end, icomp,
+                                                  use_terrain, advectionSrc, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                  cellSizeInv, mf_m, vert_spatial_order);
+        } else if (horiz_spatial_order == 5 && not_WENO) {
+            AdvectionSrcForScalarsVert_N<UPWIND5>(bx, ncomp_end, icomp,
+                                                  use_terrain, advectionSrc, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                  cellSizeInv, mf_m, vert_spatial_order);
+        } else if (horiz_spatial_order == 6 && not_WENO) {
+            AdvectionSrcForScalarsVert_N<UPWIND6>(bx, ncomp_end, icomp,
+                                                  use_terrain, advectionSrc, cell_prim,
+                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                  cellSizeInv, mf_m, vert_spatial_order);
         } else if (all_use_WENO && spatial_order_WENO==3) {
-            AdvectionSrcForScalarsWrapper_N<WENO3>(bx, ncomp_end, icomp,
-                                                   use_terrain, advectionSrc, cell_prim,
-                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                   cellSizeInv, mf_m);
+            AdvectionSrcForScalarsWrapper_N<WENO3,WENO3>(bx, ncomp_end, icomp,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
         } else if (all_use_WENO && spatial_order_WENO==5) {
-            AdvectionSrcForScalarsWrapper_N<WENO5>(bx, ncomp_end, icomp,
-                                                   use_terrain, advectionSrc, cell_prim,
-                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                   cellSizeInv, mf_m);
+            AdvectionSrcForScalarsWrapper_N<WENO5,WENO5>(bx, ncomp_end, icomp,
+                                                         use_terrain, advectionSrc, cell_prim,
+                                                         avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                         cellSizeInv, mf_m);
         } else if (all_use_WENO_Z && spatial_order_WENO==3) {
-            AdvectionSrcForScalarsWrapper_N<WENO_Z3>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
+            AdvectionSrcForScalarsWrapper_N<WENO_Z3,WENO_Z3>(bx, ncomp_end, icomp,
+                                                             use_terrain, advectionSrc, cell_prim,
+                                                             avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                             cellSizeInv, mf_m);
         } else if (all_use_WENO_Z && spatial_order_WENO==5) {
-            AdvectionSrcForScalarsWrapper_N<WENO_Z5>(bx, ncomp_end, icomp,
-                                                     use_terrain, advectionSrc, cell_prim,
-                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                     cellSizeInv, mf_m);
+            AdvectionSrcForScalarsWrapper_N<WENO_Z5,WENO_Z5>(bx, ncomp_end, icomp,
+                                                             use_terrain, advectionSrc, cell_prim,
+                                                             avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                             cellSizeInv, mf_m);
         } else {
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }

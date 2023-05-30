@@ -50,7 +50,7 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
        states_array(i,j,k,RhoTheta_comp) = rho_array(i,j,k)*theta_array(i,j,k);
        states_array(i,j,k,RhoQt_comp)    = rho_array(i,j,k)*qt_array(i,j,k);
        states_array(i,j,k,RhoQp_comp)    = rho_array(i,j,k)*qp_array(i,j,k);
-       qgraup_array(i,j,k)               = std::max(0.0, qp_array(i,j,k)-qpl_array(i,j,k)-qpi_array(i,j,k)); // negative is unphyisics
+       qgraup_array(i,j,k)               = std::max(0.0, qp_array(i,j,k)-qpl_array(i,j,k)-qpi_array(i,j,k)); // negative is unphysical
      });
   }
 

@@ -7,7 +7,7 @@
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <TerrainMetrics.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <prob_common.H>
 
 using namespace amrex;

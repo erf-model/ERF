@@ -4,6 +4,116 @@
 #include "DataStruct.H"
 
 /**
+ * Interpolation operators used for 2nd order central scheme
+ */
+struct UPWIND2
+{
+    UPWIND2(const amrex::Array4<const amrex::Real>& phi)
+        : m_phi(phi) {}
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInX(const int& i,
+                   const int& j,
+                   const int& k,
+                   const int& qty_index,
+                   amrex::Real& val_hi,
+                   amrex::Real& val_lo,
+                   amrex::Real /*upw_hi*/,
+                   amrex::Real /*upw_lo*/) const
+    {
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i-1, j  , k  , qty_index);
+
+        // Interpolate hi
+        val_hi = Evaluate(sp1,s);
+
+        // Interpolate lo
+        val_lo = Evaluate(s,sm1);
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInY(const int& i,
+                   const int& j,
+                   const int& k,
+                   const int& qty_index,
+                   amrex::Real& val_hi,
+                   amrex::Real& val_lo,
+                   amrex::Real /*upw_hi*/,
+                   amrex::Real /*upw_lo*/) const
+    {
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i  , j-1, k  , qty_index);
+
+        // Interpolate hi
+        val_hi = Evaluate(sp1,s);
+
+        // Interpolate lo
+        val_lo = Evaluate(s,sm1);
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInZ_lo(const int& i,
+                      const int& j,
+                      const int& k,
+                      const int& qty_index,
+                      amrex::Real& val_lo,
+                      amrex::Real /*upw_lo*/) const
+    {
+        // Data to interpolate on
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+        amrex::Real sm1 = m_phi(i  , j  , k-1, qty_index);
+
+        // Interpolate lo
+        val_lo = Evaluate(s,sm1);
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    InterpolateInZ_hi(const int& i,
+                      const int& j,
+                      const int& k,
+                      const int& qty_index,
+                      amrex::Real& val_hi,
+                      amrex::Real /*upw_hi*/) const
+    {
+        // Data to interpolate on
+        amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
+        amrex::Real s   = m_phi(i  , j  , k  , qty_index);
+
+        // Interpolate hi
+        val_hi = Evaluate(sp1,s);
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    Evaluate(const amrex::Real& s,
+             const amrex::Real& sm1) const
+    {
+        // Averages and diffs
+        amrex::Real a1 = (s   + sm1);
+
+        // Interpolated value
+        return ( g1*a1 );
+    }
+
+private:
+    amrex::Array4<const amrex::Real> m_phi;   // Quantity to interpolate
+    static constexpr amrex::Real g1=(0.5);
+};
+
+/**
  * Interpolation operators used for 3rd order upwind scheme
  */
 struct UPWIND3
@@ -144,7 +254,7 @@ private:
 
 
 /**
- * Interpolation operators used for 4th order upwind scheme
+ * Interpolation operators used for 4th order central scheme
  */
 struct UPWIND4
 {
@@ -418,7 +528,7 @@ private:
 };
 
 /**
- * Interpolation operators used for 5th order upwind scheme
+ * Interpolation operators used for 6th order central scheme
  */
 struct UPWIND6
 {
@@ -552,7 +662,7 @@ private:
 };
 
 /**
- * Interpolation operators used for all upwind schemes
+ * Interpolation operators used for all central/upwind schemes
  */
 struct UPWINDALL
 {
