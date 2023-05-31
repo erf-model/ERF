@@ -100,6 +100,7 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] bdy_data_xhi boundary data on interior of high x-face
  * @param[in] bdy_data_ylo boundary data on interior of low y-face
  * @param[in] bdy_data_yhi boundary data on interior of high y-face
+ * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
 compute_interior_ghost_RHS(const Real& bdy_time_interval,
@@ -113,7 +114,8 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
                            Vector<Vector<FArrayBox>>& bdy_data_xlo,
                            Vector<Vector<FArrayBox>>& bdy_data_xhi,
                            Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                           Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                           Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                           const Real start_bdy_time)
 {
     BL_PROFILE_REGION("compute_interior_ghost_RHS()");
 
@@ -123,8 +125,10 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Compute interpolation factors
     Real dT = bdy_time_interval;
-    int n_time = static_cast<int>(time / dT);
-    amrex::Real alpha = (time - n_time * dT) / dT;
+    Real time_since_start = time - start_bdy_time;
+    int n_time = static_cast<int>( time_since_start / dT);
+    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
 
     // Temporary FABs for storage (owned/filled on all ranks)

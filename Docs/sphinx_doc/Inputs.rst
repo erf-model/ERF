@@ -294,8 +294,11 @@ List of Parameters
 | **max_step**    | maximum number of level 0 | Integer >= 0 | -1      |
 |                 | time steps                |              |         |
 +-----------------+---------------------------+--------------+---------+
-| **stop_time**   | final simulation          | Real >= 0    | -1.0    |
+| **start_time**  | starting simulation       | Real >= 0    |  0.0    |
 |                 | time                      |              |         |
++-----------------+---------------------------+--------------+---------+
+| **stop_time**   | final simulation          | Real >= 0    | Very    |
+|                 | time                      |              | Large   |
 +-----------------+---------------------------+--------------+---------+
 
 .. _notes-3:

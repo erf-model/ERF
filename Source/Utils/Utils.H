@@ -78,7 +78,8 @@ void compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
                                 amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                 amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                 amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                const amrex::Real start_bdy_time);
 
 /*
  * Update the variables in the relaxation zone
