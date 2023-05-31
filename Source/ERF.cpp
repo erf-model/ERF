@@ -456,6 +456,19 @@ ERF::InitData ()
                 make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
             }
         }
+
+#if defined(ERF_USE_MOISTURE)
+        // We set these to zero since they will be re-defined in Microphysics::Init
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            qv[lev].setVal(0.0);
+            qc[lev].setVal(0.0);
+            qi[lev].setVal(0.0);
+            qrain[lev].setVal(0.0);
+            qsnow[lev].setVal(0.0);
+            qgraup[lev].setVal(0.0);
+        }
+#endif
     }
 
     // Define after wrfbdy_width is known
