@@ -377,7 +377,7 @@ ERF::InitData ()
     if (restart_chkfile.empty()) {
         // start simulation from the beginning
 
-        const Real time = 0.0;
+        const Real time = start_time;
         InitFromScratch(time);
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -456,6 +456,19 @@ ERF::InitData ()
                 make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
             }
         }
+
+#if defined(ERF_USE_MOISTURE)
+        // We set these to zero since they will be re-defined in Microphysics::Init
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            qv[lev].setVal(0.0);
+            qc[lev].setVal(0.0);
+            qi[lev].setVal(0.0);
+            qrain[lev].setVal(0.0);
+            qsnow[lev].setVal(0.0);
+            qgraup[lev].setVal(0.0);
+        }
+#endif
     }
 
     // Define after wrfbdy_width is known
@@ -1201,6 +1214,8 @@ ERF::ReadParameters ()
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
         pp.query("stop_time", stop_time);
+
+        pp.query("start_time", start_time); // This is optional, it defaults to 0
     }
 
     ParmParse pp(pp_prefix);

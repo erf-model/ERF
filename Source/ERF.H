@@ -408,6 +408,8 @@ private:
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
+    amrex::Real start_bdy_time;
+
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
     // amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
@@ -565,7 +567,8 @@ private:
 
     // maximum number of steps and stop time
     int max_step = std::numeric_limits<int>::max();
-    amrex::Real stop_time = std::numeric_limits<amrex::Real>::max();
+    amrex::Real start_time = 0.0;
+    amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";

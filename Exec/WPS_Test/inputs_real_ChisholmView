@@ -1,6 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 1
-stop_time = 1000.0
+start_time = 1385042400.
 
 amrex.fpe_trap_invalid = 1
 
@@ -34,7 +34,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       =-100     # number of timesteps between checkpoints
+erf.check_int       = -100    # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name

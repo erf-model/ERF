@@ -191,54 +191,30 @@ AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const bool& all_use_WENO,
-                             const bool& all_use_WENO_Z,
-                             const int&  spatial_order_WENO,
                              const int&  vert_spatial_order)
 {
-    bool not_WENO = !(all_use_WENO || all_use_WENO_Z);
-    if (vert_spatial_order == 2 && not_WENO) {
+    if (vert_spatial_order == 2) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND2>(bx, ncomp_end, icomp,
+                                                              use_terrain, advectionSrc, cell_prim,
+                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                              cellSizeInv, mf_m);
+    } else if (vert_spatial_order == 3) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp_end, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 3 && not_WENO) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 4 && not_WENO) {
+    } else if (vert_spatial_order == 4) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND4>(bx, ncomp_end, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 5 && not_WENO) {
+    } else if (vert_spatial_order == 5) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND5>(bx, ncomp_end, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 6 && not_WENO) {
+    } else if (vert_spatial_order == 6) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND6>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
-    } else if (all_use_WENO && spatial_order_WENO==3) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,WENO3>(bx, ncomp_end, icomp,
-                                                            use_terrain, advectionSrc, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                            cellSizeInv, mf_m);
-    } else if (all_use_WENO && spatial_order_WENO==5) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,WENO5>(bx, ncomp_end, icomp,
-                                                            use_terrain, advectionSrc, cell_prim,
-                                                            avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                            cellSizeInv, mf_m);
-    } else if (all_use_WENO_Z && spatial_order_WENO==3) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,WENO_Z3>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
-    } else if (all_use_WENO_Z && spatial_order_WENO==5) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,WENO_Z5>(bx, ncomp_end, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
