@@ -56,7 +56,7 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int& width)
+                 int& width, Real& start_bdy_time)
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -101,8 +101,10 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
             else if (nt >= 1)
                 AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
         }
+        start_bdy_time = epochTimes[0];
     }
 
+    ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
