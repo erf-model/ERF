@@ -1,6 +1,9 @@
 #include <ERF.H>
 #include "AMReX_PlotFileUtil.H"
 
+#include <iostream>
+#include <fstream>
+
 using namespace amrex;
 
 /**
@@ -137,6 +140,41 @@ ERF::WriteCheckpointFile () const
            VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
        }
    }
+
+   // Write bdy_data files
+   if (ParallelDescriptor::IOProcessor() && (init_type == "real")) {
+     // Vector dimensions
+     int num_time = bdy_data_xlo.size();
+     int num_var  = bdy_data_xlo[0].size();
+
+     // Open header file and write to it
+     std::ofstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
+     bdy_h_file << num_time << "\n";
+     bdy_h_file << num_var  << "\n";
+     bdy_h_file << start_bdy_time << "\n";
+     bdy_h_file << bdy_time_interval << "\n";
+     bdy_h_file << wrfbdy_width << "\n";
+     bdy_h_file << "\n";
+     for (int ivar(0); ivar<num_var; ++ivar) {
+       bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_xhi[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_ylo[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_yhi[0][ivar].box() << "\n";
+     }
+     bdy_h_file << "\n";
+
+     // Open data file and write to it
+     std::ofstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
+     for (int itime(0); itime<num_time; ++itime) {
+       for (int ivar(0); ivar<num_var; ++ivar) {
+         bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+       }
+     }
+   }
+
 }
 
 /**
@@ -267,5 +305,73 @@ ERF::ReadCheckpointFile ()
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ngvect);
        }
+    }
+
+    // Read bdy_data files
+    if (ParallelDescriptor::IOProcessor() && (init_type == "real")) {
+      int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+
+      // Vector dimensions
+      int num_time;
+      int num_var;
+      Vector<Box> bx_v;
+
+      // Open header file and read from it
+      std::ifstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_H"));
+      bdy_h_file >> num_time;
+      bdy_h_file >> num_var;
+      bdy_h_file >> start_bdy_time;
+      bdy_h_file >> bdy_time_interval;
+      bdy_h_file >> wrfbdy_width;
+      bx_v.resize(4*num_var);
+      for (int ivar(0); ivar<num_var; ++ivar) {
+        bdy_h_file >> bx_v[4*ivar  ];
+        bdy_h_file >> bx_v[4*ivar+1];
+        bdy_h_file >> bx_v[4*ivar+2];
+        bdy_h_file >> bx_v[4*ivar+3];
+      }
+
+      // Size the FABs
+      bdy_data_xlo.resize(num_time);
+      bdy_data_xhi.resize(num_time);
+      bdy_data_ylo.resize(num_time);
+      bdy_data_yhi.resize(num_time);
+      for (int itime(0); itime<num_time; ++itime) {
+        bdy_data_xlo[itime].resize(num_var);
+        bdy_data_xhi[itime].resize(num_var);
+        bdy_data_ylo[itime].resize(num_var);
+        bdy_data_yhi[itime].resize(num_var);
+        for (int ivar(0); ivar<num_var; ++ivar) {
+          bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ],1);
+          bdy_data_xhi[itime][ivar].resize(bx_v[4*ivar+1]);
+          bdy_data_ylo[itime][ivar].resize(bx_v[4*ivar+2]);
+          bdy_data_yhi[itime][ivar].resize(bx_v[4*ivar+3]);
+        }
+      }
+
+      // Open data file and read from it
+      std::ifstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_D"));
+      for (int itime(0); itime<num_time; ++itime) {
+        for (int ivar(0); ivar<num_var; ++ivar) {
+          bdy_data_xlo[itime][ivar].readFrom(bdy_d_file);
+          bdy_data_xhi[itime][ivar].readFrom(bdy_d_file);
+          bdy_data_ylo[itime][ivar].readFrom(bdy_d_file);
+          bdy_data_yhi[itime][ivar].readFrom(bdy_d_file);
+        }
+      }
+
+      // Broadcast the data
+      amrex::ParallelDescriptor::Barrier();
+      ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
+      ParallelDescriptor::Bcast(&bdy_time_interval,1,ioproc);
+      ParallelDescriptor::Bcast(&wrfbdy_width,1,ioproc);
+      for (int itime(0); itime<num_time; ++itime) {
+        for (int ivar(0); ivar<num_var; ++ivar) {
+            ParallelDescriptor::Bcast(bdy_data_xlo[itime][ivar].dataPtr(),bdy_data_xlo[itime][ivar].box().numPts(),ioproc);
+            ParallelDescriptor::Bcast(bdy_data_xhi[itime][ivar].dataPtr(),bdy_data_xhi[itime][ivar].box().numPts(),ioproc);
+            ParallelDescriptor::Bcast(bdy_data_ylo[itime][ivar].dataPtr(),bdy_data_ylo[itime][ivar].box().numPts(),ioproc);
+            ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),bdy_data_yhi[itime][ivar].box().numPts(),ioproc);
+        }
+      }
     }
 }

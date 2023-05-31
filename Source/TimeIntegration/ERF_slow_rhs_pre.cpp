@@ -124,8 +124,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
-    const bool cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
     const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
