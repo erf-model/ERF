@@ -31,7 +31,7 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
   amrex::MultiFab::Copy(qsnow_in , *mic_fab_vars[MicVar::qpi], 0, 0, 1, mic_fab_vars[MicVar::qpi]->nGrowVect());
   amrex::MultiFab::Copy(qgraup_in, *mic_fab_vars[MicVar::qpi], 0, 0, 1, mic_fab_vars[MicVar::qci]->nGrowVect());
 
-  // get the temperature, dentisy, theta, qt and qp from input
+  // get the temperature, density, theta, qt and qp from input
   for ( amrex::MFIter mfi(cons_in,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
      auto rho_array    = mic_fab_vars[MicVar::rho]->array(mfi);
@@ -54,8 +54,9 @@ void Microphysics::Update(amrex::MultiFab& cons_in,
      });
   }
 
-  // fill the boundary
+  // Fill interior ghost cells and periodic boundaries
   cons_in.FillBoundary(m_geom.periodicity());
+
   qv_in.FillBoundary(m_geom.periodicity());
   qc_in.FillBoundary(m_geom.periodicity());
   qi_in.FillBoundary(m_geom.periodicity());
