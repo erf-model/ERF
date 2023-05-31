@@ -548,52 +548,46 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("qt",          derived::erf_derQt);
         calculate_derived("qp",          derived::erf_derQp);
 
-        MultiFab qv_mf(qv[lev], make_alias, 0, 1);
-        MultiFab qc_mf(qc[lev], make_alias, 0, 1);
-        MultiFab qi_mf(qi[lev], make_alias, 0, 1);
-        MultiFab qrain_mf(qrain[lev], make_alias, 0, 1);
-        MultiFab qsnow_mf(qsnow[lev], make_alias, 0, 1);
-        MultiFab qgraup_mf(qgraup[lev], make_alias, 0, 1);
+        MultiFab qv_mf(qmoist[lev], make_alias, 0, 1);
+        MultiFab qc_mf(qmoist[lev], make_alias, 1, 1);
+        MultiFab qi_mf(qmoist[lev], make_alias, 2, 1);
+        MultiFab qr_mf(qmoist[lev], make_alias, 3, 1);
+        MultiFab qs_mf(qmoist[lev], make_alias, 4, 1);
+        MultiFab qg_mf(qmoist[lev], make_alias, 5, 1);
 
         if (containerHasElement(plot_var_names, "qv"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qc"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],qc_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qi"))
         {
-            // r_0 is first component of base_state
             MultiFab::Copy(mf[lev],qi_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qrain"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qrain_mf,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qsnow"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qsnow_mf,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qs_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qgraup"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qgraup_mf,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 #elif defined(ERF_USE_WARM_NO_PRECIP)
