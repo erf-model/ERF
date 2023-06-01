@@ -269,7 +269,6 @@ void ERF::advance_dycore(int level,
     qi_ave.line_average(0, qi_h);
     qc_ave.line_average(0, qc_h);
 
-
     // Copy data to device
     Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());

@@ -493,12 +493,7 @@ private:
 
 #if defined(ERF_USE_MOISTURE)
     Microphysics micro;
-    amrex::Vector<amrex::MultiFab> qv;
-    amrex::Vector<amrex::MultiFab> qc;
-    amrex::Vector<amrex::MultiFab> qi;
-    amrex::Vector<amrex::MultiFab> qrain;
-    amrex::Vector<amrex::MultiFab> qsnow;
-    amrex::Vector<amrex::MultiFab> qgraup;
+    amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 

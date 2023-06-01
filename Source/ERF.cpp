@@ -160,12 +160,7 @@ ERF::ERF ()
     }
 
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
@@ -461,12 +456,7 @@ ERF::InitData ()
         // We set these to zero since they will be re-defined in Microphysics::Init
         for (int lev = 0; lev <= finest_level; lev++)
         {
-            qv[lev].setVal(0.0);
-            qc[lev].setVal(0.0);
-            qi[lev].setVal(0.0);
-            qrain[lev].setVal(0.0);
-            qsnow[lev].setVal(0.0);
-            qgraup[lev].setVal(0.0);
+            qmoist[lev].setVal(0.0);
         }
 #endif
     }
@@ -512,36 +502,12 @@ ERF::InitData ()
     // Initialize microphysics here
     micro.define(solverChoice);
 
-    // Call Init which will call Diagnose to fill qv, qc, qi
+    // Call Init which will call Diagnose to fill qmoist
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        micro.Init(vars_new[lev][Vars::cons],
-                   qc[lev],
-                   qv[lev],
-                   qi[lev],
-                   grids_to_evolve[lev],
-                   Geom(lev),
-                   0.0 // dummy value, not needed just to diagnose
-                  );
-        micro.Update(vars_new[lev][Vars::cons],
-                     qv[lev],
-                     qc[lev],
-                     qi[lev],
-                     qrain[lev],
-                     qsnow[lev],
-                     qgraup[lev]);
-
-#if 0
-        for (MFIter mfi(qv[lev]); mfi.isValid(); ++mfi) {
-            const Box& box = mfi.growntilebox(IntVect(1,1,0));
-            // const Box& box = mfi.tilebox();
-            auto qv_arr = qv[lev].array(mfi);
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-               amrex::Print() << "QV " << IntVect(i,j,k) << " " << std::endl;
-               amrex::Print() << "QV " << qv_arr(i,j,k) << " " << std::endl;
-            });
-         }
-#endif
+        micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                   grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+        micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
     }
 #endif
 
@@ -950,12 +916,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Microphysics
     // *******************************************************************************************
 #if defined(ERF_USE_MOISTURE)
-    qv[lev].define(ba, dm, 1, ngrow_state);
-    qc[lev].define(ba, dm, 1, ngrow_state);
-    qi[lev].define(ba, dm, 1, ngrow_state);
-    qrain[lev].define(ba, dm, 1, ngrow_state);
-    qsnow[lev].define(ba, dm, 1, ngrow_state);
-    qgraup[lev].define(ba, dm, 1, ngrow_state);
+    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
 #endif
 
     // ********************************************************************************************
@@ -1175,12 +1136,7 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::zvel].setVal(0.0);
 
 #if defined(ERF_USE_MOISTURE)
-    qv[lev].setVal(0.0);
-    qc[lev].setVal(0.0);
-    qi[lev].setVal(0.0);
-    qrain[lev].setVal(0.0);
-    qsnow[lev].setVal(0.0);
-    qgraup[lev].setVal(0.0);
+    qmoist[lev].setVal(0.0);
 #endif
 
     // Initialize background flow (optional)
@@ -1410,12 +1366,16 @@ ERF::MakeHorizontalAverages ()
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qv(qmoist[lev], make_alias, 0, 1);
+#endif
+
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
         auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
 #if defined(ERF_USE_MOISTURE)
-        auto   qv_arr = qv[lev].array(mfi);
+        auto   qv_arr = qv.array(mfi);
 #endif
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
@@ -1651,12 +1611,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     }
 
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
