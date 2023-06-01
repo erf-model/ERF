@@ -200,7 +200,7 @@ public:
                         amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                         amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                        const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
+                        const amrex::MultiFab& qmoist,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
                         amrex::Geometry fine_geom,
@@ -320,9 +320,15 @@ private:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev); // NOLINT
 
-    // compute a new multifab by copying in phi from valid region and filling ghost cells
+    // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
+
+#if defined(ERF_USE_MOISTURE)
+    // Compute a new MultiFab by copying from valid region and filling ghost cells -
+    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
+    void FillPatchMoistVars (int lev, amrex::Real time, amrex::MultiFab& mf);
+#endif
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -493,12 +499,7 @@ private:
 
 #if defined(ERF_USE_MOISTURE)
     Microphysics micro;
-    amrex::Vector<amrex::MultiFab> qv;
-    amrex::Vector<amrex::MultiFab> qc;
-    amrex::Vector<amrex::MultiFab> qi;
-    amrex::Vector<amrex::MultiFab> qrain;
-    amrex::Vector<amrex::MultiFab> qsnow;
-    amrex::Vector<amrex::MultiFab> qgraup;
+    amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 

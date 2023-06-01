@@ -93,6 +93,46 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 }
 
 /*
+ * Fill ghost cells of qmoist
+ *
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
+ * @param[out] mf MultiFab to be filled (qmoist[lev])
+ */
+
+#ifdef ERF_USE_MOISTURE
+void
+ERF::FillPatchMoistVars (int lev, Real time, MultiFab& mf)
+{
+    BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
+    int bccomp;
+    amrex::Interpolater* mapper = nullptr;
+
+    const int icomp = 0;
+    const int ncomp = mf.nComp();
+
+    bccomp = 0;
+    mapper = &cell_cons_interp;
+
+    // ***************************************************************************
+    // Physical bc's at domain boundary
+    // ***************************************************************************
+    bool cons_only = true;
+    int icomp_cons = 0;
+    int ncomp_cons = 1; // We only fill qv, the first component
+
+    IntVect ngvect_cons = mf.nGrowVect();
+    IntVect ngvect_vels = {0,0,0};
+
+    if (init_type != "real") {
+       (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    }
+
+    mf.FillBoundary(geom[lev].periodicity());
+}
+#endif
+
+/*
  * Fill valid and ghost data
  * This version fills mfs in valid regions with the values in "mfs" when it is passed in;
  * it is used only to compute ghost values for intermediate stages of a time integrator.

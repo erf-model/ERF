@@ -154,7 +154,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
 
-        const Array4<      Real> & new_cons   = S_new[IntVar::cons].array(mfi);
+        const Array4<      Real> & new_cons  = S_new[IntVar::cons].array(mfi);
         const Array4<      Real> & new_xmom  = S_new[IntVar::xmom].array(mfi);
         const Array4<      Real> & new_ymom  = S_new[IntVar::ymom].array(mfi);
         const Array4<      Real> & new_zmom  = S_new[IntVar::zmom].array(mfi);

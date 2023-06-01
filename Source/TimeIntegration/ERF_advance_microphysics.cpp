@@ -7,10 +7,7 @@ void ERF::advance_microphysics(int lev,
                                const Real& dt_advance)
 {
 #if defined(ERF_USE_MOISTURE)
-    micro.Init(cons,
-               qc[lev],
-               qv[lev],
-               qi[lev],
+    micro.Init(cons, qmoist[lev],
                grids_to_evolve[lev],
                Geom(lev),
                dt_advance);
@@ -21,12 +18,6 @@ void ERF::advance_microphysics(int lev,
     micro.Precip();
     micro.MicroPrecipFall();
 
-    micro.Update(cons,
-                 qv[lev],
-                 qc[lev],
-                 qi[lev],
-                 qrain[lev],
-                 qsnow[lev],
-                 qgraup[lev]);
+    micro.Update(cons, qmoist[lev]);
 #endif
 }

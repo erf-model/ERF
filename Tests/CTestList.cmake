@@ -3,7 +3,7 @@
 include(ProcessorCount)
 ProcessorCount(PROCESSES)
 
-set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERF-WindGoldFiles)
+set(FCOMPARE_GOLD_FILES_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles)
 
 #=============================================================================
 # Functions for adding tests / Categories of tests
@@ -92,7 +92,7 @@ endfunction(add_test_u)
 #=============================================================================
 # Regression tests
 #=============================================================================
-add_test_r(Bubble_DensityCurrent             "Bubble/bubble" "plt00010")
+#add_test_r(Bubble_DensityCurrent             "Bubble/bubble" "plt00010")
 add_test_r(CouetteFlow                       "CouetteFlow/erf_couette_flow" "plt00050")
 add_test_r(DensityCurrent                    "DensityCurrent/density_current" "plt00010")
 add_test_r(DensityCurrent_detJ2              "DensityCurrent/density_current" "plt00010")

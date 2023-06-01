@@ -26,9 +26,7 @@ ERF::init_custom(int lev)
 {
     auto& lev_new = vars_new[lev];
 #if defined(ERF_USE_MOISTURE)
-    auto& qv_new  = qv[lev];
-    auto& qc_new  = qc[lev];
-    auto& qi_new  = qi[lev];
+    auto& qmoist_new  = qmoist[lev];
 #endif
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -46,17 +44,16 @@ ERF::init_custom(int lev)
     zvel_pert.setVal(0.);
 
 #if defined(ERF_USE_MOISTURE)
-    MultiFab qv_pert(qv[lev].boxArray(), qv[lev].DistributionMap(), 1, qv[lev].nGrow());
-    MultiFab qc_pert(qc[lev].boxArray(), qc[lev].DistributionMap(), 1, qc[lev].nGrow());
-    MultiFab qi_pert(qi[lev].boxArray(), qi[lev].DistributionMap(), 1, qi[lev].nGrow());
-    qv_pert.setVal(0.);
-    qc_pert.setVal(0.);
-    qi_pert.setVal(0.);
+    MultiFab qmoist_pert(qmoist[lev].boxArray(), qmoist[lev].DistributionMap(), 3, qmoist[lev].nGrow());
+    qmoist_pert.setVal(0.);
+    MultiFab qv_pert(qmoist_pert, amrex::make_alias, 0, 1);
+    MultiFab qc_pert(qmoist_pert, amrex::make_alias, 1, 1);
+    MultiFab qi_pert(qmoist_pert, amrex::make_alias, 2, 1);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-    MultiFab qv_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
-    MultiFab qc_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
-    qv_pert.setVal(0.);
-    qc_pert.setVal(0.);
+    MultiFab qmoist_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 2, cons_pert.nGrow());
+    qmoist_pert.setVal(0.);
+    MultiFab qv_pert(qmoist_pert, amrex::make_alias, 0, 1);
+    MultiFab qc_pert(qmoist_pert, amrex::make_alias, 1, 1);
 #endif
 
     int fix_random_seed = 0;
@@ -120,9 +117,7 @@ ERF::init_custom(int lev)
 #if defined(ERF_USE_MOISTURE)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());
-    MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1,   qv_pert.nGrow());
-    MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1,   qc_pert.nGrow());
-    MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1,   qi_pert.nGrow());
+    MultiFab::Add(         qmoist_new, qmoist_pert, 0,           0,             3, qmoist_pert.nGrow()); // qv, qc, qi
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQv_comp,    RhoQv_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQc_comp,    RhoQc_comp,    1, cons_pert.nGrow());

@@ -76,9 +76,6 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                                               zbx.grow(1,nghost_vels[1]);
 
             const Array4<      Real> cons_arr = mfs[Vars::cons]->array(mfi);;
-            const Array4<      Real> velx_arr = mfs[Vars::xvel]->array(mfi);;
-            const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
-            const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                   Array4<const Real> z_nd_arr;
 
             if (m_z_phys_nd)
@@ -99,6 +96,9 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
 
                 if (!cons_only)
                 {
+                    const Array4<      Real> velx_arr = mfs[Vars::xvel]->array(mfi);;
+                    const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
+                    const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                     if (!gdomainx.contains(xbx))
                     {
                         impose_lateral_xvel_bcs(velx_arr,xbx,domain,time,BCVars::xvel_bc);
@@ -122,6 +122,9 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
             }
 
             if (!cons_only) {
+                const Array4<      Real> velx_arr = mfs[Vars::xvel]->array(mfi);;
+                const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
+                const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                 impose_vertical_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
                                          time,BCVars::xvel_bc);
                 impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,

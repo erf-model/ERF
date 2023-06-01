@@ -19,10 +19,7 @@ using namespace amrex;
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
-void Microphysics::Init(const MultiFab& cons_in,
-                        const MultiFab& qc_in,
-                              MultiFab& qv_in,
-                        const MultiFab& qi_in,
+void Microphysics::Init(const MultiFab& cons_in, MultiFab& qmoist,
                         const BoxArray& grids_to_evolve,
                         const Geometry& geom,
                         const Real& dt_advance)
@@ -43,7 +40,7 @@ void Microphysics::Init(const MultiFab& cons_in,
 
   // We must initialize to zero since we now need boundary values for the call to getP and we need all values filled
   // The ghost cells of these arrays aren't filled in the boundary condition calls for the state
-  qv_in.setVal(0.);
+  qmoist.setVal(0.);
 
   for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
 
@@ -118,12 +115,16 @@ void Microphysics::Init(const MultiFab& cons_in,
   Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
   // Real gamg3 = erf_gammafff(4.0+b_grau      );
 
-  // get the temperature, density, theta, qt and qp from input
+  amrex::MultiFab qv(qmoist, amrex::make_alias, 0, 1);
+  amrex::MultiFab qc(qmoist, amrex::make_alias, 1, 1);
+  amrex::MultiFab qi(qmoist, amrex::make_alias, 2, 1);
+
+  // Get the temperature, density, theta, qt and qp from input
   for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
-     auto qc_in_array  = qc_in.array(mfi);
-     // auto qv_in_array  = qv_in.array(mfi);
-     auto qi_in_array  = qi_in.array(mfi);
+     auto qc_array  = qc.array(mfi);
+     auto qi_array  = qi.array(mfi);
+
      auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);
      auto qn_array     = mic_fab_vars[MicVar::qn]->array(mfi);
@@ -134,13 +135,13 @@ void Microphysics::Init(const MultiFab& cons_in,
 
      const auto& box3d = mfi.tilebox();
 
-     // get pressure, theta, temperature, density, and qt, qp
+     // Get pressure, theta, temperature, density, and qt, qp
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
        theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
        qt_array(i,j,k)    = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
        qp_array(i,j,k)    = states_array(i,j,k,RhoQp_comp)/states_array(i,j,k,Rho_comp);
-       qn_array(i,j,k)    = qc_in_array(i,j,k) + qi_in_array(i,j,k);
+       qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
        temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
        pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
      });
@@ -177,11 +178,8 @@ void Microphysics::Init(const MultiFab& cons_in,
     gamaz_t(k)  = gOcp*zmid_t(k);
   });
 
+  // This fills qv
   Diagnose();
-
-  // This has just been filled in Diagnose
-  // (We need values in ghost cells because qv enters into the getP... call)
-  qv_in.FillBoundary(m_geom.periodicity());
 
 #if 0
   amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i) {
