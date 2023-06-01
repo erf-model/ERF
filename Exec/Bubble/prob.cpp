@@ -333,6 +333,7 @@ init_custom_prob(
 
     if (z_cc) { // nonflat terrain
 
+#if 0
         if (parms.T_0 > 0)
         {
             // Create a flat box with same horizontal extent but only one cell in vertical
@@ -354,6 +355,7 @@ init_custom_prob(
                 r_hse(i,j,khi+1) = r_hse(i,j,khi);
             });
         }
+#endif
 
         amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -383,6 +385,7 @@ init_custom_prob(
         });
     } else {
 
+#if 0
         if (parms.T_0 > 0)
         {
             init_isentropic_hse_no_terrain(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
@@ -403,6 +406,7 @@ init_custom_prob(
                 r_hse(i,j,khi+1) = r_hse(i,j,khi);
             });
         }
+#endif
 
         amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {

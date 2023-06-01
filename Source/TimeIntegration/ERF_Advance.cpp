@@ -54,6 +54,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                           &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
+#if defined(ERF_USE_MOISTURE)
+    FillPatchMoistVars(lev, time, qmoist[lev]);
+#endif
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;
@@ -113,12 +116,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
-#if defined(ERF_USE_MOISTURE)
-    MultiFab qv(qmoist[lev], amrex::make_alias, 0, 1);
-    MultiFab qc(qmoist[lev], amrex::make_alias, 1, 1);
-    MultiFab qi(qmoist[lev], amrex::make_alias, 2, 1);
-#endif
-
     // Update the dycore
     advance_dycore(lev,
                   cons_mf, S_new,
@@ -129,7 +126,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                   rU_crse, rV_crse, rW_crse,
                   source, buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                  qv, qc, qi,
+                  qmoist[lev],
 #endif
                   Geom(lev), dt_lev, time, &ifr);
 
