@@ -118,7 +118,7 @@ ERF::FillPatchMoistVars (int lev, Real time, MultiFab& mf)
     // Physical bc's at domain boundary
     // ***************************************************************************
     bool cons_only = true;
-    int icomp_cons = 0;
+    int icomp_cons = RhoQt_comp;
     int ncomp_cons = 1; // We only fill qv, the first component
 
     IntVect ngvect_cons = mf.nGrowVect();

@@ -30,6 +30,14 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
 
+#if defined(ERF_USE_MOISTURE)
+        m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = 0.0;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = 0.0;
+#endif
+
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.0;
