@@ -280,24 +280,24 @@ AdvectionSrcForScalars (const Box& bx, const int &icomp, const int &ncomp,
 #endif
 
     // Running with WENO for moisture but not for other vars
-    if(moist_use_WENO && ((icomp+ncomp)==NVAR) ) {
+    if((moist_use_WENO || moist_use_WENO_Z) && ((icomp+ncomp)==NVAR) ) {
         ncomp_end -= 2;
-        if (spatial_order_WENO==3) {
+        if (moist_use_WENO && spatial_order_WENO==3) {
             AdvectionSrcForScalarsWrapper_N<WENO3,WENO3>(bx, 2, moist_off,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (spatial_order_WENO==5) {
+        } else if (moist_use_WENO && spatial_order_WENO==5) {
             AdvectionSrcForScalarsWrapper_N<WENO5,WENO5>(bx, 2, moist_off,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (spatial_order_WENO==3) {
+        } else if (moist_use_WENO_Z && spatial_order_WENO==3) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z3,WENO_Z3>(bx, 2, moist_off,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
                                                              cellSizeInv, mf_m);
-        } else if (spatial_order_WENO==5) {
+        } else if (moist_use_WENO_Z && spatial_order_WENO==5) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z5,WENO_Z5>(bx, 2, moist_off,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
