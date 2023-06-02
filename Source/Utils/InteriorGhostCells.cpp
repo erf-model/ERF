@@ -123,9 +123,9 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     Real F1 = 1./(10.*delta_t);
     Real F2 = 1./(50.*delta_t);
 
-    // Compute interpolation factors
+    // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = time - start_bdy_time;
+    Real time_since_start = (time - start_bdy_time) / 1.e10;
     int n_time = static_cast<int>( time_since_start / dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
