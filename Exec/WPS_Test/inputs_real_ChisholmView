@@ -34,7 +34,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = -100    # number of timesteps between checkpoints
+erf.check_int       = 1    # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name

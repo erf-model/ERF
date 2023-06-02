@@ -361,7 +361,6 @@ ERF::ReadCheckpointFile ()
         int num_var;
         Vector<Box> bx_v;
         if (ParallelDescriptor::IOProcessor()) {
-
             // Open header file and read from it
             std::ifstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_H"));
             bdy_h_file >> num_time;
@@ -412,35 +411,34 @@ ERF::ReadCheckpointFile ()
         ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
         ParallelDescriptor::Bcast(&bdy_time_interval,1,ioproc);
         ParallelDescriptor::Bcast(&wrfbdy_width,1,ioproc);
-
         ParallelDescriptor::Bcast(&num_time,1,ioproc);
         ParallelDescriptor::Bcast(&num_var,1,ioproc);
 
-        // Everyone size boxes
+        // Everyone size their boxes
         bx_v.resize(4*num_var);
 
-        ParallelDescriptor::Barrier();
         ParallelDescriptor::Bcast(bx_v.dataPtr(),bx_v.size(),ioproc);
 
-        // Everyone size the FABs
-        bdy_data_xlo.resize(num_time);
-        bdy_data_xhi.resize(num_time);
-        bdy_data_ylo.resize(num_time);
-        bdy_data_yhi.resize(num_time);
-        for (int itime(0); itime<num_time; ++itime) {
+        // Everyone but IO size their FABs
+        if (!ParallelDescriptor::IOProcessor()) {
+          bdy_data_xlo.resize(num_time);
+          bdy_data_xhi.resize(num_time);
+          bdy_data_ylo.resize(num_time);
+          bdy_data_yhi.resize(num_time);
+          for (int itime(0); itime<num_time; ++itime) {
             bdy_data_xlo[itime].resize(num_var);
             bdy_data_xhi[itime].resize(num_var);
             bdy_data_ylo[itime].resize(num_var);
             bdy_data_yhi[itime].resize(num_var);
             for (int ivar(0); ivar<num_var; ++ivar) {
-                bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
-                bdy_data_xhi[itime][ivar].resize(bx_v[4*ivar+1]);
-                bdy_data_ylo[itime][ivar].resize(bx_v[4*ivar+2]);
-                bdy_data_yhi[itime][ivar].resize(bx_v[4*ivar+3]);
+              bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
+              bdy_data_xhi[itime][ivar].resize(bx_v[4*ivar+1]);
+              bdy_data_ylo[itime][ivar].resize(bx_v[4*ivar+2]);
+              bdy_data_yhi[itime][ivar].resize(bx_v[4*ivar+3]);
             }
+          }
         }
 
-        ParallelDescriptor::Barrier();
         for (int itime(0); itime<num_time; ++itime) {
             for (int ivar(0); ivar<num_var; ++ivar) {
                 ParallelDescriptor::Bcast(bdy_data_xlo[itime][ivar].dataPtr(),bdy_data_xlo[itime][ivar].box().numPts(),ioproc);
@@ -449,7 +447,6 @@ ERF::ReadCheckpointFile ()
                 ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),bdy_data_yhi[itime][ivar].box().numPts(),ioproc);
             }
         }
-
     } // init real
 #endif
 }
