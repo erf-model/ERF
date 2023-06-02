@@ -20,7 +20,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
                                               const Box& bx, const Box& domain,
                                               const Array4<Real const>& z_phys_nd,
                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                              Real /*time*/, int bccomp)
+                                              Real /*time*/, int bccomp, int bcoff)
 {
     BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -54,7 +54,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+bcoff+i][ori];
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -162,7 +162,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                Real /*time*/, int bccomp_u,
                                                int bccomp_v, int bccomp_w,
-                                               int terrain_type)
+                                               int terrain_type, int bcoff)
 {
     BL_PROFILE_VAR("impose_vertical_zvel_bcs()",impose_vertical_zvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -207,7 +207,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+i][ori];
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+bcoff+i][ori];
 
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);

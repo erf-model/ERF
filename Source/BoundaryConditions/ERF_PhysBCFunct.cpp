@@ -19,7 +19,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
                                  IntVect const& nghost_cons, IntVect const& nghost_vels, Real time,
-                                 std::string& init_type, bool cons_only)
+                                 std::string& init_type, bool cons_only, int bcoff)
 {
     BL_PROFILE("ERFPhysBCFunct::()");
 
@@ -91,7 +91,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 if (!gdomain.contains(cbx))
                 {
                     int bccomp = BCVars::cons_bc;
-                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp_cons,ncomp_cons,time,bccomp);
+                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp_cons,ncomp_cons,time,bccomp,bcoff);
                 }
 
                 if (!cons_only)
@@ -101,15 +101,15 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                     const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                     if (!gdomainx.contains(xbx))
                     {
-                        impose_lateral_xvel_bcs(velx_arr,xbx,domain,time,BCVars::xvel_bc);
+                        impose_lateral_xvel_bcs(velx_arr,xbx,domain,time,BCVars::xvel_bc,bcoff);
                     }
 
                     if (!gdomainy.contains(ybx))
                     {
-                        impose_lateral_yvel_bcs(vely_arr,ybx,domain,time,BCVars::yvel_bc);
+                        impose_lateral_yvel_bcs(vely_arr,ybx,domain,time,BCVars::yvel_bc,bcoff);
                     }
 
-                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,time,BCVars::zvel_bc);
+                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,time,BCVars::zvel_bc,bcoff);
                 } // !cons_only
             } // init_type != "real"
 
@@ -118,7 +118,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
             {
             int bccomp = BCVars::cons_bc;
             impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
-                                     icomp_cons,ncomp_cons,time,bccomp);
+                                     icomp_cons,ncomp_cons,time,bccomp,bcoff);
             }
 
             if (!cons_only) {
@@ -126,12 +126,12 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
                 const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                 impose_vertical_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
-                                         time,BCVars::xvel_bc);
+                                         time,BCVars::xvel_bc,bcoff);
                 impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
-                                         time,BCVars::yvel_bc);
+                                         time,BCVars::yvel_bc,bcoff);
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,time,
                                          BCVars::xvel_bc, BCVars::yvel_bc, BCVars::zvel_bc,
-                                         m_terrain_type);
+                                         m_terrain_type,bcoff);
             } // !cons_only
 
         } // MFIter

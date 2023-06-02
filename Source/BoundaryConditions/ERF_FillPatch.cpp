@@ -118,14 +118,14 @@ ERF::FillPatchMoistVars (int lev, Real time, MultiFab& mf)
     // Physical bc's at domain boundary
     // ***************************************************************************
     bool cons_only = true;
-    int icomp_cons = RhoQt_comp;
+    int icomp_cons = 0;
     int ncomp_cons = 1; // We only fill qv, the first component
 
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
 
     if (init_type != "real") {
-       (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only,RhoQt_comp);
     }
 
     mf.FillBoundary(geom[lev].periodicity());

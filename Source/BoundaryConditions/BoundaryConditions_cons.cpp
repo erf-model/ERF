@@ -17,7 +17,7 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                              int icomp, int ncomp, Real /*time*/, int bccomp)
+                                              int icomp, int ncomp, Real /*time*/, int bccomp, int bcoff)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -47,12 +47,12 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+bcoff+i][ori];
 
    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];
+            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+bcoff+i][ori];
 
     GeometryData const& geomdata = m_geom.data();
     bool is_periodic_in_x = geomdata.isPeriodic(0);
@@ -175,7 +175,7 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
 void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int icomp, int ncomp, Real /*time*/, int bccomp)
+                                               int icomp, int ncomp, Real /*time*/, int bccomp, int bcoff)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -207,12 +207,12 @@ void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, con
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+bcoff+i][ori];
 
    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
-            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];
+            l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+bcoff+i][ori];
 
 
     {
