@@ -205,8 +205,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         });
         } // end profile
 
-        // We have projected the velocities stored in S_data but we will use 
-        //    the velocities stored in S_scratch to update the scalars, so 
+        // We have projected the velocities stored in S_data but we will use
+        //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
         if (incompressible) {
             Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
