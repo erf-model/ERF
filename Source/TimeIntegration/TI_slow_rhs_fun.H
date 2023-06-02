@@ -256,7 +256,7 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level], incompressible);
         } else {
             erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
@@ -264,7 +264,7 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level], incompressible);
         }
     }; // end slow_rhs_fun_post
 

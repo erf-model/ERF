@@ -42,6 +42,7 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[in] incompressible are we running the incompressible algorithm
  */
 
 void erf_slow_rhs_post (int /*level*/, Real dt,
@@ -68,7 +69,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v)
+                        std::unique_ptr<MultiFab>& mapfac_v,
+                        int incompressible)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -202,6 +204,26 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
         } // end profile
+
+        // We have projected the velocities stored in S_data but we will use
+        //    the velocities stored in S_scratch to update the scalars, so
+        //    we need to copy from S_data (projected) into S_scratch
+        if (incompressible) {
+            Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
+            Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+            Box tbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_xmom(i,j,k) = cur_xmom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_ymom(i,j,k) = cur_ymom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_zmom(i,j,k) = cur_zmom(i,j,k);
+            });
+        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations

@@ -88,7 +88,8 @@ void erf_slow_rhs_post(int level, amrex::Real dt,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       const int incompressible);
 
 /**
  * Function for computing the fast RHS with no terrain
