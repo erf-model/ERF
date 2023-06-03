@@ -126,6 +126,12 @@ ERF::WriteCheckpointFile () const
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
+#ifdef ERF_USE_MOISTURE
+       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
+       MultiFab::Copy(moist_vars,qmoist[lev],0,0,qmoist[lev].nComp(),0);
+       VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+#endif
+
        // Note that we write the ghost cells of the base state (unlike above)
        IntVect ngvect_base = base_state[lev].nGrowVect();
        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
@@ -314,6 +320,12 @@ ERF::ReadCheckpointFile ()
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
+
+#ifdef ERF_USE_MOISTURE
+       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
+       VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+       MultiFab::Copy(qmoist[lev],moist_vars,0,0,qmoist[lev].nComp(),0);
+#endif
 
         // Note that we read the ghost cells of the base state (unlike above)
         IntVect ngvect_base = base_state[lev].nGrowVect();

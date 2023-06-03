@@ -55,7 +55,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                           &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
 #if defined(ERF_USE_MOISTURE)
-    FillPatchMoistVars(lev, time, qmoist[lev]);
+    FillPatchMoistVars(lev, qmoist[lev]);
 #endif
 
     MultiFab* S_crse;
@@ -125,9 +125,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                   rU_new[lev], rV_new[lev], rW_new[lev],
                   rU_crse, rV_crse, rW_crse,
                   source, buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                  qmoist[lev],
-#endif
                   Geom(lev), dt_lev, time, &ifr);
 
 #if defined(ERF_USE_MOISTURE)

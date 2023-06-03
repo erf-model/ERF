@@ -451,19 +451,18 @@ ERF::InitData ()
                 make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
             }
         }
-
-#if defined(ERF_USE_MOISTURE)
-        // We set these to zero since they will be re-defined in Microphysics::Init
-        for (int lev = 0; lev <= finest_level; lev++)
-        {
-            qmoist[lev].setVal(0.0);
+#ifdef ERF_USE_MOISTURE
+        // Need to fill ghost cells here since we will use this qmoist in advance
+        for (int lev = 0; lev <= finest_level; lev++) {
+            FillPatchMoistVars(lev, qmoist[lev]);
         }
 #endif
     }
 
     // Define after wrfbdy_width is known
-    for (int lev = 0; lev <= finest_level; lev++)
+    for (int lev = 0; lev <= finest_level; lev++) {
         define_grids_to_evolve(lev);
+    }
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
@@ -501,14 +500,6 @@ ERF::InitData ()
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
-
-    // Call Init which will call Diagnose to fill qmoist
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                   grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-        micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
-    }
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -1135,10 +1126,6 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-#if defined(ERF_USE_MOISTURE)
-    qmoist[lev].setVal(0.0);
-#endif
-
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
@@ -1149,6 +1136,10 @@ ERF::init_only(int lev, Real time)
         init_from_metgrid(lev);
 #endif
     }
+
+#if defined(ERF_USE_MOISTURE)
+    qmoist[lev].setVal(0.);
+#endif
 
     // Add problem-specific flow features
     // If init_type is specified, then this is a perturbation to the background

@@ -199,10 +199,6 @@ public:
                         amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                         amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                         amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                        const amrex::MultiFab& qmoist,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-#endif
                         amrex::Geometry fine_geom,
                         amrex::Real dt, amrex::Real time,
                         amrex::InterpFaceRegister* ifr);
@@ -327,7 +323,7 @@ private:
 #if defined(ERF_USE_MOISTURE)
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatchMoistVars (int lev, amrex::Real time, amrex::MultiFab& mf);
+    void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
 #endif
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
@@ -500,7 +496,6 @@ private:
 #if defined(ERF_USE_MOISTURE)
     Microphysics micro;
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
-#elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 
     // Diffusive stresses and Smag

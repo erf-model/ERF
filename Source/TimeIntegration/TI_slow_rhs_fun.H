@@ -76,14 +76,14 @@
 
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                          qmoist, qv_d, qc_d, qi_d,
+                          qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0_new);
 
             erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
-                             qmoist,
+                             qmoist[level],
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
@@ -172,14 +172,14 @@
             // If not moving_terrain
             make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                          qmoist, qv_d, qc_d, qi_d,
+                          qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0);
 
             erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
-                             qmoist,
+                             qmoist[level],
 #endif
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
@@ -287,14 +287,14 @@
         // If not moving_terrain
         make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                      qmoist, qv_d, qc_d, qi_d,
+                      qmoist[level], qv_d, qc_d, qi_d,
 #endif
                       fine_geom, solverChoice, r0);
 
         erf_slow_rhs_inc(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
-                         qmoist,
+                         qmoist[level],
 #endif
                          z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                          Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,

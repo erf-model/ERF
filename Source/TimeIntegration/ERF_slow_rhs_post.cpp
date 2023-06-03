@@ -55,7 +55,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         Vector<MultiFab>& S_scratch,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
-                        const MultiFab& zvel,
+                        const MultiFab& /*zvel*/,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
@@ -209,11 +209,11 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
         if (incompressible) {
-            Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-            Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
-            Box tbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+            Box tbx_inc = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
+            Box tby_inc = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+            Box tbz_inc = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
 
-            ParallelFor(tbx, tby, tbz,
+            ParallelFor(tbx_inc, tby_inc, tbz_inc,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 avg_xmom(i,j,k) = cur_xmom(i,j,k);
             },
@@ -345,7 +345,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         if (l_moving_terrain)
         {
-            auto const& src_arr = source.const_array(mfi);
             num_comp = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {

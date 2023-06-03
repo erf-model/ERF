@@ -12,12 +12,11 @@ using namespace amrex;
  * @param[in]     icomp    index into the MultiFab -- this can be any value from 0 to NVAR-1
  * @param[in]     ncomp    the number of components -- this can be any value from 1 to NVAR
  *                         as long as icomp+ncomp <= NVAR-1.
- * @param[in]     time     time at which the data should be filled
  * @param[in]     bccomp   index into m_domain_bcs_type
  */
 
 void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                              int icomp, int ncomp, Real /*time*/, int bccomp)
+                                              int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -168,14 +167,13 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
  * @param[in] icomp     the index of the first component to be filled
  * @param[in] ncomp     the number of components -- this can be any value from 1 to NVAR
  *                      as long as icomp+ncomp <= NVAR-1.
- * @param[in] time      the time at which the data should be filled
  * @param[in] bccomp    index into m_domain_bcs_type
  */
 
 void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int icomp, int ncomp, Real /*time*/, int bccomp)
+                                               int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = amrex::lbound(domain);
