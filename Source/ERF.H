@@ -733,8 +733,8 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
-                      const int& spatial_order_WENO,  const bool& use_WENO,
+    ComputeGhostCells(const int& horiz_spatial_order,
+                      const int& vert_spatial_order,
                       const bool& use_numerical_diff)
     {
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
@@ -742,18 +742,6 @@ private:
       int nGhostCells = 0;
       if (use_numerical_diff) {
           nGhostCells = 3;
-      } else if(use_WENO) {
-          switch (spatial_order_WENO) {
-          case 3:
-              nGhostCells = 2;
-              break;
-          case 5:
-              nGhostCells = 3;
-              break;
-          default:
-              amrex::Error("Must specify WENO spatial order to be 3 or 5");
-              break;
-          }
       } else {
           switch (spatial_order) {
           case 2: case 3: case 4:
