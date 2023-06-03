@@ -527,7 +527,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         //-----------------------------------------
         // Perturbational pressure field
         //-----------------------------------------
-        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
+        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(IntVect(1,1,0));
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();
