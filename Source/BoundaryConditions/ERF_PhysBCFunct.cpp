@@ -19,7 +19,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
                                  IntVect const& nghost_cons, IntVect const& nghost_vels, Real time,
-                                 std::string& init_type, bool cons_only)
+                                 std::string& init_type, bool cons_only, int bccomp_cons)
 {
     BL_PROFILE("ERFPhysBCFunct::()");
 
@@ -90,8 +90,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 //! we need to fill them here
                 if (!gdomain.contains(cbx))
                 {
-                    int bccomp = BCVars::cons_bc;
-                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp_cons,ncomp_cons,time,bccomp);
+                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp_cons,ncomp_cons,time,bccomp_cons);
                 }
 
                 if (!cons_only)
@@ -116,9 +115,8 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
             // Every grid touches the bottom and top domain boundary so we call the vertical bcs
             //       for every box -- and we need to call these even if init_type == real
             {
-            int bccomp = BCVars::cons_bc;
             impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
-                                     icomp_cons,ncomp_cons,time,bccomp);
+                                     icomp_cons,ncomp_cons,time,bccomp_cons);
             }
 
             if (!cons_only) {
