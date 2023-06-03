@@ -23,7 +23,7 @@ void erf_slow_rhs_pre(int level, int nrk,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
 #if defined(ERF_USE_MOISTURE)
-                     const amrex::MultiFab& qvapor,
+                     const amrex::MultiFab& qmoist,
 #endif
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
@@ -88,7 +88,8 @@ void erf_slow_rhs_post(int level, amrex::Real dt,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       const int incompressible);
 
 /**
  * Function for computing the fast RHS with no terrain
@@ -196,9 +197,7 @@ void make_buoyancy(amrex::BoxArray& grids_to_evolve,
                    const           amrex::MultiFab & S_prim,
                          amrex::MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                   const amrex::MultiFab& qvapor,
-                   const amrex::MultiFab& qcloud,
-                   const amrex::MultiFab& qice,
+                   const amrex::MultiFab& qmoist,
                    const amrex::Gpu::DeviceVector<amrex::Real> qv_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qc_d,
                    const amrex::Gpu::DeviceVector<amrex::Real> qi_d,

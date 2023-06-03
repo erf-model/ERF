@@ -153,11 +153,11 @@ ERF::ReadNCCheckpointFile ()
     ncf.var("dt")   .get(dt.data(),    {0}, {static_cast<long unsigned int>(ndt)});
     ncf.var("t_new").get(t_new.data(), {0}, {static_cast<long unsigned int>(ntime)});
 
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff);
     for (int lev = 0; lev <= finest_level; ++lev) {
 

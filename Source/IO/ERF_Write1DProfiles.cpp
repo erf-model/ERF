@@ -194,6 +194,10 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
 
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
 
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qv(qmoist[lev], make_alias, 0, 1);
+#endif
+
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -203,7 +207,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
 #if defined(ERF_USE_MOISTURE)
-        const Array4<Real>&   qv_arr = qv[lev].array(mfi);
+        const Array4<Real>&   qv_arr = qv.array(mfi);
 #endif
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
 

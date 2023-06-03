@@ -63,7 +63,7 @@ advection-diffusion problem. The corresponding regression tests are driven by th
 
 Any file in the test directory will be copied during CMake configure to the test's working directory.
 The input files meant for regression test run only until a few time steps. The reference solution that the
-regression test will refer to should be placed in ``Tests/ERF-WindGoldFiles/<test_name>``. Next, edit the
+regression test will refer to should be placed in ``Tests/ERFGoldFiles/<test_name>``. Next, edit the
 ``Exec/CMakeLists.txt`` and ``Tests/CTestList.cmake`` files, add the problem and the corresponding tests
 to the list. Note that there are different categories of tests and if your test falls outside of these
 categories, a new function to add the test will need to be created. After these steps, your test will be
