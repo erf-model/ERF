@@ -500,6 +500,17 @@ ERF::InitData ()
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
+
+    // Call Init which will call Diagnose to fill qmoist
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        // If not restarting we need to fill qmoist given qt and qp.
+        if (restart_chkfile.empty()) {
+            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+        }
+    }
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
