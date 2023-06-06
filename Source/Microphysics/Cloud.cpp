@@ -1,10 +1,13 @@
 
 #include "Microphysics.H"
 #include "IndexDefines.H"
-#include "EOS.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
+/**
+ * Compute Cloud-related Microphysics quantities.
+ */
 void Microphysics::Cloud() {
 
   constexpr Real an   = 1.0/(tbgmax-tbgmin);

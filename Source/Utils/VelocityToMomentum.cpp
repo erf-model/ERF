@@ -8,17 +8,29 @@
 using namespace amrex;
 
 /**
- * Convert velocity to momentum.
+ * Convert velocity to momentum by multiplying by density averaged onto faces.
+ * @param[in] xvel_in x-component of velocity
+ * @param[in] xvel_ngrow how many cells to grow the tilebox for the x-momentum
+ * @param[in] yvel_in y-component of velocity
+ * @param[in] yvel_ngrow how many cells to grow the tilebox for the y-momentum
+ * @param[in] zvel_in z-component of velocity
+ * @param[in] zvel_ngrow how many cells to grow the tilebox for the z-momentum
+ * @param[in] density density at cell centers
+ * @param[out] xmom x-component of momentum
+ * @param[out] ymom y-component of momentum
+ * @param[out] zmom z-component of momentum
+ * @param[in] l_use_ndiff flag describing whether we will later add explicit numerical diffusion
  */
-void VelocityToMomentum( BoxArray& grids_to_evolve,
-                         const MultiFab& xvel_in,
+
+void VelocityToMomentum( const MultiFab& xvel_in,
                          const IntVect& xvel_ngrow,
                          const MultiFab& yvel_in,
                          const IntVect& yvel_ngrow,
                          const MultiFab& zvel_in,
                          const IntVect& zvel_ngrow,
-                         const MultiFab& cons_in,
-                         MultiFab& xmom, MultiFab& ymom, MultiFab& zmom)
+                         const MultiFab& density,
+                         MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
+                         bool l_use_ndiff)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
@@ -26,15 +38,23 @@ void VelocityToMomentum( BoxArray& grids_to_evolve,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_box = amrex::grow(grids_to_evolve[mfi],IntVect(1,1,0));
-        Box tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0); tbx.setSmall(2,0);
-        Box tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1); tby.setSmall(2,0);
-        Box tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2); tbz.setSmall(2,0);
+        // We need momentum in the interior ghost cells (init == real)
+        const Box& valid_box = amrex::grow(mfi.validbox(),IntVect(1,1,0));
+        Box tbx, tby, tbz;
+        if (l_use_ndiff) {
+            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow); tbx.setSmall(2,0);
+            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow); tby.setSmall(2,0);
+            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow); tbz.setSmall(2,0);
+        } else {
+            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0); tbx.setSmall(2,0);
+            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1); tby.setSmall(2,0);
+            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2); tbz.setSmall(2,0);
+        }
 
         // Conserved/state variables on cell centers -- we use this for density
-        const Array4<const Real>& cons = cons_in.array(mfi);
+        const Array4<const Real>& dens_arr = density.array(mfi);
 
         // Momentum on faces, to be computed
         Array4<Real> const& momx = xmom.array(mfi);
@@ -48,13 +68,13 @@ void VelocityToMomentum( BoxArray& grids_to_evolve,
 
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momx(i,j,k) = velx(i,j,k) * 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp));
+            momx(i,j,k) = velx(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momy(i,j,k) = vely(i,j,k) * 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp));
+            momy(i,j,k) = vely(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momz(i,j,k) = velz(i,j,k) * 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp));
+            momz(i,j,k) = velz(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
         });
     } // end MFIter
 }

@@ -80,6 +80,11 @@ calc_rho_p(int i, int j,
            amrex::Array4<amrex::Real> const &r_hse_arr);
 
 #ifdef ERF_USE_NETCDF
+/**
+ * Initializes ERF data using metgrid data supplied by an external NetCDF file.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::init_from_metgrid(int lev)
 {
@@ -106,10 +111,10 @@ ERF::init_from_metgrid(int lev)
 
     int nboxes = num_boxes_at_level[lev];
 
-    if (nc_init_file.size() == 0)
+    if (nc_init_file.empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
-    if (nc_init_file[lev].size() == 0)
+    if (nc_init_file[lev].empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
     for (int idx = 0; idx < nboxes; idx++)
@@ -238,6 +243,15 @@ ERF::init_from_metgrid(int lev)
     }
 }
 
+
+/**
+ * Helper function to initialize terrain nodal z coordinates for a Fab
+ * given metgrid data.
+ *
+ * @param lev Integer specifying the current level
+ * @param z_phys_nd_fab FArrayBox (Fab) holding the nodal z coordinates for terrain data we want to fill
+ * @param NC_hgt_fab Vector of FArrayBox objects holding height data read from NetCDF files for metgrid data
+ */
 void
 init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
                           const Vector<FArrayBox>& NC_hgt_fab)
@@ -288,6 +302,23 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
     } // idx
 }
 
+/**
+ * Helper function to initialize state and velocity data
+ * read from metgrid data.
+ *
+ * @param lev Integer specifying the current level
+ * @param state_fab FArrayBox holding the state data to initialize
+ * @param x_vel_fab FArrayBox holding the x-velocity data to initialize
+ * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
+ * @param z_vel_fab FArrayBox holding the z-velocity data to initialize
+ * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
+ * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for height
+ * @param NC_xvel_fab Vector of FArrayBox obects holding metgrid data for x-velocity
+ * @param NC_yvel_fab Vector of FArrayBox obects holding metgrid data for y-velocity
+ * @param NC_zvel_fab Vector of FArrayBox obects holding metgrid data for z-velocity
+ * @param NC_rho_fab Vector of FArrayBox obects holding metgrid data for density
+ * @param NC_rhotheta_fab Vector of FArrayBox obects holding metgrid data for (density * potential temperature)
+ */
 void
 init_state_from_metgrid(FArrayBox& state_fab,
                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
@@ -411,6 +442,17 @@ init_state_from_metgrid(FArrayBox& state_fab,
     } // idx
 }
 
+/**
+ * Helper function to initialize map factors from metgrid data
+ *
+ * @param lev Integer specifying current level
+ * @param msfu_fab FArrayBox specifying x-velocity map factors
+ * @param msfv_fab FArrayBox specifying y-velocity map factors
+ * @param msfm_fab FArrayBox specifying z-velocity map factors
+ * @param NC_MSFU_fab Vector of FArrayBox objects holding metgrid data for x-velocity map factors
+ * @param NC_MSFV_fab Vector of FArrayBox objects holding metgrid data for y-velocity map factors
+ * @param NC_MSFM_fab Vector of FArrayBox objects holding metgrid data for z-velocity map factors
+ */
 void
 rh_to_mxrat(int i, int j, int k, 
             const Array4<Real const>& rhum, 
@@ -563,6 +605,18 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm
     } // idx
 }
 
+/**
+ * Helper function for initializing hydrostatic base state data from metgrid data
+ *
+ * @param lev Integer specifying the current level
+ * @param valid_bx Box specifying the index space we are initializing
+ * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param p_hse FArrayBox holding the hydrostatic base state pressure we are initializing
+ * @param pi_hse FArrayBox holding the hydrostatic base Exner pressure we are initializing
+ * @param r_hse FArrayBox holding the hydrostatic base state density we are initializing
+ * @param NC_ALB_fab Vector of FArrayBox objects holding metgrid data specifying 1/density
+ * @param NC_PB_fab Vector of FArrayBox objects holding metgrid data specifying pressure
+ */
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
                              FArrayBox& state_fab,
@@ -621,6 +675,20 @@ init_base_state_from_metgrid(const Real l_rdOcp,
     } // idx
 }
 
+/**
+ * Helper function to interpolate data and its associated z-coordinates to a new set of z-coordinates.
+ *
+ * Operates on a column of data (with fixed x,y coordinates) at a time.
+ *
+ * @param i Integer specifying the x-dimension index for the column
+ * @param j Integer specifying the y-dimension index for the column
+ * @param src_comp Integer specifying the source component of the data to start intepolation from
+ * @param dest_comp Integer specifying the destination component of the data to interpolate into
+ * @param orig_z Array4 object containing the original z-coordinates to interpolate from
+ * @param orig_data Array4 object containing the data at the original z-coordinates to interpolate
+ * @param new_z Array4 object containing the new z-coordinates to interpolate into
+ * @param new_data Array4 object into which we interpolate the data at the new z-coordinates
+ */
 AMREX_GPU_DEVICE
 void
 interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,

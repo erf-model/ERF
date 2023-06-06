@@ -1,10 +1,29 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <IndexDefines.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <prob_common.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
+
+/**
+ * Function for computing the coefficients for the tridiagonal solver used in the fast
+ * integrator (the acoustic substepping).
+ *
+ * @param[in]  level level of refinement
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
+ * @param[in]  S_stage_data solution at the last stage
+ * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
+ * @param[in]  pi_stage Exner function at the last stage
+ * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  r0     Reference (hydrostatically stratified) density
+ * @param[in]  pi0     Reference (hydrostatically stratified) Exner function
+ * @param[in]  dtau    Fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
+ */
 
 void make_fast_coeffs (int /*level*/,
                        BoxArray& grids_to_evolve,
@@ -16,13 +35,10 @@ void make_fast_coeffs (int /*level*/,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       amrex::Real dtau)
+                       Real dtau, Real beta_s)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
     Real c_v = solverChoice.c_p - R_d;
@@ -54,7 +70,7 @@ void make_fast_coeffs (int /*level*/,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 

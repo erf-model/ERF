@@ -5,7 +5,8 @@
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
+#include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
 
@@ -15,14 +16,32 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the buoyancy term to be used in the evolution
+ * equation for the z-component of momentum in the slow integrator.  There
+ * are three options for how buoyancy is computed (two are the same in the absence of moisture).
+ *
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[in]  S_data current solution
+ * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
+ * @param[out] buoyancy the buoyancy term computed here
+ * @param[in]  qvapor water vapor
+ * @param[in]  qcloud cloud water
+ * @param[in]  qice   cloud ice
+ * @param[in]  qv_d   lateral average of cloud vapor
+ * @param[in]  qc_d   lateral average of cloud vapor
+ * @param[in]  qd_d   lateral average of cloud vapor
+ * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  r0     Reference (hydrostatically stratified) density
+ */
+
 void make_buoyancy (BoxArray& grids_to_evolve,
                     Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                    const MultiFab& qvapor,
-                    const MultiFab& qcloud,
-                    const MultiFab& qice,
+                    const MultiFab& qmoist,
                     Gpu::DeviceVector<Real> qv_d,
                     Gpu::DeviceVector<Real> qc_d,
                     Gpu::DeviceVector<Real> qi_d,
@@ -35,6 +54,15 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
+    const int klo = 0;
+    const int khi = geom.Domain().bigEnd()[2] + 1;
+
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qvapor(qmoist, make_alias, 0, 1);
+    MultiFab qcloud(qmoist, make_alias, 1, 1);
+    MultiFab qice  (qmoist, make_alias, 2, 1);
+#endif
 
     // ******************************************************************************************
     // Dry versions of buoyancy expressions (type 1 and type 2/3 -- types 2 and 3 are equivalent)
@@ -49,9 +77,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -100,8 +128,8 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             Box tbz = mfi.tilebox() & valid_bx;
 
             // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -139,9 +167,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
@@ -211,9 +239,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
@@ -262,9 +290,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
@@ -309,9 +337,9 @@ void make_buoyancy (BoxArray& grids_to_evolve,
             // Construct intersection of current tilebox and valid region for updating
             Box tbz = mfi.tilebox() & valid_bx;
 
-            // We don't compute a source term for z-momentum on the bottom or top boundary
-            tbz.growLo(2,-1);
-            tbz.growHi(2,-1);
+            // We don't compute a source term for z-momentum on the bottom or top domain boundary
+            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
+            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
             const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
             const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);

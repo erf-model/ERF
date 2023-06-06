@@ -3,21 +3,30 @@
  */
 
 #include <ERF.H>
-#include <EOS.H>
 #include <ERF_Constants.H>
-#include <Utils.H>
+#include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;
 
+/**
+ * Wrapper for custom problem-specific initialization routines that can be
+ * defined by the user as they set up a new problem in ERF. This wrapper
+ * handles all the overhead of defining both the background and perturbation
+ * state as well as initializing the random seed.
+ *
+ * This wrapper calls a user function to customize initialization on a per-Fab
+ * level inside an MFIter loop, so all the MultiFab operations are hidden from
+ * the user.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::init_custom(int lev)
 {
     auto& lev_new = vars_new[lev];
 #if defined(ERF_USE_MOISTURE)
-    auto& qv_new  = qv[lev];
-    auto& qc_new  = qc[lev];
-    auto& qi_new  = qi[lev];
+    auto& qmoist_new  = qmoist[lev];
 #endif
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -35,25 +44,36 @@ ERF::init_custom(int lev)
     zvel_pert.setVal(0.);
 
 #if defined(ERF_USE_MOISTURE)
-    MultiFab qv_pert(qv[lev].boxArray(), qv[lev].DistributionMap(), 1, qv[lev].nGrow());
-    MultiFab qc_pert(qc[lev].boxArray(), qc[lev].DistributionMap(), 1, qc[lev].nGrow());
-    MultiFab qi_pert(qi[lev].boxArray(), qi[lev].DistributionMap(), 1, qi[lev].nGrow());
-    qv_pert.setVal(0.);
-    qc_pert.setVal(0.);
-    qi_pert.setVal(0.);
+    MultiFab qmoist_pert(qmoist[lev].boxArray(), qmoist[lev].DistributionMap(), 3, qmoist[lev].nGrow());
+    qmoist_pert.setVal(0.);
+    MultiFab qv_pert(qmoist_pert, amrex::make_alias, 0, 1);
+    MultiFab qc_pert(qmoist_pert, amrex::make_alias, 1, 1);
+    MultiFab qi_pert(qmoist_pert, amrex::make_alias, 2, 1);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-    MultiFab qv_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
-    MultiFab qc_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 1, cons_pert.nGrow());
-    qv_pert.setVal(0.);
-    qc_pert.setVal(0.);
+    MultiFab qmoist_pert(cons_pert.boxArray(), cons_pert.DistributionMap(), 2, cons_pert.nGrow());
+    qmoist_pert.setVal(0.);
+    MultiFab qv_pert(qmoist_pert, amrex::make_alias, 0, 1);
+    MultiFab qc_pert(qmoist_pert, amrex::make_alias, 1, 1);
 #endif
+
+    int fix_random_seed = 0;
+    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    //     same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        amrex::Print() << "Fixing the random seed" << std::endl;
+        amrex::InitRandom(1024UL);
+    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box &bx = mfi.tilebox();
+        const Box &bx  = mfi.tilebox();
+        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
+        const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
@@ -78,7 +98,7 @@ ERF::init_custom(int lev)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
-        init_custom_prob(bx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+        init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,
@@ -97,9 +117,7 @@ ERF::init_custom(int lev)
 #if defined(ERF_USE_MOISTURE)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());
-    MultiFab::Add(             qv_new,   qv_pert, 0,             0,             1,   qv_pert.nGrow());
-    MultiFab::Add(             qc_new,   qc_pert, 0,             0,             1,   qc_pert.nGrow());
-    MultiFab::Add(             qi_new,   qi_pert, 0,             0,             1,   qi_pert.nGrow());
+    MultiFab::Add(         qmoist_new, qmoist_pert, 0,           0,             3, qmoist_pert.nGrow()); // qv, qc, qi
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQv_comp,    RhoQv_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQc_comp,    RhoQc_comp,    1, cons_pert.nGrow());

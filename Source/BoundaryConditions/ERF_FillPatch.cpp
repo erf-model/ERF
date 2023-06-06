@@ -7,11 +7,14 @@ using namespace amrex;
 
 PhysBCFunctNoOp null_bc;
 
-//
-// Fill valid and ghost data in the MultiFab "mf"
-// This version fills the MultiFab mf in valid regions with the "state data" at the given time;
-// values in mf when it is passed in are *not* used.
-//
+/*
+ * Fill valid and ghost data with the "state data" at the given time
+ *
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
+ * @param[out] mfs Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ */
+
 void
 ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 {
@@ -26,7 +29,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 
         if (var_idx == Vars::cons)
         {
-            bccomp = 0;
+            bccomp = BCVars::cons_bc + icomp;
             mapper = &cell_cons_interp;
         }
         else if (var_idx == Vars::xvel)
@@ -86,15 +89,61 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
 }
 
-//
-// Fill valid and ghost data in the MultiFabs in "mfs"
-// mfs is a Vector<std::reference_wrapper<MultiFab> > containing, in order: cons, xvel, yvel, and zvel data
-// This version fills the MultiFabs mfs in valid regions with the values in "mfs" when it is passed in;
-// it is used only to compute ghost values for intermediate stages of a time integrator.
-//
+/*
+ * Fill ghost cells of qmoist
+ *
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
+ * @param[out] mf MultiFab to be filled (qmoist[lev])
+ */
+
+#ifdef ERF_USE_MOISTURE
+void
+ERF::FillPatchMoistVars (int lev, MultiFab& mf)
+{
+    BL_PROFILE_VAR("ERF::FillPatchMoistVars()",ERF_FillPatchMoistVars);
+    // ***************************************************************************
+    // Physical bc's at domain boundary
+    // ***************************************************************************
+    bool cons_only = true;
+    int icomp_cons = 0;
+    int ncomp_cons = 1; // We only fill qv, the first component
+
+    // Note that we are filling qv, stored in qmoist[lev], with the input data (if there is any), stored
+    // in RhoQt_comp.
+    int bccomp_cons = BCVars::RhoQt_bc_comp;
+
+    IntVect ngvect_cons = mf.nGrowVect();
+    IntVect ngvect_vels = {0,0,0};
+
+    if (init_type != "real") {
+        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
+    }
+
+    mf.FillBoundary(geom[lev].periodicity());
+}
+#endif
+
+/*
+ * Fill valid and ghost data
+ * This version fills mfs in valid regions with the values in "mfs" when it is passed in;
+ * it is used only to compute ghost values for intermediate stages of a time integrator.
+ *
+ * @param[in]  lev            level of refinement at which to fill the data
+ * @param[in]  time           time at which the data should be filled
+ * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ * @param[in]  ng_cons        number of ghost cells to be filled for conserved (cell-centered) variables
+ * @param[in]  ng_vel         number of ghost cells to be filled for velocity components
+ * @param[in]  cons_only      if 1 then only fill conserved variables
+ * @param[in]  icomp_cons     starting component for conserved variables
+ * @param[in]  ncomp_cons     number of components for conserved variables
+ * @param[in]  eddyDiffs      diffusion coefficients for LES turbulence models
+ * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
+ */
+
 void
 ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
@@ -182,7 +231,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
     // ***************************************************************************
 
     //
@@ -193,9 +242,19 @@ ERF::FillIntermediatePatch (int lev, Real time,
         m_most->impose_most_bcs(lev,mfs,eddyDiffs);
 }
 
-// Fill an entire multifab by interpolating from the coarser level -- this is used
-//     only when a new level of refinement is being created during a run (i.e not at initialization)
-//     This will never be used with static refinement.
+//
+
+/*
+ * Fill valid and ghost data.
+ * This version sill an entire MultiFab by interpolating from the coarser level -- this is used
+ * only when a new level of refinement is being created during a run (i.e not at initialization)
+ * This will never be used with static refinement.
+ *
+ * @param[in]  lev            level of refinement at which to fill the data
+ * @param[in]  time           time at which the data should be filled
+ * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+ */
+
 void
 ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 {
@@ -244,7 +303,7 @@ ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     IntVect ngvect_vels = mfs[Vars::xvel]->nGrowVect();
     bool cons_only = false;
 
-    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

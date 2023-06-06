@@ -5,6 +5,9 @@
 
 using namespace amrex;
 
+/**
+ * Compute Precipitation-related Microphysics quantities.
+ */
 void Microphysics::Precip() {
 
   Real powr1 = (3.0 + b_rain) / 4.0;

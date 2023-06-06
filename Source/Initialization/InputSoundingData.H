@@ -10,8 +10,13 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
-#include <ERF_Math.H>
+#include <Interpolation_1D.H>
 
+/**
+ * Data structure storing input sounding data. Also
+ * handles reading the input file for sounding data and
+ * hydrostatic column integration.
+ */
 struct InputSoundingData {
 public:
     InputSoundingData() {}
@@ -89,8 +94,7 @@ public:
             }
 
             // At this point, we have an input_sounding from z=0 AGL up to
-            // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0
-            // heights.
+            // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
             const int Ninp = z_inp_sound_tmp.size();
             z_inp_sound[0]     = zbot;
             theta_inp_sound[0] = theta_inp_sound_tmp[0];

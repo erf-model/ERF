@@ -33,6 +33,12 @@ init_bx_velocities_from_input_sounding( const amrex::Box &bx,
                                         amrex::GeometryData const &geomdata,
                                         InputSoundingData const &inputSoundingData);
 
+/**
+ * High level wrapper for initializing scalar and velocity
+ * level data from input sounding data.
+ *
+ * @param lev Integer specifying the current level
+ */
 void
 ERF::init_from_input_sounding(int lev)
 {
@@ -77,7 +83,7 @@ ERF::init_from_input_sounding(int lev)
         }
         else
         {
-            // HSE arrays will be filled later with call to initHSE()
+            // HSE arrays will be filled later with call to init_bx_scalars_from_input_sounding_hse
             init_bx_scalars_from_input_sounding(bx, cons_arr,
                                                 geom[lev].data(), input_sounding_data);
         }
@@ -87,6 +93,15 @@ ERF::init_from_input_sounding(int lev)
     } //mfi
 }
 
+/**
+ * Box level wrapper for initializing scalar
+ * data from input sounding data.
+ *
+ * @param bx Box specifying the indices we are initializing
+ * @param state Array4 specifying the state data we are to initialize
+ * @param geomdata GeometryData object specifying the domain geometry
+ * @param inputSoundingData InputSoundingData object we are to initialize from
+ */
 void
 init_bx_scalars_from_input_sounding( const amrex::Box &bx,
                                      amrex::Array4<amrex::Real> const &state,
@@ -132,6 +147,20 @@ init_bx_scalars_from_input_sounding( const amrex::Box &bx,
     });
 }
 
+/**
+ * Box level wrapper for initializing scalar and hydrostatic
+ * base state data from input sounding data.
+ *
+ * @param bx Box specifying the indices we are initializing
+ * @param state Array4 specifying the state data we are to initialize
+ * @param r_hse_arr Array4 specifying the density HSE base state data we are to initialize
+ * @param p_hse_arr Array4 specifying the pressure HSE base state data we are to initialize
+ * @param pi_hse_arr Array4 specifying the Exner pressure HSE base state data we are to initialize
+ * @param geomdata GeometryData object specifying the domain geometry
+ * @param l_gravity Real number specifying the gravitational acceleration constant
+ * @param l_rdOcp Real number specifying the Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
+ * @param inputSoundingData InputSoundingData object we are to initialize from
+ */
 void
 init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
                                          amrex::Array4<amrex::Real> const &state,
@@ -210,6 +239,16 @@ init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
     });
 }
 
+/**
+ * Box level wrapper for initializing velocities from input sounding data.
+ *
+ * @param bx Box specifying the indices we are initializing
+ * @param x_vel Array4 specifying the x-velocity data we are to initialize
+ * @param y_vel Array4 specifying the y-velocity data we are to initialize
+ * @param z_vel Array4 specifying the z-velocity data we are to initialize
+ * @param geomdata GeometryData object specifying the domain geometry
+ * @param inputSoundingData InputSoundingData object we are to initialize from
+ */
 void
 init_bx_velocities_from_input_sounding( const amrex::Box &bx,
                                         amrex::Array4<amrex::Real> const &x_vel,

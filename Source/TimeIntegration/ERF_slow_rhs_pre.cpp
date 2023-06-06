@@ -5,7 +5,9 @@
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
-#include <TimeIntegration.H>
+#include <NumericalDiffusion.H>
+#include <TI_headers.H>
+#include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
 
@@ -15,7 +17,59 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
+ *
+ * @param[in]  level level of resolution
+ * @param[in]  nrk   which RK stage
+ * @param[in]  dt    slow time step
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out]  S_rhs RHS computed here
+ * @param[in]  S_data current solution
+ * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
+ * @param[in]  S_scratch scratch space
+ * @param[in]  xvel x-component of velocity
+ * @param[in]  yvel y-component of velocity
+ * @param[in]  zvel z-component of velocity
+ * @param[in]  qv   water vapor
+ * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
+ * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] source source terms for conserved variables
+ * @param[in] buoyancy buoyancy source term
+ * @param[in] Tau11 tau_11 component of stress tensor
+ * @param[in] Tau22 tau_22 component of stress tensor
+ * @param[in] Tau33 tau_33 component of stress tensor
+ * @param[in] Tau12 tau_12 component of stress tensor
+ * @param[in] Tau12 tau_13 component of stress tensor
+ * @param[in] Tau21 tau_21 component of stress tensor
+ * @param[in] Tau23 tau_23 component of stress tensor
+ * @param[in] Tau31 tau_31 component of stress tensor
+ * @param[in] Tau32 tau_32 component of stress tensor
+ * @param[in] SmnSmn strain rate magnitude
+ * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
+ * @param[in] Hfx3 heat flux in z-dir
+ * @param[in] Diss dissipation of turbulent kinetic energy
+ * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
+ * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
+ * @param[in]  domain_bcs_type     host vector for domain boundary conditions
+ * @param[in]  domain_bcs_type     host vector for domain boundary conditions
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
+ * @param[in]  p0     Reference (hydrostatically stratified) pressure
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ * @param[in] dptr_rayleigh_tau  strength of Rayleigh damping
+ * @param[in] dptr_rayleigh_ubar reference value for x-velocity used to define Rayleigh damping
+ * @param[in] dptr_rayleigh_vbar reference value for y-velocity used to define Rayleigh damping
+ * @param[in] dptr_rayleigh_wbar reference value for z-velocity used to define Rayleigh damping
+ * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
+ */
+
 void erf_slow_rhs_pre (int /*level*/, int nrk,
+                       amrex::Real dt,
                        BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
@@ -36,13 +90,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
-                       MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3, MultiFab* Diss,
+                       MultiFab* Hfx3, MultiFab* Diss,
                        const amrex::Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec> domain_bcs_type_d,
-                       const Vector<amrex::BCRec> domain_bcs_type,
-                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& dJ,
+                       const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                       const Vector<amrex::BCRec>& domain_bcs_type,
+                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
@@ -58,6 +112,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
     int start_comp = 0;
     int   num_comp = 2;
+    int   end_comp = start_comp + num_comp - 1;
 
     const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
     const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
@@ -65,16 +120,13 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
-    bool       l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
+    const bool l_use_ndiff      = solverChoice.use_NumDiff;
+    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
                                     (solverChoice.les_type        !=       LESType::None) ||
                                     (solverChoice.pbl_type        !=       PBLType::None) );
-    bool       cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    bool       l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
+    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
-    const bool l_all_WENO       = solverChoice.all_use_WENO;
-    const int  l_spatial_order_WENO = solverChoice.spatial_order_WENO;
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -111,7 +163,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
             // Construct intersection of current tilebox and valid region for updating
             const Box& valid_bx = grids_to_evolve[mfi.index()];
@@ -134,27 +186,79 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
-            const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-            const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
 
-            //-----------------------------------------
+            //-------------------------------------------------------------------------------
+            // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
+            //       stress terms requires care. Create a tile box that intersects the
+            //       valid box, then grow the box in x/y. Compute the strain on the local
+            //       FAB over this grown tile box. Compute the stress over the tile box,
+            //       except tau_ii which still needs the halo cells. Finally, write from
+            //       the local FAB to the Tau MF but only on the tile box.
+            //-------------------------------------------------------------------------------
+
+            //-------------------------------------------------------------------------------
+            // TODO: Avoid recomputing strain on the first RK stage. One could populate
+            //       the FABs with tau_ij, compute stress, and then write to tau_ij. The
+            //       problem with this approach is you will over-write the needed halo layer
+            //       needed by subsequent tile boxes (particularly S_ii becomes Tau_ii).
+            //-------------------------------------------------------------------------------
+
+            // Strain/Stress tile boxes
+            Box vbx   = valid_bx;
+            Box bxcc  = mfi.tilebox() & valid_bx;
+            Box tbxxy = mfi.tilebox(IntVect(1,1,0)) & vbx.convert(IntVect(1,1,0));
+            Box tbxxz = mfi.tilebox(IntVect(1,0,1)) & vbx.convert(IntVect(1,0,1));
+            Box tbxyz = mfi.tilebox(IntVect(0,1,1)) & vbx.convert(IntVect(0,1,1));
+            // We need a halo cells for terrain
+             bxcc.grow(IntVect(1,1,0));
+            tbxxy.grow(IntVect(1,1,0));
+            tbxxz.grow(IntVect(1,1,0));
+            tbxyz.grow(IntVect(1,1,0));
+
             // Expansion rate
-            //-----------------------------------------
             Array4<Real> er_arr = expr->array(mfi);
 
-            {
-             BL_PROFILE("slow_rhs_making_er");
-             Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
-             Box gbx2 = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
+            // Temporary storage for tiling/OMP
+            FArrayBox S11,S22,S33;
+            FArrayBox S12,S13,S23;
+            S11.resize(bxcc,1);  S22.resize(bxcc,1);  S33.resize(bxcc,1);
+            S12.resize(tbxxy,1); S13.resize(tbxxz,1); S23.resize(tbxyz,1);
+            Elixir S11_eli   = S11.elixir(); Elixir S22_eli   = S22.elixir(); Elixir S33_eli   = S33.elixir();
+            Elixir S12_eli   = S12.elixir(); Elixir S13_eli   = S13.elixir(); Elixir S23_eli   = S23.elixir();
+            Array4<Real> s11 = S11.array();  Array4<Real> s22 = S22.array();  Array4<Real> s33 = S33.array();
+            Array4<Real> s12 = S12.array();  Array4<Real> s13 = S13.array();  Array4<Real> s23 = S23.array();
 
-             if (l_use_terrain) {
-                 // First create Omega using velocity (not momentum)
-                 Box gbxo = surroundingNodes(bx & valid_bx,2); gbxo.grow(IntVect(1,1,0));
-                 amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Symmetric strain/stresses
+            Array4<Real> tau11 = Tau11->array(mfi); Array4<Real> tau22 = Tau22->array(mfi); Array4<Real> tau33 = Tau33->array(mfi);
+            Array4<Real> tau12 = Tau12->array(mfi); Array4<Real> tau13 = Tau13->array(mfi); Array4<Real> tau23 = Tau23->array(mfi);
+
+            // Strain magnitude
+            Array4<Real> SmnSmn_a;
+
+            if (l_use_terrain) {
+                // Terrain non-symmetric terms
+                FArrayBox S21,S31,S32;
+                S21.resize(tbxxy,1); S31.resize(tbxxz,1); S32.resize(tbxyz,1);
+                Elixir S21_eli     = S21.elixir();      Elixir S31_eli     = S31.elixir();      Elixir S32_eli     = S32.elixir();
+                Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
+                Array4<Real> tau21 = Tau21->array(mfi); Array4<Real> tau31 = Tau31->array(mfi); Array4<Real> tau32 = Tau32->array(mfi);
+
+                //-----------------------------------------
+                // Expansion rate compute terrain
+                //-----------------------------------------
+                {
+                BL_PROFILE("slow_rhs_making_er_T");
+                // First create Omega using velocity (not momentum)
+                Box gbxo = surroundingNodes(bxcc,2);
+                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
-                 });
+                });
 
-                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
 
                     Real met_u_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, z_nd);
                     Real met_u_h_zeta_lo = Compute_h_zeta_AtIface(i  , j  , k, dxInv, z_nd);
@@ -171,192 +275,182 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                          (v(i  ,j+1,k)/mf_v(i,j+1,0)*met_v_h_zeta_hi - v(i,j,k)/mf_v(i,j,0)*met_v_h_zeta_lo)*dxInv[1]*mfsq +
                                          (Omega_hi - Omega_lo)*dxInv[2];
 
-                    er_arr(i,j,k) = expansionRate / detJ(i,j,k);
+                    er_arr(i,j,k) = expansionRate / detJ_arr(i,j,k);
+                });
+                } // end profile
+
+                //-----------------------------------------
+                // Strain tensor compute terrain
+                //-----------------------------------------
+                {
+                BL_PROFILE("slow_rhs_making_strain_T");
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                s11, s22, s33,
+                                s12, s13,
+                                s21, s23,
+                                s31, s32,
+                                z_nd, bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
+                } // profile
+
+                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                    SmnSmn_a = SmnSmn->array(mfi);
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                    });
+                }
+
+                //-----------------------------------------
+                // Stress tensor compute terrain
+                //-----------------------------------------
+                {
+                BL_PROFILE("slow_rhs_making_stress_T");
+
+                // Remove Halo cells just for tau_ij comps
+                tbxxy.grow(IntVect(-1,-1,0));
+                tbxxz.grow(IntVect(-1,-1,0));
+                tbxyz.grow(IntVect(-1,-1,0));
+
+                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
+                if (!l_use_turb) {
+                    ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            s11, s22, s33,
+                                            s12, s13,
+                                            s21, s23,
+                                            s31, s32,
+                                            er_arr, z_nd, dxInv);
+                } else {
+                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                                           s11, s22, s33,
+                                           s12, s13,
+                                           s21, s23,
+                                           s31, s32,
+                                           er_arr, z_nd, dxInv);
+                }
+
+                // Remove halo cells from tau_ii but extend across valid_box bdry
+                bxcc.grow(IntVect(-1,-1,0));
+                if (bxcc.smallEnd(0) == valid_bx.smallEnd(0)) bxcc.growLo(0, 1);
+                if (bxcc.bigEnd(0)   == valid_bx.bigEnd(0))   bxcc.growHi(0, 1);
+                if (bxcc.smallEnd(1) == valid_bx.smallEnd(1)) bxcc.growLo(1, 1);
+                if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
+
+                // Copy from temp FABs back to tau
+                amrex::ParallelFor(bxcc,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau11(i,j,k) = s11(i,j,k);
+                    tau22(i,j,k) = s22(i,j,k);
+                    tau33(i,j,k) = s33(i,j,k);
                 });
 
-             } else {
-                 amrex::ParallelFor(gbx2, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                    tau21(i,j,k) = s21(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                    tau31(i,j,k) = s31(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                    tau32(i,j,k) = s32(i,j,k);
+                });
+                } // end profile
+
+            } else {
+
+                //-----------------------------------------
+                // Expansion rate compute no terrain
+                //-----------------------------------------
+                {
+                BL_PROFILE("slow_rhs_making_er_N");
+                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
                     er_arr(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mfsq +
                                     (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mfsq +
                                     (w(i  , j  , k+1) - w(i, j, k))*dxInv[2];
                 });
-             }
-            } // end profile
+                } // end profile
 
-            //-----------------------------------------
-            // Strain tensor
-            //-----------------------------------------
-            // No terrain diffusion
-            Array4<Real> tau11,tau22,tau33;
-            Array4<Real> tau12,tau13,tau23;
-            if (Tau11) {
-                tau11 = Tau11->array(mfi);
-                tau22 = Tau22->array(mfi);
-                tau33 = Tau33->array(mfi);
-                tau12 = Tau12->array(mfi);
-                tau13 = Tau13->array(mfi);
-                tau23 = Tau23->array(mfi);
-            } else {
-                tau11 = Array4<Real>{};
-                tau22 = Array4<Real>{};
-                tau33 = Array4<Real>{};
-                tau12 = Array4<Real>{};
-                tau13 = Array4<Real>{};
-                tau23 = Array4<Real>{};
-            }
-            // Terrain diffusion
-            Array4<Real> tau21,tau31,tau32;
-            if (Tau21) {
-                tau21 = Tau21->array(mfi);
-                tau31 = Tau31->array(mfi);
-                tau32 = Tau32->array(mfi);
-            } else {
-                tau21 = Array4<Real>{};
-                tau31 = Array4<Real>{};
-                tau32 = Array4<Real>{};
-            }
-            {
-            BL_PROFILE("slow_rhs_making_strain");
-            if (nrk>0) {
-                Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
-                Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
-                Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
-                Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
 
-                if (l_use_terrain) {
-                    ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
-                                    u, v, w,
-                                    tau11, tau22, tau33,
-                                    tau12, tau13,
-                                    tau21, tau23,
-                                    tau31, tau32,
-                                    z_nd, bc_ptr_h, dxInv,
-                                    mf_m, mf_u, mf_v);
-                } else {
-                    ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
-                                    u, v, w,
-                                    tau11, tau22, tau33,
-                                    tau12, tau13, tau23,
-                                    bc_ptr_h, dxInv,
-                                    mf_m, mf_u, mf_v);
-                }
-            } // nrk>0
-            } // profile
-
-            {
-                BL_PROFILE("slow_rhs_making_strain_most");
-                // Need to recompute strain at bottom with MOST
-                if (nrk==0 && most) {
-                    Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
-                    Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
-
-                    // Only operate on bottom layer
-                    tbxxz.setBig(2,0);
-                    tbxyz.setBig(2,0);
-
-                    if (l_use_terrain) {
-                        amrex::ParallelFor(tbxxz,tbxyz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
-                                                           - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
-
-                            Real met_h_xi,met_h_zeta;
-                            met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
-                            met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
-
-                            tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i  , j, k-1))*dxInv[2]/met_h_zeta
-                                                 + (w(i, j, k) - w(i-1, j, k  ))*dxInv[0]
-                                                 - (met_h_xi/met_h_zeta)*GradWz );
-                            tau31(i,j,k) = tau13(i,j,k);
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            Real GradWz = 0.5 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
-                                                           - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
-
-                            Real met_h_eta,met_h_zeta;
-                            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
-                            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
-
-                            tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j  , k-1))*dxInv[2]/met_h_zeta
-                                                 + (w(i, j, k) - w(i, j-1, k  ))*dxInv[1]
-                                                 - (met_h_eta/met_h_zeta)*GradWz );
-                            tau32(i,j,k) = tau23(i,j,k);
-                        });
-                    } else {
-                        amrex::ParallelFor(tbxxz,tbxyz,
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i-1, j, k))*dxInv[0] );
-                        },
-                        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i, j-1, k))*dxInv[1] );
-                        });
-                    }
-                } // nrk==0 && m_most
-            } // profile
-
-            //-----------------------------------------
-            // Strain magnitude
-            //-----------------------------------------
-            Array4<Real> SmnSmn_a;
-            // Populate SmnSmn if using Deardorff (used as diff src in post)
-            if (solverChoice.les_type == LESType::Deardorff) {
-                SmnSmn_a = SmnSmn->array(mfi);
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                //-----------------------------------------
+                // Strain tensor compute no terrain
+                //-----------------------------------------
                 {
-                   SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-                });
-            } else {
-            SmnSmn_a = Array4<Real>{};
-            }
+                BL_PROFILE("slow_rhs_making_strain_N");
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                                u, v, w,
+                                s11, s22, s33,
+                                s12, s13, s23,
+                                bc_ptr_h, dxInv,
+                                mf_m, mf_u, mf_v);
+                } // end profile
 
-            //-----------------------------------------
-            // Stress tensor
-            //-----------------------------------------
-            {
-            BL_PROFILE("slow_rhs_making_stress");
-
-            Box gvbx = valid_bx; gvbx.grow(IntVect(1,1,0));
-            Box bxcc  = mfi.growntilebox(IntVect(1,1,0)) & gvbx;
-
-            Box tbxxy = mfi.tilebox(IntVect(1,1,0));
-            Box tbxxz = mfi.tilebox(IntVect(1,0,1));
-            Box tbxyz = mfi.tilebox(IntVect(0,1,1));
-
-            Real mu_eff = 0.;
-            if (cons_visc)
-                mu_eff += 2.0 * solverChoice.dynamicViscosity;
-
-            if (l_use_terrain) {
-                if (cons_visc) {
-                    ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13,
-                                            tau21, tau23,
-                                            tau31, tau32,
-                                            er_arr, z_nd, dxInv);
-                } else {
-                    ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13,
-                                           tau21, tau23,
-                                           tau31, tau32,
-                                           er_arr, z_nd, dxInv);
+                // Populate SmnSmn if using Deardorff (used as diff src in post)
+                // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
+                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                    SmnSmn_a = SmnSmn->array(mfi);
+                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                    });
                 }
-            } else {
-                if (cons_visc) {
+
+                //-----------------------------------------
+                // Stress tensor compute no terrain
+                //-----------------------------------------
+                {
+                BL_PROFILE("slow_rhs_making_stress_N");
+
+                // Remove Halo cells just for tau_ij comps
+                tbxxy.grow(IntVect(-1,-1,0));
+                tbxxz.grow(IntVect(-1,-1,0));
+                tbxyz.grow(IntVect(-1,-1,0));
+
+                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
+                if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
-                                            tau11, tau22, tau33,
-                                            tau12, tau13, tau23,
+                                            s11, s22, s33,
+                                            s12, s13, s23,
                                             er_arr);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
-                                           tau11, tau22, tau33,
-                                           tau12, tau13, tau23,
+                                           s11, s22, s33,
+                                           s12, s13, s23,
                                            er_arr);
                 }
-            }
-            } // profile
+
+                // Remove halo cells from tau_ii but extend across valid_box bdry
+                bxcc.grow(IntVect(-1,-1,0));
+                if (bxcc.smallEnd(0) == valid_bx.smallEnd(0)) bxcc.growLo(0, 1);
+                if (bxcc.bigEnd(0)   == valid_bx.bigEnd(0))   bxcc.growHi(0, 1);
+                if (bxcc.smallEnd(1) == valid_bx.smallEnd(1)) bxcc.growLo(1, 1);
+                if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
+
+                // Copy from temp FABs back to tau
+                amrex::ParallelFor(bxcc,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau11(i,j,k) = s11(i,j,k);
+                    tau22(i,j,k) = s22(i,j,k);
+                    tau33(i,j,k) = s33(i,j,k);
+                });
+                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau12(i,j,k) = s12(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau13(i,j,k) = s13(i,j,k);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tau23(i,j,k) = s23(i,j,k);
+                });
+                } // end profile
+            } // l_use_terrain
         } // MFIter
     } // l_use_diff
 
@@ -367,9 +461,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx   = grids_to_evolve[mfi.index()];
+        const Box& valid_bx = grids_to_evolve[mfi.index()];
 
         // Construct intersection of current tilebox and valid region for updating
         Box bx = mfi.tilebox() & valid_bx;
@@ -388,9 +482,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step
-        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.);
-        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.);
+        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,tbx);
+        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,tby);
+        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,tbz);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -424,8 +518,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
         // Terrain metrics
-        const Array4<const Real>& z_nd   = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ   = l_use_terrain ?        dJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -433,13 +527,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         //-----------------------------------------
         // Perturbational pressure field
         //-----------------------------------------
-        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
+        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(IntVect(1,1,0));
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();
-
-
-
 #ifdef ERF_USE_MOISTURE
         const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
 #endif
@@ -469,30 +560,25 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             if (l_use_terrain) {
+
+                Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+                amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = 0.;
+                });
+                Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
+                amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    omega_arr(i,j,k) = rho_w(i,j,k);
+                });
+
                 if (z_t) {
-                    Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                    amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = 0.;
-                    });
-                    Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                    amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
-                    Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                    amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = 0.;
-                    });
-                    Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                    amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        omega_arr(i,j,k) = rho_w(i,j,k);
-                    });
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
                     amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
@@ -521,30 +607,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
         if (Tau11) {
-            tau11 = Tau11->array(mfi);
-            tau22 = Tau22->array(mfi);
-            tau33 = Tau33->array(mfi);
-            tau12 = Tau12->array(mfi);
-            tau13 = Tau13->array(mfi);
-            tau23 = Tau23->array(mfi);
+            tau11 = Tau11->array(mfi); tau22 = Tau22->array(mfi); tau33 = Tau33->array(mfi);
+            tau12 = Tau12->array(mfi); tau13 = Tau13->array(mfi); tau23 = Tau23->array(mfi);
         } else {
-            tau11 = Array4<Real>{};
-            tau22 = Array4<Real>{};
-            tau33 = Array4<Real>{};
-            tau12 = Array4<Real>{};
-            tau13 = Array4<Real>{};
-            tau23 = Array4<Real>{};
+            tau11 = Array4<Real>{}; tau22 = Array4<Real>{}; tau33 = Array4<Real>{};
+            tau12 = Array4<Real>{}; tau13 = Array4<Real>{}; tau23 = Array4<Real>{};
         }
         // Terrain diffusion
         Array4<Real> tau21,tau31,tau32;
         if (Tau21) {
-            tau21 = Tau21->array(mfi);
-            tau31 = Tau31->array(mfi);
-            tau32 = Tau32->array(mfi);
+            tau21 = Tau21->array(mfi); tau31 = Tau31->array(mfi); tau32 = Tau32->array(mfi);
         } else {
-            tau21 = Array4<Real>{};
-            tau31 = Array4<Real>{};
-            tau32 = Array4<Real>{};
+            tau21 = Array4<Real>{}; tau31 = Array4<Real>{}; tau32 = Array4<Real>{};
         }
 
         // Strain magnitude
@@ -562,9 +636,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
                                    rho_u, rho_v, omega_arr, fac,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
-                                   cell_prim, z_nd, detJ,
+                                   cell_prim, z_nd, detJ_arr,
                                    dxInv, mf_m, mf_u, mf_v,
-                                   l_all_WENO, l_spatial_order_WENO,
                                    l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
 
         if (l_use_diff) {
@@ -572,33 +645,35 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             Array4<Real> diffflux_y = dflux_y->array(mfi);
             Array4<Real> diffflux_z = dflux_z->array(mfi);
 
-            Array4<Real> hfx_x = Hfx1->array(mfi);
-            Array4<Real> hfx_y = Hfx2->array(mfi);
             Array4<Real> hfx_z = Hfx3->array(mfi);
             Array4<Real> diss  = Diss->array(mfi);
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at 1.
-            //       KE calls moved inside DiffSrcForState.
             int n_start = amrex::max(start_comp,RhoTheta_comp);
-            int n_end   = start_comp + num_comp - 1;
+            int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
-                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ,
+                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_x, hfx_y, hfx_z, diss,
+                                       hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
-                DiffusionSrcForState_N(bx, domain, n_start, n_end, u, v, w,
+                DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_x, hfx_y, hfx_z, diss,
+                                       hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
+        }
+
+        if (l_use_ndiff) {
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+                               cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
         // Add source terms for (rho theta)
@@ -607,7 +682,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             if (l_use_terrain && l_moving_terrain) {
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp) / detJ(i,j,k);
+                    cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp) / detJ_arr(i,j,k);
                 });
             } else {
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -633,19 +708,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
         if (l_use_terrain && l_moving_terrain) {
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_rhs(i,j,k,Rho_comp)      *= detJ(i,j,k);
-                cell_rhs(i,j,k,RhoTheta_comp) *= detJ(i,j,k);
+                cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
+                cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
             });
         }
 
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
-
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
-                           z_nd, detJ, dxInv, mf_m, mf_u, mf_v, l_all_WENO, l_spatial_order_WENO,
+                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
                            l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain, domhi_z);
 
         if (l_use_diff) {
@@ -656,7 +730,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                      tau12, tau13,
                                      tau21, tau23,
                                      tau31, tau32,
-                                     cell_data, detJ, solverChoice, dxInv,
+                                     cell_data, detJ_arr, solverChoice, dxInv,
                                      mf_m, mf_u, mf_v);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
@@ -666,6 +740,15 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                      cell_data, solverChoice, dxInv,
                                      mf_m, mf_u, mf_v);
             }
+        }
+
+        if (l_use_ndiff) {
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
+                               rho_u, rho_u_rhs, mf_m, mf_v, false, true);
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
+                               rho_v, rho_v_rhs, mf_u, mf_m, true, false);
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
+                               rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
         {
@@ -731,7 +814,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
             }
 
             if (l_moving_terrain) {
-                rho_u_rhs(i, j, k) *= 0.5 * (detJ(i,j,k) + detJ(i-1,j,k));
+                Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+                rho_u_rhs(i, j, k) *= h_zeta;
             }
         });
 
@@ -836,7 +920,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
               }
 
               if (l_moving_terrain) {
-                  rho_v_rhs(i, j, k) *= 0.5 * (detJ(i,j,k) + detJ(i,j-1,k));
+                  Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                  rho_v_rhs(i, j, k) *= h_zeta;
               }
           });
 
@@ -931,7 +1016,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
 
                 if (l_use_terrain && l_moving_terrain) {
-                     rho_w_rhs(i, j, k) *= 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+                     rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
                 }
           });
 

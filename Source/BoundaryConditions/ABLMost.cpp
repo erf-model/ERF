@@ -3,14 +3,20 @@
 
 using namespace amrex;
 
+/**
+ * Function to update the fluxs (u^star and t^star) for Monin Obukhov similarity theory.
+ *
+ * @param[in] lev Current level
+ * @param[in] max_iters maximum iterations to use
+ */
 void ABLMost::update_fluxes(int lev, int max_iters)
 {
     // Compute plane averages for all vars
     m_ma.compute_averages(lev);
 
     // Pointers to the computed averages
-    const auto tm_ptr  = m_ma.get_average(lev,2);
-    const auto umm_ptr = m_ma.get_average(lev,3);
+    const auto *const tm_ptr  = m_ma.get_average(lev,2);
+    const auto *const umm_ptr = m_ma.get_average(lev,3);
 
     // GPU device captures
     amrex::Real d_kappa = kappa;
@@ -138,7 +144,13 @@ void ABLMost::update_fluxes(int lev, int max_iters)
     }
 }
 
-
+/**
+ * Function to impose Monin Obukhov similarity theory fluxes by populating ghost cells.
+ *
+ * @param[in] lev Current level
+ * @param[in,out] mfs Multifabs to populate
+ * @param[in] eddyDiffs Diffusion coefficients from turbulence model
+ */
 void
 ABLMost::impose_most_bcs(const int lev,
                          const Vector<MultiFab*>& mfs,
@@ -155,10 +167,10 @@ ABLMost::impose_most_bcs(const int lev,
         const auto  eta_arr = eddyDiffs->array(mfi);
 
         // Get average arrays
-        const auto u_mean     = m_ma.get_average(lev,0);
-        const auto v_mean     = m_ma.get_average(lev,1);
-        const auto t_mean     = m_ma.get_average(lev,2);
-        const auto u_mag_mean = m_ma.get_average(lev,3);
+        const auto *const u_mean     = m_ma.get_average(lev,0);
+        const auto *const v_mean     = m_ma.get_average(lev,1);
+        const auto *const t_mean     = m_ma.get_average(lev,2);
+        const auto *const u_mag_mean = m_ma.get_average(lev,3);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);

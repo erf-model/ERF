@@ -1,9 +1,13 @@
 
 #include <AMReX_ParReduce.H>
 #include "Microphysics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
+/**
+ * Computes contributions to Microphysics and thermodynamic variables from falling cloud ice in each column.
+ */
 void Microphysics::IceFall() {
 
   Real dz  = m_geom.CellSize(2);
@@ -64,7 +68,7 @@ void Microphysics::IceFall() {
   //   for (int j=0; j<ny; j++) {
   //     for (int i=0; i<nx; i++) {
   //       for (int icrm=0; icrm<ncrms; icrm++) {
-  for ( amrex::MFIter mfi(*tabs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+  for ( amrex::MFIter mfi(*tabs, TileNoZ()); mfi.isValid(); ++mfi) {
      //auto qcl_array   = qcl->array(mfi);
      auto qci_array   = qci->array(mfi);
      auto qt_array    = qt->array(mfi);

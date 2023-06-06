@@ -43,28 +43,31 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-        const Box&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real const> const&,
-        Array4<Real const> const&,
+    const Box& /*bx*/,
+    const Box& /*xbx*/,
+    const Box& /*ybx*/,
+    const Box& /*zbx*/,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-        Array4<Real      > const&,
-        Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-        GeometryData const&,
-        Array4<Real const> const&,
-        Array4<Real const> const&,
-        Array4<Real const> const&,
-        const SolverChoice&)
+    GeometryData const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
+    const SolverChoice&)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }

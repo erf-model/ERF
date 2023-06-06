@@ -3,7 +3,7 @@
 Testing and Verification
 ------------------------
 
-Testing and verfication of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step. A nightly test is reflected on the dashboard `here <https://my.cdash.org/index.php?project=ERF>`_ .
+Testing and verfication of ERF can be performed using CTest, which is included in the CMake build system. If one builds ERF with CMake, the testing suite, and the verification suite, can be enabled during the CMake configure step.
 
 An example ``cmake`` configure command performed in the ``Build`` directory in ERF is shown below with options relevant to the testing suite:
 
@@ -63,7 +63,7 @@ advection-diffusion problem. The corresponding regression tests are driven by th
 
 Any file in the test directory will be copied during CMake configure to the test's working directory.
 The input files meant for regression test run only until a few time steps. The reference solution that the
-regression test will refer to should be placed in ``Tests/ERF-WindGoldFiles/<test_name>``. Next, edit the
+regression test will refer to should be placed in ``Tests/ERFGoldFiles/<test_name>``. Next, edit the
 ``Exec/CMakeLists.txt`` and ``Tests/CTestList.cmake`` files, add the problem and the corresponding tests
 to the list. Note that there are different categories of tests and if your test falls outside of these
 categories, a new function to add the test will need to be created. After these steps, your test will be

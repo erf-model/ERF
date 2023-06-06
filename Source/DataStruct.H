@@ -10,7 +10,6 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
-#include <ERF_Math.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -32,6 +31,10 @@ enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
 
+/**
+ * Container holding many of the algorithmic options and parameters
+ */
+
 struct SolverChoice {
   public:
     void init_params()
@@ -52,6 +55,12 @@ struct SolverChoice {
 
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
+
+        // Use lagged_delta_rt in the fast integrator?
+        pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
+            amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
+        }
 
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
@@ -165,6 +174,7 @@ struct SolverChoice {
         }
 
         pp.query("Ce" , Ce);
+        pp.query("Ce_wall" , Ce_wall);
         pp.query("sigma_k" , sigma_k);
 
         if (les_type == LESType::Deardorff) {
@@ -228,7 +238,8 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        moist_use_WENO = true;
+        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
+        if(!moist_use_WENO_Z) moist_use_WENO = true;
 #endif
 
         // Use WENO for advection?
@@ -237,6 +248,26 @@ struct SolverChoice {
             pp.query("spatial_order_WENO", spatial_order_WENO);
             AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
                                       "WENO advection only supports orders 3 & 5.");
+        }
+
+        // Use WENO-Z for advection?
+        pp.query("all_use_WENO_Z", all_use_WENO_Z);
+        if (all_use_WENO_Z || moist_use_WENO_Z) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
+            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
+                                      "WENO and WENO-Z cannot be specified together.");
+        }
+
+
+        // Use numerical diffusion?
+        pp.query("use_NumDiff",use_NumDiff);
+        if(use_NumDiff) {
+            pp.query("NumDiffCoeff",NumDiffCoeff);
+            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
+                                      "Numerical diffusion coefficient must be between 0 & 1.");
+            NumDiffCoeff *= std::pow(2.0,-6);
         }
 
     }
@@ -254,6 +285,7 @@ struct SolverChoice {
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "Ce                    : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
         amrex::Print() << "Ck                    : " << Ck << std::endl;
         amrex::Print() << "reference theta       : " << theta_ref << std::endl;
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
@@ -351,6 +383,9 @@ struct SolverChoice {
     bool        rayleigh_damp_W        = true;
     bool        rayleigh_damp_T        = false;
 
+    // This defaults to true but can be set to false for moving terrain cases only
+    bool        use_lagged_delta_rt    = true;
+
     // Constants
     amrex::Real gravity;
     amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
@@ -391,6 +426,7 @@ struct SolverChoice {
 
     // Deardorff Ce coefficient
     amrex::Real Ce = 0.93;
+    amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
     // Deardorff Ck coefficient
     amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
@@ -427,7 +463,13 @@ struct SolverChoice {
     // Positive definite advection scheme (3/5 order)
     bool all_use_WENO{false};
     bool moist_use_WENO{false};
+    bool all_use_WENO_Z{false};
+    bool moist_use_WENO_Z{false};
     int  spatial_order_WENO{3};
+
+    // Numerical diffusion
+    bool use_NumDiff{false};
+    amrex::Real NumDiffCoeff{0.};
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

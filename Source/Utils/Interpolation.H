@@ -2,6 +2,13 @@
 #define INTERPOLATE_H_
 
 #include "DataStruct.H"
+#include "Interpolation_UPW.H"
+#include "Interpolation_WENO.H"
+#include "Interpolation_WENO_Z.H"
+
+/**
+ * Interpolation operators used in construction of advective fluxes using non-WENO schemes
+ */
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

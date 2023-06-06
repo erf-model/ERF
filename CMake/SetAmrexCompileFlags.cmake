@@ -4,5 +4,5 @@
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR
     ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang")
   target_compile_options(
-    amrex PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-pass-failed>)
+    amrex_3d PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-pass-failed>)
 endif()

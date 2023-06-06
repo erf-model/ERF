@@ -2,8 +2,30 @@
 
 using namespace amrex;
 
+/**
+ * Function for computing the strain rates without terrain.
+ *
+ * @param[in] bxcc cell center box for tau_ii
+ * @param[in] tbxxy nodal xy box for tau_12
+ * @param[in] tbxxz nodal xz box for tau_13
+ * @param[in] tbxyz nodal yz box for tau_23
+ * @param[in] u x-direction velocity
+ * @param[in] v y-direction velocity
+ * @param[in] w z-direction velocity
+ * @param[out] tau11 11 strain
+ * @param[out] tau22 22 strain
+ * @param[out] tau33 33 strain
+ * @param[out] tau12 12 strain
+ * @param[out] tau13 13 strain
+ * @param[out] tau23 23 strain
+ * @param[in] bc_ptr container with boundary condition types
+ * @param[in] dxInv inverse cell size array
+ * @param[in] mf_m map factor at cell center
+ * @param[in] mf_u map factor at x-face
+ * @param[in] mf_v map factor at y-face
+ */
 void
-ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
+ComputeStrain_N(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
                 const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                 Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                 Array4<Real>& tau12, Array4<Real>& tau13, Array4<Real>& tau23,
@@ -54,6 +76,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (xh_v_dir) {
+        // note: tilebox xy should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
         Box planexy = tbxxy; planexy.setSmall(0, planexy.bigEnd(0) );
         tbxxy.growHi(0,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -71,6 +94,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (xh_w_dir) {
+        // note: tilebox xz should be nodal, so i|i-1|i-2 at the bigEnd is analogous to i-1|i|i+1 at the smallEnd
         Box planexz = tbxxz; planexz.setSmall(0, planexz.bigEnd(0) );
         tbxxz.growHi(0,-1);
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -90,6 +114,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (yh_u_dir) {
+        // note: tilebox xy should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
         Box planexy = tbxxy; planexy.setSmall(1, planexy.bigEnd(1) );
         tbxxy.growHi(1,-1);
         amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -107,6 +132,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (yh_w_dir) {
+        // note: tilebox yz should be nodal, so j|j-1|j-2 at the bigEnd is analogous to j-1|j|j+1 at the smallEnd
         Box planeyz = tbxyz; planeyz.setSmall(1, planeyz.bigEnd(1) );
         tbxyz.growHi(1,-1);
         amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -126,6 +152,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (zh_u_dir) {
+        // note: tilebox xz should be nodal, so k|k-1|k-2 at the bigEnd is analogous to k-1|k|k+1 at the smallEnd
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
         amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -143,6 +170,7 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
         });
     }
     if (zh_v_dir) {
+        // note: tilebox yz should be nodal, so k|k-1|k-2 at the bigEnd is analogous to k-1|k|k+1 at the smallEnd
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
         amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -163,7 +191,8 @@ ComputeStrain_N(Box& bxcc, Box& tbxxy, Box& tbxxz, Box& tbxyz,
     // Off-diagonal strains
     amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1] + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j, k)/mf_v(i-1,j,0))*dxInv[0] ) * mf_u(i,j,0)*mf_u(i,j,0);
+        tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i, j-1, k)/mf_u(i,j-1,0))*dxInv[1] +
+                               (v(i, j, k)/mf_v(i,j,0) - v(i-1, j, k)/mf_v(i-1,j,0))*dxInv[0] ) * mf_u(i,j,0)*mf_u(i,j,0);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         tau13(i,j,k) = 0.5 * ( (u(i, j, k) - u(i, j, k-1))*dxInv[2] + (w(i, j, k) - w(i-1, j, k))*dxInv[0]*mf_u(i,j,0) );

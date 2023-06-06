@@ -32,14 +32,10 @@ import sys
 # ones.
 extensions = [ 'sphinx.ext.mathjax']
 
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 #breathe_projects = {"ERF": "../doxygen_output/xml/"}
 #breathe_default_project = "ERF"
-
-fortran_src ='../../Source/Src_2d/'
-#fortran_ext =[' 'F90']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -318,6 +314,17 @@ man_pages = [
 # If true, show URL addresses after external links.
 #
 # man_show_urls = False
+
+linkcheck_ignore = [
+    'https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103',
+    'https://link.springer.com/article/10.1007/s10546-020-00538-5',
+    'https://onlinelibrary.wiley.com/doi/10.1002/we.2017',
+    'https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/RG020i004p00851',
+    'https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003',
+    'https://link.springer.com/article/10.1007/BF00240838',
+    'https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904',
+    'https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98',
+]
 
 
 # -- Options for Texinfo output -------------------------------------------

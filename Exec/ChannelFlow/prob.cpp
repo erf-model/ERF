@@ -43,28 +43,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-  const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const&,
-  Array4<Real> const&,
-  Array4<Real const> const&,
-  Array4<Real const> const&,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real> const& state,
+    Array4<Real> const& x_vel,
+    Array4<Real> const& y_vel,
+    Array4<Real> const& z_vel,
+    Array4<Real> const&,
+    Array4<Real> const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-  GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
@@ -101,7 +104,6 @@ init_custom_prob(
 
   });
 
-  const Box& xbx = surroundingNodes(bx,0);
   ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
 
     Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
@@ -109,7 +111,6 @@ init_custom_prob(
     x_vel(i, j, k) = parms.U_0 + x_vel_prime;
   });
 
-  const Box& ybx = surroundingNodes(bx,1);
   ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
 
     Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
@@ -117,7 +118,6 @@ init_custom_prob(
     y_vel(i, j, k) = parms.V_0 + y_vel_prime;
   });
 
-  const Box& zbx = surroundingNodes(bx,2);
   ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
 
     // Set the z-velocity

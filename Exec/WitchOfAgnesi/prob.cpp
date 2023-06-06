@@ -6,6 +6,7 @@
 #include "AMReX_MultiFab.H"
 #include "IndexDefines.H"
 #include "TerrainMetrics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -117,7 +118,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
   if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
-  for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+  for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
   {
        Array4<Real      > rho_arr  = rho_hse.array(mfi);
        Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
@@ -145,28 +146,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-  const amrex::Box& bx,
-  Array4<Real      > const& state,
-  Array4<Real      > const& x_vel,
-  Array4<Real      > const& y_vel,
-  Array4<Real      > const& z_vel,
-  Array4<Real      > const& r_hse,
-  Array4<Real      > const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& state,
+    Array4<Real      > const& x_vel,
+    Array4<Real      > const& y_vel,
+    Array4<Real      > const& z_vel,
+    Array4<Real      > const& r_hse,
+    Array4<Real      > const& p_hse,
+    Array4<Real const> const& z_nd,
+    Array4<Real const> const& z_cc,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-  GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -243,25 +247,19 @@ init_custom_prob(
 #endif
   });
 
-  // Construct a box that is on x-faces
-  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       x_vel(i, j, k) = parms.U_0;
   });
 
-  // Construct a box that is on y-faces
-  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel(i, j, k) = 0.0;
   });
 
-  // Construct a box that is on z-faces
-  const auto dx         = geomdata.CellSize();
-  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
+  const auto dx = geomdata.CellSize();
   amrex::GpuArray<Real, AMREX_SPACEDIM> dxInv;
   dxInv[0] = 1. / dx[0];
   dxInv[1] = 1. / dx[1];
@@ -270,7 +268,7 @@ init_custom_prob(
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, z_nd, dxInv);
+      z_vel(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
   });
 
   amrex::Gpu::streamSynchronize();

@@ -11,11 +11,11 @@
 
 class MOSTAverage {
 public:
-    explicit MOSTAverage(const amrex::Vector<amrex::Geometry>& geom,
+    explicit MOSTAverage(amrex::Vector<amrex::Geometry>  geom,
                          amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
-    MOSTAverage() = default;
+    // MOSTAverage() = default;
     ~MOSTAverage()
     {
         for (int lev(0); lev<m_maxlev; ++lev){
@@ -30,6 +30,19 @@ public:
             delete m_k_indx[lev];
         }
     }
+
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    MOSTAverage(MOSTAverage&&)  noexcept = default;
+
+    // Delete the move assignment operator
+    MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
+
+    // Delete the copy constructor
+    MOSTAverage(const MOSTAverage& other) = delete;
+    //
+    // Delete the copy assignment operator
+    MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
     // Reset the pointers to field MFs
     void update_field_ptrs(int lev,
@@ -80,12 +93,23 @@ public:
     void write_averages(int lev);
 
     // Get pointer to the 2D mf of averages
-    const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; }
+    [[nodiscard]] const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; }
 
     // Get z_ref (may be computed from specified k_indx)
-    amrex::Real get_zref() { return m_zref; }
+    [[nodiscard]] amrex::Real get_zref() const { return m_zref; }
 
-    // Interpolate fields to a specified position (w/ terrain)
+    /**
+     * Function to compute trilinear interpolation with terrain.
+     *
+     * @param[in] xp X-position
+     * @param[in] yp Y-position
+     * @param[out] interp_vals Values interpolated
+     * @param[in] interp_array Array to interpolate on
+     * @param[in] z_arr Physical heights
+     * @param[in] plo Problem lower bounds
+     * @param[in] dxi Inverse cell size array
+     * @param[in] interp_comp Number of components to interpolate
+     */
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void trilinear_interp_T (const amrex::Real& xp,
                              const amrex::Real& yp,

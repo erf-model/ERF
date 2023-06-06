@@ -1,8 +1,21 @@
-#include <MultiBlockContainer.H>
+#include "MultiBlockContainer.H"
 #include <AMReX_NonLocalBC.H>
 #include <ERF.H>
 
-// Vector input constructor
+/**
+ * Constructor for the MultiBlockContainer class capable of taking a vector of boxes as input.
+ *
+ * Inputs that are vectors are used to define the two ERF instances in the MultiBlock class.
+ *
+ * @param[in] rb_v Vector of RealBoxes to define this MultiBlock
+ * @param[in] max_level_in_v Maximum level vector
+ * @param[in] n_cell_in_v Number of cells vector
+ * @param[in] coord_v Coordinate selection vector
+ * @param[in] ref_ratios_v Refinement ratio vector
+ * @param[in] is_per_v Defines whether the domain is periodic in each coordinate direction
+ * @param[in] prefix_v Prefixes for ParmParse as a vector
+ * @param[in] max_step Maximum number of timesteps to take
+ */
 MultiBlockContainer::MultiBlockContainer(const std::vector<amrex::RealBox>& rb_v,
                                          std::vector<int> max_level_in_v,
                                          const std::vector<amrex::Vector<int>>& n_cell_in_v,
@@ -35,12 +48,16 @@ MultiBlockContainer::MultiBlockContainer(const std::vector<amrex::RealBox>& rb_v
     dtos.offset = amrex::IntVect{AMREX_D_DECL(offx, offy, offz)};
 }
 
-// Destructor
+/**
+ * Destructor for the MultiBlockContainer
+ */
 MultiBlockContainer::~MultiBlockContainer()
 {
 }
 
-// Initialize block data
+/**
+ * Initialize block data for the MultiBlockContainer
+ */
 void
 MultiBlockContainer::InitializeBlocks()
 {
@@ -48,7 +65,9 @@ MultiBlockContainer::InitializeBlocks()
     erf2.InitData();
 }
 
-// Set up BoxList vector for use with Communication Meta Data
+/**
+ * Set up BoxList vector for use with Communication Meta Data
+ */
 void
 MultiBlockContainer::SetBoxLists()
 {
@@ -98,7 +117,9 @@ MultiBlockContainer::SetBoxLists()
     */
 }
 
-// Set up MB Communication Meta Data
+/**
+ * Set up MultiBlock Communication Meta Data
+ */
 void
 MultiBlockContainer::SetBlockCommMetaData()
 {
@@ -124,7 +145,9 @@ MultiBlockContainer::SetBlockCommMetaData()
     }
 }
 
-// Advance blocks
+/**
+ * Advance blocks in the MultiBlockContainer by calling each timestep advance sequentially.
+ */
 void
 MultiBlockContainer::AdvanceBlocks()
 {
@@ -144,7 +167,9 @@ MultiBlockContainer::AdvanceBlocks()
     }
 }
 
-// Wrapper for ParallelCopy between classes
+/**
+ * Wrapper for ParallelCopy between classes
+ */
 void
 MultiBlockContainer::FillPatchBlocks(int src_ind, int dst_ind)
 {

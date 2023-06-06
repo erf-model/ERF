@@ -19,6 +19,8 @@ erf.use_terrain = 1         # enable terrain stencils
 erf.terrain_type = 1        # moving terrain
 erf.terrain_smoothing = 2   # Sullivan 2004 approach
 
+erf.use_lagged_delta_rt = false
+
 erf.no_substepping     = 0
 erf.fixed_mri_dt_ratio = 20
 erf.fixed_dt           = 0.1
@@ -40,7 +42,7 @@ erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 10      # number of timesteps between plotfiles
 #erf.plot_vars_1     = x_velocity z_velocity pert_pres
     
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse z_phys detJ 
 
 # SOLVER CHOICE
 erf.use_gravity = true

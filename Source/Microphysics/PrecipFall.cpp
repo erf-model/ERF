@@ -1,14 +1,17 @@
-/*!
- * positively definite monotonic advection with non-oscillatory option
- * and gravitational sedimentation
- * NOTES: this code is modified from SAMXX (C++ version of SAM code)
- */
-
 #include "ERF_Constants.H"
 #include "Microphysics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
+/**
+ * Compute positive definite monotonic advection with a non-oscillatory option
+ * and gravitational sedimentation.
+ *
+ * Code modified from SAMXX, the C++ version of the SAM code.
+ *
+ * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
+ */
 void Microphysics::PrecipFall(int hydro_type) {
 
   Real constexpr eps = 1.e-10;
@@ -165,7 +168,7 @@ void Microphysics::PrecipFall(int hydro_type) {
 #endif
 
   for(int iprec = 1; iprec<=nprec; iprec++) {
-    for ( MFIter mfi(tmp_qp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(tmp_qp, TileNoZ()); mfi.isValid(); ++mfi) {
        auto qp_array     = qp->array(mfi);
        auto tabs_array   = tabs->array(mfi);
        auto theta_array  = theta->array(mfi);
@@ -285,7 +288,9 @@ void Microphysics::PrecipFall(int hydro_type) {
   } // iprec loop
 }
 
-
+/**
+ * Wrapper for PrecipFall which computes the temporary variable Omega, needed by the precipitation advection scheme.
+ */
 void Microphysics::MicroPrecipFall() {
 
   for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {

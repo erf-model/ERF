@@ -1,7 +1,18 @@
 #include <ERF.H>
 #include <EOS.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
+
+/**
+ * Function for computing the source terms for cloud vapor, cloud water and heat due to condensation.
+ * This routine is only called when using the warm moisture only formulation.
+ *
+ * @param[out] source the source terms for cloud vapor, cloud water and heat computed here
+ * @param[in]  S current solution
+ * @param[in]  tau_cond condensation process parameter
+ * @param[in]  c_p    Specific heat
+ */
 
 #if defined(ERF_USE_WARM_NO_PRECIP)
 void

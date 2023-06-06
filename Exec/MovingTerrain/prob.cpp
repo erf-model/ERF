@@ -7,6 +7,7 @@
 #include "IndexDefines.H"
 #include "ERF_Constants.H"
 #include "TerrainMetrics.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -111,7 +112,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
   if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
-  for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+  for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
   {
        Array4<Real      > rho_arr  = rho_hse.array(mfi);
        Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
@@ -139,28 +140,31 @@ erf_init_dens_hse(MultiFab& rho_hse,
 
 void
 init_custom_prob(
-  const amrex::Box& bx,
-  Array4<Real      > const& state,
-  Array4<Real      > const& x_vel,
-  Array4<Real      > const& y_vel,
-  Array4<Real      > const& z_vel,
-  Array4<Real      > const& r_hse,
-  Array4<Real      > const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
+    const Box& bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real      > const& state,
+    Array4<Real      > const& x_vel,
+    Array4<Real      > const& y_vel,
+    Array4<Real      > const& z_vel,
+    Array4<Real      > const& r_hse,
+    Array4<Real      > const& p_hse,
+    Array4<Real const> const& z_nd,
+    Array4<Real const> const& z_cc,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
 #endif
-  GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
+    const SolverChoice&)
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
@@ -233,8 +237,6 @@ init_custom_prob(
 
   });
 
-  // Construct a box that is on x-faces
-  const amrex::Box& xbx = amrex::surroundingNodes(bx,0);
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -252,16 +254,11 @@ init_custom_prob(
       x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
   });
 
-  // Construct a box that is on y-faces
-  const amrex::Box& ybx = amrex::surroundingNodes(bx,1);
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel(i, j, k) = 0.0;
   });
-
-  // Construct a box that is on z-faces
-  const amrex::Box& zbx = amrex::surroundingNodes(bx,2);
 
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -365,7 +362,7 @@ init_custom_terrain (const Geometry& geom,
             // Location of nodes
             Real x = ii  * dx[0];
 
-            // Wave heigght
+            // Wave height
             Real height = Ampl * std::sin(kp * x - omega * time);
 
             // Populate terrain height

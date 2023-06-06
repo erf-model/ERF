@@ -3,14 +3,47 @@
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BC_TYPES.H>
-#include <EOS.H>
+#include <TileNoZ.H>
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
 #include <TerrainMetrics.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <prob_common.H>
 
 using namespace amrex;
+
+/**
+ * Function for computing the fast RHS with moving terrain
+ *
+ * @param[in]  step  which fast time step
+ * @param[in]  level level of resolution
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
+ * @param[in]  S_prev previous solution
+ * @param[in]  S_stg_data solution            at previous RK stage
+ * @param[in]  S_stg_prim primitive variables at previous RK stage
+ * @param[in]  pi_stage   Exner function      at previous RK stage
+ * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[out] S_data current solution
+ * @param[in]  S_scratch scratch space
+ * @param[in]  geom container for geometric information
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  Omega component of the momentum normal to the z-coordinate surface
+ * @param[in]  z_t_rk rate of change of grid height -- only relevant for moving terrain
+ * @param[in]  z_t_pert rate of change of grid height -- interpolated between RK stages
+ * @param[in] z_phys_nd_old height coordinate at nodes at old time
+ * @param[in] z_phys_nd_new height coordinate at nodes at new time
+ * @param[in] z_phys_nd_stg height coordinate at nodes at previous stage
+ * @param[in] detJ_cc_old Jacobian of the metric transformation at old time
+ * @param[in] detJ_cc_new Jacobian of the metric transformation at new time
+ * @param[in] detJ_cc_stg Jacobian of the metric transformation at previous stage
+ * @param[in]  dtau fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  facinv inverse factor for time-averaging the momenta
+ * @param[in] mapfac_m map factor at cell centers
+ * @param[in] mapfac_u map factor at x-faces
+ * @param[in] mapfac_v map factor at y-faces
+ */
 
 void erf_fast_rhs_MT (int step, int /*level*/,
                       BoxArray& grids_to_evolve,
@@ -33,7 +66,8 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       std::unique_ptr<MultiFab>& detJ_cc_old,        // at previous substep time (tau)
                       std::unique_ptr<MultiFab>& detJ_cc_new,        // at      new substep time (tau + delta tau)
                       std::unique_ptr<MultiFab>& detJ_cc_stg,        // at last RK stg
-                      const amrex::Real dtau, const amrex::Real facinv,
+                      const Real dtau, const Real beta_s,
+                      const Real facinv,
                       std::unique_ptr<MultiFab>& /*mapfac_m*/,
                       std::unique_ptr<MultiFab>& mapfac_u,
                       std::unique_ptr<MultiFab>& mapfac_v)
@@ -42,10 +76,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     AMREX_ASSERT(solverChoice.terrain_type == 1);
 
-    // Per p2902 of Klemp-Skamarock-Dudhia-2007
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
@@ -79,13 +109,14 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     {
-
     FArrayBox temp_rhs_fab;
 
     FArrayBox RHS_fab;
     FArrayBox soln_fab;
 
-    for ( MFIter mfi(S_stg_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    //  NOTE: we leave tiling off here for efficiency -- to make this loop work with tiling
+    //        will require additional changes
+    for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
         // Construct intersection of current tilebox and valid region for updating
         Box valid_bx = grids_to_evolve[mfi.index()];
@@ -111,7 +142,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
         const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
 
-        const Array4<Real>& lagged_rtheta = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
 
         const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
         const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
@@ -154,20 +185,32 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
-                lagged_rtheta(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
-            });
-        }
-        } // end profile
+                cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
 
-        {
-        BL_PROFILE("fast_rhs_copies_2");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            theta_extrap(i,j,k)     = (1.0 + beta_d) * cur_cons(i,j,k,RhoTheta_comp)
-                                     -                 stg_cons(i,j,k,RhoTheta_comp)
-                                            -beta_d  * lagged_rtheta(i,j  ,k,RhoTheta_comp);
-        });
+                Real delta_rt  =  cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+                theta_extrap(i,j,k) = delta_rt;
+
+                // We define lagged_delta_rt for our next step as the current delta_rt
+                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+            });
+        } else if (solverChoice.use_lagged_delta_rt) {
+            // This is the default for cases with no or static terrain
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                Real delta_rt = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+                theta_extrap(i,j,k) = delta_rt + beta_d * (delta_rt - lagged_delta_rt(i,j,k,RhoTheta_comp));
+
+                // We define lagged_delta_rt for our next step as the current delta_rt
+                lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
+            });
+        } else {
+            // For the moving wave problem, this choice seems more robust
+            amrex::ParallelFor(gbx,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                theta_extrap(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stg_cons(i,j,k,RhoTheta_comp);
+            });
+        } // if step
         } // end profile
 
         RHS_fab.resize(tbz,1);
@@ -389,8 +432,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                             + dtau *(slow_rhs_rho_w(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp );
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            RHS_a(i,j,k) += dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,z_nd_new,dxInv)
-                           -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+            Real UppVpp = dJ_new_kface * OmegaFromW(i,j,k,0.,cur_xmom,cur_ymom,z_nd_new,dxInv)
+                         -dJ_stg_kface * OmegaFromW(i,j,k,0.,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+            RHS_a(i,j,k) += UppVpp;
         });
         } // end profile
 
@@ -479,15 +523,17 @@ void erf_fast_rhs_MT (int step, int /*level*/,
              Real rho_on_face = 0.5 * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
 
              if (k == 0) {
-                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),z_nd_new,dxInv);
+                 cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
+                                              cur_xmom,cur_ymom,z_nd_new,dxInv);
 
                  // We need to set this here because it is used to define zflux_lo below
                  soln_a(i,j,k) = 0.;
 
              } else {
 
-                 Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),z_nd_new,dxInv)
-                           -WFromOmega(i,j,k,           0.,z_nd_stg,dxInv);
+                 Real UppVpp = WFromOmega(i,j,k,0.0,cur_xmom,cur_ymom,z_nd_new,dxInv)
+                              -WFromOmega(i,j,k,0.0,stg_xmom,stg_ymom,z_nd_stg,dxInv);
+                 Real wpp = soln_a(i,j,k) + UppVpp;
                  Real dJ_old_kface = 0.5 * (detJ_old(i,j,k) + detJ_old(i,j,k-1));
                  Real dJ_new_kface = 0.5 * (detJ_new(i,j,k) + detJ_new(i,j,k-1));
 
