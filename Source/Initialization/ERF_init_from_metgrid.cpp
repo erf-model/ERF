@@ -57,9 +57,9 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
                              FArrayBox& state,
-                             amrex::Array4<amrex::Real> const &r_hse_arr,
-                             amrex::Array4<amrex::Real> const &p_hse_arr,
-                             amrex::Array4<amrex::Real> const &pi_hse_arr,
+                             FArrayBox& r_hse_fab,
+                             FArrayBox& p_hse_fab,
+                             FArrayBox& pi_hse_fab,
                              FArrayBox& z_phys_nd_fab,
                              const Vector<FArrayBox>& NC_ght_fab,
                              const Vector<FArrayBox>& NC_psfc_fab);
@@ -151,18 +151,25 @@ ERF::init_from_metgrid(int lev)
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     init_terrain_grid(geom[lev], *z_phys);
 
+#ifndef AMREX_USE_GPU
     const amrex::Box& domain = geom[lev].Domain();
-//    auto dx = geom[lev].CellSizeArray();
-//    amrex::Print() << " geom.CellSizeArray(): " << dx << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(0): " << domain.smallEnd(0) << "    geom[" << lev << "Domain.bigEnd(0): " << domain.bigEnd(0) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(1): " << domain.smallEnd(1) << "    geom[" << lev << "Domain.bigEnd(1): " << domain.bigEnd(1) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(2): " << domain.smallEnd(2) << "    geom[" << lev << "Domain.bigEnd(2): " << domain.bigEnd(2) << std::endl;
+    auto dx = geom[lev].CellSizeArray();
+    for (int i = 0; i < dx.size(); i++)
+    {
+        amrex::Print() << " geom.CellSizeArray()[" << i << "]: " << dx[i] << std::endl;
+    }
+    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(0): " << domain.smallEnd(0) << "    geom[" << lev << "].Domain.bigEnd(0): " << domain.bigEnd(0) << std::endl;
+    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(1): " << domain.smallEnd(1) << "    geom[" << lev << "].Domain.bigEnd(1): " << domain.bigEnd(1) << std::endl;
+    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(2): " << domain.smallEnd(2) << "    geom[" << lev << "].Domain.bigEnd(2): " << domain.bigEnd(2) << std::endl;
     amrex::Print() << " geom[" << lev << "].Domain.length(0): " << domain.length(0) << std::endl;
     amrex::Print() << " geom[" << lev << "].Domain.length(1): " << domain.length(1) << std::endl;
     amrex::Print() << " geom[" << lev << "].Domain.length(2): " << domain.length(2) << std::endl;
+#endif
+
+    // TODO: Verify that DX and DY from met_em file matches that in geom (from ERF inputs file).
 
     // This makes the Jacobian.
-    make_J  (geom[lev],*z_phys,  *detJ_cc[lev]);
+    make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
 
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
@@ -198,15 +205,15 @@ ERF::init_from_metgrid(int lev)
         FArrayBox &msfm_fab = (*mapfac_m[lev])[mfi];
 
         // Zap the unnecessary ghost cells added by default when the MultiFab was created.
-        Box bxu = msfu_fab.box();
-        bxu.grow(2,-3);
-        msfu_fab.resize(bxu);
-        Box bxv = msfv_fab.box();
-        bxv.grow(2,-3);
-        msfv_fab.resize(bxv);
-        Box bxm = msfm_fab.box();
-        bxm.grow(2,-3);
-        msfm_fab.resize(bxm);
+//        Box bxu = msfu_fab.box();
+//        bxu.grow(2,-3);
+//        msfu_fab.resize(bxu);
+//        Box bxv = msfv_fab.box();
+//        bxv.grow(2,-3);
+//        msfv_fab.resize(bxv);
+//        Box bxm = msfm_fab.box();
+//        bxm.grow(2,-3);
+//        msfm_fab.resize(bxm);
         init_msfs_from_metgrid(msfu_fab, msfv_fab, msfm_fab,
                                NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
     } // mf
@@ -219,14 +226,14 @@ ERF::init_from_metgrid(int lev)
 
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Array4<Real> r_hse_arr = r_hse.array(mfi);
-        Array4<Real> p_hse_arr = p_hse.array(mfi);
-        Array4<Real> pi_hse_arr = pi_hse.array(mfi);
+        FArrayBox&     p_hse_fab = p_hse[mfi];
+        FArrayBox&    pi_hse_fab = pi_hse[mfi];
+        FArrayBox&     r_hse_fab = r_hse[mfi];
         FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
 
         init_base_state_from_metgrid(l_rdOcp,
-                                     cons_fab, r_hse_arr, p_hse_arr, pi_hse_arr,
+                                     cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
                                      z_phys_nd_fab, NC_ght_fab, NC_psfc_fab);
     }
 }
@@ -236,9 +243,6 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
                           const Vector<FArrayBox>& NC_hgt_fab)
 {
    int nboxes = NC_hgt_fab.size();
-
-   // NOTE NOTE NOTE -- this routine currently only fills the k=0 value
-   // TODO: we need to fill the rest of the values from the pressure (?) variable...
 
    for (int idx = 0; idx < nboxes; idx++)
    {
@@ -339,7 +343,12 @@ init_state_from_metgrid(FArrayBox& state_fab,
         // ********************************************************
         // W
         // ********************************************************
-        z_vel_fab.template setVal<RunOn::Device>(0.);
+        z_vel_fab.template setVal<RunOn::Device>(0.0);
+
+        // ********************************************************
+        // Initialize all state_fab variables to zero
+        // ********************************************************
+        state_fab.template setVal<RunOn::Device>(0.0);
 
         // ********************************************************
         // theta
@@ -473,7 +482,7 @@ calc_rho_p(int i, int j,
     std::vector<Real> rhom_integ(kmax);
     std::vector<Real> pd_integ(kmax);
 
-    // check if we have pressure at the surface. If not, estimate it!
+    // TODO: check if we have pressure at the surface. If not, estimate it!
 //    Real t_0 = 290.0; // WRF's model_config_rec%base_temp
 //    Real a = 50.0; // WRF's model_config_rec%base_lapse
 //    Real p_surf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2*CONST_GRAV*hgt(i,j)/(a*R_d)), 0.5);
@@ -492,8 +501,7 @@ calc_rho_p(int i, int j,
     rhom_integ[0] = 1.0/(R_d/p_0*theta_v[0]*std::pow(pm_integ[0]/p_0, -iGamma));
 
     // integrate from the surface to the top boundary.
-    for (int k=1; k < kmax; ++k)
-    {
+    for (int k=1; k < kmax; ++k) {
         Real dz = new_z(i,j,k)-new_z(i,j,k-1);
 #if defined(ERF_USE_MOISTURE)
         Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQt_comp);
@@ -505,8 +513,7 @@ calc_rho_p(int i, int j,
         Real qvf = 0.0;
 #endif
         rhom_integ[k] = rhom_integ[k-1]; // an initial guess.
-        for (int it=0; it < maxiter; ++it)
-        {
+        for (int it=0; it < maxiter; ++it) {
             pm_integ[k] = pm_integ[k-1]-0.5*dz*(rhom_integ[k]+rhom_integ[k-1])*CONST_GRAV;
             if (pm_integ[k] <= 0.0) pm_integ[k] = 0.0;
             rhom_integ[k] = 1.0/(R_d/p_0*theta_v[k]*qvf*std::pow(pm_integ[k]/p_0, -iGamma));
@@ -516,18 +523,16 @@ calc_rho_p(int i, int j,
     // integrate from the top back down to get dry pressure and density.
     pd_integ[kmax-1] = pm_integ[kmax-1];
     new_data(i,j,kmax-1,Rho_comp) = 1.0/(R_d/p_0*new_data(i,j,kmax-1,RhoTheta_comp)*std::pow(pd_integ[kmax-1]/p_0, -iGamma));
-    for (int k=kmax-2; k >= 0; --k)
-    {
+    for (int k=kmax-2; k >= 0; --k) {
         Real dz = new_z(i,j,k+1)-new_z(i,j,k);
         new_data(i,j,k,Rho_comp) = new_data(i,j,k+1,Rho_comp); // an initial guess.
-        for (int it=0; it < maxiter; ++it)
-        {
+        for (int it=0; it < maxiter; ++it) {
             pd_integ[k] = pd_integ[k+1]+0.5*dz*(new_data(i,j,k,Rho_comp)+new_data(i,j,k+1,Rho_comp))*CONST_GRAV;
             if (pd_integ[k] <= 0.0) pd_integ[k] = 0.0;
             new_data(i,j,k,Rho_comp) = 1.0/(R_d/p_0*new_data(i,j,k,RhoTheta_comp)*std::pow(pd_integ[k]/p_0, -iGamma));
         }
         p_hse_arr(i,j,k)  = pd_integ[k];
-        r_hse_arr(i,j,k)  = 1.0/new_data(i,j,k,Rho_comp);
+        r_hse_arr(i,j,k)  = new_data(i,j,k,Rho_comp);
     }
 }
 
@@ -537,9 +542,6 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm
                        const Vector<FArrayBox>& NC_MSFV_fab,
                        const Vector<FArrayBox>& NC_MSFM_fab)
 {
-#ifndef AMREX_USE_GPU
-    amrex::Print() << "init_msfs_from_metgrid" << std::endl;
-#endif
     int nboxes = NC_MSFU_fab.size();
 
     for (int idx = 0; idx < nboxes; idx++)
@@ -564,9 +566,9 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
                              FArrayBox& state_fab,
-                             amrex::Array4<amrex::Real> const &r_hse_arr,
-                             amrex::Array4<amrex::Real> const &p_hse_arr,
-                             amrex::Array4<amrex::Real> const &pi_hse_arr,
+                             FArrayBox& r_hse_fab,
+                             FArrayBox& p_hse_fab,
+                             FArrayBox& pi_hse_fab,
                              FArrayBox& z_phys_nd_fab,
                              const Vector<FArrayBox>& NC_ght_fab,
                              const Vector<FArrayBox>& NC_psfc_fab)
@@ -574,24 +576,34 @@ init_base_state_from_metgrid(const Real l_rdOcp,
     int nboxes = NC_psfc_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
     {
+        const Array4<Real>& r_hse_arr = r_hse_fab.array();
+        const Array4<Real>& p_hse_arr = p_hse_fab.array();
+        const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
+
         // ********************************************************
         // calculate dry density and dry pressure
         // ********************************************************
         // calculate density and dry pressure on the new grid.
         {
-        Box bx2d = NC_ght_fab[idx].box() & state_fab.box();
+        Box bx2d = state_fab.box();
         bx2d.setRange(2,0);
+        bx2d.grow(0,-3); // TODO: is there a cleaner way to avoid the boundary / ghost cells?
+        bx2d.grow(1,-3);
         auto const orig_psfc = NC_psfc_fab[idx].const_array();
         auto       new_data = state_fab.array();
         auto const new_z = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             calc_rho_p(i,j,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
         });
 
-        Box bx3d = NC_ght_fab[idx].box() & state_fab.box();
+        Box bx3d = state_fab.box();
+        bx3d.grow(0,-3); // TODO: is there a cleaner way to avoid the boundary / ghost cells?
+        bx3d.grow(1,-3);
+        bx3d.grow(2,-3);
         amrex::ParallelFor(bx3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
+            new_data(i,j,k,RhoScalar_comp) = 0.0;
             // RhoTheta and RhoQt are currently just Theta and Qt. Multiply by Rho.
             Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
             new_data(i,j,k,RhoTheta_comp) = RhoTheta;
@@ -603,6 +615,7 @@ init_base_state_from_metgrid(const Real l_rdOcp,
             new_data(i,j,k,RhoQv_comp) = RhoQ;
 #endif
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+//            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
         }
     } // idx

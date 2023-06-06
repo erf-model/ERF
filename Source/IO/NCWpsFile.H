@@ -151,6 +151,30 @@ void ReadNetCDFFile(const std::string& fname, amrex::Vector<std::string> names,
         int bdy_width          = static_cast<int>(ncf.dim("bdy_width").len());
         */
 
+        if (ncf.has_attr( "SIMULATION_START_DATE" )) {
+            amrex::Print() << " SIMULATION_START_DATE: " << ncf.get_attr( "SIMULATION_START_DATE" ) << std::endl;
+        }
+	if (ncf.has_attr( "WEST-EAST_GRID_DIMENSION" )) {
+            std::vector<int> nx;
+            ncf.get_attr( "WEST-EAST_GRID_DIMENSION", nx );
+            amrex::Print() << " WEST-EAST_GRID_DIMENSION: " << nx[0] << std::endl;
+	}
+        if (ncf.has_attr( "SOUTH-NORTH_GRID_DIMENSION" )) {
+            std::vector<int> ny;
+            ncf.get_attr( "SOUTH-NORTH_GRID_DIMENSION", ny );
+            amrex::Print() << " SOUTH-NORTH_GRID_DIMENSION: " << ny[0] << std::endl;
+        }
+        if (ncf.has_attr( "DX" )) {
+            std::vector<float> dx;
+            ncf.get_attr( "DX", dx );
+            amrex::Print() << " DX: " << dx[0] << std::endl;
+        }
+        if (ncf.has_attr( "DY" )) {
+            std::vector<float> dy;
+            ncf.get_attr( "DY", dy );
+            amrex::Print() << " DY: " << dy[0] << std::endl;
+        }
+
         // amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
         for (auto n=0; n<arrays.size(); ++n) {
             // read the data from NetCDF file

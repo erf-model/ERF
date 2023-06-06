@@ -398,9 +398,27 @@ ERF::InitData ()
             }
         }
 
-        // Note that make_J and make_zcc area now called inside init_from_wrfinput
+        // Note that for init_type of "real" or "metgrid, make_J and make_zcc are called
+        // within init_from_wrfinput or init_from_metgrid.
         for (int lev = 0; lev <= finest_level; lev++)
             init_only(lev, time);
+
+//#ifndef AMREX_USE_GPU
+//    if (init_type == "metgrid") {
+//        for (int lev = 0; lev <= finest_level; ++lev) {
+//            const MultiFab& cons_current = vars_new[lev][Vars::cons];
+//            for (MFIter mfi(cons_current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+//                auto states_array = cons_current.array(mfi);
+//                const auto& box3d = mfi.tilebox();
+//                ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+//                    if ((i == 70) and (j == 40)) {
+//                        amrex::Print() << "InitData after init_only: (" << i << ", " << j << ", " << k << ")\tgetPgivenRTh: " << getPgivenRTh(states_array(i,j,k,RhoTheta_comp)) << "\tgetPgivenRTh w/ Qt:" << getPgivenRTh(states_array(i,j,k,RhoTheta_comp), states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp)) << "\tRho_comp: " << states_array(i,j,k,Rho_comp) << "\tRhoTheta_comp/Rho_comp: " << states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp) << std::endl;
+//                    }
+//                });
+//            }
+//        }
+//    }
+//#endif
 
         // For now we initialize rho_KE to 0
         Real RhoKE_0 = 0.0;
@@ -509,6 +527,23 @@ ERF::InitData ()
         m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
         m_most->update_fluxes(lev);
     }
+
+//#ifndef AMREX_USE_GPU
+//    if (init_type == "metgrid") {
+//        for (int lev = 0; lev <= finest_level; ++lev) {
+//            const MultiFab& cons_current = vars_new[lev][Vars::cons];
+//            for (MFIter mfi(cons_current, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+//                auto states_array = cons_current.array(mfi);
+//                const auto& box3d = mfi.tilebox();
+//                ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+//                    if ((i == 70) and (j == 40)) {
+//                        amrex::Print() << "InitData before WritePlotFile: (" << i << ", " << j << ", " << k << ")\tgetPgivenRTh: " << getPgivenRTh(states_array(i,j,k,RhoTheta_comp)) << "\tRho_comp: " << states_array(i,j,k,Rho_comp) << "\tRhoTheta_comp/Rho_comp: " << states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp) << std::endl;
+//                    }
+//                });
+//            }
+//        }
+//    }
+//#endif
 
     if (restart_chkfile == "" && check_int > 0)
     {

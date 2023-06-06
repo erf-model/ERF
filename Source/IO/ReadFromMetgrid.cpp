@@ -37,6 +37,8 @@ read_from_metgrid(int lev, const std::string& fname,
     // Read the netcdf file and fill these FABs
     BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
 
+    // TODO: Read DX and DY from met_em file.
+
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //
     // Convert the velocities using the map factors
