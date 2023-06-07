@@ -160,12 +160,7 @@ ERF::ERF ()
     }
 
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
@@ -377,7 +372,7 @@ ERF::InitData ()
     if (restart_chkfile.empty()) {
         // start simulation from the beginning
 
-        const Real time = 0.0;
+        const Real time = start_time;
         InitFromScratch(time);
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -456,11 +451,18 @@ ERF::InitData ()
                 make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
             }
         }
+#ifdef ERF_USE_MOISTURE
+        // Need to fill ghost cells here since we will use this qmoist in advance
+        for (int lev = 0; lev <= finest_level; lev++) {
+            FillPatchMoistVars(lev, qmoist[lev]);
+        }
+#endif
     }
 
     // Define after wrfbdy_width is known
-    for (int lev = 0; lev <= finest_level; lev++)
+    for (int lev = 0; lev <= finest_level; lev++) {
         define_grids_to_evolve(lev);
+    }
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
@@ -499,36 +501,15 @@ ERF::InitData ()
     // Initialize microphysics here
     micro.define(solverChoice);
 
-    // Call Init which will call Diagnose to fill qv, qc, qi
+    // Call Init which will call Diagnose to fill qmoist
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        micro.Init(vars_new[lev][Vars::cons],
-                   qc[lev],
-                   qv[lev],
-                   qi[lev],
-                   grids_to_evolve[lev],
-                   Geom(lev),
-                   0.0 // dummy value, not needed just to diagnose
-                  );
-        micro.Update(vars_new[lev][Vars::cons],
-                     qv[lev],
-                     qc[lev],
-                     qi[lev],
-                     qrain[lev],
-                     qsnow[lev],
-                     qgraup[lev]);
-
-#if 0
-        for (MFIter mfi(qv[lev]); mfi.isValid(); ++mfi) {
-            const Box& box = mfi.growntilebox(IntVect(1,1,0));
-            // const Box& box = mfi.tilebox();
-            auto qv_arr = qv[lev].array(mfi);
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-               amrex::Print() << "QV " << IntVect(i,j,k) << " " << std::endl;
-               amrex::Print() << "QV " << qv_arr(i,j,k) << " " << std::endl;
-            });
-         }
-#endif
+        // If not restarting we need to fill qmoist given qt and qp.
+        if (restart_chkfile.empty()) {
+            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+        }
     }
 #endif
 
@@ -802,11 +783,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff);
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -899,11 +880,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
                                         solverChoice.use_NumDiff);
 
     auto& lev_new = vars_new[lev];
@@ -937,12 +918,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
     // Microphysics
     // *******************************************************************************************
 #if defined(ERF_USE_MOISTURE)
-    qv[lev].define(ba, dm, 1, ngrow_state);
-    qc[lev].define(ba, dm, 1, ngrow_state);
-    qi[lev].define(ba, dm, 1, ngrow_state);
-    qrain[lev].define(ba, dm, 1, ngrow_state);
-    qsnow[lev].define(ba, dm, 1, ngrow_state);
-    qgraup[lev].define(ba, dm, 1, ngrow_state);
+    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
 #endif
 
     // ********************************************************************************************
@@ -1080,8 +1056,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
         ba_nd.surroundingNodes();
 
         // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                      solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
+        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                      solverChoice.vert_spatial_order,
                                       solverChoice.use_NumDiff)+2;
         z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
         if (solverChoice.terrain_type > 0) {
@@ -1161,15 +1137,6 @@ ERF::init_only(int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0);
 
-#if defined(ERF_USE_MOISTURE)
-    qv[lev].setVal(0.0);
-    qc[lev].setVal(0.0);
-    qi[lev].setVal(0.0);
-    qrain[lev].setVal(0.0);
-    qsnow[lev].setVal(0.0);
-    qgraup[lev].setVal(0.0);
-#endif
-
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
         init_from_input_sounding(lev);
@@ -1180,6 +1147,10 @@ ERF::init_only(int lev, Real time)
         init_from_metgrid(lev);
 #endif
     }
+
+#if defined(ERF_USE_MOISTURE)
+    qmoist[lev].setVal(0.);
+#endif
 
     // Add problem-specific flow features
     // If init_type is specified, then this is a perturbation to the background
@@ -1201,6 +1172,8 @@ ERF::ReadParameters ()
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
         pp.query("stop_time", stop_time);
+
+        pp.query("start_time", start_time); // This is optional, it defaults to 0
     }
 
     ParmParse pp(pp_prefix);
@@ -1395,12 +1368,16 @@ ERF::MakeHorizontalAverages ()
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qv(qmoist[lev], make_alias, 0, 1);
+#endif
+
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
         auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
 #if defined(ERF_USE_MOISTURE)
-        auto   qv_arr = qv[lev].array(mfi);
+        auto   qv_arr = qv.array(mfi);
 #endif
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
@@ -1636,12 +1613,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     }
 
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);

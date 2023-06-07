@@ -42,6 +42,7 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[in] incompressible are we running the incompressible algorithm
  */
 
 void erf_slow_rhs_post (int /*level*/, Real dt,
@@ -54,7 +55,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         Vector<MultiFab>& S_scratch,
                         const MultiFab& xvel,
                         const MultiFab& yvel,
-                        const MultiFab& zvel,
+                        const MultiFab& /*zvel*/,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
@@ -68,7 +69,8 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v)
+                        std::unique_ptr<MultiFab>& mapfac_v,
+                        int incompressible)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -154,7 +156,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
 
-        const Array4<      Real> & new_cons   = S_new[IntVar::cons].array(mfi);
+        const Array4<      Real> & new_cons  = S_new[IntVar::cons].array(mfi);
         const Array4<      Real> & new_xmom  = S_new[IntVar::xmom].array(mfi);
         const Array4<      Real> & new_ymom  = S_new[IntVar::ymom].array(mfi);
         const Array4<      Real> & new_zmom  = S_new[IntVar::zmom].array(mfi);
@@ -202,6 +204,26 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
         } // end profile
+
+        // We have projected the velocities stored in S_data but we will use
+        //    the velocities stored in S_scratch to update the scalars, so
+        //    we need to copy from S_data (projected) into S_scratch
+        if (incompressible) {
+            Box tbx_inc = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
+            Box tby_inc = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+            Box tbz_inc = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+
+            ParallelFor(tbx_inc, tby_inc, tbz_inc,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_xmom(i,j,k) = cur_xmom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_ymom(i,j,k) = cur_ymom(i,j,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                avg_zmom(i,j,k) = cur_zmom(i,j,k);
+            });
+        }
 
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
@@ -323,7 +345,6 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         if (l_moving_terrain)
         {
-            auto const& src_arr = source.const_array(mfi);
             num_comp = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {

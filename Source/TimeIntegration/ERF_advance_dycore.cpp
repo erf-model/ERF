@@ -37,9 +37,6 @@ using namespace amrex;
  * @param[in] zmom_crse old-time z-component of momentum at coarser level
  * @param[in] source source term for conserved variables
  * @param[in] buoyancy buoyancy source term for z-component of momentum
- * @param[in] qvapor water vapor
- * @param[in] qcloud cloud water
- * @param[in] qice cloud ice
  * @param[in] fine_geom container for geometry information at current level
  * @param[in] dt_advance time step for this time advance
  * @param[in] old_time old time for this time advance
@@ -54,9 +51,6 @@ void ERF::advance_dycore(int level,
                          MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
                          MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                          MultiFab& source, MultiFab& buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                         const MultiFab& qvapor, const MultiFab& qcloud, const MultiFab& qice,
-#endif
                          const amrex::Geometry fine_geom,
                          const amrex::Real dt_advance, const amrex::Real old_time,
                          amrex::InterpFaceRegister* ifr)
@@ -69,6 +63,12 @@ void ERF::advance_dycore(int level,
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
     MultiFab pi_hse(base_state[level], make_alias, 2, 1); // pi_0 is second component
+
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qvapor (qmoist[level], make_alias, 0, 1);
+    MultiFab qcloud (qmoist[level], make_alias, 1, 1);
+    MultiFab qice   (qmoist[level], make_alias, 2, 1);
+#endif
 
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
@@ -268,7 +268,6 @@ void ERF::advance_dycore(int level,
     qv_ave.line_average(0, qv_h);
     qi_ave.line_average(0, qi_h);
     qc_ave.line_average(0, qc_h);
-
 
     // Copy data to device
     Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());

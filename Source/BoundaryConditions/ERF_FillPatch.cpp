@@ -29,7 +29,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 
         if (var_idx == Vars::cons)
         {
-            bccomp = 0;
+            bccomp = BCVars::cons_bc + icomp;
             mapper = &cell_cons_interp;
         }
         else if (var_idx == Vars::xvel)
@@ -89,8 +89,43 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
 }
+
+/*
+ * Fill ghost cells of qmoist
+ *
+ * @param[in] lev  level of refinement at which to fill the data
+ * @param[in] time time at which the data should be filled
+ * @param[out] mf MultiFab to be filled (qmoist[lev])
+ */
+
+#ifdef ERF_USE_MOISTURE
+void
+ERF::FillPatchMoistVars (int lev, MultiFab& mf)
+{
+    BL_PROFILE_VAR("ERF::FillPatchMoistVars()",ERF_FillPatchMoistVars);
+    // ***************************************************************************
+    // Physical bc's at domain boundary
+    // ***************************************************************************
+    bool cons_only = true;
+    int icomp_cons = 0;
+    int ncomp_cons = 1; // We only fill qv, the first component
+
+    // Note that we are filling qv, stored in qmoist[lev], with the input data (if there is any), stored
+    // in RhoQt_comp.
+    int bccomp_cons = BCVars::RhoQt_bc_comp;
+
+    IntVect ngvect_cons = mf.nGrowVect();
+    IntVect ngvect_vels = {0,0,0};
+
+    if (init_type != "real") {
+        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
+    }
+
+    mf.FillBoundary(geom[lev].periodicity());
+}
+#endif
 
 /*
  * Fill valid and ghost data
@@ -196,7 +231,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
     // ***************************************************************************
 
     //
@@ -268,7 +303,7 @@ ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     IntVect ngvect_vels = mfs[Vars::xvel]->nGrowVect();
     bool cons_only = false;
 
-    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,time,init_type,cons_only);
+    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

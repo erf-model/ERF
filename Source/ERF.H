@@ -199,10 +199,6 @@ public:
                         amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
                         amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                         amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                        const amrex::MultiFab& qvapor, const amrex::MultiFab& qcloud, const amrex::MultiFab& qice,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-#endif
                         amrex::Geometry fine_geom,
                         amrex::Real dt, amrex::Real time,
                         amrex::InterpFaceRegister* ifr);
@@ -320,9 +316,15 @@ private:
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev); // NOLINT
 
-    // compute a new multifab by copying in phi from valid region and filling ghost cells
+    // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
+
+#if defined(ERF_USE_MOISTURE)
+    // Compute a new MultiFab by copying from valid region and filling ghost cells -
+    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
+    void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
+#endif
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -408,6 +410,8 @@ private:
                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
+    amrex::Real start_bdy_time;
+
     // *** *** FArrayBox's for holding the SURFACE data
     // amrex::IArrayBox NC_IVGTYP_fab; // Vegetation type (IVGTYP); Discrete numbers;
     // amrex::FArrayBox NC_z0_fab;     // Surface Roughness, z0 = z0 (IVGTYP)
@@ -491,13 +495,7 @@ private:
 
 #if defined(ERF_USE_MOISTURE)
     Microphysics micro;
-    amrex::Vector<amrex::MultiFab> qv;
-    amrex::Vector<amrex::MultiFab> qc;
-    amrex::Vector<amrex::MultiFab> qi;
-    amrex::Vector<amrex::MultiFab> qrain;
-    amrex::Vector<amrex::MultiFab> qsnow;
-    amrex::Vector<amrex::MultiFab> qgraup;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #endif
 
     // Diffusive stresses and Smag
@@ -565,7 +563,8 @@ private:
 
     // maximum number of steps and stop time
     int max_step = std::numeric_limits<int>::max();
-    amrex::Real stop_time = std::numeric_limits<amrex::Real>::max();
+    amrex::Real start_time = 0.0;
+    amrex::Real  stop_time = std::numeric_limits<amrex::Real>::max();
 
     // if >= 0 we restart from a checkpoint
     std::string restart_chkfile = "";
@@ -729,8 +728,8 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells(const int& horiz_spatial_order, const int& vert_spatial_order,
-                      const int& spatial_order_WENO,  const bool& use_WENO,
+    ComputeGhostCells(const int& horiz_spatial_order,
+                      const int& vert_spatial_order,
                       const bool& use_numerical_diff)
     {
       int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
@@ -738,18 +737,6 @@ private:
       int nGhostCells = 0;
       if (use_numerical_diff) {
           nGhostCells = 3;
-      } else if(use_WENO) {
-          switch (spatial_order_WENO) {
-          case 3:
-              nGhostCells = 2;
-              break;
-          case 5:
-              nGhostCells = 3;
-              break;
-          default:
-              amrex::Error("Must specify WENO spatial order to be 3 or 5");
-              break;
-          }
       } else {
           switch (spatial_order) {
           case 2: case 3: case 4:
