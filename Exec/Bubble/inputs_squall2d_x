@@ -59,8 +59,9 @@ erf.input_sounding_file = "input_sounding_squall2d"
 erf.init_sounding_ideal = 1
 
 # PROBLEM PARAMETERS (optional)
+prob.T_0    = 0.0  # temperature has already been initialized with input sounding -- need to set to 0!
 # warm bubble input
-prob.T_pert = 3.0
+prob.T_pert = 3.0  # note: this is T, not theta; T_pert_is_airtemp==true by default
 prob.x_c    = 0.0
 prob.z_c    = 1500.0
 prob.x_r    = 4000.0
