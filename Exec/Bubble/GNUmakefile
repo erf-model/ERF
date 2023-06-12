@@ -25,8 +25,6 @@ USE_ASSERTION = TRUE
 
 USE_MOISTURE = TRUE
 
-USE_NETCDF = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

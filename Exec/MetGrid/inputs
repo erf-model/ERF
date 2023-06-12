@@ -46,8 +46,8 @@ erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
-#erf.les_type        = "Smagorinsky"
-erf.les_type        = "Deardorff"
+erf.les_type        = "Smagorinsky"
+#erf.les_type        = "Deardorff"
 erf.Cs              = 0.1
 
 # INITIALIZATION WITH ATM DATA

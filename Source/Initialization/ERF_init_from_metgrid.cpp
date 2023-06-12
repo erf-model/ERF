@@ -12,6 +12,10 @@ using namespace amrex;
 
 void
 read_from_metgrid(int lev, const std::string& fname,
+                  std::string& NC_datetime,
+                  int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
+                  int& flag_hgt,  int& NC_nx,     int& NC_ny,
+                  Real& NC_dx,    Real& NC_dy,
                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
                   FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
@@ -50,12 +54,16 @@ void
 init_msfs_from_metgrid(FArrayBox& msfu_fab,
                        FArrayBox& msfv_fab,
                        FArrayBox& msfm_fab,
+                       const int& flag_msfu,
+                       const int& flag_msfv,
+                       const int& flag_msfm,
                        const Vector<FArrayBox>& NC_MSFU_fab,
                        const Vector<FArrayBox>& NC_MSFV_fab,
                        const Vector<FArrayBox>& NC_MSFM_fab);
 
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
+                             const int& flag_psfc,
                              FArrayBox& state,
                              FArrayBox& r_hse_fab,
                              FArrayBox& p_hse_fab,
@@ -73,6 +81,7 @@ rh_to_mxrat(int i, int j, int k,
 
 void
 calc_rho_p(int i, int j,
+           const int& flag_psfc,
            const Array4<Real const>& psfc,
            const Array4<Real const>& new_z,
            const Array4<Real>& new_data,
@@ -89,12 +98,14 @@ void
 ERF::init_from_metgrid(int lev)
 {
 #if defined(ERF_USE_MOISTURE)
+    amrex::Print() << "Init with met_em with ERF_USE_MOISTURE" << std::endl;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Print() << "Init with met_em with ERF_USE_WARM_NO_PRECIP" << std::endl;
 #else
-    amrex::Error("Init with met_em requires either ERF_USE_MOISTURE or ERF_USE_WARM_NO_PRECIP");
+    amrex::Print() << "Init with met_em without moisture" << std::endl;
 #endif
 
-    // *** FArrayBox's at this level for holding the INITIAL data
+    // *** FArrayBox's at this level for holding the metgrid data
     Vector<FArrayBox> NC_xvel_fab;  NC_xvel_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_yvel_fab;  NC_yvel_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_temp_fab;  NC_temp_fab.resize(num_boxes_at_level[lev]);
@@ -117,12 +128,40 @@ ERF::init_from_metgrid(int lev)
     if (nc_init_file[lev].empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
+    // *** Variables at this level for holding metgrid file global attributes
+    Vector<int> flag_psfc;           flag_psfc.resize(num_boxes_at_level[lev]);
+    Vector<int> flag_msfu;           flag_msfu.resize(num_boxes_at_level[lev]);
+    Vector<int> flag_msfv;           flag_msfv.resize(num_boxes_at_level[lev]);
+    Vector<int> flag_msfm;           flag_msfm.resize(num_boxes_at_level[lev]);
+    Vector<int> flag_hgt;            flag_hgt.resize(num_boxes_at_level[lev]);
+    Vector<int> NC_nx;               NC_nx.resize(num_boxes_at_level[lev]);
+    Vector<int> NC_ny;               NC_ny.resize(num_boxes_at_level[lev]);
+    Vector<std::string> NC_datetime; NC_datetime.resize(num_boxes_at_level[lev]);
+    Vector<Real> NC_dx;              NC_dx.resize(num_boxes_at_level[lev]);
+    Vector<Real> NC_dy;              NC_dy.resize(num_boxes_at_level[lev]);
+
     for (int idx = 0; idx < nboxes; idx++)
     {
-        read_from_metgrid(lev,nc_init_file[lev][idx],NC_xvel_fab[idx],NC_yvel_fab[idx],
+        read_from_metgrid(lev, nc_init_file[lev][idx],
+                          NC_datetime[idx],
+                          flag_psfc[idx],   flag_msfu[idx],   flag_msfv[idx], flag_msfm[idx],
+                          flag_hgt[idx],    NC_nx[idx],       NC_ny[idx],
+                          NC_dx[idx],       NC_dy[idx],
+                          NC_xvel_fab[idx], NC_yvel_fab[idx],
                           NC_temp_fab[idx], NC_rhum_fab[idx], NC_pres_fab[idx],
-                          NC_ght_fab[idx], NC_hgt_fab[idx], NC_psfc_fab[idx],
+                          NC_ght_fab[idx],  NC_hgt_fab[idx],  NC_psfc_fab[idx],
                           NC_MSFU_fab[idx], NC_MSFV_fab[idx], NC_MSFM_fab[idx] );
+        amrex::Print() << " DJW init_from_metgrid: idx        \t" << idx << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: flag_psfc  \t" << flag_psfc[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: flag_msfu  \t" << flag_msfu[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: flag_msfv  \t" << flag_msfv[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: flag_msfm  \t" << flag_msfm[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: flag_hgt   \t" << flag_hgt[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: NC_nx      \t" << NC_nx[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: NC_ny      \t" << NC_ny[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: NC_datetime\t" << NC_datetime[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: NC_dx      \t" << NC_dx[idx] << std::endl;
+        amrex::Print() << " DJW init_from_metgrid: NC_dy      \t" << NC_dy[idx] << std::endl;
     }
 
     // Set up a FAB for mixing ratio, since our input data only has relative humidity.
@@ -144,7 +183,10 @@ ERF::init_from_metgrid(int lev)
 
     AMREX_ALWAYS_ASSERT(solverChoice.use_terrain);
 
-    z_phys->setVal(0.);
+    // Verify that the terrain height was in the metgrid data.
+    AMREX_ALWAYS_ASSERT(flag_hgt[0] == 1);
+
+    z_phys->setVal(0.0);
 
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
@@ -156,22 +198,13 @@ ERF::init_from_metgrid(int lev)
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     init_terrain_grid(geom[lev], *z_phys);
 
-#ifndef AMREX_USE_GPU
-    const amrex::Box& domain = geom[lev].Domain();
-    auto dx = geom[lev].CellSizeArray();
-    for (int i = 0; i < dx.size(); i++)
-    {
-        amrex::Print() << " geom.CellSizeArray()[" << i << "]: " << dx[i] << std::endl;
-    }
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(0): " << domain.smallEnd(0) << "    geom[" << lev << "].Domain.bigEnd(0): " << domain.bigEnd(0) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(1): " << domain.smallEnd(1) << "    geom[" << lev << "].Domain.bigEnd(1): " << domain.bigEnd(1) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.smallEnd(2): " << domain.smallEnd(2) << "    geom[" << lev << "].Domain.bigEnd(2): " << domain.bigEnd(2) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.length(0): " << domain.length(0) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.length(1): " << domain.length(1) << std::endl;
-    amrex::Print() << " geom[" << lev << "].Domain.length(2): " << domain.length(2) << std::endl;
-#endif
-
-    // TODO: Verify that DX and DY from met_em file matches that in geom (from ERF inputs file).
+    // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
+    AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[0] == NC_dx[0]);
+    AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[1] == NC_dy[0]);
+    // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
+    AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(0) == NC_nx[0]-2);
+    // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
+    AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(1) == NC_ny[0]-2);
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
@@ -209,17 +242,8 @@ ERF::init_from_metgrid(int lev)
         FArrayBox &msfv_fab = (*mapfac_v[lev])[mfi];
         FArrayBox &msfm_fab = (*mapfac_m[lev])[mfi];
 
-        // Zap the unnecessary ghost cells added by default when the MultiFab was created.
-//        Box bxu = msfu_fab.box();
-//        bxu.grow(2,-3);
-//        msfu_fab.resize(bxu);
-//        Box bxv = msfv_fab.box();
-//        bxv.grow(2,-3);
-//        msfv_fab.resize(bxv);
-//        Box bxm = msfm_fab.box();
-//        bxm.grow(2,-3);
-//        msfm_fab.resize(bxm);
         init_msfs_from_metgrid(msfu_fab, msfv_fab, msfm_fab,
+                               flag_msfu[0], flag_msfv[0], flag_msfm[0],
                                NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
     } // mf
 
@@ -238,6 +262,7 @@ ERF::init_from_metgrid(int lev)
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
 
         init_base_state_from_metgrid(l_rdOcp,
+                                     flag_psfc[0],
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
                                      z_phys_nd_fab, NC_ght_fab, NC_psfc_fab);
     }
@@ -245,10 +270,8 @@ ERF::init_from_metgrid(int lev)
 
 
 /**
- * Helper function to initialize terrain nodal z coordinates for a Fab
- * given metgrid data.
+ * Helper function to initialize terrain nodal z coordinates given metgrid data.
  *
- * @param lev Integer specifying the current level
  * @param z_phys_nd_fab FArrayBox (Fab) holding the nodal z coordinates for terrain data we want to fill
  * @param NC_hgt_fab Vector of FArrayBox objects holding height data read from NetCDF files for metgrid data
  */
@@ -303,26 +326,29 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
 }
 
 /**
- * Helper function to initialize state and velocity data
- * read from metgrid data.
+ * Helper function to initialize state and velocity data read from metgrid data.
  *
- * @param lev Integer specifying the current level
  * @param state_fab FArrayBox holding the state data to initialize
  * @param x_vel_fab FArrayBox holding the x-velocity data to initialize
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
  * @param z_vel_fab FArrayBox holding the z-velocity data to initialize
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
- * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for height
+ * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for terrain height
+ * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
  * @param NC_xvel_fab Vector of FArrayBox obects holding metgrid data for x-velocity
  * @param NC_yvel_fab Vector of FArrayBox obects holding metgrid data for y-velocity
  * @param NC_zvel_fab Vector of FArrayBox obects holding metgrid data for z-velocity
- * @param NC_rho_fab Vector of FArrayBox obects holding metgrid data for density
- * @param NC_rhotheta_fab Vector of FArrayBox obects holding metgrid data for (density * potential temperature)
+ * @param NC_temp_fab Vector of FArrayBox obects holding metgrid data for temperature
+ * @param NC_rhum_fab Vector of FArrayBox obects holding metgrid data for relative humidity
+ * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
+ * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
  */
 void
 init_state_from_metgrid(FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                        FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
+                        FArrayBox& x_vel_fab,
+                        FArrayBox& y_vel_fab,
+                        FArrayBox& z_vel_fab,
+                        FArrayBox& z_phys_nd_fab,
                         const Vector<FArrayBox>& NC_hgt_fab,
                         const Vector<FArrayBox>& NC_ght_fab,
                         const Vector<FArrayBox>& NC_xvel_fab,
@@ -443,15 +469,15 @@ init_state_from_metgrid(FArrayBox& state_fab,
 }
 
 /**
- * Helper function to initialize map factors from metgrid data
+ * Helper function to calculate vapor mixing ratio from relative humidity, pressure and temperature.
  *
- * @param lev Integer specifying current level
- * @param msfu_fab FArrayBox specifying x-velocity map factors
- * @param msfv_fab FArrayBox specifying y-velocity map factors
- * @param msfm_fab FArrayBox specifying z-velocity map factors
- * @param NC_MSFU_fab Vector of FArrayBox objects holding metgrid data for x-velocity map factors
- * @param NC_MSFV_fab Vector of FArrayBox objects holding metgrid data for y-velocity map factors
- * @param NC_MSFM_fab Vector of FArrayBox objects holding metgrid data for z-velocity map factors
+ * @param i Integer specifying the x-dimension index for the column
+ * @param j Integer specifying the y-dimension index for the column
+ * @param k Integer specifying the z-dimension index for the column
+ * @param rhum Array4 object holding relative humidty from the metgrid data
+ * @param temp Array4 object holding temperature from the metgrid data
+ * @param pres Array4 object holding pressure from the metgrid data
+ * @param mxrat Array4 object to hold the calculated vapor mixing ratio
  */
 void
 rh_to_mxrat(int i, int j, int k, 
@@ -505,8 +531,21 @@ rh_to_mxrat(int i, int j, int k,
     }
 }
 
+/**
+ * Helper function for calculating density and pressure in hydrostatic balance given metgrid data.
+ *
+ * @param i Integer specifying the x-dimension index for the column
+ * @param j Integer specifying the y-dimension index for the column
+ * @param flag_psfc Integer 1 if surface pressure is in metgrid data, 0 otherwise
+ * @param psfc Array4 object holding surface pressure from the metgrid data
+ * @param new_z Array4 object containing the new z-coordinates
+ * @param new_data Array4 object containing state varaibles interpolated onto the new z-coordinates
+ * @param r_hse_arr Array4 object holding the hydrostatic base state density we are initializing
+ * @param p_hse_arr Array4 object holding the hydrostatic base state pressure we are initializing
+ */
 void
 calc_rho_p(int i, int j,
+           const int& flag_psfc,
            const Array4<Real const>& psfc,
            const Array4<Real const>& new_z,
            const Array4<Real>& new_data,
@@ -524,20 +563,26 @@ calc_rho_p(int i, int j,
     std::vector<Real> rhom_integ(kmax);
     std::vector<Real> pd_integ(kmax);
 
-    // TODO: check if we have pressure at the surface. If not, estimate it!
-//    Real t_0 = 290.0; // WRF's model_config_rec%base_temp
-//    Real a = 50.0; // WRF's model_config_rec%base_lapse
-//    Real p_surf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2*CONST_GRAV*hgt(i,j)/(a*R_d)), 0.5);
+    // Calculate or use moist pressure at the surface.
+    if (flag_psfc == 1) {
+        pm_integ[0] = psfc(i,j,0);
+    } else {
+#ifndef AMREX_USE_GPU
+        amrex::Print() << " PSFC not present in met_em files. Calculating surface pressure." << std::endl;
+#endif
+        Real t_0 = 290.0; // WRF's model_config_rec%base_temp
+        Real a = 50.0; // WRF's model_config_rec%base_lapse
+        pm_integ[0] = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*CONST_GRAV*new_z(i,j,0)/(a*R_d)), 0.5));
+    }
 
     // calculate virtual potential temperature at the surface.
 #if defined(ERF_USE_MOISTURE)
     theta_v[0] = new_data(i,j,0,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQt_comp));
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     theta_v[0] = new_data(i,j,0,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQv_comp));
+#else
+    theta_v[0] = new_data(i,j,0,RhoTheta_comp);
 #endif
-
-    // calculate or use moist pressure at the surface.
-    pm_integ[0] = psfc(i,j,0);
 
     // calculate moist density at the surface.
     rhom_integ[0] = 1.0/(R_d/p_0*theta_v[0]*std::pow(pm_integ[0]/p_0, -iGamma));
@@ -552,7 +597,8 @@ calc_rho_p(int i, int j,
         Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQv_comp);
         theta_v[k] = new_data(i,j,k,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQv_comp));
 #else
-        Real qvf = 0.0;
+        Real qvf = 1.0;
+        theta_v[k] = new_data(i,j,k,RhoTheta_comp);
 #endif
         rhom_integ[k] = rhom_integ[k-1]; // an initial guess.
         for (int it=0; it < maxiter; ++it) {
@@ -578,8 +624,26 @@ calc_rho_p(int i, int j,
     }
 }
 
+/**
+ * Helper function to initialize map factors from metgrid data
+ *
+ * @param msfu_fab FArrayBox specifying x-velocity map factors
+ * @param msfv_fab FArrayBox specifying y-velocity map factors
+ * @param msfm_fab FArrayBox specifying z-velocity map factors
+ * @param flag_msfu Integer 1 if u-staggered map factor is in metgrid data, 0 otherwise
+ * @param flag_msfv Integer 1 if v-staggered map factor is in metgrid data, 0 otherwise
+ * @param flag_msfm Integer 1 if cell center map factor is in metgrid data, 0 otherwise
+ * @param NC_MSFU_fab Vector of FArrayBox objects holding metgrid data for x-velocity map factors
+ * @param NC_MSFV_fab Vector of FArrayBox objects holding metgrid data for y-velocity map factors
+ * @param NC_MSFM_fab Vector of FArrayBox objects holding metgrid data for z-velocity map factors
+ */
 void
-init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+init_msfs_from_metgrid(FArrayBox& msfu_fab,
+                       FArrayBox& msfv_fab,
+                       FArrayBox& msfm_fab,
+                       const int& flag_msfu,
+                       const int& flag_msfv,
+                       const int& flag_msfm,
                        const Vector<FArrayBox>& NC_MSFU_fab,
                        const Vector<FArrayBox>& NC_MSFV_fab,
                        const Vector<FArrayBox>& NC_MSFM_fab)
@@ -593,14 +657,35 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
         //
 
-        // This copies mapfac_m
-        msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[idx]);
+        // This copies or sets mapfac_m
+        if (flag_msfm == 1) {
+            msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[idx]);
+        } else {
+#ifndef AMREX_USE_GPU
+            amrex::Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
+#endif
+            msfm_fab.template setVal<RunOn::Device>(1.0);
+        }
 
-        // This copies mapfac_u
-        msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[idx]);
+        // This copies or sets mapfac_u
+        if (flag_msfu == 1) {
+            msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[idx]);
+        } else {
+#ifndef AMREX_USE_GPU
+            amrex::Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
+#endif
+            msfu_fab.template setVal<RunOn::Device>(1.0);
+        }
 
-        // This copies mapfac_v
-        msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[idx]);
+        // This copies or sets mapfac_v
+        if (flag_msfv == 1) {
+            msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[idx]);
+        } else {
+#ifndef AMREX_USE_GPU
+            amrex::Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
+#endif
+            msfv_fab.template setVal<RunOn::Device>(1.0);
+        }
 
     } // idx
 }
@@ -608,17 +693,19 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab, FArrayBox& msfv_fab, FArrayBox& msfm
 /**
  * Helper function for initializing hydrostatic base state data from metgrid data
  *
- * @param lev Integer specifying the current level
- * @param valid_bx Box specifying the index space we are initializing
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
- * @param p_hse FArrayBox holding the hydrostatic base state pressure we are initializing
- * @param pi_hse FArrayBox holding the hydrostatic base Exner pressure we are initializing
- * @param r_hse FArrayBox holding the hydrostatic base state density we are initializing
- * @param NC_ALB_fab Vector of FArrayBox objects holding metgrid data specifying 1/density
- * @param NC_PB_fab Vector of FArrayBox objects holding metgrid data specifying pressure
+ * @param flag_psfc Integer 1 if surface pressure is in metgrid data, 0 otherwise
+ * @param state_fab FArrayBox holding the state data to initialize
+ * @param r_hse_fab FArrayBox holding the hydrostatic base state density we are initializing
+ * @param p_hse_fab FArrayBox holding the hydrostatic base state pressure we are initializing
+ * @param pi_hse_fab FArrayBox holding the hydrostatic base Exner pressure we are initializing
+ * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
+ * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
+ * @param NC_psfc_fab Vector of FArrayBox objects holding metgrid data for surface pressure
  */
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
+                             const int& flag_psfc,
                              FArrayBox& state_fab,
                              FArrayBox& r_hse_fab,
                              FArrayBox& p_hse_fab,
@@ -648,7 +735,7 @@ init_base_state_from_metgrid(const Real l_rdOcp,
         auto const new_z = z_phys_nd_fab.const_array();
 
         amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            calc_rho_p(i,j,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
+            calc_rho_p(i,j,flag_psfc,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
         });
 
         Box bx3d = state_fab.box();
@@ -678,10 +765,11 @@ init_base_state_from_metgrid(const Real l_rdOcp,
 /**
  * Helper function to interpolate data and its associated z-coordinates to a new set of z-coordinates.
  *
- * Operates on a column of data (with fixed x,y coordinates) at a time.
+ * Operates on a column of unsorted data (with fixed x,y coordinates) at a time.
  *
  * @param i Integer specifying the x-dimension index for the column
  * @param j Integer specifying the y-dimension index for the column
+ * @param stag Char specifying the variable staggering ("X", "Y", or "M")
  * @param src_comp Integer specifying the source component of the data to start intepolation from
  * @param dest_comp Integer specifying the destination component of the data to interpolate into
  * @param orig_z Array4 object containing the original z-coordinates to interpolate from
@@ -806,6 +894,20 @@ interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,
     }
 }
 
+/**
+ * Helper function to interpolate data and its associated z-coordinates to a new set of z-coordinates.
+ *
+ * Operates on a column of data (with fixed x,y coordinates) at a time.
+ *
+ * @param i Integer specifying the x-dimension index for the column
+ * @param j Integer specifying the y-dimension index for the column
+ * @param src_comp Integer specifying the source component of the data to start intepolation from
+ * @param dest_comp Integer specifying the destination component of the data to interpolate into
+ * @param orig_z Array4 object containing the original z-coordinates to interpolate from
+ * @param orig_data Array4 object containing the data at the original z-coordinates to interpolate
+ * @param new_z Array4 object containing the new z-coordinates to interpolate into
+ * @param new_data Array4 object into which we interpolate the data at the new z-coordinates
+ */
 AMREX_GPU_DEVICE
 void
 interpolate_column(int i, int j, int src_comp, int dest_comp,

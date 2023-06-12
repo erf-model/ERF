@@ -114,7 +114,6 @@ fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
 
     // TODO:  The box will only start at (0,0,0) at level 0 -- we need to generalize this
     Box my_box(IntVect(0,0,0), IntVect(ns3-1,ns2-1,ns1-1));
-    amrex::Print() << " " << var_name << "    " << my_box << std::endl;
     // amrex::Print() <<" MY BOX " << my_box << std::endl;
 
     if (var_name == "U" || var_name == "UU" ||

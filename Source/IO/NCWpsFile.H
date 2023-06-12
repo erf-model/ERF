@@ -13,8 +13,12 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
 
 /*
  // Read from metgrid
- NetCDF variables of dimensions Time_BT_SN_WE: "UU", "VV", "TT", "RH", "PRES"
- NetCDF variables of dimensions Time_SN_WE   : "HGT", "MAPFAC_U",  "MAPFAC_V",  "MAPFAC_M"
+ NetCDF variables of dimensions Time_BT_SN_WE: "UU", "VV", "TT", "RH", "PRES", "GHT"
+ NetCDF variables of dimensions Time_SN_WE   : "HGT", "MAPFAC_U",  "MAPFAC_V",  "MAPFAC_M", "PSFC"
+ NetCDF global attributes of type int        : "FLAG_PSFC", "FLAG_MAPFAC_U", "FLAG_MAPFAC_V", "FLAG_MAPFAC_M", 
+                                               "FLAG_HGT_M", "WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION"
+ NetCDF global attributes of type string     : "SIMULATION_START_DATE"
+ NetCDF global attributes of type real       : "DX", "DY"
 
  // Read from wrfbdy
  NetCDF variables of dimensions Time_BdyWidth_BT_SN         : "U_BXS", "U_BXE", "V_BXS", "V_BXE" etc.
@@ -150,30 +154,6 @@ void ReadNetCDFFile(const std::string& fname, amrex::Vector<std::string> names,
         int south_north_stag   = static_cast<int>(ncf.dim("south_north_stag").len());
         int bdy_width          = static_cast<int>(ncf.dim("bdy_width").len());
         */
-
-        if (ncf.has_attr( "SIMULATION_START_DATE" )) {
-            amrex::Print() << " SIMULATION_START_DATE: " << ncf.get_attr( "SIMULATION_START_DATE" ) << std::endl;
-        }
-	if (ncf.has_attr( "WEST-EAST_GRID_DIMENSION" )) {
-            std::vector<int> nx;
-            ncf.get_attr( "WEST-EAST_GRID_DIMENSION", nx );
-            amrex::Print() << " WEST-EAST_GRID_DIMENSION: " << nx[0] << std::endl;
-	}
-        if (ncf.has_attr( "SOUTH-NORTH_GRID_DIMENSION" )) {
-            std::vector<int> ny;
-            ncf.get_attr( "SOUTH-NORTH_GRID_DIMENSION", ny );
-            amrex::Print() << " SOUTH-NORTH_GRID_DIMENSION: " << ny[0] << std::endl;
-        }
-        if (ncf.has_attr( "DX" )) {
-            std::vector<float> dx;
-            ncf.get_attr( "DX", dx );
-            amrex::Print() << " DX: " << dx[0] << std::endl;
-        }
-        if (ncf.has_attr( "DY" )) {
-            std::vector<float> dy;
-            ncf.get_attr( "DY", dy );
-            amrex::Print() << " DY: " << dy[0] << std::endl;
-        }
 
         // amrex::Print() << "Reading the dimensions from the netcdf file " << "\n";
         for (auto n=0; n<arrays.size(); ++n) {

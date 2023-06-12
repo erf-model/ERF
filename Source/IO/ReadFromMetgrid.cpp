@@ -6,6 +6,10 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 void
 read_from_metgrid(int lev, const std::string& fname,
+                  std::string& NC_datetime,
+                  int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
+                  int& flag_hgt,  int& NC_nx,     int& NC_ny,
+                  Real& NC_dx,    Real& NC_dy,
                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
                   FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
@@ -16,6 +20,29 @@ read_from_metgrid(int lev, const std::string& fname,
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
     int ncomp = 1;
+
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
+        { // Global Attributes (int)
+            std::vector<int> attr;
+            ncf.get_attr("FLAG_PSFC", attr); flag_psfc = attr[0];
+            ncf.get_attr("FLAG_MAPFAC_U", attr); flag_msfu = attr[0];
+            ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv = attr[0];
+            ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm = attr[0];
+            ncf.get_attr("FLAG_HGT_M", attr); flag_hgt  = attr[0];
+            ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr); NC_nx = attr[0];
+            ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
+        }
+        { // Global Attributes (string)
+            NC_datetime = ncf.get_attr("SIMULATION_START_DATE");
+        }
+        { // Global Attributes (Real)
+            std::vector<Real> attr;
+            ncf.get_attr("DX", attr); NC_dx = attr[0];
+            ncf.get_attr("DY", attr); NC_dy = attr[0];
+        }
+        ncf.close();
+    }
 
     Vector<FArrayBox*> NC_fabs;
     Vector<std::string> NC_names;
