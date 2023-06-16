@@ -230,11 +230,11 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
              GPU_AWARE_MPI="amrex.use_gpu_aware_mpi=1"
 
              # the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
-             # set ordering of CUDA visible devices inverse to local task IDs for optimal GPU-aware
+             # set ordering of CUDA visible devices inverse to local task IDs for optimal GPU-aware MPI
              srun -n 8 --cpus-per-task=32 --cpu-bind=cores bash -c "
                export CUDA_VISIBLE_DEVICES=\$((3-SLURM_LOCALID));
-               ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100 ${GPU_AWARE_MPI}"
-
+               ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100 ${GPU_AWARE_MPI}" \
+             > test.out
 
 To submit your job script, do `sbatch [your job script]` and you can check its status by doing `squeue -u [your username]`.
 
