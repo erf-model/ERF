@@ -130,6 +130,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
       ncf.put_attr("number_variables", std::vector<int>{n_data_items});
       ncf.put_attr("space_dimension", std::vector<int>{AMREX_SPACEDIM});
       ncf.put_attr("current_time", std::vector<double>{time});
+      ncf.put_attr("start_time", std::vector<double>{start_bdy_time});
       ncf.put_attr("CurrentLevel", std::vector<int>{flev});
 
       Real dx[AMREX_SPACEDIM];

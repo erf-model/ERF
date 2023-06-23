@@ -199,6 +199,7 @@
                                        wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                        S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                        bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+        if (init_type == "metgrid" && level == 0) amrex::Print() << " compute_interior_ghost_RHS from slow_rhs_fun_pre" << std::endl;
 #endif
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
@@ -313,6 +314,7 @@
                                        wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                        S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                        bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+        if (init_type == "metgrid" && level == 0) amrex::Print() << " compute_interior_ghost_RHS from slow_rhs_fun_inc" << std::endl;
 #endif
     }; // end slow_rhs_fun_inc
 #endif

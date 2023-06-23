@@ -4,9 +4,35 @@
 using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
+
+// Converts UTC time string to a time_t value in UTC.
+std::time_t
+getEpochTime_metgrid(const std::string& dateTime, const std::string& dateTimeFormat)
+{
+    // Create a stream which we will use to parse the string,
+    // which we provide to constructor of stream to fill the buffer.
+    std::istringstream ss{ dateTime };
+
+    // Create a tm object to store the parsed date and time.
+    std::tm tmTime;
+    memset(&tmTime, 0, sizeof(tmTime));
+
+    // Now we read from buffer using get_time manipulator
+    // and formatting the input appropriately.
+    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
+
+    // Convert the tm structure to time_t value and return.
+    // Here we use timegm since the output should be relative to UTC.
+    auto epoch = timegm(&tmTime);
+    // Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
+    //         << " , Epoch: " << epoch << std::endl;
+
+    return epoch;
+}
+
 void
 read_from_metgrid(int lev, const std::string& fname,
-                  std::string& NC_datetime,
+                  std::string& NC_dateTime, Real& NC_epochTime,
                   int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
                   int& flag_hgt,  int& NC_nx,     int& NC_ny,
                   Real& NC_dx,    Real& NC_dy,
@@ -18,8 +44,6 @@ read_from_metgrid(int lev, const std::string& fname,
                   FArrayBox& NC_msfm_fab)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
-
-    int ncomp = 1;
 
     if (amrex::ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
@@ -34,7 +58,9 @@ read_from_metgrid(int lev, const std::string& fname,
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];
         }
         { // Global Attributes (string)
-            NC_datetime = ncf.get_attr("SIMULATION_START_DATE");
+            NC_dateTime = ncf.get_attr("SIMULATION_START_DATE")+"UTC";
+            const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S%Z";
+            NC_epochTime = getEpochTime_metgrid(NC_dateTime, dateTimeFormat);
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;
@@ -43,6 +69,17 @@ read_from_metgrid(int lev, const std::string& fname,
         }
         ncf.close();
     }
+    int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+    ParallelDescriptor::Bcast(&flag_psfc,    1, ioproc);
+    ParallelDescriptor::Bcast(&flag_msfu,    1, ioproc);
+    ParallelDescriptor::Bcast(&flag_msfv,    1, ioproc);
+    ParallelDescriptor::Bcast(&flag_msfm,    1, ioproc);
+    ParallelDescriptor::Bcast(&flag_hgt,     1, ioproc);
+    ParallelDescriptor::Bcast(&NC_nx,        1, ioproc);
+    ParallelDescriptor::Bcast(&NC_ny,        1, ioproc);
+    ParallelDescriptor::Bcast(&NC_epochTime, 1, ioproc);
+    ParallelDescriptor::Bcast(&NC_dx,        1, ioproc);
+    ParallelDescriptor::Bcast(&NC_dy,        1, ioproc);
 
     Vector<FArrayBox*> NC_fabs;
     Vector<std::string> NC_names;
@@ -63,8 +100,6 @@ read_from_metgrid(int lev, const std::string& fname,
 
     // Read the netcdf file and fill these FABs
     BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
-
-    // TODO: Read DX and DY from met_em file.
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //

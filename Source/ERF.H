@@ -655,6 +655,10 @@ private:
     int wrfbdy_width;
     int wrfbdy_set_width{1};
 
+    // NetCDF initialization (met_em) file
+    int metgrid_bdy_width = 5;
+    int metgrid_bdy_set_width{1};
+
     // Text input_sounding file
     static std::string input_sounding_file;
 

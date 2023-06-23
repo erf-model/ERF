@@ -10,7 +10,6 @@
 
 #include "DataStruct.H"
 #include "NCInterface.H"
-#include "NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_Print.H"
 

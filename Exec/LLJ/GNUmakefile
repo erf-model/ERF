@@ -25,7 +25,7 @@ TEST = TRUE
 USE_ASSERTION = TRUE
 
 USE_NETCDF  = TRUE
-USE_HDF5    = TRUE
+#USE_HDF5    = TRUE
 
 # GNU Make
 Bpack := ./Make.package

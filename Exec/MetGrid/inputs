@@ -2,6 +2,8 @@
 max_step = 100
 
 amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_zero = 1
+amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_extent =  28000 16000 8000
@@ -38,7 +40,7 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1          # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres
+erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres KE QKE
 
 # SOLVER CHOICE
 erf.alpha_T = 1.0
@@ -51,8 +53,8 @@ erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
 # INITIALIZATION WITH ATM DATA
-erf.init_type    = "metgrid"
-erf.nc_init_file_0 = "met_em_d01.nc"
+erf.init_type      = "metgrid"
+erf.nc_init_file_0 = "met_em.d01.2022-06-18_00:00:00.nc" "met_em.d01.2022-06-18_06:00:00.nc" "met_em.d01.2022-06-18_12:00:00.nc" "met_em.d01.2022-06-18_18:00:00.nc"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024

@@ -75,6 +75,17 @@ namespace WRFBdyVars {
     };
 }
 
+namespace MetGridBdyVars {
+    enum {
+        U = 0,
+        V = 1,
+        R = 2,
+        T = 3,
+        QV,
+        NumTypes
+    };
+}
+
 namespace Vars {
     enum {
         cons = 0,

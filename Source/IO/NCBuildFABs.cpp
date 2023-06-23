@@ -52,6 +52,7 @@ BuildFABsFromNetCDFFile(const std::string &fname,
 
         Box box = tmp.box();
         int ncomp = tmp.nComp();
+
         ParallelDescriptor::Bcast(&box, 1, ioproc);
         ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
 

@@ -12,7 +12,7 @@ using namespace amrex;
 
 void
 read_from_metgrid(int lev, const std::string& fname,
-                  std::string& NC_datetime,
+                  std::string& NC_dateTime, Real& NC_epochTime,
                   int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
                   int& flag_hgt,  int& NC_nx,     int& NC_ny,
                   Real& NC_dx,    Real& NC_dy,
@@ -38,7 +38,8 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
                           const Vector<FArrayBox>& NC_hgt_fab);
 
 void
-init_state_from_metgrid(FArrayBox& state_fab,
+init_state_from_metgrid(const Real l_rdOcp,
+                        FArrayBox& state_fab,
                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
                         FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
                         const Vector<FArrayBox>& NC_hgt_fab,
@@ -48,6 +49,7 @@ init_state_from_metgrid(FArrayBox& state_fab,
                         const Vector<FArrayBox>& NC_zvel_fab,
                         const Vector<FArrayBox>& NC_temp_fab,
                         const Vector<FArrayBox>& NC_rhum_fab,
+                              Vector<FArrayBox>& theta_fab,
                               Vector<FArrayBox>& mxrat_fab);
 
 void
@@ -63,7 +65,8 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
 
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
-                             const int& flag_psfc,
+                             const Box& valid_bx,
+                             const Vector<int>& flag_psfc,
                              FArrayBox& state,
                              FArrayBox& r_hse_fab,
                              FArrayBox& p_hse_fab,
@@ -105,22 +108,8 @@ ERF::init_from_metgrid(int lev)
     amrex::Print() << "Init with met_em without moisture" << std::endl;
 #endif
 
-    // *** FArrayBox's at this level for holding the metgrid data
-    Vector<FArrayBox> NC_xvel_fab;  NC_xvel_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_yvel_fab;  NC_yvel_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_temp_fab;  NC_temp_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_rhum_fab;  NC_rhum_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_pres_fab;  NC_pres_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_ght_fab;   NC_ght_fab.resize(num_boxes_at_level[lev]);
-
-    Vector<FArrayBox> NC_hgt_fab;   NC_hgt_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_psfc_fab;  NC_psfc_fab.resize(num_boxes_at_level[lev]);
-
-    Vector<FArrayBox> NC_MSFU_fab;  NC_MSFU_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MSFV_fab;  NC_MSFV_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MSFM_fab;  NC_MSFM_fab.resize(num_boxes_at_level[lev]);
-
     int nboxes = num_boxes_at_level[lev];
+    int ntimes = num_files_at_level[lev];
 
     if (nc_init_file.empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
@@ -128,52 +117,88 @@ ERF::init_from_metgrid(int lev)
     if (nc_init_file[lev].empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
+    // At least two met_em files are necessary to calculate tendency terms.
+    AMREX_ALWAYS_ASSERT(ntimes >= 2);
+
+#ifndef AMREX_USE_GPU
+    amrex::Print() << "DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": num_boxes_at_level[" << lev << "] \t" << nboxes << std::endl;
+    amrex::Print() << "DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": num_files_at_level[" << lev << "] \t" << ntimes << std::endl;
+#endif
+
+    // *** FArrayBox's at this level for holding the metgrid data
+    Vector<FArrayBox> NC_xvel_fab;  NC_xvel_fab.resize(ntimes);
+    Vector<FArrayBox> NC_yvel_fab;  NC_yvel_fab.resize(ntimes);
+    Vector<FArrayBox> NC_temp_fab;  NC_temp_fab.resize(ntimes);
+    Vector<FArrayBox> NC_rhum_fab;  NC_rhum_fab.resize(ntimes);
+    Vector<FArrayBox> NC_pres_fab;  NC_pres_fab.resize(ntimes);
+    Vector<FArrayBox> NC_ght_fab;   NC_ght_fab.resize( ntimes);
+    Vector<FArrayBox> NC_hgt_fab;   NC_hgt_fab.resize( ntimes);
+    Vector<FArrayBox> NC_psfc_fab;  NC_psfc_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFU_fab;  NC_MSFU_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFV_fab;  NC_MSFV_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFM_fab;  NC_MSFM_fab.resize(ntimes);
+
     // *** Variables at this level for holding metgrid file global attributes
-    Vector<int> flag_psfc;           flag_psfc.resize(num_boxes_at_level[lev]);
-    Vector<int> flag_msfu;           flag_msfu.resize(num_boxes_at_level[lev]);
-    Vector<int> flag_msfv;           flag_msfv.resize(num_boxes_at_level[lev]);
-    Vector<int> flag_msfm;           flag_msfm.resize(num_boxes_at_level[lev]);
-    Vector<int> flag_hgt;            flag_hgt.resize(num_boxes_at_level[lev]);
-    Vector<int> NC_nx;               NC_nx.resize(num_boxes_at_level[lev]);
-    Vector<int> NC_ny;               NC_ny.resize(num_boxes_at_level[lev]);
-    Vector<std::string> NC_datetime; NC_datetime.resize(num_boxes_at_level[lev]);
-    Vector<Real> NC_dx;              NC_dx.resize(num_boxes_at_level[lev]);
-    Vector<Real> NC_dy;              NC_dy.resize(num_boxes_at_level[lev]);
+    Vector<int> flag_psfc;           flag_psfc.resize(   ntimes);
+    Vector<int> flag_msfu;           flag_msfu.resize(   ntimes);
+    Vector<int> flag_msfv;           flag_msfv.resize(   ntimes);
+    Vector<int> flag_msfm;           flag_msfm.resize(   ntimes);
+    Vector<int> flag_hgt;            flag_hgt.resize(    ntimes);
+    Vector<int> NC_nx;               NC_nx.resize(       ntimes);
+    Vector<int> NC_ny;               NC_ny.resize(       ntimes);
+    Vector<std::string> NC_dateTime; NC_dateTime.resize( ntimes);
+    Vector<Real> NC_epochTime;       NC_epochTime.resize(ntimes);
+    Vector<Real> NC_dx;              NC_dx.resize(       ntimes);
+    Vector<Real> NC_dy;              NC_dy.resize(       ntimes);
 
-    for (int idx = 0; idx < nboxes; idx++)
-    {
-        read_from_metgrid(lev, nc_init_file[lev][idx],
-                          NC_datetime[idx],
-                          flag_psfc[idx],   flag_msfu[idx],   flag_msfv[idx], flag_msfm[idx],
-                          flag_hgt[idx],    NC_nx[idx],       NC_ny[idx],
-                          NC_dx[idx],       NC_dy[idx],
-                          NC_xvel_fab[idx], NC_yvel_fab[idx],
-                          NC_temp_fab[idx], NC_rhum_fab[idx], NC_pres_fab[idx],
-                          NC_ght_fab[idx],  NC_hgt_fab[idx],  NC_psfc_fab[idx],
-                          NC_MSFU_fab[idx], NC_MSFV_fab[idx], NC_MSFM_fab[idx] );
-        amrex::Print() << " DJW init_from_metgrid: idx        \t" << idx << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: flag_psfc  \t" << flag_psfc[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: flag_msfu  \t" << flag_msfu[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: flag_msfv  \t" << flag_msfv[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: flag_msfm  \t" << flag_msfm[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: flag_hgt   \t" << flag_hgt[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: NC_nx      \t" << NC_nx[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: NC_ny      \t" << NC_ny[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: NC_datetime\t" << NC_datetime[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: NC_dx      \t" << NC_dx[idx] << std::endl;
-        amrex::Print() << " DJW init_from_metgrid: NC_dy      \t" << NC_dy[idx] << std::endl;
-    }
+    for (int it = 0; it < ntimes; it++) {
+#ifndef AMREX_USE_GPU
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": nc_init_file[" << lev << "][" << it << "]\t" << nc_init_file[lev][it] << std::endl;
+#endif
+        read_from_metgrid(lev, nc_init_file[lev][it],
+                          NC_dateTime[it], NC_epochTime[it],
+                          flag_psfc[it],   flag_msfu[it],   flag_msfv[it], flag_msfm[it],
+                          flag_hgt[it],    NC_nx[it],       NC_ny[it],
+                          NC_dx[it],       NC_dy[it],
+                          NC_xvel_fab[it], NC_yvel_fab[it],
+                          NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
+                          NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
+                          NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it] );
+#ifndef AMREX_USE_GPU
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_psfc   \t" << flag_psfc[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfu   \t" << flag_msfu[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfv   \t" << flag_msfv[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfm   \t" << flag_msfm[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_hgt    \t" << flag_hgt[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_nx       \t" << NC_nx[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_ny       \t" << NC_ny[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_dx       \t" << NC_dx[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_dy       \t" << NC_dy[it] << std::endl;
+        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_epochTime\t" << NC_epochTime[it] << std::endl;
+        // NC_dateTime is only on the IOProcessor.
+        amrex::Print() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": NC_dateTime \t" << NC_dateTime[it] << std::endl;
+#endif
+    } // it
 
-    // Set up a FAB for mixing ratio, since our input data only has relative humidity.
-    // Is there an easier way to set up an empty variable that we can calculate later?
-    Vector<FArrayBox> mxrat_fab; mxrat_fab.resize(num_boxes_at_level[lev]);
-    for (int idx = 0; idx < nboxes; idx++)
-    {
-        Box my_box = NC_rhum_fab[idx].box();
+    // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
+    for (int it = 1; it < ntimes; it++) AMREX_ALWAYS_ASSERT(NC_epochTime[it] > NC_epochTime[it-1]);
+
+    // Start at the earliest time in nc_init_file[lev].
+    start_bdy_time = NC_epochTime[0];
+
+    // Set up a FAB for mixing ratio and another for potential temperature.
+    // Our input data only has relative humidity and temperature.
+    // TODO: add alternate pathways for other origin model cases where different variables may be present.
+    Vector<FArrayBox> mxrat_fab; mxrat_fab.resize(ntimes);
+    Vector<FArrayBox> theta_fab; theta_fab.resize(ntimes);
+    for (int it = 0; it < ntimes; it++) {
+        Box my_box = NC_rhum_fab[it].box();
 #ifdef AMREX_USE_GPU
-        mxrat_fab[idx].resize(my_box, 1, The_Pinned_Arena());
+        mxrat_fab[it].resize(my_box, 1, The_Pinned_Arena());
+        theta_fab[it].resize(my_box, 1, The_Pinned_Arena());
 #else
-        mxrat_fab[idx].resize(my_box, 1);
+        mxrat_fab[it].resize(my_box, 1);
+        theta_fab[it].resize(my_box, 1);
 #endif
     }
 
@@ -183,13 +208,12 @@ ERF::init_from_metgrid(int lev)
 
     AMREX_ALWAYS_ASSERT(solverChoice.use_terrain);
 
-    // Verify that the terrain height was in the metgrid data.
-    AMREX_ALWAYS_ASSERT(flag_hgt[0] == 1);
+    // Verify that the terrain height (HGT_M) was in each met_em file.
+    for (int it = 0; it < ntimes; it++) AMREX_ALWAYS_ASSERT(flag_hgt[it] == 1);
 
     z_phys->setVal(0.0);
 
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
         init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
@@ -198,13 +222,15 @@ ERF::init_from_metgrid(int lev)
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     init_terrain_grid(geom[lev], *z_phys);
 
-    // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
-    AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[0] == NC_dx[0]);
-    AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[1] == NC_dy[0]);
-    // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
-    AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(0) == NC_nx[0]-2);
-    // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
-    AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(1) == NC_ny[0]-2);
+    for (int it = 0; it < ntimes; it++) {
+        // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
+        AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[0] == NC_dx[it]);
+        AMREX_ALWAYS_ASSERT(geom[lev].CellSizeArray()[1] == NC_dy[it]);
+        // NC_nx-2 because NC_nx is the number of staggered grid points indexed from 1.
+        AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(0) == NC_nx[it]-2);
+        // NC_ny-2 because NC_ny is the number of staggered grid points indexed from 1.
+        AMREX_ALWAYS_ASSERT(geom[lev].Domain().bigEnd(1) == NC_ny[it]-2);
+    } // it
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
@@ -212,11 +238,12 @@ ERF::init_from_metgrid(int lev)
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
 
+    const Real l_rdOcp = solverChoice.rdOcp;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // Define fabs for holding the initial data
         FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
@@ -224,19 +251,19 @@ ERF::init_from_metgrid(int lev)
         FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
 
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-        init_state_from_metgrid(cons_fab, xvel_fab, yvel_fab, zvel_fab,
+        init_state_from_metgrid(l_rdOcp,
+                                cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                 z_phys_nd_fab,
                                 NC_hgt_fab, NC_ght_fab, NC_xvel_fab,
                                 NC_yvel_fab, NC_temp_fab, NC_rhum_fab,
-                                NC_pres_fab, mxrat_fab);
+                                NC_pres_fab, theta_fab, mxrat_fab);
     } // mf
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     // Map scale factors common for "ideal" as well as "real" simulation
-    for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
+    for ( MFIter mfi(*mapfac_u[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // Define fabs for holding the initial data
         FArrayBox &msfu_fab = (*mapfac_u[lev])[mfi];
         FArrayBox &msfv_fab = (*mapfac_v[lev])[mfi];
@@ -251,23 +278,200 @@ ERF::init_from_metgrid(int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-    const Real l_rdOcp = solverChoice.rdOcp;
-
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         FArrayBox&     p_hse_fab = p_hse[mfi];
         FArrayBox&    pi_hse_fab = pi_hse[mfi];
         FArrayBox&     r_hse_fab = r_hse[mfi];
         FArrayBox&      cons_fab = lev_new[Vars::cons][mfi];
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
 
+        const Box valid_bx = mfi.validbox();
+
         init_base_state_from_metgrid(l_rdOcp,
-                                     flag_psfc[0],
+                                     valid_bx,
+                                     flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
                                      z_phys_nd_fab, NC_ght_fab, NC_psfc_fab);
-    }
-}
+    } // mf
 
+//    Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
+//    Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    int MetGridBdyEnd = MetGridBdyVars::NumTypes;
+#else
+    int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
+#endif
+//    amrex::Print() << " MetGridBdyEnd-" << MetGridBdyEnd << std::endl;
+//    amrex::Print() << " MetGridBdyVars::QV-" << MetGridBdyVars::QV << std::endl;
+//    for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
+//        int var_it = var_map[ivar];
+//        int comp_it = comp_map[ivar];
+//        amrex::Print() << " ivar-" << ivar << " \tvar_it-" << var_it << " \tcomp_it-" << comp_it << std::endl;
+//
+//        if (ivar == MetGridBdyVars::U) {
+//            amrex::Print() << "     U" << std::endl;
+//        } else if (ivar == MetGridBdyVars::V) {
+//            amrex::Print() << "     V" << std::endl;
+//        } else if (ivar == MetGridBdyVars::R) {
+//            amrex::Print() << "     R" << std::endl;
+//        } else if (ivar == MetGridBdyVars::T) {
+//            amrex::Print() << "     T" << std::endl;
+//        #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+//        } else if (ivar == MetGridBdyVars::QV) {
+//            amrex::Print() << "     QV" << std::endl;
+//        #endif
+//        } else {
+//            continue;
+//        }
+//    }
+
+    bdy_data_xlo.resize(ntimes);
+    bdy_data_xhi.resize(ntimes);
+    bdy_data_ylo.resize(ntimes);
+    bdy_data_yhi.resize(ntimes);
+
+    const auto& lo = geom[lev].Domain().loVect();
+    const auto& hi = geom[lev].Domain().hiVect();
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tlo \t" << lo << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \thi \t" << hi << std::endl;
+
+    amrex::IntVect plo(lo);
+    amrex::IntVect phi(hi);
+
+    plo[0] = lo[0];                     plo[1] = lo[1]; plo[2] = lo[2];
+    phi[0] = lo[0]+metgrid_bdy_width-1; phi[1] = hi[1]; phi[2] = hi[2];
+    const Box pbx_xlo(plo, phi);
+    Box xlo_plane_no_stag(pbx_xlo);
+    Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
+    Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_no_stag \t" << xlo_plane_no_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_x_stag  \t" << xlo_plane_x_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_y_stag  \t" << xlo_plane_y_stag << std::endl;
+
+    plo[0] = hi[0]-metgrid_bdy_width+1; plo[1] = lo[1]; plo[2] = lo[2];
+    phi[0] = hi[0];                     phi[1] = hi[1]; phi[2] = hi[2];
+    const Box pbx_xhi(plo, phi);
+    Box xhi_plane_no_stag(pbx_xhi);
+    Box xhi_plane_x_stag = pbx_xhi; xhi_plane_x_stag.shiftHalf(0,1);
+    Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_no_stag \t" << xhi_plane_no_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_x_stag  \t" << xhi_plane_x_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_y_stag  \t" << xhi_plane_y_stag << std::endl;
+
+    plo[1] = lo[1];                     plo[0] = lo[0]; plo[2] = lo[2];
+    phi[1] = lo[1]+metgrid_bdy_width-1; phi[0] = hi[0]; phi[2] = hi[2];
+    const Box pbx_ylo(plo, phi);
+    Box ylo_plane_no_stag(pbx_ylo);
+    Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
+    Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_no_stag \t" << ylo_plane_no_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_x_stag  \t" << ylo_plane_x_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_y_stag  \t" << ylo_plane_y_stag << std::endl;
+
+    plo[1] = hi[1]-metgrid_bdy_width+1; plo[0] = lo[0]; plo[2] = lo[2];
+    phi[1] = hi[1];                     phi[0] = hi[0]; phi[2] = hi[2];
+    const Box pbx_yhi(plo, phi);
+    Box yhi_plane_no_stag(pbx_yhi);
+    Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
+    Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_no_stag \t" << yhi_plane_no_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_x_stag  \t" << yhi_plane_x_stag << std::endl;
+    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_y_stag  \t" << yhi_plane_y_stag << std::endl;
+
+    amrex::Print() << " ntimes-" << ntimes << std::endl;
+    for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
+        amrex::Print() << " ivar-" << ivar << std::endl;
+
+        for (int it(0); it < ntimes; it++) {
+            amrex::Print() << "     it-" << it << std::endl;
+
+            if (ivar == MetGridBdyVars::U) {
+                amrex::Print() << "         U" << std::endl;
+                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_x_stag, 1));
+//                ParallelFor(xlo_plane_x_stag, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+//                    bdy_data_xlo[it][ivar](i,j,k) = ;
+//                }
+                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_x_stag, 1));
+                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_x_stag, 1));
+                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_x_stag, 1));
+            } // MetGridBdyVars::U
+
+            if (ivar == MetGridBdyVars::V) {
+                amrex::Print() << "         V" << std::endl;
+                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_y_stag, 1));
+                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_y_stag, 1));
+                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_y_stag, 1));
+                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_y_stag, 1));
+            } // MetGridBdyVars::V
+
+            if (ivar == MetGridBdyVars::R) {
+                amrex::Print() << "         R" << std::endl;
+                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+            } // MetGridBdyVars::R
+
+            if (ivar == MetGridBdyVars::T) {
+                amrex::Print() << "         T" << std::endl;
+                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+            } // MetGridBdyVars::T
+
+            if (ivar == MetGridBdyVars::QV) {
+                amrex::Print() << "         QV" << std::endl;
+                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+            } // MetGridBdyVars::QV
+
+        } // it
+
+        // TODO: fill bdy_data arrays.
+
+    } // ivar
+
+    {
+        int num_time = bdy_data_xlo.size();
+        int num_var = bdy_data_xlo[0].size();
+        amrex::Print() << " bdy_data_xlo" << std::endl;
+        amrex::Print() << "     num_time: " << num_time << std::endl;
+        amrex::Print() << "     num_var:  " << num_var << std::endl;
+    }
+    {
+        int num_time = bdy_data_xhi.size();
+        int num_var = bdy_data_xhi[0].size();
+        amrex::Print() << " bdy_data_xhi" << std::endl;
+        amrex::Print() << "     num_time: " << num_time << std::endl;
+        amrex::Print() << "     num_var:  " << num_var << std::endl;
+    }
+    {
+        int num_time = bdy_data_ylo.size();
+        int num_var = bdy_data_ylo[0].size();
+        amrex::Print() << " bdy_data_ylo" << std::endl;
+        amrex::Print() << "     num_time: " << num_time << std::endl;
+        amrex::Print() << "     num_var:  " << num_var << std::endl;
+    }
+    {
+        int num_time = bdy_data_yhi.size();
+        int num_var = bdy_data_yhi[0].size();
+        amrex::Print() << " bdy_data_yhi" << std::endl;
+        amrex::Print() << "     num_time: " << num_time << std::endl;
+        amrex::Print() << "     num_var:  " << num_var << std::endl;
+    }
+
+}
 
 /**
  * Helper function to initialize terrain nodal z coordinates given metgrid data.
@@ -279,20 +483,20 @@ void
 init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
                           const Vector<FArrayBox>& NC_hgt_fab)
 {
-   int nboxes = NC_hgt_fab.size();
+//   int ntimes = NC_hgt_fab.size();
+   int ntimes = 1; // Use terrain from the first met_em file.
 
-   for (int idx = 0; idx < nboxes; idx++)
-   {
+   for (int it = 0; it < ntimes; it++) {
 #ifndef AMREX_USE_GPU
-        amrex::Print() << " SIZE OF HGT FAB " << NC_hgt_fab[idx].box() << std::endl;
+        amrex::Print() << " SIZE OF HGT FAB " << NC_hgt_fab[it].box() << std::endl;
         amrex::Print() << " SIZE OF ZP FAB "  << z_phys_nd_fab.box() << std::endl;
 #endif
 
         // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&      z_arr = z_phys_nd_fab.array();
-        const Array4<Real const>& nc_hgt_arr = NC_hgt_fab[idx].const_array();
+        const Array4<Real const>& nc_hgt_arr = NC_hgt_fab[it].const_array();
 
-        const Box z_hgt_box = NC_hgt_fab[idx].box();
+        const Box z_hgt_box = NC_hgt_fab[it].box();
 
         int ilo = z_hgt_box.smallEnd()[0];
         int ihi = z_hgt_box.bigEnd()[0];
@@ -300,7 +504,7 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
         int jhi = z_hgt_box.bigEnd()[1];
 
         Box z_phys_box = z_phys_nd_fab.box();
-        Box from_box = surroundingNodes(NC_hgt_fab[idx].box());
+        Box from_box = surroundingNodes(NC_hgt_fab[it].box());
         from_box.growHi(2,-1);
 
         Box bx = z_phys_box & from_box;
@@ -322,12 +526,13 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
             z_arr(i,j,k) =  0.25 * ( nc_hgt_arr (ii,jj  ,k) + nc_hgt_arr(ii-1,jj  ,k) +
                                      nc_hgt_arr (ii,jj-1,k) + nc_hgt_arr(ii-1,jj-1,k) );
         });
-    } // idx
+    } // it
 }
 
 /**
  * Helper function to initialize state and velocity data read from metgrid data.
  *
+ * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
  * @param state_fab FArrayBox holding the state data to initialize
  * @param x_vel_fab FArrayBox holding the x-velocity data to initialize
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
@@ -341,10 +546,12 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
  * @param NC_temp_fab Vector of FArrayBox obects holding metgrid data for temperature
  * @param NC_rhum_fab Vector of FArrayBox obects holding metgrid data for relative humidity
  * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
+ * @param theta_fab Vector of FArrayBox obects holding potential temperature calculated from temperature and pressure
  * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
  */
 void
-init_state_from_metgrid(FArrayBox& state_fab,
+init_state_from_metgrid(const Real l_rdOcp,
+                        FArrayBox& state_fab,
                         FArrayBox& x_vel_fab,
                         FArrayBox& y_vel_fab,
                         FArrayBox& z_vel_fab,
@@ -356,25 +563,25 @@ init_state_from_metgrid(FArrayBox& state_fab,
                         const Vector<FArrayBox>& NC_temp_fab,
                         const Vector<FArrayBox>& NC_rhum_fab,
                         const Vector<FArrayBox>& NC_pres_fab,
+                              Vector<FArrayBox>& theta_fab,
                               Vector<FArrayBox>& mxrat_fab)
 {
-    int nboxes = NC_hgt_fab.size();
-    for (int idx = 0; idx < nboxes; idx++)
+//    int ntimes = NC_hgt_fab.size();
+    int ntimes = 1;
+    for (int it = 0; it < ntimes; it++)
     {
         // ********************************************************
         // U
         // ********************************************************
         {
-        Box bx2d = NC_xvel_fab[idx].box() & x_vel_fab.box();
+        Box bx2d = NC_xvel_fab[it].box() & x_vel_fab.box();
         bx2d.setRange(2,0);
-        auto const orig_data = NC_xvel_fab[idx].const_array();
-        auto const orig_z    = NC_ght_fab[idx].const_array();
-
+        auto const orig_data = NC_xvel_fab[it].const_array();
+        auto const orig_z    = NC_ght_fab[it].const_array();
         auto       new_data  = x_vel_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             interpolate_column_metgrid(i,j,'X',0,0,orig_z,orig_data,new_z,new_data);
         });
         }
@@ -383,16 +590,14 @@ init_state_from_metgrid(FArrayBox& state_fab,
         // V
         // ********************************************************
         {
-        Box bx2d = NC_yvel_fab[idx].box() & y_vel_fab.box();
+        Box bx2d = NC_yvel_fab[it].box() & y_vel_fab.box();
         bx2d.setRange(2,0);
-        auto const orig_data = NC_yvel_fab[idx].const_array();
-        auto const orig_z    = NC_ght_fab[idx].const_array();
-
+        auto const orig_data = NC_yvel_fab[it].const_array();
+        auto const orig_z    = NC_ght_fab[it].const_array();
         auto       new_data  = y_vel_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             interpolate_column_metgrid(i,j,'Y',0,0,orig_z,orig_data,new_z,new_data);
         });
         }
@@ -410,17 +615,26 @@ init_state_from_metgrid(FArrayBox& state_fab,
         // ********************************************************
         // theta
         // ********************************************************
-        {
-        Box bx2d = NC_temp_fab[idx].box() & state_fab.box();
-        bx2d.setRange(2,0);
-        auto const orig_data = NC_temp_fab[idx].const_array();
-        auto const orig_z    = NC_ght_fab[idx].const_array();
+        { // calculate potential temperature.
+        Box bx = NC_rhum_fab[it].box() & state_fab.box();
+        auto const temp  = NC_temp_fab[it].const_array();
+        auto const pres  = NC_pres_fab[it].const_array();
+        auto       theta = theta_fab[it].array();
 
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            theta(i,j,k) = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+        });
+        }
+
+        { // vertical interpolation of potential temperature.
+        Box bx2d = NC_temp_fab[it].box() & state_fab.box();
+        bx2d.setRange(2,0);
+        auto const orig_data = NC_temp_fab[it].const_array();
+        auto const orig_z    = NC_ght_fab[it].const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             interpolate_column_metgrid(i,j,'M',0,RhoTheta_comp,orig_z,orig_data,new_z,new_data);
         });
         }
@@ -428,44 +642,43 @@ init_state_from_metgrid(FArrayBox& state_fab,
         // ********************************************************
         // specific humidity / relative humidity / mixing ratio
         // ********************************************************
-        // In the future we will need to check what input data we have for moisture
-        // and then, if necessary, compute mixing ratio. For now, we will focus on
-        // the case where we have relative humidity.
+        // TODO: we will need to check what input data we have for moisture
+        // and then, if necessary, compute mixing ratio. For now, we will
+        // focus on the case where we have relative humidity. Alternate cases
+        // could be specific humidity or a mixing ratio.
         //
         { // calculate vapor mixing ratio from relative humidity.
-        Box bx = NC_rhum_fab[idx].box() & state_fab.box();
-        auto const rhum  = NC_rhum_fab[idx].const_array();
-        auto const temp  = NC_temp_fab[idx].const_array();
-        auto const pres  = NC_pres_fab[idx].const_array();
-        auto       mxrat = mxrat_fab[idx].array();
+        Box bx = NC_rhum_fab[it].box() & state_fab.box();
+        auto const rhum  = NC_rhum_fab[it].const_array();
+        auto const temp  = NC_temp_fab[it].const_array();
+        auto const pres  = NC_pres_fab[it].const_array();
+        auto       mxrat = mxrat_fab[it].array();
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
         });
         }
 
         { // vertical interpolation of vapor mixing ratio.
-        Box bx2d = NC_rhum_fab[idx].box() & state_fab.box();
+        Box bx2d = NC_rhum_fab[it].box() & state_fab.box();
         bx2d.setRange(2,0);
-        auto const orig_data = mxrat_fab[idx].const_array();
-        auto const orig_z    = NC_ght_fab[idx].const_array();
+        auto const orig_data = mxrat_fab[it].const_array();
+        auto const orig_z    = NC_ght_fab[it].const_array();
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
+
 #if defined(ERF_USE_MOISTURE)
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             interpolate_column_metgrid(i,j,'M',0,RhoQt_comp,orig_z,orig_data,new_z,new_data);
         });
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-        {
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
             interpolate_column_metgrid(i,j,'M',0,RhoQv_comp,orig_z,orig_data,new_z,new_data);
         });
 #endif
-
         }
-    } // idx
+
+    } // it
 }
 
 /**
@@ -576,13 +789,16 @@ calc_rho_p(int i, int j,
     }
 
     // calculate virtual potential temperature at the surface.
+    {
 #if defined(ERF_USE_MOISTURE)
-    theta_v[0] = new_data(i,j,0,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQt_comp));
+        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQt_comp);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-    theta_v[0] = new_data(i,j,0,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQv_comp));
+        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQv_comp);
 #else
-    theta_v[0] = new_data(i,j,0,RhoTheta_comp);
+        Real qvf = 1.0;
 #endif
+        theta_v[0] = new_data(i,j,0,RhoTheta_comp)*qvf;
+    }
 
     // calculate moist density at the surface.
     rhom_integ[0] = 1.0/(R_d/p_0*theta_v[0]*std::pow(pm_integ[0]/p_0, -iGamma));
@@ -592,14 +808,12 @@ calc_rho_p(int i, int j,
         Real dz = new_z(i,j,k)-new_z(i,j,k-1);
 #if defined(ERF_USE_MOISTURE)
         Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQt_comp);
-        theta_v[k] = new_data(i,j,k,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQt_comp));
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQv_comp);
-        theta_v[k] = new_data(i,j,k,RhoTheta_comp)*(1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQv_comp));
 #else
         Real qvf = 1.0;
-        theta_v[k] = new_data(i,j,k,RhoTheta_comp);
 #endif
+        theta_v[k] = new_data(i,j,k,RhoTheta_comp)*qvf;
         rhom_integ[k] = rhom_integ[k-1]; // an initial guess.
         for (int it=0; it < maxiter; ++it) {
             pm_integ[k] = pm_integ[k-1]-0.5*dz*(rhom_integ[k]+rhom_integ[k-1])*CONST_GRAV;
@@ -648,10 +862,9 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
                        const Vector<FArrayBox>& NC_MSFV_fab,
                        const Vector<FArrayBox>& NC_MSFM_fab)
 {
-    int nboxes = NC_MSFU_fab.size();
-
-    for (int idx = 0; idx < nboxes; idx++)
-    {
+//    int ntimes = NC_MSFU_fab.size();
+    int ntimes = 1;
+    for (int it = 0; it < ntimes; it++) {
         //
         // FArrayBox to FArrayBox copy does "copy on intersection"
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
@@ -659,7 +872,7 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
 
         // This copies or sets mapfac_m
         if (flag_msfm == 1) {
-            msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[idx]);
+            msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
             amrex::Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
@@ -669,7 +882,7 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
 
         // This copies or sets mapfac_u
         if (flag_msfu == 1) {
-            msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[idx]);
+            msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
             amrex::Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
@@ -679,7 +892,7 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
 
         // This copies or sets mapfac_v
         if (flag_msfv == 1) {
-            msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[idx]);
+            msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
             amrex::Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
@@ -687,14 +900,15 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
             msfv_fab.template setVal<RunOn::Device>(1.0);
         }
 
-    } // idx
+    } // it
 }
 
 /**
  * Helper function for initializing hydrostatic base state data from metgrid data
  *
  * @param l_rdOcp Real constant specifying Rhydberg constant ($R_d$) divided by specific heat at constant pressure ($c_p$)
- * @param flag_psfc Integer 1 if surface pressure is in metgrid data, 0 otherwise
+ * @param valid_bx Box specifying the index space we are to initialize
+ * @param flag_psfc Vector of Integer 1 if surface pressure is in metgrid data, 0 otherwise
  * @param state_fab FArrayBox holding the state data to initialize
  * @param r_hse_fab FArrayBox holding the hydrostatic base state density we are initializing
  * @param p_hse_fab FArrayBox holding the hydrostatic base state pressure we are initializing
@@ -705,7 +919,8 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
  */
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
-                             const int& flag_psfc,
+                             const Box& valid_bx,
+                             const Vector<int>& flag_psfc,
                              FArrayBox& state_fab,
                              FArrayBox& r_hse_fab,
                              FArrayBox& p_hse_fab,
@@ -714,9 +929,9 @@ init_base_state_from_metgrid(const Real l_rdOcp,
                              const Vector<FArrayBox>& NC_ght_fab,
                              const Vector<FArrayBox>& NC_psfc_fab)
 {
-    int nboxes = NC_psfc_fab.size();
-    for (int idx = 0; idx < nboxes; idx++)
-    {
+//    int ntimes = NC_psfc_fab.size();
+    int ntimes = 1;
+    for (int it = 0; it < ntimes; it++) {
         const Array4<Real>& r_hse_arr = r_hse_fab.array();
         const Array4<Real>& p_hse_arr = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
@@ -726,26 +941,19 @@ init_base_state_from_metgrid(const Real l_rdOcp,
         // ********************************************************
         // calculate density and dry pressure on the new grid.
         {
-        Box bx2d = state_fab.box();
-        bx2d.setRange(2,0);
-        bx2d.grow(0,-3); // TODO: is there a cleaner way to avoid the boundary / ghost cells?
-        bx2d.grow(1,-3);
-        auto const orig_psfc = NC_psfc_fab[idx].const_array();
+        Box valid_bx2d = valid_bx;
+        valid_bx2d.setRange(2,0);
+        auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto       new_data = state_fab.array();
         auto const new_z = z_phys_nd_fab.const_array();
-
-        amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            calc_rho_p(i,j,flag_psfc,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
+        amrex::ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            calc_rho_p(i,j,flag_psfc[it],orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
         });
 
-        Box bx3d = state_fab.box();
-        bx3d.grow(0,-3); // TODO: is there a cleaner way to avoid the boundary / ghost cells?
-        bx3d.grow(1,-3);
-        bx3d.grow(2,-3);
-        amrex::ParallelFor(bx3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoScalar_comp) = 0.0;
-            // RhoTheta and RhoQt are currently just Theta and Qt. Multiply by Rho.
+            // RhoTheta and RhoQt currently hold Theta and Qt. Multiply by Rho.
             Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
             new_data(i,j,k,RhoTheta_comp) = RhoTheta;
 #if defined(ERF_USE_MOISTURE)
@@ -759,7 +967,7 @@ init_base_state_from_metgrid(const Real l_rdOcp,
 //            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
         }
-    } // idx
+    } // it
 }
 
 /**
