@@ -141,8 +141,8 @@ architectures.  ERF provides an atmospheric modeling capability--with
 many of the standard discretizations and basic features needed for simulating
 flows relevant to wind energy--that runs on the latest high-performance
 computing architectures, from laptops to supercomputers, 
-whether CPU-only or GPU-accelerated.
-In addition, ERF is based on a modern, well-supported AMR library (AMReX),
+whether CPU-only or GPU-accelerated.  In addition, ERF is based on AMReX,
+a modern, well-supported adaptive mesh refinement (AMR) library,
 which provides a performance portable interface that shields ERF
 from most of the detailed changes needed to adapt to new systems.
 The active and large developer community contributing to AMReX helps ensure
