@@ -74,14 +74,16 @@ bibliography: paper.bib
 The Energy Research and Forecasting (ERF) code is a new model that simulates the mesoscale and microscale
 dynamics of the atmosphere using the latest high-performance computing architectures.  It employs
 hierarchical parallelism using an MPI+X model, where X may be OpenMP on multicore CPU-only systems,
-or CUDA, HIP, or SYCL on GPU-accelerated systems.  ERF is designed to provide a flexible
-computational framework for the exploration and investigation of different physics parameterizations 
-and numerical strategies, and a characterization of the flow field that impacts the
-ability of wind turbines to extract wind energy.  The ERF development is part of a broader effort 
-led by the US Department of Energy's Wind Energy Technologies Office.
+or CUDA, HIP, or SYCL on GPU-accelerated systems.
 ERF is built on AMReX [@AMReX:JOSS; @AMReX:IJHPCA],
-a block-structured adaptive mesh refinement software framework that
+a block-structured adaptive mesh refinement (AMR) software framework that
 provides the underlying performance-portable software infrastructure for block-structured mesh operations. 
+The "energy" aspect of ERF indicates that the software has been developed with renewable energy applications in mind.
+In addition to being a numerical weather prediction model, ERF is designed to provide a flexible
+computational framework for the exploration and investigation of different physics parameterizations
+and numerical strategies, and to characterize the flow field that impacts the
+ability of wind turbines to extract wind energy.  The ERF development is part of a broader effort
+led by the US Department of Energy's Wind Energy Technologies Office.
 
 # ERF Features
 
@@ -137,17 +139,27 @@ data, or specified by the user.
 Most widely used atmospheric modeling codes today do not have the 
 ability to use GPU acceleration, which limits their ability to 
 efficiently utilize current and next-generation high performance computing 
-architectures.  ERF provides an atmospheric modeling capability--with
-many of the standard discretizations and basic features needed for simulating
-flows relevant to wind energy--that runs on the latest high-performance
+architectures.  ERF provides an atmospheric modeling capability that runs on the latest high-performance
 computing architectures, from laptops to supercomputers, 
 whether CPU-only or GPU-accelerated.  In addition, ERF is based on AMReX,
-a modern, well-supported adaptive mesh refinement (AMR) library,
+a modern, well-supported AMR library,
 which provides a performance portable interface that shields ERF
 from most of the detailed changes needed to adapt to new systems.
 The active and large developer community contributing to AMReX helps ensure
 that ERF will continue to run efficiently as architectures and operating systems
 evolve.
+
+To support renewable energy research and development, ERF provides an essential
+resource characterization and forensic capability for terrestrial and offshore
+applications. For wind energy, ERF includes a standard suite of physical process
+parameterizations that supports simulation across weather (meso) and
+turbulence-resolving (micro) scales, allowing for efficient downscaling of
+flow field information that specifies realistic inflow, surface, and background
+conditions for wind farm simulation.  Realistic conditions can include extreme
+wind-shear events (e.g., low-level jets), thunderstorms, or tropical cyclones
+(e.g., hurricanes). This modeling capability also captures the impacts of clouds
+and precipitation, and is similarly applicable to solar farms and hybrid energy
+systems.
 
 # Acknowledgements
 
