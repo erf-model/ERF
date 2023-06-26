@@ -50,7 +50,8 @@ init_state_from_metgrid(const Real l_rdOcp,
                         const Vector<FArrayBox>& NC_temp_fab,
                         const Vector<FArrayBox>& NC_rhum_fab,
                               Vector<FArrayBox>& theta_fab,
-                              Vector<FArrayBox>& mxrat_fab);
+                              Vector<FArrayBox>& mxrat_fab,
+                        Vector<Vector<FArrayBox>>& fabs_for_bcs);
 
 void
 init_msfs_from_metgrid(FArrayBox& msfu_fab,
@@ -73,7 +74,8 @@ init_base_state_from_metgrid(const Real l_rdOcp,
                              FArrayBox& pi_hse_fab,
                              FArrayBox& z_phys_nd_fab,
                              const Vector<FArrayBox>& NC_ght_fab,
-                             const Vector<FArrayBox>& NC_psfc_fab);
+                             const Vector<FArrayBox>& NC_psfc_fab,
+                             Vector<Vector<FArrayBox>>& fabs_for_bcs);
 
 void
 rh_to_mxrat(int i, int j, int k,
@@ -85,6 +87,9 @@ rh_to_mxrat(int i, int j, int k,
 void
 calc_rho_p(int i, int j,
            const int& flag_psfc,
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+           const int& RhoQ_comp,
+#endif
            const Array4<Real const>& psfc,
            const Array4<Real const>& new_z,
            const Array4<Real>& new_data,
@@ -186,19 +191,31 @@ ERF::init_from_metgrid(int lev)
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
 
+    // Determine the spacing between met_em files.
+    bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
+
+    // Verify that met_em files have even spacing in time.
+    for (int it = 1; it < ntimes; it++) {
+        Real NC_dt = NC_epochTime[it]-NC_epochTime[it-1];
+#ifndef AMREX_USE_GPU
+        amrex::Print() << " " << nc_init_file[lev][it-1] << " / " << nc_init_file[lev][it] << " are " << NC_dt << " seconds apart" << std::endl;
+#endif
+        if (NC_dt != bdy_time_interval) amrex::Error("Time interval between consecutive met_em files must be consistent.");
+    }
+
     // Set up a FAB for mixing ratio and another for potential temperature.
     // Our input data only has relative humidity and temperature.
     // TODO: add alternate pathways for other origin model cases where different variables may be present.
     Vector<FArrayBox> mxrat_fab; mxrat_fab.resize(ntimes);
     Vector<FArrayBox> theta_fab; theta_fab.resize(ntimes);
     for (int it = 0; it < ntimes; it++) {
-        Box my_box = NC_rhum_fab[it].box();
+        Box NC_box_unstag = NC_rhum_fab[it].box();
 #ifdef AMREX_USE_GPU
-        mxrat_fab[it].resize(my_box, 1, The_Pinned_Arena());
-        theta_fab[it].resize(my_box, 1, The_Pinned_Arena());
+        mxrat_fab[it].resize(NC_box_unstag, 1, The_Pinned_Arena());
+        theta_fab[it].resize(NC_box_unstag, 1, The_Pinned_Arena());
 #else
-        mxrat_fab[it].resize(my_box, 1);
-        theta_fab[it].resize(my_box, 1);
+        mxrat_fab[it].resize(NC_box_unstag, 1);
+        theta_fab[it].resize(NC_box_unstag, 1);
 #endif
     }
 
@@ -238,6 +255,18 @@ ERF::init_from_metgrid(int lev)
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
 
+    // Set up FABs to hold data that will be used to set lateral boundary conditions.
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    int MetGridBdyEnd = MetGridBdyVars::NumTypes;
+#else
+    int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
+#endif
+    Vector<Vector<FArrayBox>> fabs_for_bcs;
+    fabs_for_bcs.resize(ntimes);
+    for (int it(0); it < ntimes; it++) {
+        fabs_for_bcs[it].resize(MetGridBdyEnd);
+    }
+
     const Real l_rdOcp = solverChoice.rdOcp;
 
 #ifdef _OPENMP
@@ -256,7 +285,8 @@ ERF::init_from_metgrid(int lev)
                                 z_phys_nd_fab,
                                 NC_hgt_fab, NC_ght_fab, NC_xvel_fab,
                                 NC_yvel_fab, NC_temp_fab, NC_rhum_fab,
-                                NC_pres_fab, theta_fab, mxrat_fab);
+                                NC_pres_fab, theta_fab, mxrat_fab,
+                                fabs_for_bcs);
     } // mf
 
 #ifdef _OPENMP
@@ -291,39 +321,9 @@ ERF::init_from_metgrid(int lev)
                                      valid_bx,
                                      flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
-                                     z_phys_nd_fab, NC_ght_fab, NC_psfc_fab);
+                                     z_phys_nd_fab, NC_ght_fab, NC_psfc_fab,
+                                     fabs_for_bcs);
     } // mf
-
-//    Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
-//    Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    int MetGridBdyEnd = MetGridBdyVars::NumTypes;
-#else
-    int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
-#endif
-//    amrex::Print() << " MetGridBdyEnd-" << MetGridBdyEnd << std::endl;
-//    amrex::Print() << " MetGridBdyVars::QV-" << MetGridBdyVars::QV << std::endl;
-//    for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
-//        int var_it = var_map[ivar];
-//        int comp_it = comp_map[ivar];
-//        amrex::Print() << " ivar-" << ivar << " \tvar_it-" << var_it << " \tcomp_it-" << comp_it << std::endl;
-//
-//        if (ivar == MetGridBdyVars::U) {
-//            amrex::Print() << "     U" << std::endl;
-//        } else if (ivar == MetGridBdyVars::V) {
-//            amrex::Print() << "     V" << std::endl;
-//        } else if (ivar == MetGridBdyVars::R) {
-//            amrex::Print() << "     R" << std::endl;
-//        } else if (ivar == MetGridBdyVars::T) {
-//            amrex::Print() << "     T" << std::endl;
-//        #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-//        } else if (ivar == MetGridBdyVars::QV) {
-//            amrex::Print() << "     QV" << std::endl;
-//        #endif
-//        } else {
-//            continue;
-//        }
-//    }
 
     bdy_data_xlo.resize(ntimes);
     bdy_data_xhi.resize(ntimes);
@@ -386,61 +386,189 @@ ERF::init_from_metgrid(int lev)
     amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_x_stag  \t" << yhi_plane_x_stag << std::endl;
     amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_y_stag  \t" << yhi_plane_y_stag << std::endl;
 
-    amrex::Print() << " ntimes-" << ntimes << std::endl;
-    for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
-        amrex::Print() << " ivar-" << ivar << std::endl;
+    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        amrex::Print() << " ntimes-" << ntimes << std::endl;
+        for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
+            amrex::Print() << " ivar-" << ivar << std::endl;
+    
+            for (int it(0); it < ntimes; it++) {
+                amrex::Print() << "     it-" << it << std::endl;
+    
+                if (ivar == MetGridBdyVars::U) {
+                    amrex::Print() << "         U" << std::endl;
+                    const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
 
-        for (int it(0); it < ntimes; it++) {
-            amrex::Print() << "     it-" << it << std::endl;
+                    // xvel at west boundary
+                    bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_x_stag, 1));
+                    auto xlo_arr = bdy_data_xlo[it][ivar].array();
+                    amrex::ParallelFor(xlo_plane_x_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-            if (ivar == MetGridBdyVars::U) {
-                amrex::Print() << "         U" << std::endl;
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_x_stag, 1));
-//                ParallelFor(xlo_plane_x_stag, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-//                    bdy_data_xlo[it][ivar](i,j,k) = ;
-//                }
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_x_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_x_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_x_stag, 1));
-            } // MetGridBdyVars::U
+                    // xvel at east boundary
+                    bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_x_stag, 1));
+                    auto xhi_arr = bdy_data_xhi[it][ivar].array();
+                    amrex::ParallelFor(xhi_plane_x_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-            if (ivar == MetGridBdyVars::V) {
-                amrex::Print() << "         V" << std::endl;
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_y_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_y_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_y_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_y_stag, 1));
-            } // MetGridBdyVars::V
+                    // xvel at south boundary
+                    bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_x_stag, 1));
+                    auto ylo_arr = bdy_data_ylo[it][ivar].array();
+                    amrex::ParallelFor(ylo_plane_x_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-            if (ivar == MetGridBdyVars::R) {
-                amrex::Print() << "         R" << std::endl;
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
-            } // MetGridBdyVars::R
+                    // xvel at north boundary
+                    bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_x_stag, 1));
+                    auto yhi_arr = bdy_data_yhi[it][ivar].array();
+                    amrex::ParallelFor(yhi_plane_x_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-            if (ivar == MetGridBdyVars::T) {
-                amrex::Print() << "         T" << std::endl;
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
-            } // MetGridBdyVars::T
+                } // MetGridBdyVars::U
+    
+                if (ivar == MetGridBdyVars::V) {
+                    amrex::Print() << "         V" << std::endl;
+                    const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
 
-            if (ivar == MetGridBdyVars::QV) {
-                amrex::Print() << "         QV" << std::endl;
-                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
-                bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
-                bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
-                bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
-            } // MetGridBdyVars::QV
+                    // yvel at west boundary
+                    bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_y_stag, 1));
+                    auto xlo_arr = bdy_data_xlo[it][ivar].array();
+                    amrex::ParallelFor(xlo_plane_y_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-        } // it
+                    // yvel at east boundary
+                    bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_y_stag, 1));
+                    auto xhi_arr = bdy_data_xhi[it][ivar].array();
+                    amrex::ParallelFor(xhi_plane_y_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-        // TODO: fill bdy_data arrays.
+                    // yvel at south boundary
+                    bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_y_stag, 1));
+                    auto ylo_arr = bdy_data_ylo[it][ivar].array();
+                    amrex::ParallelFor(ylo_plane_y_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
 
-    } // ivar
+                    // yvel at north boundary
+                    bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_y_stag, 1));
+                    auto yhi_arr = bdy_data_yhi[it][ivar].array();
+                    amrex::ParallelFor(yhi_plane_y_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                } // MetGridBdyVars::V
+    
+                if (ivar == MetGridBdyVars::R) {
+                    amrex::Print() << "         R" << std::endl;
+                    const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
+
+                    // density at west boundary
+                    bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                    auto xlo_arr = bdy_data_xlo[it][ivar].array();
+                    amrex::ParallelFor(xlo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // density at east boundary
+                    bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                    auto xhi_arr = bdy_data_xhi[it][ivar].array();
+                    amrex::ParallelFor(xhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // density at south boundary
+                    bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                    auto ylo_arr = bdy_data_ylo[it][ivar].array();
+                    amrex::ParallelFor(ylo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // density at north boundary
+                    bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+                    auto yhi_arr = bdy_data_yhi[it][ivar].array();
+                    amrex::ParallelFor(yhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                } // MetGridBdyVars::R
+    
+                if (ivar == MetGridBdyVars::T) {
+                    amrex::Print() << "         T" << std::endl;
+                    const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
+
+                    // potential temperature at west boundary
+                    bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                    auto xlo_arr = bdy_data_xlo[it][ivar].array();
+                    amrex::ParallelFor(xlo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // potential temperature at east boundary
+                    bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                    auto xhi_arr = bdy_data_xhi[it][ivar].array();
+                    amrex::ParallelFor(xhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // potential temperature at south boundary
+                    bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                    auto ylo_arr = bdy_data_ylo[it][ivar].array();
+                    amrex::ParallelFor(ylo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // potential temperature at north boundary
+                    bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+                    auto yhi_arr = bdy_data_yhi[it][ivar].array();
+                    amrex::ParallelFor(yhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                } // MetGridBdyVars::T
+    
+                if (ivar == MetGridBdyVars::QV) {
+                    amrex::Print() << "         QV" << std::endl;
+                    const Array4<Real const>& fabs_for_bcs_arr = fabs_for_bcs[it][ivar].const_array();
+
+                    // mixing ratio at west boundary
+                    bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+                    auto xlo_arr = bdy_data_xlo[it][ivar].array();
+                    amrex::ParallelFor(xlo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // mixing ratio at east boundary
+                    bdy_data_xhi[it].push_back(FArrayBox(xhi_plane_no_stag, 1));
+                    auto xhi_arr = bdy_data_xhi[it][ivar].array();
+                    amrex::ParallelFor(xhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // mixing ratio at south boundary
+                    bdy_data_ylo[it].push_back(FArrayBox(ylo_plane_no_stag, 1));
+                    auto ylo_arr = bdy_data_ylo[it][ivar].array();
+                    amrex::ParallelFor(ylo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                    // mixing ratio at north boundary
+                    bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
+                    auto yhi_arr = bdy_data_yhi[it][ivar].array();
+                    amrex::ParallelFor(yhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    });
+
+                } // MetGridBdyVars::QV
+    
+            } // it
+    
+        } // ivar
+
+    } // mf
 
     {
         int num_time = bdy_data_xlo.size();
@@ -519,7 +647,7 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
         //
         // We must be careful not to read out of bounds of the WPS data
         //
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
@@ -548,6 +676,7 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
  * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
  * @param theta_fab Vector of FArrayBox obects holding potential temperature calculated from temperature and pressure
  * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
+ * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
 init_state_from_metgrid(const Real l_rdOcp,
@@ -564,79 +693,139 @@ init_state_from_metgrid(const Real l_rdOcp,
                         const Vector<FArrayBox>& NC_rhum_fab,
                         const Vector<FArrayBox>& NC_pres_fab,
                               Vector<FArrayBox>& theta_fab,
-                              Vector<FArrayBox>& mxrat_fab)
+                              Vector<FArrayBox>& mxrat_fab,
+                        Vector<Vector<FArrayBox>>& fabs_for_bcs)
 {
-//    int ntimes = NC_hgt_fab.size();
-    int ntimes = 1;
+    int ntimes = NC_hgt_fab.size();
     for (int it = 0; it < ntimes; it++)
     {
         // ********************************************************
         // U
         // ********************************************************
-        {
-        Box bx2d = NC_xvel_fab[it].box() & x_vel_fab.box();
-        bx2d.setRange(2,0);
-        auto const orig_data = NC_xvel_fab[it].const_array();
-        auto const orig_z    = NC_ght_fab[it].const_array();
-        auto       new_data  = x_vel_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        if (it == 0) { // update at initialization
+            Box bx2d = NC_xvel_fab[it].box() & x_vel_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = NC_xvel_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = x_vel_fab.array();
+            auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            interpolate_column_metgrid(i,j,'X',0,0,orig_z,orig_data,new_z,new_data);
-        });
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'X',0,0,orig_z,orig_data,new_z,new_data);
+            });
+        }
+
+        { // save for setting boundary conditions
+#ifdef AMREX_USE_GPU
+            fabs_for_bcs[it][MetGridBdyVars::U].resize(x_vel_fab.box(), 1, The_Pinned_Arena());
+#else
+            fabs_for_bcs[it][MetGridBdyVars::U].resize(x_vel_fab.box(), 1);
+#endif
+            Box bx2d = NC_xvel_fab[it].box() & x_vel_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = NC_xvel_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = fabs_for_bcs[it][MetGridBdyVars::U].array();
+            auto const new_z     = z_phys_nd_fab.const_array();
+
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'X',0,0,orig_z,orig_data,new_z,new_data);
+            });
         }
 
         // ********************************************************
         // V
         // ********************************************************
-        {
-        Box bx2d = NC_yvel_fab[it].box() & y_vel_fab.box();
-        bx2d.setRange(2,0);
-        auto const orig_data = NC_yvel_fab[it].const_array();
-        auto const orig_z    = NC_ght_fab[it].const_array();
-        auto       new_data  = y_vel_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        if (it == 0) { // update at initialization
+            Box bx2d = NC_yvel_fab[it].box() & y_vel_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = NC_yvel_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = y_vel_fab.array();
+            auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            interpolate_column_metgrid(i,j,'Y',0,0,orig_z,orig_data,new_z,new_data);
-        });
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'Y',0,0,orig_z,orig_data,new_z,new_data);
+            });
+        }
+
+        { // save for setting boundary conditions
+#ifdef AMREX_USE_GPU
+            fabs_for_bcs[it][MetGridBdyVars::V].resize(y_vel_fab.box(), 1, The_Pinned_Arena());
+#else
+            fabs_for_bcs[it][MetGridBdyVars::V].resize(y_vel_fab.box(), 1);
+#endif
+            Box bx2d = NC_yvel_fab[it].box() & y_vel_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = NC_yvel_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = fabs_for_bcs[it][MetGridBdyVars::V].array();
+            auto const new_z     = z_phys_nd_fab.const_array();
+
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'Y',0,0,orig_z,orig_data,new_z,new_data);
+            });
         }
 
         // ********************************************************
         // W
         // ********************************************************
-        z_vel_fab.template setVal<RunOn::Device>(0.0);
+        if (it == 0) { // update at initialization
+            z_vel_fab.template setVal<RunOn::Device>(0.0);
+        }
 
         // ********************************************************
         // Initialize all state_fab variables to zero
         // ********************************************************
-        state_fab.template setVal<RunOn::Device>(0.0);
+        if (it == 0) { // update at initialization
+            state_fab.template setVal<RunOn::Device>(0.0);
+        }
 
         // ********************************************************
         // theta
         // ********************************************************
         { // calculate potential temperature.
-        Box bx = NC_rhum_fab[it].box() & state_fab.box();
-        auto const temp  = NC_temp_fab[it].const_array();
-        auto const pres  = NC_pres_fab[it].const_array();
-        auto       theta = theta_fab[it].array();
+            Box bx = NC_rhum_fab[it].box() & state_fab.box();
+            auto const temp  = NC_temp_fab[it].const_array();
+            auto const pres  = NC_pres_fab[it].const_array();
+            auto       theta = theta_fab[it].array();
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            theta(i,j,k) = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
-        });
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                theta(i,j,k) = getThgivenPandT(temp(i,j,k),pres(i,j,k),l_rdOcp);
+            });
         }
 
-        { // vertical interpolation of potential temperature.
-        Box bx2d = NC_temp_fab[it].box() & state_fab.box();
-        bx2d.setRange(2,0);
-        auto const orig_data = NC_temp_fab[it].const_array();
-        auto const orig_z    = NC_ght_fab[it].const_array();
-        auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        // vertical interpolation of potential temperature.
+        if (it == 0) { // update at initialization
+            Box bx2d = NC_temp_fab[it].box() & state_fab.box();
+            bx2d.setRange(2,0);
+//            auto const orig_data = NC_temp_fab[it].const_array();
+            auto const orig_data = theta_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = state_fab.array();
+            auto const new_z     = z_phys_nd_fab.const_array();
 
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            interpolate_column_metgrid(i,j,'M',0,RhoTheta_comp,orig_z,orig_data,new_z,new_data);
-        });
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'M',0,RhoTheta_comp,orig_z,orig_data,new_z,new_data);
+            });
+        }
+
+        { // save for setting boundary conditions
+#ifdef AMREX_USE_GPU
+            fabs_for_bcs[it][MetGridBdyVars::T].resize(state_fab.box(), 1, The_Pinned_Arena());
+#else
+            fabs_for_bcs[it][MetGridBdyVars::T].resize(state_fab.box(), 1);
+#endif
+            Box bx2d = NC_temp_fab[it].box() & state_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = theta_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = fabs_for_bcs[it][MetGridBdyVars::T].array();
+            auto const new_z     = z_phys_nd_fab.const_array();
+
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'Y',0,0,orig_z,orig_data,new_z,new_data);
+            });
         }
 
         // ********************************************************
@@ -648,33 +837,54 @@ init_state_from_metgrid(const Real l_rdOcp,
         // could be specific humidity or a mixing ratio.
         //
         { // calculate vapor mixing ratio from relative humidity.
-        Box bx = NC_rhum_fab[it].box() & state_fab.box();
-        auto const rhum  = NC_rhum_fab[it].const_array();
-        auto const temp  = NC_temp_fab[it].const_array();
-        auto const pres  = NC_pres_fab[it].const_array();
-        auto       mxrat = mxrat_fab[it].array();
+            Box bx = NC_rhum_fab[it].box() & state_fab.box();
+            auto const rhum  = NC_rhum_fab[it].const_array();
+            auto const temp  = NC_temp_fab[it].const_array();
+            auto const pres  = NC_pres_fab[it].const_array();
+            auto       mxrat = mxrat_fab[it].array();
 
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
-        });
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
+            });
         }
 
-        { // vertical interpolation of vapor mixing ratio.
-        Box bx2d = NC_rhum_fab[it].box() & state_fab.box();
-        bx2d.setRange(2,0);
-        auto const orig_data = mxrat_fab[it].const_array();
-        auto const orig_z    = NC_ght_fab[it].const_array();
-        auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        // vertical interpolation of vapor mixing ratio.
+        if (it == 0) { // update at initialization
+            Box bx2d = NC_rhum_fab[it].box() & state_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = mxrat_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = state_fab.array();
+            auto const new_z     = z_phys_nd_fab.const_array();
 
 #if defined(ERF_USE_MOISTURE)
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            interpolate_column_metgrid(i,j,'M',0,RhoQt_comp,orig_z,orig_data,new_z,new_data);
-        });
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'M',0,RhoQt_comp,orig_z,orig_data,new_z,new_data);
+            });
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            interpolate_column_metgrid(i,j,'M',0,RhoQv_comp,orig_z,orig_data,new_z,new_data);
-        });
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'M',0,RhoQv_comp,orig_z,orig_data,new_z,new_data);
+            });
+#endif
+        }
+
+        { // save for setting boundary conditions
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+#ifdef AMREX_USE_GPU
+            fabs_for_bcs[it][MetGridBdyVars::QV].resize(state_fab.box(), 1, The_Pinned_Arena());
+#else
+            fabs_for_bcs[it][MetGridBdyVars::QV].resize(state_fab.box(), 1);
+#endif
+            Box bx2d = NC_rhum_fab[it].box() & state_fab.box();
+            bx2d.setRange(2,0);
+            auto const orig_data = mxrat_fab[it].const_array();
+            auto const orig_z    = NC_ght_fab[it].const_array();
+            auto       new_data  = fabs_for_bcs[it][MetGridBdyVars::QV].array();
+            auto const new_z     = z_phys_nd_fab.const_array();
+
+            ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+                interpolate_column_metgrid(i,j,'M',0,0,orig_z,orig_data,new_z,new_data);
+            });
 #endif
         }
 
@@ -750,6 +960,7 @@ rh_to_mxrat(int i, int j, int k,
  * @param i Integer specifying the x-dimension index for the column
  * @param j Integer specifying the y-dimension index for the column
  * @param flag_psfc Integer 1 if surface pressure is in metgrid data, 0 otherwise
+ * @param RhoQ_comp Integer specifying the source component of the data holding mixing ratio
  * @param psfc Array4 object holding surface pressure from the metgrid data
  * @param new_z Array4 object containing the new z-coordinates
  * @param new_data Array4 object containing state varaibles interpolated onto the new z-coordinates
@@ -759,6 +970,9 @@ rh_to_mxrat(int i, int j, int k,
 void
 calc_rho_p(int i, int j,
            const int& flag_psfc,
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+           const int& RhoQ_comp,
+#endif
            const Array4<Real const>& psfc,
            const Array4<Real const>& new_z,
            const Array4<Real>& new_data,
@@ -780,9 +994,6 @@ calc_rho_p(int i, int j,
     if (flag_psfc == 1) {
         pm_integ[0] = psfc(i,j,0);
     } else {
-#ifndef AMREX_USE_GPU
-        amrex::Print() << " PSFC not present in met_em files. Calculating surface pressure." << std::endl;
-#endif
         Real t_0 = 290.0; // WRF's model_config_rec%base_temp
         Real a = 50.0; // WRF's model_config_rec%base_lapse
         pm_integ[0] = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*CONST_GRAV*new_z(i,j,0)/(a*R_d)), 0.5));
@@ -790,10 +1001,8 @@ calc_rho_p(int i, int j,
 
     // calculate virtual potential temperature at the surface.
     {
-#if defined(ERF_USE_MOISTURE)
-        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQt_comp);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQv_comp);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,0,RhoQ_comp);
 #else
         Real qvf = 1.0;
 #endif
@@ -806,10 +1015,8 @@ calc_rho_p(int i, int j,
     // integrate from the surface to the top boundary.
     for (int k=1; k < kmax; ++k) {
         Real dz = new_z(i,j,k)-new_z(i,j,k-1);
-#if defined(ERF_USE_MOISTURE)
-        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQt_comp);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQv_comp);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        Real qvf = 1.0+(R_v/R_d-1.0)*new_data(i,j,k,RhoQ_comp);
 #else
         Real qvf = 1.0;
 #endif
@@ -916,6 +1123,7 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
  * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
  * @param NC_psfc_fab Vector of FArrayBox objects holding metgrid data for surface pressure
+ * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
 init_base_state_from_metgrid(const Real l_rdOcp,
@@ -927,11 +1135,15 @@ init_base_state_from_metgrid(const Real l_rdOcp,
                              FArrayBox& pi_hse_fab,
                              FArrayBox& z_phys_nd_fab,
                              const Vector<FArrayBox>& NC_ght_fab,
-                             const Vector<FArrayBox>& NC_psfc_fab)
+                             const Vector<FArrayBox>& NC_psfc_fab,
+                             Vector<Vector<FArrayBox>>& fabs_for_bcs)
 {
-//    int ntimes = NC_psfc_fab.size();
-    int ntimes = 1;
-    for (int it = 0; it < ntimes; it++) {
+#if defined(ERF_USE_MOISTURE)
+    int RhoQ_comp = RhoQt_comp;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    int RhoQ_comp = RhoQv_comp;
+#endif
+    { // set pressure and density at initialization.
         const Array4<Real>& r_hse_arr = r_hse_fab.array();
         const Array4<Real>& p_hse_arr = p_hse_fab.array();
         const Array4<Real>& pi_hse_arr = pi_hse_fab.array();
@@ -940,33 +1152,76 @@ init_base_state_from_metgrid(const Real l_rdOcp,
         // calculate dry density and dry pressure
         // ********************************************************
         // calculate density and dry pressure on the new grid.
-        {
+        Box valid_bx2d = valid_bx;
+        valid_bx2d.setRange(2,0);
+        auto const orig_psfc = NC_psfc_fab[0].const_array();
+        auto       new_data = state_fab.array();
+        auto const new_z = z_phys_nd_fab.const_array();
+        amrex::ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            calc_rho_p(i,j,flag_psfc[0],RhoQ_comp,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
+        });
+
+        amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
+            new_data(i,j,k,RhoScalar_comp) = 0.0;
+            // RhoTheta and RhoQt or RhoQv currently hold Theta and Qt or Qv. Multiply by Rho.
+            Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
+            new_data(i,j,k,RhoTheta_comp) = RhoTheta;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+            Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
+            new_data(i,j,k,RhoQ_comp) = RhoQ;
+#endif
+            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+//            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
+        });
+    }
+
+    int ntimes = NC_psfc_fab.size();
+    for (int it = 0; it < ntimes; it++) {
+        FArrayBox p_hse_bcs_fab;
+        FArrayBox pi_hse_bcs_fab;
+#ifdef AMREX_USE_GPU
+        fabs_for_bcs[it][MetGridBdyVars::R].resize(state_fab.box(), 1, The_Pinned_Arena());
+        p_hse_bcs_fab.resize(state_fab.box(), 1, The_Pinned_Arena());
+        pi_hse_bcs_fab.resize(state_fab.box(), 1, The_Pinned_Arena());
+#else
+        fabs_for_bcs[it][MetGridBdyVars::R].resize(state_fab.box(), 1);
+        p_hse_bcs_fab.resize(state_fab.box(), 1);
+        pi_hse_bcs_fab.resize(state_fab.box(), 1);
+#endif
+        amrex::Print() << " state_fab.box() = " << state_fab.box() << std::endl;
+        const Array4<Real>& r_hse_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
+        const Array4<Real>& p_hse_arr = p_hse_bcs_fab.array();
+        const Array4<Real>& pi_hse_arr = pi_hse_bcs_fab.array();
+
+        // ********************************************************
+        // calculate dry density and dry pressure
+        // ********************************************************
+        // calculate density and dry pressure on the new grid.
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto       new_data = state_fab.array();
         auto const new_z = z_phys_nd_fab.const_array();
         amrex::ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-            calc_rho_p(i,j,flag_psfc[it],orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
+            // TODO: calc_rho_p needs to be modified to take in RhoTheta, RhoQv or RhoQt, etc...
+            // so that we do not modify lev_new / state_fab and can pass in temporary arrays.
+            calc_rho_p(i,j,flag_psfc[it],RhoQ_comp,orig_psfc,new_z,new_data,p_hse_arr,r_hse_arr);
         });
 
         amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoScalar_comp) = 0.0;
-            // RhoTheta and RhoQt currently hold Theta and Qt. Multiply by Rho.
+            // RhoTheta and RhoQt or RhoQv currently hold Theta and Qt or Qv. Multiply by Rho.
             Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
             new_data(i,j,k,RhoTheta_comp) = RhoTheta;
-#if defined(ERF_USE_MOISTURE)
-            Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQt_comp);
-            new_data(i,j,k,RhoQt_comp) = RhoQ;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQv_comp);
-            new_data(i,j,k,RhoQv_comp) = RhoQ;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+            Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
+            new_data(i,j,k,RhoQ_comp) = RhoQ;
 #endif
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
 //            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
-        }
     } // it
 }
 

@@ -18,7 +18,8 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = (time - start_bdy_time) / 1.e10;
+    amrex::Print() << " BoundaryConditions_metgrid.cpp ERF::fill_from_metgrid \ttime \t" << time << std::endl;
+    Real time_since_start = time - start_bdy_time;
     int n_time = static_cast<int>( time_since_start / dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);

@@ -284,6 +284,8 @@ public:
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time);
+    void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
+                           amrex::Real time);
 #endif
 
 private:

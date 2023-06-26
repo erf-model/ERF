@@ -120,10 +120,9 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
 
-    if (init_type != "real") {
+    if ((init_type != "real") and (init_type != "metgrid")) {
         (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
     }
-    if (init_type != "metgrid") amrex::Print() << " ERF_FillPatch FillPatchMoistVars for metgrid" << std::endl;
 
     mf.FillBoundary(geom[lev].periodicity());
 }
@@ -228,6 +227,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
+    if (init_type == "metgrid") fill_from_metgrid(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
