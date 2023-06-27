@@ -29,6 +29,7 @@ USE_NETCDF  = FALSE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
+
 ERF_HOME := ../../..
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/EkmanSpiral_input_sounding
 include $(ERF_HOME)/Exec/Make.ERF
