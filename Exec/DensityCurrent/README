@@ -1,6 +1,8 @@
-Nonlinear Density Current
-=========================
-a.k.a. gravity current
+This is the classic density current (gravity current) problem.  
+It tests the effects of gravity and the behavior at a slip wall.
+
+A detailed description of the problem and a comparison of solutions 
+using a number of different codes can be found in the Straka 1993 paper.
 
 See:
 > Straka, J.M., Wilhelmson, R.B., Wicker, L.J., Anderson, J.R. and Droegemeier,

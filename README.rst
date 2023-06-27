@@ -65,5 +65,5 @@ irrevocable, worldwide license in the Software to reproduce,
 distribute copies to the public, prepare derivative works, and perform
 publicly and display publicly, and to permit other to do so.
 
-The license for ERF can be found at [LICENSE](LICENSE).
+The license for ERF can be found at [LICENSE.md](LICENSE).
 

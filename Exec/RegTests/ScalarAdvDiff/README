@@ -1,3 +1,6 @@
+This problem setup is designed to test the advection and diffusion of scalar
+fields in a relatively simple flow.
+
 There are seven inputs files in this directory, each doing a slightly different test.
 
 Below are their names in the CI tests, the corresponding inputs files here, and a brief description.
