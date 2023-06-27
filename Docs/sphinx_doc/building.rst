@@ -27,7 +27,7 @@ The problem directories within ``Exec`` are sorted into 1) science-relevant setu
 boundary layer or ``DensityCurrent`` for running the standard density current test case, etc, 2) regression tests in
 ``Exec/RegTests`` that are used for testing specific known aspects of the code functionality, such as boundary conditions or
 Rayleigh damping, and 3) tests for features under development in ``Exec/DevTests``, such as moving terrain.  There is a
-README in each problem diretcory that describes the purpose/role of that problem.
+README in each problem directory that describes the purpose/role of that problem.
 
 GNU Make
 ~~~~~~~~
