@@ -32,6 +32,7 @@ USE_HDF5    = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
+
+ERF_HOME := ../../..
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/WPS_Test
 include $(ERF_HOME)/Exec/Make.ERF
