@@ -29,5 +29,5 @@ USE_MOISTURE = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/Bubble
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/Bubble
 include $(ERF_HOME)/Exec/Make.ERF
