@@ -2,9 +2,6 @@
 COMP = gnu
 PRECISION = DOUBLE
 
-TEST = TRUE
-USE_ASSERTION = TRUE
-
 # Profiling
 PROFILE       = FALSE
 TINY_PROFILE  = FALSE
@@ -14,8 +11,8 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI  = TRUE
-USE_OMP  = FALSE
+USE_MPI = TRUE
+USE_OMP = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
@@ -27,12 +24,9 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_NETCDF  = TRUE
-USE_HDF5    = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_ideal
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_custom
 include $(ERF_HOME)/Exec/Make.ERF
