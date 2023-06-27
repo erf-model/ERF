@@ -16,7 +16,7 @@ Regression Tests    |regtests|
 Getting Started
 ~~~~~~~~~~~~~~~
 
-See `Getting Started <https://erf.readthedocs.io/en/latest/GettingStarted>`_ for instructions as to how to clone the ERF
+See `Getting Started <https://erf.readthedocs.io/en/latest/GettingStarted.html>`_ for instructions as to how to clone the ERF
 and AMReX codes, and for how to build and run an ERF example.  Mimimum requirements for system software are also given there.
 
 Documentation
