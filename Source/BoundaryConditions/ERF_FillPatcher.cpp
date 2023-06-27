@@ -57,7 +57,12 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
 
     BoxArray cf_fba(std::move(bl));
     DistributionMapping cf_dm(cf_fba);
+
+    // This will be used as a temporary to hold the time-interpolated state
     m_cf_fine_data.define(cf_fba, cf_dm, m_ncomp, 0);
+
+    // These will hold the coarse data on the m_cf grids
+    m_cf_crse_data.emplace_back(BoxArray(std::move(cbl)), cf_dm, m_ncomp, 0);
     m_cf_crse_data.emplace_back(BoxArray(std::move(cbl)), cf_dm, m_ncomp, 0);
 }
 
@@ -70,8 +75,17 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
  */
 
 void ERFFillPatcher::registerCoarseData (Vector<MultiFab const*> const& crse_data,
-                                         Vector<amrex::Real> const& /*crse_time*/)
+                                         Vector<Real> const& crse_time)
 {
-    AMREX_ALWAYS_ASSERT(crse_data.size() == 1);
-    m_cf_crse_data[0].ParallelCopy(*crse_data[0], m_cgeom.periodicity());
+    AMREX_ALWAYS_ASSERT(crse_data.size() == 2); // old and new
+    AMREX_ALWAYS_ASSERT(crse_time[0] != crse_time[1]);
+
+    m_cf_crse_data[0].ParallelCopy(*crse_data[0], m_cgeom.periodicity()); // old data
+    m_cf_crse_data[1].ParallelCopy(*crse_data[1], m_cgeom.periodicity()); // new data
+
+    m_crse_times.resize(2);
+    m_crse_times[0] = crse_time[0]; // time of "old" coarse data
+    m_crse_times[1] = crse_time[1]; // time of "new" coarse data
+
+    m_dt_crse = crse_time[1] - crse_time[0];
 }

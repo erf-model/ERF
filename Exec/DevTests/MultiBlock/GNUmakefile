@@ -11,25 +11,25 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI = TRUE
-USE_OMP = FALSE
+USE_MPI  = TRUE
+USE_OMP  = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
 USE_SYCL = FALSE
 
-# Debugging
-DEBUG = FALSE
-DEBUG = TRUE
-
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_NETCDF = TRUE
+# Debugging
+DEBUG = TRUE
+
+# MultiBlock
+USE_MULTIBLOCK = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/MetGrid
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/MultiBlock
 include $(ERF_HOME)/Exec/Make.ERF
