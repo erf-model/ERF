@@ -17,6 +17,18 @@ in any Unix-like environments (e.g., Perl and sed). For building with CMake, the
    .. note::
       **While ERF is designed to work with SYCL, we do not make any guarantees that it will build and run on your Intel platform.**
 
+Paradigm
+~~~~~~~~~~
+
+ERF uses the paradigm that different executables are built in different subdirectories within the Exec directory.  When
+using gmake (see below), the user/developer should build in the directory of the selected problem.  When using
+cmake (see below), separate executables are built for all of the problem directories listed in ``Exec/CMakeLists.txt``.
+The problem directories within Exec are sorted into 1) science-relevant setups, such as ``ABL`` for modeling the atmospheric
+boundary layer or ``DensityCurrent`` for running the standard density current test case, etc, 2) regression tests in
+Exec/RegTests that are used for testing specific known aspects of the code functionality, such as boundary conditions or
+Rayleigh damping, and 3) tests for features under development in Exec/DevTests, such as moving terrain.  There is a
+README in each problem diretcory that describes the purpose/role of that problem.
+
 GNU Make
 ~~~~~~~~
 

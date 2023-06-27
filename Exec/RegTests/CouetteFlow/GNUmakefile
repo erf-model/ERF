@@ -11,8 +11,8 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI  = TRUE
-USE_OMP  = FALSE
+USE_MPI = TRUE
+USE_OMP = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
@@ -27,6 +27,6 @@ USE_ASSERTION = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/PoiseuilleFlow
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/CouetteFlow
 include $(ERF_HOME)/Exec/Make.ERF
