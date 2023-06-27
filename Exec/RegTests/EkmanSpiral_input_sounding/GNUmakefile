@@ -2,6 +2,9 @@
 COMP = gnu
 PRECISION = DOUBLE
 
+TEST = TRUE
+USE_ASSERTION = TRUE
+
 # Profiling
 PROFILE       = FALSE
 TINY_PROFILE  = FALSE
@@ -21,13 +24,11 @@ USE_SYCL = FALSE
 # Debugging
 DEBUG = FALSE
 
-TEST = TRUE
-USE_ASSERTION = TRUE
+USE_NETCDF  = FALSE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/IsentropicVortex
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_input_sounding
 include $(ERF_HOME)/Exec/Make.ERF

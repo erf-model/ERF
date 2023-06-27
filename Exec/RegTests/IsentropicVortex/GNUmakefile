@@ -27,6 +27,7 @@ USE_ASSERTION = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/CouetteFlow
+
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/IsentropicVortex
 include $(ERF_HOME)/Exec/Make.ERF

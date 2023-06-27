@@ -2,6 +2,9 @@
 COMP = gnu
 PRECISION = DOUBLE
 
+TEST = TRUE
+USE_ASSERTION = TRUE
+
 # Profiling
 PROFILE       = FALSE
 TINY_PROFILE  = FALSE
@@ -24,9 +27,12 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+USE_NETCDF  = TRUE
+USE_HDF5    = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/ChannelFlow
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_ideal
 include $(ERF_HOME)/Exec/Make.ERF

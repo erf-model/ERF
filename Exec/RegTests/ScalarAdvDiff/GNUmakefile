@@ -2,9 +2,6 @@
 COMP = gnu
 PRECISION = DOUBLE
 
-TEST = TRUE
-USE_ASSERTION = TRUE
-
 # Profiling
 PROFILE       = FALSE
 TINY_PROFILE  = FALSE
@@ -14,8 +11,8 @@ MEM_PROFILE   = FALSE
 USE_GPROF     = FALSE
 
 # Performance
-USE_MPI = TRUE
-USE_OMP = FALSE
+USE_MPI  = TRUE
+USE_OMP  = FALSE
 
 USE_CUDA = FALSE
 USE_HIP  = FALSE
@@ -24,11 +21,16 @@ USE_SYCL = FALSE
 # Debugging
 DEBUG = FALSE
 
-USE_NETCDF  = FALSE
+TEST = TRUE
+USE_ASSERTION = TRUE
+
+#USE_MOISTURE = TRUE
+#USE_WARM_NO_PRECIP = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/EkmanSpiral_input_sounding
+
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/ScalarAdvDiff
 include $(ERF_HOME)/Exec/Make.ERF
