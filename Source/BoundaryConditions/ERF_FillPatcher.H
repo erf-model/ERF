@@ -17,8 +17,8 @@ public:
                              amrex::Vector<amrex::Real> const& crse_time);
 
     template <typename BC>
-    void fillCoarseFineBoundary (amrex::MultiFab& mf, amrex::Real time,
-                                 BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
+    void fill(amrex::MultiFab& mf, amrex::Real time,
+              BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
 
 private:
 
@@ -34,6 +34,8 @@ private:
     amrex::IntVect m_ratio;
     amrex::Vector<amrex::MultiFab> m_cf_crse_data;
     amrex::MultiFab m_cf_fine_data;
+    amrex::Vector<amrex::Real> m_crse_times;
+    amrex::Real m_dt_crse;
 };
 
 /*
@@ -46,13 +48,28 @@ private:
  */
 template <typename BC>
 void
-ERFFillPatcher::fillCoarseFineBoundary (amrex::MultiFab& mf, amrex::Real time,
-                                        BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
+ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
+                      BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
 {
     cbc(m_cf_crse_data[0], 0, m_ncomp, amrex::IntVect(0), time, 0);
-    amrex::FillPatchInterp(m_cf_fine_data, 0, m_cf_crse_data[0], 0, m_ncomp, amrex::IntVect(0),
+
+    amrex::MultiFab crse_data_time_interp(m_cf_crse_data[0].boxArray(), m_cf_crse_data[0].DistributionMap(),
+                                          m_ncomp, amrex::IntVect{0});
+
+    amrex::Real fac_new = (time - m_crse_times[0]) / m_dt_crse;
+    amrex::Real fac_old = 1.0 - fac_new;
+
+    // Time interpolate the coarse data
+    amrex::MultiFab::LinComb(crse_data_time_interp,fac_old, m_cf_crse_data[0], 0,
+                                                   fac_new, m_cf_crse_data[1], 0,
+                             0, m_ncomp, 0);
+
+
+    // Spatially interpolate the time-interpolated coarse data
+    amrex::FillPatchInterp(m_cf_fine_data, 0, crse_data_time_interp, 0, m_ncomp, amrex::IntVect(0),
                            m_cgeom, m_fgeom, m_fgeom.Domain(), m_ratio, m_interp, bcs, 0);
+
+    // Copy the spatially and temporally interpolated data back into the mf
     mf.ParallelCopy(m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
 }
-
 #endif
