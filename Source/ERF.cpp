@@ -1612,6 +1612,14 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    rU_new.resize(nlevs_max);
+    rV_new.resize(nlevs_max);
+    rW_new.resize(nlevs_max);
+
+    rU_old.resize(nlevs_max);
+    rV_old.resize(nlevs_max);
+    rW_old.resize(nlevs_max);
+
 #if defined(ERF_USE_MOISTURE)
     qmoist.resize(nlevs_max);
 #endif
