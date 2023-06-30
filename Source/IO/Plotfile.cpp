@@ -114,7 +114,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (solverChoice.use_terrain) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
-            mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
+            mf_nd[lev].define(nodal_grids, dmap[lev], 3, 0);
             mf_nd[lev].setVal(0.);
         }
     }

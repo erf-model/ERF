@@ -1,0 +1,3 @@
+This problem setup is to test the ability of ERF to correctly use files created 
+by the WRF Preprocessing System (WPS) to initialize the problem and provide
+time-dependent boundary conditions.

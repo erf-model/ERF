@@ -181,9 +181,9 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a2| image:: figures/tests/scalar_advec_uniform_u_start.png
         :width: 200
@@ -209,9 +209,9 @@ Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
 .. _`Tests/test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
         :width: 200
@@ -238,9 +238,9 @@ Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
 .. _`Tests/test_files/ScalarDiffusionGaussian`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionGaussian
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a5| image:: figures/tests/scalar_diff_start.png
         :width: 300
@@ -266,9 +266,9 @@ Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
 .. _`Tests/test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a6| image:: figures/tests/scalar_diff_sine_start.png
         :width: 300
@@ -295,9 +295,9 @@ Test Location (for 2nd order): `Tests/test_files/ScalarAdvDiff_order2`_
 
 .. _`Tests/test_files/ScalarAdvDiff_order2`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvDiff_order2
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a7| image:: figures/tests/scalar_advec_diff_start.png
         :width: 300
@@ -325,9 +325,9 @@ Test Location: `Tests/test_files/RayleighDamping`_
 
 .. _`Tests/test_files/RayleighDamping`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/RayleighDamping
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 
 Isentropic Vortex: Stationary
@@ -338,9 +338,9 @@ Test Location: `Tests/test_files/IsentropicVortexStationary`_
 
 .. _`Tests/test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
 
-Problem Location: `Exec/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Isentropic Vortex: Advecting
 ----------------------------
@@ -350,9 +350,9 @@ Test Location: `Tests/test_files/IsentropicVortexAdvecting`_
 
 .. _`Tests/test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
 
-Problem Location: `Exec/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Taylor Green Vortex: Advection
 ------------------------------------------------
@@ -362,9 +362,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvecting`_
 
 .. _`Tests/test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
 
-Problem Location: `Exec/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 Taylor Green Vortex: Advection and Diffusion
 ------------------------------------------------
@@ -374,9 +374,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvectingDiffusing`_
 
 .. _`Tests/test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
 
-Problem Location: `Exec/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 .. |a8| image:: figures/tests/TGV_start.png
         :width: 300
@@ -406,9 +406,9 @@ Test Location: `Tests/test_files/CouetteFlow`_
 
 .. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
 
-Problem Location: `Exec/CouetteFlow`_
+Problem Location: `Exec/RegTests/CouetteFlow`_
 
-.. _`Exec/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
+.. _`Exec/RegTests/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/CouetteFlow
 
 Poiseuille Flow
 ---------------
@@ -422,9 +422,9 @@ Test Location: `Tests/test_files/PoiseuilleFlow`_
 
 .. _`Tests/test_files/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow
 
-Problem Location: `Exec/PoiseuilleFlow`_
+Problem Location: `Exec/RegTests/PoiseuilleFlow`_
 
-.. _`Exec/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/PoiseuilleFlow
+.. _`Exec/RegTests/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/PoiseuilleFlow
 
 Nonlinear Density Current
 ---------------------------
@@ -473,9 +473,9 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 .. _`Tests/test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
-Problem Location: `Exec/EkmanSpiral`_
+Problem Location: `Exec/RegTests/EkmanSpiral`_
 
-.. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral_ideal
+.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral_ideal
 
 .. |aek| image:: figures/ekman_spiral_profiles.png
          :width: 300

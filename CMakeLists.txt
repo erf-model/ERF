@@ -68,7 +68,6 @@ list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 ########################### AMReX #####################################
 
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
-include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexCompileFlags.cmake)
 
 ########################## NETCDF ##################################
 

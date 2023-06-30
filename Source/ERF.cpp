@@ -500,6 +500,17 @@ ERF::InitData ()
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
+
+    // Call Init which will call Diagnose to fill qmoist
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        // If not restarting we need to fill qmoist given qt and qp.
+        if (restart_chkfile.empty()) {
+            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+        }
+    }
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -613,13 +624,10 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        int ngs   = lev_new[Vars::cons].nGrow();
-        int ngvel = lev_new[Vars::xvel].nGrow();
-
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,   1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,   1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,   1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
@@ -699,6 +707,16 @@ ERF::InitData ()
 void
 ERF::restart()
 {
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
+        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
+        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
+        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
+        }
+
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
@@ -1600,6 +1618,14 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
+
+    rU_new.resize(nlevs_max);
+    rV_new.resize(nlevs_max);
+    rW_new.resize(nlevs_max);
+
+    rU_old.resize(nlevs_max);
+    rV_old.resize(nlevs_max);
+    rW_old.resize(nlevs_max);
 
 #if defined(ERF_USE_MOISTURE)
     qmoist.resize(nlevs_max);
