@@ -715,7 +715,7 @@ ERF::restart()
         lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
         lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
         lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
-	    }
+        }
 
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
