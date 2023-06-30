@@ -624,13 +624,10 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        int ngs   = lev_new[Vars::cons].nGrow();
-        int ngvel = lev_new[Vars::xvel].nGrow();
-
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,   1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,   1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,   1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
@@ -710,6 +707,16 @@ ERF::InitData ()
 void
 ERF::restart()
 {
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
+        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
+        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
+        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
+	    }
+
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
