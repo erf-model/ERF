@@ -1,0 +1,102 @@
+cff-version: "1.2.0"
+authors:
+- family-names: Almgren
+  given-names: Ann
+  orcid: "https://orcid.org/0000-0003-2103-312X"
+- family-names: Lattanzi
+  given-names: Aaron
+  orcid: "https://orcid.org/0000-0002-3372-406X"
+- family-names: Haque
+  given-names: Riyaz
+  orcid: "https://orcid.org/0000-0001-8930-5721"
+- family-names: Jha
+  given-names: Pankaj
+  orcid: "https://orcid.org/0000-0003-1476-6747"
+- family-names: Kosovic
+  given-names: Branko
+  orcid: "https://orcid.org/0000-0002-1746-0746"
+- family-names: Mirocha
+  given-names: Jeffrey
+  orcid: "https://orcid.org/0000-0001-5914-6168"
+- family-names: Perry
+  given-names: Bruce
+  orcid: "https://orcid.org/0000-0002-9150-8103"
+- family-names: Quon
+  given-names: Eliot
+  orcid: "https://orcid.org/0000-0002-8445-5840"
+- family-names: Sanders
+  given-names: Michael
+  orcid: "https://orcid.org/0000-0001-6644-2571"
+- family-names: Wiersema
+  given-names: David
+  orcid: "https://orcid.org/0000-0001-8452-4095"
+- family-names: Willcox
+  given-names: Donald
+  orcid: "https://orcid.org/0000-0003-2300-5165"
+- family-names: Yuan
+  given-names: Xingqiu
+  orcid: "https://orcid.org/0000-0002-6146-1260"
+- family-names: Zhang
+  given-names: Weiqun
+  orcid: "https://orcid.org/0000-0001-8092-1974"
+contact:
+- family-names: Almgren
+  given-names: Ann
+  orcid: "https://orcid.org/0000-0003-2103-312X"
+doi: 10.5281/zenodo.8102984
+message: If you use this software, please cite our article in the
+  Journal of Open Source Software.
+preferred-citation:
+  authors:
+  - family-names: Almgren
+    given-names: Ann
+    orcid: "https://orcid.org/0000-0003-2103-312X"
+  - family-names: Lattanzi
+    given-names: Aaron
+    orcid: "https://orcid.org/0000-0002-3372-406X"
+  - family-names: Haque
+    given-names: Riyaz
+    orcid: "https://orcid.org/0000-0001-8930-5721"
+  - family-names: Jha
+    given-names: Pankaj
+    orcid: "https://orcid.org/0000-0003-1476-6747"
+  - family-names: Kosovic
+    given-names: Branko
+    orcid: "https://orcid.org/0000-0002-1746-0746"
+  - family-names: Mirocha
+    given-names: Jeffrey
+    orcid: "https://orcid.org/0000-0001-5914-6168"
+  - family-names: Perry
+    given-names: Bruce
+    orcid: "https://orcid.org/0000-0002-9150-8103"
+  - family-names: Quon
+    given-names: Eliot
+    orcid: "https://orcid.org/0000-0002-8445-5840"
+  - family-names: Sanders
+    given-names: Michael
+    orcid: "https://orcid.org/0000-0001-6644-2571"
+  - family-names: Wiersema
+    given-names: David
+    orcid: "https://orcid.org/0000-0001-8452-4095"
+  - family-names: Willcox
+    given-names: Donald
+    orcid: "https://orcid.org/0000-0003-2300-5165"
+  - family-names: Yuan
+    given-names: Xingqiu
+    orcid: "https://orcid.org/0000-0002-6146-1260"
+  - family-names: Zhang
+    given-names: Weiqun
+    orcid: "https://orcid.org/0000-0001-8092-1974"
+  date-published: 2023-07-01
+  doi: 10.21105/joss.05202
+  issn: 2475-9066
+  issue: 87
+  journal: Journal of Open Source Software
+  publisher:
+    name: Open Journals
+  start: 5202
+  title: "ERF: Energy Research and Forecasting"
+  type: article
+  url: "https://joss.theoj.org/papers/10.21105/joss.05202"
+  volume: 8
+title: "ERF: Energy Research and Forecasting"
