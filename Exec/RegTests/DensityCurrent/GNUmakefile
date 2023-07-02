@@ -30,6 +30,6 @@ USE_ASSERTION = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DensityCurrent
+ERF_HOME := ../../..
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/DensityCurrent
 include $(ERF_HOME)/Exec/Make.ERF
