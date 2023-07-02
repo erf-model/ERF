@@ -19,8 +19,8 @@ periodic in the lateral directions with slip walls on top and bottom.
 The simulation is run for one period, i.e. until time :math:`t=0.2`  For all cases shown here, the time step
 was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates the temporal error.
 
-.. |aaa| image:: figures/conv_plot.png
-         :width: 300
+.. image:: figures/conv_plot.png
+  :width: 400
 
 
 Nonlinear Density Current
