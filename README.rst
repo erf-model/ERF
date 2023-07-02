@@ -4,6 +4,12 @@ Energy Research and Forecasting (ERF): An atmospheric modeling code
 `ERF` is built upon the `AMReX <https://amrex-codes.github.io/amrex/>`_ software framework
 for massively parallel block-structured applications.
 
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.8102984.svg
+   :target: https://doi.org/10.5281/zenodo.8102984
+
+.. image:: https://joss.theoj.org/papers/10.21105/joss.05202/status.svg
+   :target: https://doi.org/10.21105/joss.05202
+
 Test Status
 ~~~~~~~~~~~
 
