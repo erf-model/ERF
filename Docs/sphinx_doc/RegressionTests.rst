@@ -430,44 +430,21 @@ Nonlinear Density Current
 ---------------------------
 The density current problem tests the effects of gravity and the behavior at a slip wall.
 
-A detailed description of the problem and a comparison of solutions using a number
-of different codes can be found in the `Straka 1993 paper`_
-
-.. _`Straka 1993 paper`: https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103
+See :ref:`sec:Verification` for more information.
 
 Test Location: `Tests/test_files/DensityCurrent`_
 
 .. _`Tests/test_files/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/DensityCurrent
 
-Problem Location: `Exec/DensityCurrent`_
+Problem Location: `Exec/RegTests/DensityCurrent`_
 
-.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DensityCurrent
-
-.. |adc| image:: figures/density_current_600.png
-         :width: 300
-
-.. |bdc| image:: figures/density_current_900.png
-         :width: 300
-
-.. _fig:density_currennt
-
-.. table:: Potential temperature perturbation at 600s and 900s
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |adc|                        |                        |bdc|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Perturbational potential temperature at t = 600s  |   Perturbational potential temperature at t = 900s   |
-   +-----------------------------------------------------+------------------------------------------------------+
+.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/DensityCurrent
 
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
 
-A description of the problem, including the exact solution, can be found at `Ekman Spiral Description`_
-
-.. _`Ekman Spiral Description`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
-
-The steady solution is shown below, as well as a log-log plot showing the error scaling as :math:`O(\Delta z^2)`.
+See :ref:`sec:Verification` for more information.
 
 Test Location: `Tests/test_files/EkmanSpiral`_
 
@@ -476,19 +453,3 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 Problem Location: `Exec/RegTests/EkmanSpiral`_
 
 .. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral_ideal
-
-.. |aek| image:: figures/ekman_spiral_profiles.png
-         :width: 300
-
-.. |bek| image:: figures/ekman_spiral_errors.png
-         :width: 300
-
-.. _fig:ekman_spiral
-
-.. table:: Flow profile and Error
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |aek|                        |                        |bek|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Flow profiles                                     |   Convergence study                                  |
-   +-----------------------------------------------------+------------------------------------------------------+

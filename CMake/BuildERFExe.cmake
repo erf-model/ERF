@@ -36,6 +36,10 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
 
+  if(ERF_ENABLE_PARTICLES)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
+  endif()
+
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCBuildFABs.cpp
