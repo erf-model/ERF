@@ -43,8 +43,6 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.spatial_order = 2
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
@@ -52,6 +50,7 @@ prob.A_0 = 1.0
 prob.U_0 = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
+prob.T_0 = 300.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC

@@ -1,8 +1,6 @@
-#include "Utils.H"
-
-    // **************************************************************************************
-    // Temporary array that we use to store primitive advected quantities for the RHS
-    // **************************************************************************************
+/**
+ *  Define the primitive variables by dividing the conserved variables by density
+ */
     auto cons_to_prim = [&](const MultiFab& cons_state, int ng)
     {
         BL_PROFILE("cons_to_prim()");
@@ -15,12 +13,13 @@
           const Array4<const Real>& cons_arr     = cons_state.array(mfi);
           const Array4<      Real>& prim_arr     = S_prim.array(mfi);
           const Array4<      Real>& pi_stage_arr = pi_stage.array(mfi);
+          const Real rdOcp = solverChoice.rdOcp;
 
           amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real rho       = cons_arr(i,j,k,Rho_comp);
             Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
             prim_arr(i,j,k,PrimTheta_comp) = rho_theta / rho;
-            pi_stage_arr(i,j,k) = getExnergivenRTh(rho_theta);
+            pi_stage_arr(i,j,k) = getExnergivenRTh(rho_theta, rdOcp);
             for (int n = 1; n < NUM_PRIM; ++n) {
               prim_arr(i,j,k,PrimTheta_comp + n) = cons_arr(i,j,k,RhoTheta_comp + n) / rho;
             }
@@ -28,12 +27,12 @@
       } // mfi
     };
 
-    // ***************************************************************************************
-    // This routine is called before the first step of the time integration, *and* in the case
-    //  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
-    //  before every subsequent stage.  Since we advance the variables in conservative form,
-    //  we must convert momentum to velocity before imposing the bcs.
-    // ***************************************************************************************
+/**
+ *  This routine is called before the first step of the time integration, *and* in the case
+ *  of a multi-stage method like RK3, this is called from "pre_update_fun" which is called
+ *  before every subsequent stage.  Since we advance the variables in conservative form,
+ *  we must convert momentum to velocity before imposing the bcs.
+ */
     auto apply_bcs = [&](Vector<MultiFab>& S_data,
                          const Real time_for_fp, int ng_cons, int ng_vel,
                          bool fast_only, bool vel_and_mom_synced)
@@ -81,13 +80,12 @@
 
             FillIntermediatePatch(level, time_for_fp,
                                   {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
-                                  ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons);
+                                  ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons, eddyDiffs);
 
             // Here we don't use include any of the ghost region because we have only updated
             //      momentum on valid faces
-            MomentumToVelocity(grids_to_evolve[level],
-                               xvel_new, yvel_new, zvel_new,
-                               S_data[IntVar::cons],
+            MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
+            MomentumToVelocity(xvel_new, yvel_new, zvel_new, density,
                                S_data[IntVar::xmom],
                                S_data[IntVar::ymom],
                                S_data[IntVar::zmom]);
@@ -134,15 +132,17 @@
         FillIntermediatePatch(level, time_for_fp,
                               {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
-                              allow_most_bcs);
+                              eddyDiffs, allow_most_bcs);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density
+        MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
         VelocityToMomentum(xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            yvel_new, IntVect(ng_vel,ng_vel,ng_vel),
                            zvel_new, IntVect(ng_vel,ng_vel,0),
-                           S_data[IntVar::cons],
+                           density,
                            S_data[IntVar::xmom],
                            S_data[IntVar::ymom],
-                           S_data[IntVar::zmom]);
+                           S_data[IntVar::zmom],
+                           solverChoice.use_NumDiff);
     };

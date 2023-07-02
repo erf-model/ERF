@@ -16,8 +16,8 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.004
-erf.fixed_mri_dt_ratio = 4
+erf.no_substepping     = 1
+erf.fixed_dt           = 0.0005
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -40,7 +40,9 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta te
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false
-erf.spatial_order = 2
+
+erf.horiz_spatial_order = 2
+erf.vert_spatial_order = 2
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"

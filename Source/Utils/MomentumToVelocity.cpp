@@ -8,33 +8,38 @@
 using namespace amrex;
 
 /**
- * Convert updated momentum to updated velocity
+ * Convert momentum to velocity by dividing by density averaged onto faces
+ *
+ * @param[out] xvel x-component of velocity
+ * @param[out] yvel y-component of velocity
+ * @param[out] zvel z-component of velocity
+ * @param[in] density density at cell centers
+ * @param[in] xmom_in x-component of momentum
+ * @param[in] ymom_in y-component of momentum
+ * @param[in] zmom_in z-component of momentum
  */
+
 void
-MomentumToVelocity( BoxArray& grids_to_evolve,
-                    MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                    const MultiFab& cons_in,
-                    const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
+MomentumToVelocity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
+                   const MultiFab& density,
+                   const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 
-    // Loop over boxes = valid boxes grown by ngrow
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
+        // We need velocity in the interior ghost cells (init == real)
+        Box bx = mfi.tilebox();
 
         const Box& tbx = surroundingNodes(bx,0);
         const Box& tby = surroundingNodes(bx,1);
         const Box& tbz = surroundingNodes(bx,2);
 
         // Conserved variables on cell centers -- we use this for density
-        const Array4<const Real>& cons = cons_in.array(mfi);
+        const Array4<const Real>& dens_arr = density.array(mfi);
 
         // Momentum on faces
         Array4<Real const> const& momx = xmom_in.array(mfi);
@@ -48,13 +53,13 @@ MomentumToVelocity( BoxArray& grids_to_evolve,
 
         amrex::ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            velx(i,j,k) = momx(i,j,k)/(0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp)));
+            velx(i,j,k) = momx(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp)));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            vely(i,j,k) = momy(i,j,k)/(0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp)));
+            vely(i,j,k) = momy(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp)));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            velz(i,j,k) = momz(i,j,k)/(0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp)));
+            velz(i,j,k) = momz(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp)));
         });
     } // end MFIter
 }

@@ -1,13 +1,31 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
-//#include <ERF_Constants.H>
 #include <IndexDefines.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <prob_common.H>
+#include <TileNoZ.H>
 
 using namespace amrex;
 
-void make_fast_coeffs (int level,
+/**
+ * Function for computing the coefficients for the tridiagonal solver used in the fast
+ * integrator (the acoustic substepping).
+ *
+ * @param[in]  level level of refinement
+ * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
+ * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
+ * @param[in]  S_stage_data solution at the last stage
+ * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
+ * @param[in]  pi_stage Exner function at the last stage
+ * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  r0     Reference (hydrostatically stratified) density
+ * @param[in]  pi0     Reference (hydrostatically stratified) Exner function
+ * @param[in]  dtau    Fast time step
+ * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
+ */
+
+void make_fast_coeffs (int /*level*/,
                        BoxArray& grids_to_evolve,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -17,18 +35,15 @@ void make_fast_coeffs (int level,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       amrex::Real dtau,bool ingested_bcs)
+                       Real dtau, Real beta_s)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
-    // beta_s = -1.0 : fully explicit
-    // beta_s =  1.0 : fully implicit
-    Real beta_s = 0.1;
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
-    bool l_use_terrain    = solverChoice.use_terrain;
+    Real c_v = solverChoice.c_p - R_d;
 
-    Real c_v = c_p - R_d;
+    bool l_use_terrain    = solverChoice.use_terrain;
 
     const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -41,7 +56,6 @@ void make_fast_coeffs (int level,
     MultiFab coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
     MultiFab coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
 
-    FArrayBox gam_fab;
 
     // *************************************************************************
     // Set gravity as a vector
@@ -56,7 +70,7 @@ void make_fast_coeffs (int level,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 
@@ -73,7 +87,7 @@ void make_fast_coeffs (int level,
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi); const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
-        gam_fab.resize(coeff_A_mf[mfi].box());
+        FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1);
         Elixir gEli = gam_fab.elixir();
 
         auto const& coeffA_a  = coeff_A_mf.array(mfi);
@@ -127,9 +141,14 @@ void make_fast_coeffs (int level,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+#if defined(ERF_USE_MOISTURE)
+                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
+                                +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k  ,PrimQv_comp) + prim(i,j,k  ,PrimQc_comp) +
+                                 prim(i,j,k-1,PrimQv_comp) + prim(i,j,k-1,PrimQc_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif
@@ -171,9 +190,14 @@ void make_fast_coeffs (int level,
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
 
-#ifdef ERF_USE_MOISTURE
-                Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                                +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
+#if defined(ERF_USE_MOISTURE)
+                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
+                                +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                Real q = 0.5 * ( prim(i,j,k  ,PrimQv_comp) + prim(i,j,k  ,PrimQc_comp) +
+                                 prim(i,j,k-1,PrimQv_comp) + prim(i,j,k-1,PrimQc_comp) );
                 coeff_P /= (1.0 + q);
                 coeff_Q /= (1.0 + q);
 #endif

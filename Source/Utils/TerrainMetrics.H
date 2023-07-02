@@ -6,6 +6,10 @@
 #include <AMReX_MultiFab.H>
 #include <IndexDefines.H>
 
+/**
+ * Utility routines for constructing terrain metric terms
+ */
+
 // Declare function for ERF.cpp
 void init_terrain_grid( const amrex::Geometry& geom, amrex::MultiFab& z_phys_nd);
 
@@ -325,15 +329,15 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
     return met_h_eta;
 }
 
-//*****************************************************************************************
-// Map between W <--> Omega
-//*****************************************************************************************
+/**
+ * Define omega given u,v and w
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 OmegaFromW (int i, int j, int k, amrex::Real w,
-            const amrex::Array4<const amrex::Real> u,
-            const amrex::Array4<const amrex::Real> v,
+            const amrex::Array4<const amrex::Real> u_arr,
+            const amrex::Array4<const amrex::Real> v_arr,
             const amrex::Array4<const amrex::Real> z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -347,35 +351,25 @@ OmegaFromW (int i, int j, int k, amrex::Real w,
     ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
-  // No-slip BC
-  /*
-  amrex::Real omega;
-  if (k == 0) {
-      omega = 0.;
-  } else {
-      amrex::Real vec_zlo_xi   = 0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-      amrex::Real vec_zlo_eta  = 0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
-      omega =  -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
-  }
-  */
-
   // Slip BC or moving terrain
   // Use extrapolation instead of interpolation if at the bottom boundary
-  amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
-    0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-  amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*(v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
-    0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
+  amrex::Real u = (k == 0) ? 1.5 * (0.5*(u_arr(i,j,k)+u_arr(i+1,j,k))) - 0.5*(0.5*(u_arr(i,j,k+1)+u_arr(i+1,j,k+1))) :
+    0.25 * ( u_arr(i,j,k-1) + u_arr(i+1,j,k-1) + u_arr(i,j,k) + u_arr(i+1,j,k) );
+  amrex::Real v = (k == 0) ? 1.5 * (0.5*(v_arr(i,j,k)+v_arr(i,j+1,k))) - 0.5*(0.5*(v_arr(i,j,k+1)+v_arr(i,j+1,k+1))) :
+    0.25 * ( v_arr(i,j,k-1) + v_arr(i,j+1,k-1) + v_arr(i,j,k) + v_arr(i,j+1,k) );
 
-  amrex::Real omega =  -met_zlo_xi * vec_zlo_xi - met_zlo_eta * vec_zlo_eta + w;
+  amrex::Real omega =  w - met_zlo_xi * u - met_zlo_eta * v;
   return omega;
 }
 
+/**
+ * Define w given scalar u,v and omega
+ */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 WFromOmega (int i, int j, int k, amrex::Real omega,
-            const amrex::Array4<const amrex::Real>& u,
-            const amrex::Array4<const amrex::Real>& v,
+            amrex::Real u, amrex::Real v,
             const amrex::Array4<const amrex::Real>& z_nd,
             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
 {
@@ -389,13 +383,29 @@ WFromOmega (int i, int j, int k, amrex::Real omega,
     ( z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k  )    // hi j, lo k
      -z_nd(i+1,j  ,k  ) - z_nd(i  ,j  ,k  ) ); // lo j, lo k
 
-  // Use extrapolation instead of interpolation if at the bottom boundary
-  amrex::Real vec_zlo_xi   = (k == 0) ? 1.5 * (0.5*(u(i,j,k)+u(i+1,j,k))) - 0.5*(0.5*(u(i,j,k+1)+u(i+1,j,k+1))) :
-    0.25 * ( u(i,j,k-1) + u(i+1,j,k-1) + u(i,j,k) + u(i+1,j,k) );
-  amrex::Real vec_zlo_eta  = (k == 0) ? 1.5 * (0.5*(v(i,j,k)+v(i,j+1,k))) - 0.5*(0.5*(v(i,j,k+1)+v(i,j+1,k+1))) :
-    0.25 * ( v(i,j,k-1) + v(i,j+1,k-1) + v(i,j,k) + v(i,j+1,k) );
+  amrex::Real w = omega + met_zlo_xi * u + met_zlo_eta * v;
+  return w;
+}
 
-  amrex::Real w = met_zlo_xi * vec_zlo_xi + met_zlo_eta * vec_zlo_eta + omega;
+/**
+ * Define w given u and v arrays and scalar omega
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+WFromOmega (int i, int j, int k, amrex::Real omega,
+            const amrex::Array4<const amrex::Real>& u_arr,
+            const amrex::Array4<const amrex::Real>& v_arr,
+            const amrex::Array4<const amrex::Real>& z_nd,
+            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv)
+{
+  // Use extrapolation instead of interpolation if at the bottom boundary
+  amrex::Real u = (k == 0) ? 1.5 * (0.5*(u_arr(i,j,k)+u_arr(i+1,j,k))) - 0.5*(0.5*(u_arr(i,j,k+1)+u_arr(i+1,j,k+1))) :
+    0.25 * ( u_arr(i,j,k-1) + u_arr(i+1,j,k-1) + u_arr(i,j,k) + u_arr(i+1,j,k) );
+  amrex::Real v = (k == 0) ? 1.5 * (0.5*(v_arr(i,j,k)+v_arr(i,j+1,k))) - 0.5*(0.5*(v_arr(i,j,k+1)+v_arr(i,j+1,k+1))) :
+    0.25 * ( v_arr(i,j,k-1) + v_arr(i,j+1,k-1) + v_arr(i,j,k) + v_arr(i,j+1,k) );
+
+  amrex::Real w = WFromOmega(i,j,k,omega,u,v,z_nd,dxInv);
   return w;
 }
 #endif

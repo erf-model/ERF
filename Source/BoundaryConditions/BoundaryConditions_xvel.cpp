@@ -3,28 +3,22 @@
 
 using namespace amrex;
 
-//
-// dest_arr is the Array4 to be filled
-// time is the time at which the data should be filled
-// bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals
-//     so this follows the BCVars enum
-//
-void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
-                                      const Box& bx, const Box& domain,
-                                      const Array4<Real const>& z_nd,
-                                      const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                      Real /*time*/, int bccomp)
+/*
+ * Impose lateral boundary conditions on x-component of velocity
+ *
+ * @param[in] dest_arr Array4 of the quantity to be filled
+ * @param[in] bx       box associated with this data
+ * @param[in] domain   computational domain
+ * @param[in] bccomp   index into m_domain_bcs_type
+ */
+
+void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
+                                              const Box& bx, const Box& domain,
+                                              int bccomp)
 {
-    BL_PROFILE_VAR("impose_xvel_bcs()",impose_xvel_bcs);
+    BL_PROFILE_VAR("impose_lateral_xvel_bcs()",impose_lateral_xvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
     const auto& dom_hi = amrex::ubound(domain);
-
-    // Based on BCRec for the domain, we need to make BCRec for this Box
-    // bccomp is used as starting index for m_domain_bcs_type
-    //      0 is used as starting index for bcrs
-    int ncomp = 1;
-    Vector<BCRec> bcrs(ncomp);
-    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -32,6 +26,13 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
     // xhi: ori = 3
     // yhi: ori = 4
     // zhi: ori = 5
+
+    // Based on BCRec for the domain, we need to make BCRec for this Box
+    // bccomp is used as starting index for m_domain_bcs_type
+    //      0 is used as starting index for bcrs
+    int ncomp = 1;
+    Vector<BCRec> bcrs(ncomp);
+    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
@@ -131,6 +132,52 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
         );
     } // not periodic in y
 
+    Gpu::streamSynchronize();
+}
+
+/*
+ * Impose vertical boundary conditions on x-component of velocity
+ *
+ * @param[in] dest_arr  the Array4 of the quantity to be filled
+ * @param[in] bx        the box associated with this data
+ * @param[in] domain    the computational domain
+ * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] dxInv     inverse cell size array
+ * @param[in] bccomp    index into m_domain_bcs_type
+ */
+void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
+                                               const Box& bx, const Box& domain,
+                                               const Array4<Real const>& z_phys_nd,
+                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                               int bccomp)
+{
+    BL_PROFILE_VAR("impose_vertical_xvel_bcs()",impose_vertical_xvel_bcs);
+    const auto& dom_lo = amrex::lbound(domain);
+    const auto& dom_hi = amrex::ubound(domain);
+
+    GeometryData const& geomdata = m_geom.data();
+
+    // Based on BCRec for the domain, we need to make BCRec for this Box
+    // bccomp is used as starting index for m_domain_bcs_type
+    //      0 is used as starting index for bcrs
+    int ncomp = 1;
+    Vector<BCRec> bcrs(ncomp);
+    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+
+    amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
+#ifdef AMREX_USE_GPU
+    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+#else
+    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
+#endif
+    const amrex::BCRec* bc_ptr = bcrs_d.data();
+
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+
+    for (int i = 0; i < ncomp; i++)
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+            l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
+
     {
         // Populate ghost cells on lo-z and hi-z domain boundaries
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
@@ -191,9 +238,9 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
                     int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
                     // Get metrics
-                    Real met_h_xi   = Compute_h_xi_AtIface  (ii, jj, k0, dxInv, z_nd);
-                    Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_nd);
-                    Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_nd);
+                    Real met_h_xi   = Compute_h_xi_AtIface  (ii, jj, k0, dxInv, z_phys_nd);
+                    Real met_h_eta  = Compute_h_eta_AtIface (ii, jj, k0, dxInv, z_phys_nd);
+                    Real met_h_zeta = Compute_h_zeta_AtIface(ii, jj, k0, dxInv, z_phys_nd);
 
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
@@ -227,6 +274,5 @@ void ERFPhysBCFunct::impose_xvel_bcs (const Array4<Real>& dest_arr,
             } // foextrap
         } // ncomp
     } //m_z_phys_nd
-
     Gpu::streamSynchronize();
 }

@@ -1,9 +1,14 @@
 #include <ERF.H>
 #include "AMReX_PlotFileUtil.H"
 
+#include <iostream>
+#include <fstream>
+
 using namespace amrex;
 
-// utility to skip to next line in Header
+/**
+ * Utility to skip to next line in Header file input stream.
+ */
 void
 ERF::GotoNextLine (std::istream& is)
 {
@@ -11,6 +16,9 @@ ERF::GotoNextLine (std::istream& is)
     is.ignore(bl_ignore_max, '\n');
 }
 
+/**
+ * ERF function for writing a checkpoint file.
+ */
 void
 ERF::WriteCheckpointFile () const
 {
@@ -118,20 +126,90 @@ ERF::WriteCheckpointFile () const
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
-       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
-       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),0);
-       VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
+#ifdef ERF_USE_MOISTURE
+       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
+       MultiFab::Copy(moist_vars,qmoist[lev],0,0,qmoist[lev].nComp(),0);
+       VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+#endif
+
+       // Note that we write the ghost cells of the base state (unlike above)
+       IntVect ngvect_base = base_state[lev].nGrowVect();
+       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
+       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ngvect_base);
+       VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
        if (solverChoice.use_terrain)  {
-           // Note that we write the ghost cells of z_phys_nd (unlike above)
+           // Note that we also write the ghost cells of z_phys_nd
            IntVect ngvect = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
            MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ngvect);
            VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
        }
+
+       // Note that we also write the ghost cells of the mapfactors (2D)
+       BoxList bl2d = grids[lev].boxList();
+       for (auto& b : bl2d) {
+           b.setRange(2,0);
+       }
+       BoxArray ba2d(std::move(bl2d));
+
+       IntVect ngvect_mf = mapfac_m[lev]->nGrowVect();
+       MultiFab mf_m(ba2d,dmap[lev],1,ngvect_mf);
+       MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ngvect_mf);
+       VisMF::Write(mf_m, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
+
+       ngvect_mf = mapfac_u[lev]->nGrowVect();
+       MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ngvect_mf);
+       MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ngvect_mf);
+       VisMF::Write(mf_u, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+
+       ngvect_mf = mapfac_v[lev]->nGrowVect();
+       MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ngvect_mf);
+       MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ngvect_mf);
+       VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
    }
+
+#ifdef ERF_USE_NETCDF
+   // Write bdy_data files
+   if (ParallelDescriptor::IOProcessor() && (init_type == "real")) {
+
+     // Vector dimensions
+     int num_time = bdy_data_xlo.size();
+     int num_var  = bdy_data_xlo[0].size();
+
+     // Open header file and write to it
+     std::ofstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
+     bdy_h_file << std::setprecision(1) << std::fixed;
+     bdy_h_file << num_time << "\n";
+     bdy_h_file << num_var  << "\n";
+     bdy_h_file << start_bdy_time << "\n";
+     bdy_h_file << bdy_time_interval << "\n";
+     bdy_h_file << wrfbdy_width << "\n";
+     for (int ivar(0); ivar<num_var; ++ivar) {
+       bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_xhi[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_ylo[0][ivar].box() << "\n";
+       bdy_h_file << bdy_data_yhi[0][ivar].box() << "\n";
+     }
+
+     // Open data file and write to it
+     std::ofstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
+     for (int itime(0); itime<num_time; ++itime) {
+       for (int ivar(0); ivar<num_var; ++ivar) {
+         bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_xhi[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_ylo[itime][ivar].writeOn(bdy_d_file,0,1);
+         bdy_data_yhi[itime][ivar].writeOn(bdy_d_file,0,1);
+       }
+     }
+   }
+#endif
+
 }
 
+/**
+ * ERF function for reading data from a checkpoint file during restart.
+ */
 void
 ERF::ReadCheckpointFile ()
 {
@@ -229,7 +307,6 @@ ERF::ReadCheckpointFile ()
     {
         MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
-        //vars_new[lev][Vars::cons].setVal(0.);
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -244,16 +321,144 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
-        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),0);
-        VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
-        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),0);
+#ifdef ERF_USE_MOISTURE
+       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
+       VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+       MultiFab::Copy(qmoist[lev],moist_vars,0,0,qmoist[lev].nComp(),0);
+#endif
 
-       if (solverChoice.use_terrain)  {
-           // Note that we read the ghost cells of z_phys_nd (unlike above)
+        // Note that we read the ghost cells of the base state (unlike above)
+        IntVect ngvect_base = base_state[lev].nGrowVect();
+        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
+        VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
+        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),ngvect_base);
+        base_state[lev].FillBoundary(geom[lev].periodicity());
+
+        if (solverChoice.use_terrain)  {
+           // Note that we also read the ghost cells of z_phys_nd
            IntVect ngvect = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ngvect);
-       }
+        }
+
+        // Note that we read the ghost cells of the mapfactors
+        BoxList bl2d = grids[lev].boxList();
+        for (auto& b : bl2d) {
+            b.setRange(2,0);
+        }
+        BoxArray ba2d(std::move(bl2d));
+
+        IntVect ngvect_mf = mapfac_m[lev]->nGrowVect();
+        MultiFab mf_m(ba2d,dmap[lev],1,ngvect_mf);
+        VisMF::Read(mf_m, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
+        MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ngvect_mf);
+
+        ngvect_mf = mapfac_u[lev]->nGrowVect();
+        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ngvect_mf);
+        VisMF::Read(mf_u, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
+        MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ngvect_mf);
+
+        ngvect_mf = mapfac_v[lev]->nGrowVect();
+        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ngvect_mf);
+        VisMF::Read(mf_v, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
+        MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ngvect_mf);
     }
+
+#ifdef ERF_USE_NETCDF
+    // Read bdy_data files
+    if (init_type == "real") {
+        int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
+        int num_time;
+        int num_var;
+        Vector<Box> bx_v;
+        if (ParallelDescriptor::IOProcessor()) {
+            // Open header file and read from it
+            std::ifstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_H"));
+            bdy_h_file >> num_time;
+            bdy_h_file >> num_var;
+            bdy_h_file >> start_bdy_time;
+            bdy_h_file >> bdy_time_interval;
+            bdy_h_file >> wrfbdy_width;
+            bx_v.resize(4*num_var);
+            for (int ivar(0); ivar<num_var; ++ivar) {
+                bdy_h_file >> bx_v[4*ivar  ];
+                bdy_h_file >> bx_v[4*ivar+1];
+                bdy_h_file >> bx_v[4*ivar+2];
+                bdy_h_file >> bx_v[4*ivar+3];
+            }
+
+            // IO size the FABs
+            bdy_data_xlo.resize(num_time);
+            bdy_data_xhi.resize(num_time);
+            bdy_data_ylo.resize(num_time);
+            bdy_data_yhi.resize(num_time);
+            for (int itime(0); itime<num_time; ++itime) {
+                bdy_data_xlo[itime].resize(num_var);
+                bdy_data_xhi[itime].resize(num_var);
+                bdy_data_ylo[itime].resize(num_var);
+                bdy_data_yhi[itime].resize(num_var);
+                for (int ivar(0); ivar<num_var; ++ivar) {
+                    bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
+                    bdy_data_xhi[itime][ivar].resize(bx_v[4*ivar+1]);
+                    bdy_data_ylo[itime][ivar].resize(bx_v[4*ivar+2]);
+                    bdy_data_yhi[itime][ivar].resize(bx_v[4*ivar+3]);
+                }
+            }
+
+            // Open data file and read from it
+            std::ifstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_D"));
+            for (int itime(0); itime<num_time; ++itime) {
+                for (int ivar(0); ivar<num_var; ++ivar) {
+                    bdy_data_xlo[itime][ivar].readFrom(bdy_d_file);
+                    bdy_data_xhi[itime][ivar].readFrom(bdy_d_file);
+                    bdy_data_ylo[itime][ivar].readFrom(bdy_d_file);
+                    bdy_data_yhi[itime][ivar].readFrom(bdy_d_file);
+                }
+            }
+        } // IO
+
+        // Broadcast the data
+        ParallelDescriptor::Barrier();
+        ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
+        ParallelDescriptor::Bcast(&bdy_time_interval,1,ioproc);
+        ParallelDescriptor::Bcast(&wrfbdy_width,1,ioproc);
+        ParallelDescriptor::Bcast(&num_time,1,ioproc);
+        ParallelDescriptor::Bcast(&num_var,1,ioproc);
+
+        // Everyone size their boxes
+        bx_v.resize(4*num_var);
+
+        ParallelDescriptor::Bcast(bx_v.dataPtr(),bx_v.size(),ioproc);
+
+        // Everyone but IO size their FABs
+        if (!ParallelDescriptor::IOProcessor()) {
+          bdy_data_xlo.resize(num_time);
+          bdy_data_xhi.resize(num_time);
+          bdy_data_ylo.resize(num_time);
+          bdy_data_yhi.resize(num_time);
+          for (int itime(0); itime<num_time; ++itime) {
+            bdy_data_xlo[itime].resize(num_var);
+            bdy_data_xhi[itime].resize(num_var);
+            bdy_data_ylo[itime].resize(num_var);
+            bdy_data_yhi[itime].resize(num_var);
+            for (int ivar(0); ivar<num_var; ++ivar) {
+              bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
+              bdy_data_xhi[itime][ivar].resize(bx_v[4*ivar+1]);
+              bdy_data_ylo[itime][ivar].resize(bx_v[4*ivar+2]);
+              bdy_data_yhi[itime][ivar].resize(bx_v[4*ivar+3]);
+            }
+          }
+        }
+
+        for (int itime(0); itime<num_time; ++itime) {
+            for (int ivar(0); ivar<num_var; ++ivar) {
+                ParallelDescriptor::Bcast(bdy_data_xlo[itime][ivar].dataPtr(),bdy_data_xlo[itime][ivar].box().numPts(),ioproc);
+                ParallelDescriptor::Bcast(bdy_data_xhi[itime][ivar].dataPtr(),bdy_data_xhi[itime][ivar].box().numPts(),ioproc);
+                ParallelDescriptor::Bcast(bdy_data_ylo[itime][ivar].dataPtr(),bdy_data_ylo[itime][ivar].box().numPts(),ioproc);
+                ParallelDescriptor::Bcast(bdy_data_yhi[itime][ivar].dataPtr(),bdy_data_yhi[itime][ivar].box().numPts(),ioproc);
+            }
+        }
+    } // init real
+#endif
 }

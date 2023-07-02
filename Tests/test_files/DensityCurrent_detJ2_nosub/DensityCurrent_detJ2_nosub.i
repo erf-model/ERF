@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 20
 
+erf.buoyancy_type = 1
+
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -45,12 +47,16 @@ erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
-erf.spatial_order = 2
+
+erf.horiz_spatial_order = 2
+erf.vert_spatial_order = 2
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "ConstantAlpha"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858
 erf.dynamicViscosity = 87.108013935 # kg/(m-s)
+
+erf.c_p = 1004.0
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0 = 300.0

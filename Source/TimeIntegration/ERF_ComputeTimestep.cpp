@@ -3,7 +3,10 @@
 
 using namespace amrex;
 
-// a wrapper for estTimeStep
+/**
+ * Function that calls estTimeStep for each level
+ *
+ */
 void
 ERF::ComputeDt ()
 {
@@ -36,6 +39,12 @@ ERF::ComputeDt ()
     }
 }
 
+/**
+ * Function that calls estTimeStep for each level
+ *
+ * @param[in] level level of refinement (coarsest level i 0)
+ * @param[out] dt_fast_ratio ratio of slow to fast time step
+ */
 Real
 ERF::estTimeStep(int level, long& dt_fast_ratio) const
 {
@@ -66,6 +75,9 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                const amrex::Real rho      = s(i, j, k, Rho_comp);
                const amrex::Real rhotheta = s(i, j, k, RhoTheta_comp);
 
+               // NOTE: even when moisture is present,
+               //       we only use the partial pressure of the dry air
+               //       to compute the soundspeed
                amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 
@@ -131,7 +143,15 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   }
 
   // Force time step ratio to be an even value
-  if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+  if (force_stage1_single_substep) {
+      if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+  } else {
+      if ( dt_fast_ratio%6 != 0) {
+          amrex::Print() << "mri_dt_ratio = " << dt_fast_ratio
+            << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+          dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
+      }
+  }
 
   if (verbose)
     amrex::Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
@@ -139,10 +159,10 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   if (fixed_dt > 0.0) {
     return fixed_dt;
   } else {
-    if (use_lowM_dt) {
-        return estdt_lowM;
-    } else {
+    if (no_substepping) {
         return estdt_comp;
+    } else {
+        return estdt_lowM;
     }
   }
 }

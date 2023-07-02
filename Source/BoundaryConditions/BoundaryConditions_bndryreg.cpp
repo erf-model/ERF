@@ -2,14 +2,13 @@
 
 using namespace amrex;
 
-//
-// This routine uses data read in as BndryRegisters from a previous ERF run
-//
-// mf is the MultiFab to be filled
-// time is the time at which the data should be filled
-// bccomp is the index into both domain_bcs_type_bcr and bc_extdir_vals
-//     so this follows the BCVars enum
-//
+/*
+ * Impose boundary conditions using data read in as BndryRegisters from a previous ERF run
+ *
+ * @param[out] mfs  Vector of MultiFabs to be filled
+ * @param[in]  time time at which the data should be filled
+ */
+
 void
 ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 {

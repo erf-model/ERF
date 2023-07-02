@@ -4,6 +4,9 @@
 
 using namespace amrex;
 
+/**
+ * Writes a checkpoint file in NetCDF format
+ */
 void
 ERF::WriteNCCheckpointFile () const
 {
@@ -84,7 +87,7 @@ ERF::WriteNCCheckpointFile () const
        for (auto lev{0}; lev <= finest_level; ++lev) {
            auto box_array = boxArray(lev);
            for (int nb(0); nb < box_array.size(); ++nb) {
-              long unsigned int nbb = static_cast<long unsigned int>(nb);
+              auto nbb = static_cast<long unsigned int>(nb);
               auto box = box_array[nb];
               ncf.var(lo_names[lev][nb] ).put(box.smallEnd().begin(), {nbb, 0}, {1, AMREX_SPACEDIM});
               ncf.var(hi_names[lev][nb] ).put(box.bigEnd().begin()  , {nbb, 0}, {1, AMREX_SPACEDIM});
@@ -115,9 +118,9 @@ ERF::WriteNCCheckpointFile () const
    }
 }
 
-//
-// read NetCDF checkpoint to restart ERF
-//
+/**
+ * Read NetCDF checkpoint to restart ERF
+ */
 void
 ERF::ReadNCCheckpointFile ()
 {
@@ -150,9 +153,12 @@ ERF::ReadNCCheckpointFile ()
     ncf.var("dt")   .get(dt.data(),    {0}, {static_cast<long unsigned int>(ndt)});
     ncf.var("t_new").get(t_new.data(), {0}, {static_cast<long unsigned int>(ntime)});
 
-    int ngrow_state = ComputeGhostCells(solverChoice.spatial_order)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.spatial_order);
-
+    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
+                                        solverChoice.use_NumDiff)+1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order,
+                                        solverChoice.vert_spatial_order,
+                                        solverChoice.use_NumDiff);
     for (int lev = 0; lev <= finest_level; ++lev) {
 
         int num_box = static_cast<int>(ncf.dim("Nbox_"+std::to_string(lev)).len());

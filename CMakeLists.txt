@@ -17,15 +17,15 @@ option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
-option(ERF_ENABLE_TERRAIN "Enable Terrain" OFF)
-option(ERF_ENABLE_MOISTURE "Enable Moisture" OFF)
+option(ERF_ENABLE_MOISTURE "Enable Full Moisture" OFF)
+option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)
 option(ERF_ENABLE_OPENMP "Enable OpenMP" OFF)
 option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
-option(ERF_ENABLE_HIP "Enable HIP" OFF)
-option(ERF_ENABLE_DPCPP "Enable DPCPP" OFF)
+option(ERF_ENABLE_HIP  "Enable HIP" OFF)
+option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
@@ -34,9 +34,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(ERF_ENABLE_CUDA)
   enable_language(CUDA)
-  if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "9.0")
+  if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS "11.0")
     message(FATAL_ERROR "Your nvcc version is ${CMAKE_CUDA_COMPILER_VERSION} which is unsupported."
-      "Please use CUDA toolkit version 9.0 or newer.")
+      "Please use CUDA toolkit version 11.0 or newer.")
   endif()
 endif()
 
@@ -68,7 +68,6 @@ list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
 ########################### AMReX #####################################
 
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
-include(${CMAKE_SOURCE_DIR}/CMake/SetAmrexCompileFlags.cmake)
 
 ########################## NETCDF ##################################
 

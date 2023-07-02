@@ -3,14 +3,38 @@
 Building
 --------
 
-ERF can be built using either GNU Make or CMake.
+The ERF code is dependent on AMReX, and uses the radiation model (RTE-RRTMGP) which is based on YAKL C++ implementation for heterogeneous computing infrastructure (which are all available as submodules in the ERF repo). ERF can be built using either GNU Make or CMake, however, if radiation model is activated, only CMake build system is supported.
+
+Minimum Requirements
+~~~~~~~~~~~~~~~~~~~~
+
+ERF requires a C++ compiler that supports the C++17 standard and a C compiler that supports the C99 standard.
+Building with GPU support may be done with CUDA, HIP, or SYCL.
+For CUDA, ERF requires versions >= 11.0. For HIP and SYCL, only the latest compilers are supported.
+Prerequisites for building with GNU Make include Python (>= 2.7, including 3) and standard tools available
+in any Unix-like environments (e.g., Perl and sed). For building with CMake, the minimal requirement is version 3.18.
+
+   .. note::
+      **While ERF is designed to work with SYCL, we do not make any guarantees that it will build and run on your Intel platform.**
+
+Paradigm
+~~~~~~~~~~
+
+ERF uses the paradigm that different executables are built in different subdirectories within the ``Exec`` directory.  When
+using gmake (see below), the user/developer should build in the directory of the selected problem.  When using
+cmake (see below), separate executables are built for all of the problem directories listed in ``Exec/CMakeLists.txt``.
+The problem directories within ``Exec`` are sorted into 1) science-relevant setups, such as ``ABL`` for modeling the atmospheric
+boundary layer or ``DensityCurrent`` for running the standard density current test case, etc, 2) regression tests in
+``Exec/RegTests`` that are used for testing specific known aspects of the code functionality, such as boundary conditions or
+Rayleigh damping, and 3) tests for features under development in ``Exec/DevTests``, such as moving terrain.  There is a
+README in each problem directory that describes the purpose/role of that problem.
 
 GNU Make
 ~~~~~~~~
 
 The GNU Make system is best for use on large computing facility machines and production runs. With the GNU Make implementation, the build system will inspect the machine and use known compiler optimizations explicit to that machine if possible. These explicit settings are kept up-to-date by the AMReX project.
 
-Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF which is the repository of AMReX. AMReX is provided as a git submodule in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
+Using the GNU Make build system involves first setting environment variables for the directories of the dependencies of ERF (AMReX, RTE-RRTMGP, and YAKL); note, RTE-RRTMGP, and YAKL are only required if running with radiation. All dependencies are provided as git submodules in ERF and can be populated by using ``git submodule init; git submodule update`` in the ERF repo, or before cloning by using ``git clone --recursive <erf_repo>``. Although submodules of these projects are provided, they can be placed externally as long as the ``<REPO_HOME>`` environment variables for each dependency is set correctly. An example of setting the ``<REPO_HOME>`` environment variables in the user's ``.bashrc`` is shown below:
 
 ::
 
@@ -37,32 +61,46 @@ or if using tcsh,
 
    setenv AMREX_HOME /path/to/external/amrex
 
-#. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/IsentropicVortex/``
+#. ``cd`` to the desired build directory, e.g.  ``ERF/Exec/RegTests/IsentropicVortex/``
 
 #. Edit the ``GNUmakefile``; options include
 
-   +-----------------+------------------------------+------------------+-------------+
-   | Option name     | Description                  | Possible values  | Default     |
-   |                 |                              |                  | value       |
-   +=================+==============================+==================+=============+
-   | COMP            | Compiler (gnu or intel)      | gnu / intel      | None        |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_MPI         | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_OMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | USE_CUDA        | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | DEBUG           | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | PROFILE         | Include profiling info       | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TINY_PROFILE    | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | COMM_PROFILE    | Include comm profiling info  | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
-   | TRACE_PROFILE   | Include trace profiling info | TRUE / FALSE     | FALSE       |
-   +-----------------+------------------------------+------------------+-------------+
+   +--------------------+------------------------------+------------------+-------------+
+   | Option name        | Description                  | Possible values  | Default     |
+   |                    |                              |                  | value       |
+   +====================+==============================+==================+=============+
+   | COMP               | Compiler (gnu or intel)      | gnu / intel      | None        |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_OMP            | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | DEBUG              | Whether to use DEBUG mode    | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | PROFILE            | Include profiling info       | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TINY_PROFILE       | Include tiny profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | COMM_PROFILE       | Include comm profiling info  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
+   | TRACE_PROFILE      | Include trace profiling info | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
 
    .. note::
       **Do not set both USE_OMP and USE_CUDA to true.**
@@ -78,7 +116,7 @@ or if using tcsh,
 
    The name of the resulting executable (generated by the GNUmake system) encodes several of the build characteristics, including dimensionality of the problem, compiler name, and whether MPI and/or OpenMP were linked with the executable.
    Thus, several different build configurations may coexist simultaneously in a problem folder.
-   For example, the default build in ``ERF/Exec/Isntropic`` will look
+   For example, the default build in ``ERF/Exec/RegTests/IsentropicVortex`` will look
    like ``ERF3d.gnu.MPI.ex``, indicating that this is a 3-d version of the code, made with
    ``COMP=gnu``, and ``USE_MPI=TRUE``.
 
@@ -99,9 +137,9 @@ CMake
 
 CMake is often preferred by developers of ERF; CMake allows for building as well as easy testing and verification of ERF through the use of CTest which is included in CMake.
 
-Using CMake involves an additional configure step before using the ``make`` command. It is also expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
+Compiling with CMake involves an additional configure step before using the ``make`` command and it is expected that the user has cloned the ERF repo with the ``--recursive`` option or performed ``git submodule init; git submodule update`` in the ERF repo to populate its submodules.
 
-To build with CMake, a user typically creates a ``build`` directory in the project directory and in that directory the ``cmake <options> ..`` command is used to configure the project before building it. ERF provides an example build directory called ``Build`` with example scripts for performing the CMake configure. Once the CMake configure step is done, then the ``make`` command will build the executable.
+ERF provides example scripts for CMake configuration in the ``/path/to/ERF/Build`` directory.  Once the CMake configure step is done, the ``make`` command will build the executable.
 
 An example CMake configure command to build ERF with MPI is listed below:
 
@@ -114,7 +152,42 @@ An example CMake configure command to build ERF with MPI is listed below:
           -DCMAKE_Fortran_COMPILER:STRING=mpifort \
           .. && make
 
-Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+Typically, a user will create a ``build`` directory in the project directory and execute the configuration from said directory (``cmake <options> ..``) before building.  Note that CMake is able to generate makefiles for the Ninja build system as well which will allow for faster building of the executable(s).
+
+Analogous to GNU Make, the list of cmake directives is as follows:
+
+   +---------------------------+------------------------------+------------------+-------------+
+   | Option name               | Description                  | Possible values  | Default     |
+   |                           |                              |                  | value       |
+   +===========================+==============================+==================+=============+
+   | CMAKE_BUILD_TYPE          | Whether to use DEBUG         | Release / Debug  | Release     |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MPI            | Whether to enable MPI        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_OPENMP         | Whether to enable OpenMP     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_CUDA           | Whether to enable CUDA       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HIP            | Whether to enable HIP        | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_SYCL           | Whether to enable SYCL       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MOISTURE       | Whether to enable moisture   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_RADIATION      | Whether to enable radiation  | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_TESTS          | Whether to enable tests      | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_FCOMPARE       | Whether to enable fcompare   | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
 
 
 Perlmutter (NERSC)
@@ -157,13 +230,22 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
 
              ## we use the same number of MPI ranks per node as GPUs per node
              #SBATCH --ntasks-per-node=4
+             #SBATCH --gpus-per-node=4
+             #SBATCH --gpu-bind=none
 
-             ## assign 1 MPI rank per GPU on each node
-             #SBATCH --gpus-per-task=1
-             #SBATCH --gpu-bind=map_gpu:0,1,2,3
+             # pin to closest NIC to GPU
+             export MPICH_OFI_NIC_POLICY=GPU
+
+             # use GPU-aware MPI
+             #GPU_AWARE_MPI=""
+             GPU_AWARE_MPI="amrex.use_gpu_aware_mpi=1"
 
              # the -n argument is (--ntasks-per-node) * (-N) = (number of MPI ranks per node) * (number of nodes)
-             srun -n 8 ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100
+             # set ordering of CUDA visible devices inverse to local task IDs for optimal GPU-aware MPI
+             srun -n 8 --cpus-per-task=32 --cpu-bind=cores bash -c "
+               export CUDA_VISIBLE_DEVICES=\$((3-SLURM_LOCALID));
+               ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100 ${GPU_AWARE_MPI}" \
+             > test.out
 
 To submit your job script, do `sbatch [your job script]` and you can check its status by doing `squeue -u [your username]`.
 

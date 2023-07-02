@@ -2,7 +2,7 @@
  .. role:: cpp(code)
     :language: c++
 
-.. _sec:domainBCs:
+.. _sec:BoundaryConditions:
 
 Filling Ghost Values
 --------------------------
@@ -71,34 +71,36 @@ for each type; this is summarized in the table below.
 
 .. _sec:dirichlet:
 
-Dirichlet Boundary Conditions
+Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-ERF provides the ability to specify constant Dirichlet BCs in the inputs file. We use the following options
-preceded by
-``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
+ERF provides the ability to specify a variety of boundary conditions (BCs) in the inputs file.
+We use the following options preceded by ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, and ``zhi``:
 
-+------------+--------------+----------------+----------------+------------------+---------------+
-| Type       | Normal vel   | Tangential vel | Density        | Theta            | Scalar        |
-+============+==============+================+================+==================+===============+
-| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir          | ext_dir       |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| outflow    | foextrap     | foextrap       | foextrap       | foextrap         | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap | foextrap      |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even     | reflect_even  |
-+------------+--------------+----------------+----------------+------------------+---------------+
-| MOST       |              |                |                |                  |               |
-+------------+--------------+----------------+----------------+------------------+---------------+
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| Type       | Normal vel   | Tangential vel | Density        | Theta                    | Scalar        |
++============+==============+================+================+==========================+===============+
+| inflow     | ext_dir      | ext_dir        | ext_dir        | ext_dir                  | ext_dir       |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| outflow    | foextrap     | foextrap       | foextrap       | foextrap                 | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| slipwall   | ext_dir      | foextrap       | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| noslipwall | ext_dir      | ext_dir        | foextrap       | ext_dir/foextrap/neumann | foextrap      |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| symmetry   | reflect_odd  | reflect_even   | reflect_even   | reflect_even             | reflect_even  |
++------------+--------------+----------------+----------------+--------------------------+---------------+
+| MOST       |              |                |                |                          |               |
++------------+--------------+----------------+----------------+--------------------------+---------------+
 
 Here ``ext_dir``, ``foextrap``, and ``reflect_even`` refer to AMReX keywords.   The ``ext_dir`` type
 refers to an "external Dirichlet" boundary, which means the values must be specified by the user.
 The ``foextrap`` type refers to "first order extrapolation" which sets all the ghost values to the
-same value in the last valid cell/face.  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
-option, which does a linear extrapolation from the two nearest valid values.)
+same value in the last valid cell/face  (AMReX also has a ``hoextrap``, or "higher order extrapolation"
+option, which does a linear extrapolation from the two nearest valid values). By contrast, ``neumann``
+is an ERF-specific boundary type that allows a user to specify a variable gradient. Currently, the
+``neumann`` BC is only supported for theta to allow for weak capping inversion
+(:math:`\partial \theta / \partial z`) at the top domain.
 
 As an example,
 
@@ -120,7 +122,7 @@ xlo.scalar        = 2. sets the inflow value of the advected scalar
 The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
-If not value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
+If no value is specified then the wall is assumed to be adiabiatc, i.e. there is no temperature
 flux at the boundary.  This is enforced with the "foextrap" designation.
 
 For example
@@ -132,9 +134,19 @@ For example
 
     zlo.theta = 301.0
 
-would designate theta = 301. at the bottom (zlo) boundary, while
-the top boundary condition would be a zero gradient, aka adiabatic
-because no value is specified for ``zhi.theta``
+would designate theta = 301 at the bottom (zlo) boundary, while
+the top boundary condition would default to a zero gradient (adiabatic)
+since no value is specified for ``zhi.theta`` or ``zhi.theta_grad``.
+By contrast, thermal inversion may be imposed at the top boundary
+by providing a specified gradient for theta
+
+::
+
+    zlo.type  = "NoSlipWall"
+    zhi.type  = "NoSlipWall"
+
+    zlo.theta = 301.0
+    zhi.theta_grad = 1.0
 
 We note that "noslipwall" allows for non-zero tangential velocities to be specified, as in the
 Couette regression test example, in which we specify
@@ -167,7 +179,10 @@ boundary values using ``FillPatch``.
 
 MOST Boundaries
 -------------------
-Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), the lowest part of the atmospheric boundary layer.  The implementation of MOST in ERF follows that in `AMR-Wind <https://github.com/Exawind/amr-wind/>`_, which is based on the surface layer profiles presented in `P. van der Laan, et al., Wind Energy, 2017 <https://doi.org/10.1002/we.2017>`_ and `D. Etling, "Modeling the vertical ABL structure", 1999 <https://doi.org/10.1142/9789814447164_0003>`_. MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
+Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), the lowest part of the atmospheric boundary layer.  The implementation of MOST in ERF follows that in `AMR-Wind <https://github.com/Exawind/amr-wind/>`_, which is based on the surface layer profiles presented in
+`P. van der Laan, et al., Wind Energy, 2017 <https://onlinelibrary.wiley.com/doi/10.1002/we.2017>`_ and
+`D. Etling, "Modeling the vertical ABL structure", 1999 <https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003>`_.
+MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
 :math:`\Phi_m` and :math:`\Phi_h` are the nondimensional wind shear and temperature gradient, respectively, which are assumed to follow universal similarity laws based on dimensional arguments.
 With these assumptions, the MOST theory can be written as:
 
@@ -225,7 +240,8 @@ Stable: :math:`(\zeta > 0)`
 
   \Phi_{h} &= \sigma_{\theta}+\beta \zeta, \quad \Psi_{h}=(1-\sigma_{\theta})\mathrm{ln}(\zeta)-\beta \zeta,
 
-where the constants take the values proposed in `Dyer, Boundary Layer Meteorology, 1974 <https://doi.org/10.1007/BF00240838>`_:
+where the constants take the values proposed in `Dyer, Boundary Layer Meteorology, 1974
+<https://link.springer.com/article/10.1007/BF00240838>`_:
 
 .. math::
   \sigma_{\theta}=1, \quad \beta = 5, \quad \gamma_{1}=16, \quad \gamma_{2}=16
@@ -258,7 +274,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
 #. The previous two steps are repeated iteratively, sequentially updating the values of :math:`u_{\star}` and :math:`\zeta`, until the change in the value of :math:`u_{\star}` on each iteration falls below a specified tolerance.
 
-#. Once the MOST iterations have converged, and the planar average surface flux values are known, the approach from `Moeng, Journal of the Atmospheric Sciences, 1984 <https://ui.adsabs.harvard.edu/link_gateway/1984JAtS...41.2052M/doi:10.1175/1520-0469(1984)041%3C2052:ALESMF%3E2.0.CO;2>`_ is applied to consistently compute local surface-normal stress/flux values (e.g., :math:`\tau_{xz} = - \rho \overline{u^{'}w^{'}}`):
+#. Once the MOST iterations have converged, and the planar average surface flux values are known, the approach from `Moeng, Journal of the Atmospheric Sciences, 1984 <https://journals.ametsoc.org/view/journals/atsc/41/13/1520-0469_1984_041_2052_alesmf_2_0_co_2.xml>`_ is applied to consistently compute local surface-normal stress/flux values (e.g., :math:`\tau_{xz} = - \rho \overline{u^{'}w^{'}}`):
 
    .. math::
 
@@ -292,4 +308,55 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
    .. math::
 
       (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right]
+
+MOST Inputs
+~~~~~~~~~~~~~~~~~~~
+When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fit coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
+
+::
+
+   erf.most.average_policy    = INT    #POLICY FOR AVERAGING
+   erf.most.use_normal_vector = BOOL   #USE NORMAL VECTOR W/ TERRAIN?
+   erf.most.use_interpolation = BOOL   #INTERPOLATE QUERY POINT W/ TERRAIN?
+   erf.most.time_average      = BOOL   #USE TIME AVERAGING?
+   erf.most.z0                = FLOAT  #SURFACE ROUGHNESS
+   erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH)
+   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE TEMP
+   erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE FLUX
+   erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
+   erf.most.radius            = INT    #SPECIFIED REGION RADIUS
+   erf.most.time_window       = FLOAT  #WINDOW FOR TIME AVG
+
+We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
+
+::
+
+   erf.most.average_policy    = 0
+   erf.most.use_normal_vector = false
+   erf.most.time_average      = false
+   erf.most.z0                = 0.1
+   erf.most.zref              = 1.0
+
+By contrast, ``local region averaging`` would be employed in conjunction with ``time averaging`` for the following inputs:
+
+::
+
+   erf.most.average_policy    = 1
+   erf.most.use_normal_vector = true
+   erf.most.use_interpolation = true
+   erf.most.time_average      = true
+   erf.most.z0                = 0.1
+   erf.most.zref              = 1.0
+   erf.most.surf_temp_flux    = 0.0
+   erf.most.radius            = 1
+   erf.most.time_window       = 10.0
+
+In the above case, ``use_normal_vector`` utilizes the a local surface-normal vector with length :math:`z_{ref}` to construct the positions of the query points. Each query point, and surrounding points that are within ``erf.most.radius`` from the query point, are interpolated to and averaged; for a radius of 1, 27 points are averaged. The ``time average`` is completed by way of an exponential filter function whose peak coincides with the current time step and tail extends backwards in time
+
+.. math::
+
+   \frac{1}{\tau} \int_{-\infty}^{0} \exp{\left(t/\tau\right)} \, f(t) \; \rm{d}t.
+
+Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
+
 

@@ -2,9 +2,14 @@
 
 using namespace amrex;
 
-//
-// Tag cells for refinement -- this overrides the pure virtual function in AmrCore
-//
+/**
+ * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
+ *
+ * @param[in] level level of refinement (0 is coarsest leve)
+ * @param[out] tags array of tagged cells
+ * @param[in] time current time
+*/
+
 void
 ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
@@ -18,6 +23,10 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
         ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
   }
 }
+
+/**
+ * Function to define the refinement criteria based on user input
+*/
 
 void
 ERF::refinement_criteria_setup()
@@ -49,7 +58,7 @@ ERF::refinement_criteria_setup()
                     amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
-                    auto dx = geom[lev_for_box].CellSize();
+                    const auto *dx = geom[lev_for_box].CellSize();
                     int ilo = static_cast<int>(box_lo[0]/dx[0]);
                     int jlo = static_cast<int>(box_lo[1]/dx[1]);
                     int klo = static_cast<int>(box_lo[2]/dx[2]);
@@ -63,9 +72,9 @@ ERF::refinement_criteria_setup()
                     boxes_at_level[lev_for_box].push_back(bx);
                     amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
-                if (init_type == "real") {
+                if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
-                        amrex::Error("Numbef of boxes doesnt match number of wrfinput files");
+                        amrex::Error("Number of boxes doesnt match number of input files");
 
                     }
                 }

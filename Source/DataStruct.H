@@ -7,6 +7,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
+#include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
 
@@ -15,30 +16,6 @@ enum class ABLDriverType {
 };
 
 enum class Coord {
-    x, y, z
-};
-
-enum class Stagger {
-    None, x, y, z
-};
-
-enum class AdvectedQuantity {
-    unity, u, v, w, theta, scalar
-};
-
-enum class AdvectingQuantity {
-    rho_u, rho_v, rho_w
-};
-
-enum class AdvectionDir {
-    x, y, z
-};
-
-enum class DiffusionDir {
-    x, y, z
-};
-
-enum class MomentumEqn {
     x, y, z
 };
 
@@ -54,9 +31,9 @@ enum class MolecDiffType {
     None, Constant, ConstantAlpha
 };
 
-enum class IC_BC_Type {
-    Ideal, Real
-};
+/**
+ * Container holding many of the algorithmic options and parameters
+ */
 
 struct SolverChoice {
   public:
@@ -70,13 +47,36 @@ struct SolverChoice {
         // Do we use map scale factors?
         pp.query("test_mapfactor", test_mapfactor);
 
+        // Which expression (1,2 or 3) to use for buoyancy
+        pp.query("buoyancy_type", buoyancy_type);
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3) {
+            amrex::Abort("buoyancy_type must be 1, 2 or 3");
+        }
+
         // Is the terrain static or moving?
         pp.query("terrain_type", terrain_type);
 
+        // Use lagged_delta_rt in the fast integrator?
+        pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
+        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
+            amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
+        }
+
         // These default to true but are used for unit testing
         pp.query("use_gravity", use_gravity);
-
         gravity = use_gravity? CONST_GRAV: 0.0;
+
+        pp.query("c_p", c_p);
+        rdOcp = R_d / c_p;
+
+#if defined(ERF_USE_WARM_NO_PRECIP)
+        pp.query("tau_cond", tau_cond);
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+        // Should we project the initial velocity field to make it divergence-free?
+        pp.query("project_initial_velocity", project_initial_velocity);
+#endif
 
         // Which LES closure?
         static std::string les_type_string = "None";
@@ -174,8 +174,14 @@ struct SolverChoice {
         }
 
         pp.query("Ce" , Ce);
-        pp.query("Ck" , Ck);
+        pp.query("Ce_wall" , Ce_wall);
         pp.query("sigma_k" , sigma_k);
+
+        if (les_type == LESType::Deardorff) {
+            pp.query("Ck" , Ck);
+        }
+
+        pp.query("theta_ref", theta_ref);
 
         // Compute relevant forms of diffusion parameters
         Pr_t_inv = 1.0 / Pr_t;
@@ -184,13 +190,18 @@ struct SolverChoice {
         rhoAlpha_C = rho0_trans * alpha_C;
 
         // Order of spatial discretization
-        pp.query("spatial_order", spatial_order);
+        pp.query("horiz_spatial_order", horiz_spatial_order);
+        pp.query("vert_spatial_order",   vert_spatial_order);
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
 
         // Include Rayleigh damping?
         pp.query("use_rayleigh_damping", use_rayleigh_damping);
+        pp.query("rayleigh_damp_U", rayleigh_damp_U);
+        pp.query("rayleigh_damp_V", rayleigh_damp_V);
+        pp.query("rayleigh_damp_W", rayleigh_damp_W);
+        pp.query("rayleigh_damp_T", rayleigh_damp_T);
 
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
@@ -222,13 +233,43 @@ struct SolverChoice {
         static std::string ic_bc_type_string = "Ideal";
         pp.query("ic_bc_type", ic_bc_type_string);
 
-        if (!ic_bc_type_string.compare("Ideal")) {
-            icBcType = IC_BC_Type::Ideal;
-        } else if (!ic_bc_type_string.compare("Real")) {
-            icBcType = IC_BC_Type::Real;
-        } else {
-            amrex::Error("Don't know this ic_bc_type");
+        pp.query("Ave_Plane", ave_plane);
+
+#ifdef ERF_USE_MOISTURE
+        pp.query("mp_clouds", do_cloud);
+        pp.query("mp_precip", do_precip);
+        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
+        if(!moist_use_WENO_Z) moist_use_WENO = true;
+#endif
+
+        // Use WENO for advection?
+        pp.query("all_use_WENO", all_use_WENO);
+        if (all_use_WENO || moist_use_WENO) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
         }
+
+        // Use WENO-Z for advection?
+        pp.query("all_use_WENO_Z", all_use_WENO_Z);
+        if (all_use_WENO_Z || moist_use_WENO_Z) {
+            pp.query("spatial_order_WENO", spatial_order_WENO);
+            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
+                                      "WENO advection only supports orders 3 & 5.");
+            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
+                                      "WENO and WENO-Z cannot be specified together.");
+        }
+
+
+        // Use numerical diffusion?
+        pp.query("use_NumDiff",use_NumDiff);
+        if(use_NumDiff) {
+            pp.query("NumDiffCoeff",NumDiffCoeff);
+            AMREX_ASSERT_WITH_MESSAGE(( (NumDiffCoeff >= 0.) && (NumDiffCoeff <= 1.) ),
+                                      "Numerical diffusion coefficient must be between 0 & 1.");
+            NumDiffCoeff *= std::pow(2.0,-6);
+        }
+
     }
 
     void display()
@@ -244,11 +285,14 @@ struct SolverChoice {
         amrex::Print() << "Cs                    : " << Cs << std::endl;
         amrex::Print() << "CI                    : " << CI << std::endl;
         amrex::Print() << "Ce                    : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
         amrex::Print() << "Ck                    : " << Ck << std::endl;
+        amrex::Print() << "reference theta       : " << theta_ref << std::endl;
         amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
         amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
-        amrex::Print() << "spatial_order         : " << spatial_order << std::endl;
+        amrex::Print() << "horiz spatial_order   : " << horiz_spatial_order << std::endl;
+        amrex::Print() << "vert  spatial_order   : " << vert_spatial_order << std::endl;
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -281,13 +325,6 @@ struct SolverChoice {
             amrex::Print() << "Not using any molecular diffusivity, i.e. using the modeled turbulent diffusivity"
             << std::endl;
         }
-
-        if (icBcType == IC_BC_Type::Ideal) {
-            amrex::Print() << "Using idealized initial and boundary conditions (No mesoscale forcing!)" << std::endl;
-        }
-        else if (icBcType == IC_BC_Type::Real) {
-            amrex::Print() << "Using REAL initial and boundary conditions (Mesoscale forcing!)" << std::endl;
-        }
     }
 
     void build_coriolis_forcings()
@@ -303,7 +340,6 @@ struct SolverChoice {
 
         amrex::Real latitude = 90.0;
         pp.query("latitude", latitude);
-        AMREX_ALWAYS_ASSERT(amrex::Math::abs(latitude - 90.0) < 1.e-12);
 
         // Convert to radians
         latitude *= (PI/180.);
@@ -331,13 +367,37 @@ struct SolverChoice {
     bool        use_terrain            = false;
     bool        test_mapfactor         = false;
     int         terrain_type           = 0;
+#ifdef ERF_USE_MOISTURE
+    int         buoyancy_type          = 2; // uses Tprime
+#else
+    int         buoyancy_type          = 1; // uses rhoprime directly
+#endif
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
     bool        use_rayleigh_damping   = false;
 
+    bool        rayleigh_damp_U        = false;
+    bool        rayleigh_damp_V        = false;
+    bool        rayleigh_damp_W        = true;
+    bool        rayleigh_damp_T        = false;
+
+    // This defaults to true but can be set to false for moving terrain cases only
+    bool        use_lagged_delta_rt    = true;
+
+    // Constants
     amrex::Real gravity;
+    amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
+    amrex::Real rdOcp;
+
+#if defined(ERF_USE_WARM_NO_PRECIP)
+    amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
+#endif
+
+#if defined(ERF_USE_POISSON_SOLVE)
+    int project_initial_velocity = 1;
+#endif
 
     // Molecular transport model
     MolecDiffType molec_diff_type;
@@ -358,18 +418,21 @@ struct SolverChoice {
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
     // Smagorinsky Turbulent Prandtl Number
-    amrex::Real Pr_t = 1.0;
-    amrex::Real Pr_t_inv = 1.0;
+    amrex::Real Pr_t = 1. / 3.;
+    amrex::Real Pr_t_inv = 3.0;
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;
 
     // Deardorff Ce coefficient
-    amrex::Real Ce = 0.0;
+    amrex::Real Ce = 0.93;
+    amrex::Real Ce_wall = 0.0; // if > 0, then set Ce to this at k=0
     // Deardorff Ck coefficient
-    amrex::Real Ck = 0.0;
+    amrex::Real Ck = 0.1;
     // Deardorff sigma_k coefficient
-    amrex::Real sigma_k = 1.0;
+    amrex::Real sigma_k = 0.5;
+
+    amrex::Real theta_ref = 300.0;
 
     // PBL model
     PBLType pbl_type;
@@ -383,7 +446,7 @@ struct SolverChoice {
     amrex::Real pbl_C3 = 0.352;
     amrex::Real pbl_C4 = 0.0;
     amrex::Real pbl_C5 = 0.2;
-    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-directioon only
+    // QKE stuff - default is not to use it, if MYNN2.5 PBL is used default is turb transport in Z-direction only
     bool use_QKE = false;
     bool diffuse_QKE_3D = false;
     bool advect_QKE = true;
@@ -394,99 +457,29 @@ struct SolverChoice {
     amrex::Real sinphi          = 0.0;
 
     // Spatial discretization
-    int         spatial_order = 2;
+    int   horiz_spatial_order = 2;
+    int    vert_spatial_order = 2;
+
+    // Positive definite advection scheme (3/5 order)
+    bool all_use_WENO{false};
+    bool moist_use_WENO{false};
+    bool all_use_WENO_Z{false};
+    bool moist_use_WENO_Z{false};
+    int  spatial_order_WENO{3};
+
+    // Numerical diffusion
+    bool use_NumDiff{false};
+    amrex::Real NumDiffCoeff{0.};
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
 
-    // IC and BC Type: "Ideal" or "Real"
-    IC_BC_Type icBcType;
-};
-
-struct InputSoundingData {
-public:
-    InputSoundingData() {}
-
-    void read_from_file(const std::string input_sounding_file)
-    {
-        z_inp_sound.resize(0);
-        theta_inp_sound.resize(0);
-        moisture_inp_sound.resize(0);
-        U_inp_sound.resize(0);
-        V_inp_sound.resize(0);
-
-        // Read the input_sounding file
-        amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
-        std::ifstream input_sounding_reader(input_sounding_file);
-        if(!input_sounding_reader.is_open()) {
-            amrex::Error("Error opening the input_sounding file\n");
-        }
-        else {
-            // Read the contents of the input_sounding file
-            amrex::Print() << "Successfully opened the input_sounding file. Now reading... " << std::endl;
-            std::string  line;
-
-            // Read the first line
-            std::getline(input_sounding_reader, line);
-            std::istringstream iss(line);
-            iss >> press_ref_inp_sound >> theta_ref_inp_sound >> dummy;
-
-            // Read the vertical profile at each given height
-            while(std::getline(input_sounding_reader, line)) {
-                std::istringstream iss_z(line);
-                amrex::Real z, theta, moisture, U, V;
-                iss_z >> z >> theta >> moisture >> U >> V;
-                z_inp_sound.push_back(z);
-                theta_inp_sound.push_back(theta);
-                moisture_inp_sound.push_back(moisture);
-                U_inp_sound.push_back(U);
-                V_inp_sound.push_back(V);
-            }
-        }
-        amrex::Print() << "Successfully read the input_sounding file..." << std::endl;
-        input_sounding_reader.close();
-
-        host_to_device();
-    }
-
-    void host_to_device()
-    {
-        z_inp_sound_d.resize(size());
-        theta_inp_sound_d.resize(size());
-        moisture_inp_sound_d.resize(size());
-        U_inp_sound_d.resize(size());
-        V_inp_sound_d.resize(size());
-
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         z_inp_sound.begin(), z_inp_sound.end(),
-                         z_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         theta_inp_sound.begin(), theta_inp_sound.end(),
-                         theta_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         moisture_inp_sound.begin(), moisture_inp_sound.end(),
-                         moisture_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         U_inp_sound.begin(), U_inp_sound.end(),
-                         U_inp_sound_d.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                         V_inp_sound.begin(), V_inp_sound.end(),
-                         V_inp_sound_d.begin());
-    }
-
-    int size() const
-    {
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == moisture_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == U_inp_sound.size());
-        AMREX_ALWAYS_ASSERT(z_inp_sound.size() == V_inp_sound.size());
-        return z_inp_sound.size();
-    }
-
-    // Members
-    amrex::Vector<amrex::Real> z_inp_sound, theta_inp_sound, moisture_inp_sound, U_inp_sound, V_inp_sound;
-    amrex::Gpu::DeviceVector<amrex::Real> z_inp_sound_d, theta_inp_sound_d, moisture_inp_sound_d, U_inp_sound_d, V_inp_sound_d;
-    amrex::Real press_ref_inp_sound, theta_ref_inp_sound, dummy;
+    int ave_plane {2};
+#ifdef ERF_USE_MOISTURE
+    // Microphysics params
+    bool do_cloud {true};
+    bool do_precip {true};
+#endif
 };
 #endif

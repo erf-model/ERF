@@ -24,8 +24,14 @@ include $(ERF_ADVECTION_DIR)/Make.package
 ERF_DIFFUSION_DIR = $(ERF_SOURCE_DIR)/Diffusion
 include $(ERF_DIFFUSION_DIR)/Make.package
 
+ERF_INIT_DIR = $(ERF_SOURCE_DIR)/Initialization
+include $(ERF_INIT_DIR)/Make.package
+
 ERF_UTIL_DIR = $(ERF_SOURCE_DIR)/Utils
 include $(ERF_UTIL_DIR)/Make.package
+
+ERF_MULTIBLOCK_DIR = $(ERF_SOURCE_DIR)/MultiBlock
+include $(ERF_MULTIBLOCK_DIR)/Make.package
 
 VPATH_LOCATIONS   += $(ERF_ADVECTION_DIR)
 INCLUDE_LOCATIONS += $(ERF_ADVECTION_DIR)
@@ -33,8 +39,16 @@ INCLUDE_LOCATIONS += $(ERF_ADVECTION_DIR)
 VPATH_LOCATIONS   += $(ERF_DIFFUSION_DIR)
 INCLUDE_LOCATIONS += $(ERF_DIFFUSION_DIR)
 
+VPATH_LOCATIONS   += $(ERF_INIT_DIR)
+INCLUDE_LOCATIONS += $(ERF_INIT_DIR)
+
 VPATH_LOCATIONS   += $(ERF_UTIL_DIR)
 INCLUDE_LOCATIONS += $(ERF_UTIL_DIR)
+
+ifeq ($(USE_MULTIBLOCK),TRUE)
+VPATH_LOCATIONS   += $(ERF_MULTIBLOCK_DIR)
+INCLUDE_LOCATIONS += $(ERF_MULTIBLOCK_DIR)
+endif
 
 ERF_TIMEINT_DIR = $(ERF_SOURCE_DIR)/TimeIntegration
 include $(ERF_TIMEINT_DIR)/Make.package
@@ -57,6 +71,14 @@ include $(AMREX_HOME)/Src/Base/Make.package
 
 AMReXdirs             := Base Boundary AmrCore
 
+ifeq ($(USE_PARTICLES),TRUE)
+AMReXdirs             += Particle
+endif
+
+ifeq ($(USE_POISSON_SOLVE),TRUE)
+AMReXdirs             += LinearSolvers/MLMG
+endif
+
 ifeq ($(USE_HDF5),TRUE)
 AMReXdirs             += Extern/HDF5
 endif
@@ -67,6 +89,27 @@ include $(AMReXpack)
 
 ifeq ($(USE_MOISTURE), TRUE)
   DEFINES += -DERF_USE_MOISTURE
+
+  ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
+  include $(ERF_MOISTURE_DIR)/Make.package
+  VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
+  INCLUDE_LOCATIONS += $(ERF_MOISTURE_DIR)
+endif
+
+ifeq ($(USE_WARM_NO_PRECIP), TRUE)
+  DEFINES += -DERF_USE_WARM_NO_PRECIP
+endif
+
+ifeq ($(COMPUTE_ERROR), TRUE)
+  DEFINES += -DERF_COMPUTE_ERROR
+endif
+
+ifeq ($(USE_POISSON_SOLVE), TRUE)
+  DEFINES += -DERF_USE_POISSON_SOLVE
+endif
+
+ifeq ($(USE_PARTICLES), TRUE)
+  DEFINES += -DERF_USE_PARTICLES
 endif
 
 ifeq ($(USE_MULTIBLOCK), TRUE)

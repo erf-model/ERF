@@ -175,7 +175,9 @@ and :math:`\gamma = c_p / (c_p - R_d)` .  :math:`p_0` is a reference value for p
 Differencing of Different Orders
 ================================
 
-:math:`[\rho, u, v, w, \rho\theta]`,  :math:`m = i, j, k`,  and :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively.
+Interpolation Methods
+---------------------
+The midpoint values given above :math:`q_{m - \frac{1}{2}}`, where :math:`q` may be :math:`[\rho, u, v, w, \rho\theta]`, :math:`m = i, j, k`, :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively, the following interpolation schemes are available:
 
 .. math::
 
@@ -192,6 +194,51 @@ Differencing of Different Orders
 
 Ref: Skamarock, W. C., Klemp, J. B., Dudhia, J., Gill, D. O., Liu, Z., Berner, J., ... Huang, X. -yu. (2019). A Description of the Advanced Research WRF Model Version 4 (No. NCAR/TN-556+STR). doi:10.5065/1dfh-6p97
 `doi:10.5065/1dfh-6p97 <http://dx.doi.org/10.5065/1dfh-6p97>`_
+
+WENO Methods
+------------
+Additionally, weighted essentially non-oscillatory (WENO) schemes are available for :math:`3rd` and :math:`5th` order interpolation. The general formulation is as follows:
+
+.. math::
+
+   \begin{array}{ll}
+   q_{m - \frac{1}{2}} = \sum_{n=1}^{N} w_n q_{m - \frac{1}{2}}^{(n)} &  \\
+   w_{n} = \frac{\hat{w}_{n}}{\sum_{l=1}^{N} \hat{w}_{l}} & \hat{w}_{l} = \frac{\omega_{l}}{\left(\epsilon + \beta_{l} \right)^2} \\
+   \end{array}
+
+With the WENO3 scheme, one has :math:`N=2, \; \omega_{1} = 1/3, \; \omega_{2} = 2/3` and the following closures
+
+.. math::
+
+   \begin{array}{l}
+   \beta_{1} = \left(q_{m - 1} - q_{m-2} \right)^2 \\
+   \beta_{2} = \left(q_{m} - q_{m-1} \right)^2 \\
+   q_{m - \frac{1}{2}}^{(1)} = -\frac{1}{2} q_{m-2} + \frac{3}{2} q_{m-1} \\
+   q_{m - \frac{1}{2}}^{(2)} = \frac{1}{2} q_{m-1} + \frac{1}{2} q_{m}
+   \end{array}
+
+With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} = 3/5, \; \omega_{3} = 3/10` and the following closures
+
+.. math::
+
+   \begin{array}{l}
+   \beta_{1} = \frac{13}{12} \left(q_{m - 3} - 2 q_{m-2} + q_{m-1} \right)^2 + \frac{1}{4} \left(q_{m - 3} - 4 q_{m-2} + 3 q_{m-1} \right)^2  \\
+   \beta_{2} = \frac{13}{12} \left(q_{m - 2} - 2 q_{m-1} + q_{m} \right)^2 + \frac{1}{4} \left(q_{m - 2} - q_{m} \right)^2  \\
+   \beta_{3} = \frac{13}{12} \left(q_{m - 1} - 2 q_{m} + q_{m+1} \right)^2 + \frac{1}{4} \left( 3 q_{m - 1} - 4 q_{m} + q_{m+1} \right)^2  \\
+   q_{m - \frac{1}{2}}^{(1)} = \frac{1}{3} q_{m-3} - \frac{7}{6} q_{m-2} + \frac{11}{6} q_{m-1} \\
+   q_{m - \frac{1}{2}}^{(2)} = -\frac{1}{6} q_{m-2} + \frac{5}{6} q_{m-1} + \frac{1}{3} q_{m} \\
+   q_{m - \frac{1}{2}}^{(3)} = \frac{1}{3} q_{m-1} + \frac{5}{6} q_{m} - \frac{1}{6} q_{m+1}
+   \end{array}
+
+By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may utilize the WENO scheme for all variables, with a specified order, via the following inputs:
+
+::
+
+   erf.all_use_WENO       = true   # Default is false
+   erf.spatial_order_WENO = 5      # Default is 3
+
+Ref: Muñoz-Esparza, D., Sauer, J. A., Jensen, A. A., Xue, L., & Grabowski, W. W. (2022). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Moist dynamics extension, validation and sensitivities of modeling non-precipitating shallow cumulus clouds. Journal of Advances in Modeling Earth Systems, 14, e2021MS002904.
+`https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904>`_
 
 Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 ===========================================================
@@ -311,7 +358,7 @@ U Momentum viscous stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} + & \\
+   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} - & \\
      \Delta t &  \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  \\
               &        + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack           \\
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
@@ -324,8 +371,8 @@ and :math:`\tau_{13,k - \frac{1}{2}}`.
 .. math::
 
    \begin{array}{ll}
-   \tau_{ij,m + \frac{1}{2}} = & \mu_{eff} \ \left\lbrack S_{ij,m + \frac{1}{2}} - D_{ij,m + \frac{1}{2}} \right\rbrack \\
-   \tau_{ij,m - \frac{1}{2}} = & \mu_{eff} \ \left\lbrack S_{ij,m - \frac{1}{2}} - D_{ij,m - \frac{1}{2}} \right\rbrack
+   \tau_{ij,m + \frac{1}{2}} = & -\mu_{eff} \ \left\lbrack S_{ij,m + \frac{1}{2}} - D_{ij,m + \frac{1}{2}} \right\rbrack \\
+   \tau_{ij,m - \frac{1}{2}} = & -\mu_{eff} \ \left\lbrack S_{ij,m - \frac{1}{2}} - D_{ij,m - \frac{1}{2}} \right\rbrack
    \end{array}
 
 where :math:`m = i, j, k`.
@@ -342,7 +389,7 @@ V Momentum viscous stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} + & \\
+   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} - & \\
      \Delta t & \left\{  \frac{1}{\Delta x} \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.  \\
               &        + \frac{1}{\Delta y} \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack          \\
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
@@ -358,7 +405,7 @@ W Momentum viscous stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} + & \\
+   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} - & \\
     \Delta t &  \left\{ \frac{1}{\Delta x} \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.  \\
              &        + \frac{1}{\Delta y} \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack            \\
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
@@ -474,7 +521,7 @@ U Momentum - subfilter stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} + & \\
+   \left( \rho u \right)_{i,j,k}^{n + 1} = \left( \rho u \right)_{i,j,k}^{n} - & \\
      \Delta t &  \left\{ \frac{1}{\Delta x}\ \left\lbrack \tau_{11,i + \frac{1}{2}} - \tau_{11,i - \frac{1}{2}} \right\rbrack \right.\  \\
               &        + \frac{1}{\Delta y}\ \left\lbrack \tau_{12,j + \frac{1}{2}} - \tau_{12,j - \frac{1}{2}} \right\rbrack           \\
               & + \left. \frac{1}{\Delta z}\ \left\lbrack \tau_{13,k + \frac{1}{2}} - \tau_{13,k - \frac{1}{2}} \right\rbrack \right\} \\
@@ -483,12 +530,12 @@ U Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{l}
-   \tau_{11,i + \frac{1}{2}} = K_{i,j,k}                             \ S_{11,i + \frac{1}{2}} \\
-   \tau_{11,i - \frac{1}{2}} = K_{i - 1,j,k}                         \ S_{11,i - \frac{1}{2}} \\
-   \tau_{12,j + \frac{1}{2}} = K_{i - \frac{1}{2},j + \frac{1}{2},k} \ S_{12,j + \frac{1}{2}} \\
-   \tau_{12,j - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{12,j - \frac{1}{2}} \\
-   \tau_{13,k + \frac{1}{2}} = K_{i - \frac{1}{2},j,k + \frac{1}{2}} \ S_{13,k + \frac{1}{2}} \\
-   \tau_{13,k - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{13,k - \frac{1}{2}}
+   \tau_{11,i + \frac{1}{2}} = -K_{i,j,k}                             \ S_{11,i + \frac{1}{2}} \\
+   \tau_{11,i - \frac{1}{2}} = -K_{i - 1,j,k}                         \ S_{11,i - \frac{1}{2}} \\
+   \tau_{12,j + \frac{1}{2}} = -K_{i - \frac{1}{2},j + \frac{1}{2},k} \ S_{12,j + \frac{1}{2}} \\
+   \tau_{12,j - \frac{1}{2}} = -K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{12,j - \frac{1}{2}} \\
+   \tau_{13,k + \frac{1}{2}} = -K_{i - \frac{1}{2},j,k + \frac{1}{2}} \ S_{13,k + \frac{1}{2}} \\
+   \tau_{13,k - \frac{1}{2}} = -K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{13,k - \frac{1}{2}}
    \end{array}
 
 V Momentum - subfilter stress divergence
@@ -497,7 +544,7 @@ V Momentum - subfilter stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} + & \\
+   \left( \rho v \right)_{i,j,k}^{n + 1} = \left( \rho v \right)_{i,j,k}^{n} - & \\
      \Delta t & \left\{  \frac{1}{\Delta x} \left\lbrack \tau_{21,i + \frac{1}{2}} - \tau_{21,i - \frac{1}{2}} \right\rbrack \right.  \\
               &        + \frac{1}{\Delta y} \left\lbrack \tau_{22,j + \frac{1}{2}} - \tau_{22,j - \frac{1}{2}} \right\rbrack          \\
               & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{23,k + \frac{1}{2}} - \tau_{23,k - \frac{1}{2}} \right\rbrack \right\}
@@ -506,12 +553,12 @@ V Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{ll}
-   \tau_{21,i + \frac{1}{2}} = K_{i + \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i + \frac{1}{2}} \\
-   \tau_{21,i - \frac{1}{2}} = K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i - \frac{1}{2}} \\
-   \tau_{22,j + \frac{1}{2}} = K_{i,j,k}                             \ S_{22,j + \frac{1}{2}} \\
-   \tau_{22,j - \frac{1}{2}} = K_{i,j - 1,k}                         \ S_{22,j - \frac{1}{2}} \\
-   \tau_{23,k + \frac{1}{2}} = K_{i,j - \frac{1}{2},k + \frac{1}{2}} \ S_{23,k + \frac{1}{2}} \\
-   \tau_{23,k - \frac{1}{2}} = K_{i,j - \frac{1}{2}k - \frac{1}{2}}  \ S_{23,k - \frac{1}{2}}
+   \tau_{21,i + \frac{1}{2}} = -K_{i + \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i + \frac{1}{2}} \\
+   \tau_{21,i - \frac{1}{2}} = -K_{i - \frac{1}{2},j - \frac{1}{2},k} \ S_{21,i - \frac{1}{2}} \\
+   \tau_{22,j + \frac{1}{2}} = -K_{i,j,k}                             \ S_{22,j + \frac{1}{2}} \\
+   \tau_{22,j - \frac{1}{2}} = -K_{i,j - 1,k}                         \ S_{22,j - \frac{1}{2}} \\
+   \tau_{23,k + \frac{1}{2}} = -K_{i,j - \frac{1}{2},k + \frac{1}{2}} \ S_{23,k + \frac{1}{2}} \\
+   \tau_{23,k - \frac{1}{2}} = -K_{i,j - \frac{1}{2}k - \frac{1}{2}}  \ S_{23,k - \frac{1}{2}}
    \end{array}
 
 W Momentum - subfilter stress divergence
@@ -520,7 +567,7 @@ W Momentum - subfilter stress divergence
 .. math::
 
    \begin{align}
-   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} + & \\
+   \left( \rho w \right)_{i,j,k}^{n + 1} = \left( \rho w \right)_{i,j,k}^{n} - & \\
     \Delta t &  \left\{ \frac{1}{\Delta x} \left\lbrack \tau_{31,i + \frac{1}{2}} - \tau_{31,i - \frac{1}{2}} \right\rbrack \right.  \\
              &        + \frac{1}{\Delta y} \left\lbrack \tau_{32,j + \frac{1}{2}} - \tau_{32,j - \frac{1}{2}} \right\rbrack            \\
              & + \left. \frac{1}{\Delta z} \left\lbrack \tau_{33,k + \frac{1}{2}} - \tau_{33,k - \frac{1}{2}} \right\rbrack \right\}
@@ -529,12 +576,12 @@ W Momentum - subfilter stress divergence
 .. math::
 
    \begin{array}{ll}
-   \tau_{31,i + \frac{1}{2}} = K_{i + \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i + \frac{1}{2}} \\
-   \tau_{31,i - \frac{1}{2}} = K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i - \frac{1}{2}} \\
-   \tau_{32,j + \frac{1}{2}} = K_{i,j + \frac{1}{2},k - \frac{1}{2}} \ S_{32,j + \frac{1}{2}} \\
-   \tau_{32,j - \frac{1}{2}} = K_{i,j - \frac{1}{2},k - \frac{1}{2}} \ S_{32,j - \frac{1}{2}} \\
-   \tau_{33,k + \frac{1}{2}} = K_{i,j,k}                             \ S_{33,k + \frac{1}{2}} \\
-   \tau_{33,k - \frac{1}{2}} = K_{i,j, k - 1}                        \ S_{33,k - \frac{1}{2}}
+   \tau_{31,i + \frac{1}{2}} = -K_{i + \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i + \frac{1}{2}} \\
+   \tau_{31,i - \frac{1}{2}} = -K_{i - \frac{1}{2},j,k - \frac{1}{2}} \ S_{31,i - \frac{1}{2}} \\
+   \tau_{32,j + \frac{1}{2}} = -K_{i,j + \frac{1}{2},k - \frac{1}{2}} \ S_{32,j + \frac{1}{2}} \\
+   \tau_{32,j - \frac{1}{2}} = -K_{i,j - \frac{1}{2},k - \frac{1}{2}} \ S_{32,j - \frac{1}{2}} \\
+   \tau_{33,k + \frac{1}{2}} = -K_{i,j,k}                             \ S_{33,k + \frac{1}{2}} \\
+   \tau_{33,k - \frac{1}{2}} = -K_{i,j, k - 1}                        \ S_{33,k - \frac{1}{2}}
    \end{array}
 
 Energy Conservation- Subgrid heat flux

@@ -9,9 +9,9 @@ Inputs
 .. toctree::
    :maxdepth: 1
 
-The ERF executable reads run-time information from an “inputs” file which you put on the command line.
+The ERF executable reads run-time information from an inputs file which you name on the command line.
 This section describes the inputs which can be specified either in the inputs file or on the command line.
-If a value is specified on the command line, that value will override a value specified in the inputs file.
+A value specified on the command line will override a value specified in the inputs file.
 
 Problem Geometry
 ================
@@ -167,8 +167,7 @@ Overview
 
 The user defines how to tag individual cells at a given level for refinement.
 This list of tagged cells is sent to a grid generation routine, which uses the
-Berger–Rigoutsos algorithm to create rectangular grids that contain the
-tagged cells.
+Berger-Rigoutsos algorithm to create rectangular grids that contain the tagged cells.
 
 See :ref:`MeshRefinement` for more details on how to specify regions for
 refinement.
@@ -295,8 +294,11 @@ List of Parameters
 | **max_step**    | maximum number of level 0 | Integer >= 0 | -1      |
 |                 | time steps                |              |         |
 +-----------------+---------------------------+--------------+---------+
-| **stop_time**   | final simulation          | Real >= 0    | -1.0    |
+| **start_time**  | starting simulation       | Real >= 0    |  0.0    |
 |                 | time                      |              |         |
++-----------------+---------------------------+--------------+---------+
+| **stop_time**   | final simulation          | Real >= 0    | Very    |
+|                 | time                      |              | Large   |
 +-----------------+---------------------------+--------------+---------+
 
 .. _notes-3:
@@ -328,67 +330,101 @@ Time Step
 
 .. _list-of-parameters-6:
 
-List of Parameters for Single-Rate
-----------------------------------
+List of Parameters
+------------------
 
-+----------------------------+-----------------+----------------+-------------------+
-| Parameter                  | Definition      | Acceptable     | Default           |
-|                            |                 | Values         |                   |
-+============================+=================+================+===================+
-| **erf.cfl**                | CFL number for  | Real > 0 and   | 0.8               |
-|                            | hydro           | <= 1           |                   |
-|                            |                 |                |                   |
-|                            |                 |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_dt**           | set level 0 dt  | Real > 0       | unused if not     |
-|                            | as this value   |                | set               |
-|                            | regardless of   |                |                   |
-|                            | cfl or other    |                |                   |
-|                            | settings        |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.use_lowM_dt**        | set level 0 dt  | bool           | false             |
-|                            | based on        |                |                   |
-|                            | low M cfl cond  |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_fast_dt**      | set fast dt     | Real > 0       | only relevant     |
-|                            | as this value   |                | if use_native_mri |
-|                            |                 |                | is true           |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.fixed_mri_dt_ratio** | set fast dt     | int            | only relevant     |
-|                            | as slow dt /    |                | if use_native_mri |
-|                            | this ratio      |                | is true           |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.init_shrink**        | factor by which | Real > 0 and   | 1.0               |
-|                            | to shrink the   | <= 1           |                   |
-|                            | initial dt      |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
-| **erf.change_max**         | factor by which | Real >= 1      | 1.1               |
-|                            | dt can grow     |                |                   |
-|                            | in subsequent   |                |                   |
-|                            | steps           |                |                   |
-+----------------------------+-----------------+----------------+-------------------+
++----------------------------+----------------------+----------------+-------------------+
+| Parameter                  | Definition           | Acceptable     | Default           |
+|                            |                      | Values         |                   |
++============================+======================+================+===================+
+| **erf.no_substepping**     | Should we turn off   | int (0 or 1)   | 0                 |
+|                            | substepping in time? |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.cfl**                | CFL number for       | Real > 0 and   | 0.8               |
+|                            | hydro                | <= 1           |                   |
+|                            |                      |                |                   |
+|                            |                      |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_dt**           | set level 0 dt       | Real > 0       | unused if not     |
+|                            | as this value        |                | set               |
+|                            | regardless of        |                |                   |
+|                            | cfl or other         |                |                   |
+|                            | settings             |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_fast_dt**      | set fast dt          | Real > 0       | only relevant     |
+|                            | as this value        |                | if use_native_mri |
+|                            |                      |                | is true           |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.fixed_mri_dt_ratio** | set fast dt          | even int > 0   | only relevant     |
+|                            | as slow dt /         |                | if no_substepping |
+|                            | this ratio           |                | is 0              |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.init_shrink**        | factor by which      | Real > 0 and   | 1.0               |
+|                            | to shrink the        | <= 1           |                   |
+|                            | initial dt           |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+| **erf.change_max**         | factor by which      | Real >= 1      | 1.1               |
+|                            | dt can grow          |                |                   |
+|                            | in subsequent        |                |                   |
+|                            | steps                |                |                   |
++----------------------------+----------------------+----------------+-------------------+
+
+Notes
+-----------------
+
+-  | The time step controls work somewhat differently depending on whether one is using
+     acoustic substepping in time; this is determined by the value of **no_substepping**.
+
+-  | If **erf.no_substepping = 1** there is only one time step to be calculated,
+     and **fixed_fast_dt** and **fixed_mri_dt_ratio** are not used.
+
+   * | If **erf.fixed_dt** is also specified, the timestep will be set to **fixed_dt**.
+
+   * | If **erf.fixed_dt** is not specified, the timestep will be computed using the CFL condition for compressible flow.
+       If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+
+-  | If **erf.no_substepping = 0** we must determine both the slow and fast timesteps.
+   * | If **erf.fixed_dt** is specified, the slow timestep will be set to **fixed_dt**.
+
+   * | If **erf.fixed_dt** is not set, the slow timestep will be computed using the CFL
+       condition for incompressible flow.  If **erf.cfl** is specified, that CFL value will be used.
+       If not, the default value will be used.
+
+   * | There are several consistency checks before the fast timestep is computed.  Specifically, if any
+       of the following are true the code will abort while reading the inputs.
+
+     * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
+         is not an even positive integer
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsitent
+
+   * | Once the slow timestep is set and the inputs are allowed per the above criteria,
+       the fast timestep is computed in one of several ways:
+
+     * | If **erf.fixed_fast_dt** is specified, the fast timestep will be set to **fixed_fast_dt**.
+
+     * | If **erf.fixed_mri_dt_ratio** is specified and **erf.fixed_fast_dt** is not specified,
+         the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
+
+     * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
+         will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
+         as above so that the ratio of slow timestep to fine timestep is an even integer.
+         If **erf.cfl** is specified, that CFL value will be used.  If not, the default value will be used.
 
 .. _examples-of-usage-5:
 
-Examples of Usage
------------------
-
--  | **erf.cfl** = 0.9
-   | defines the timestep as dt = cfl \* dx / (u+c).  Only relevant if **fixed_dt** not set
+Examples of Usage of Additional Parameters
+-------------------------------------------
 
 -  | **erf.init_shrink** = 0.01
-   | sets the initial time step to 1% of what it would be otherwise.
+   | sets the initial slow time step to 1% of what it would be otherwise.
+     Note that if **erf.init_shrink** :math:`\neq 1` and **fixed_dt** is specified,
+     then the first time step will in fact be **erf.init_shrink** \* **erf.fixed_dt**.
 
 -  | **erf.change_max** = 1.1
-   | allows the time step to increase by no more than 10% in this case.
+   | allows the slow time step to increase by no more than 10% in this case.
      Note that the time step can shrink by any factor; this only
      controls the extent to which it can grow.
-
--  | **erf.fixed_dt** = 1.e-4
-   | sets the level-0 time step to be 1.e-4 for the entire simulation,
-     ignoring the other timestep controls. Note that if
-     **erf.init_shrink** :math:`\neq 1` then the first time step will in
-     fact be **erf.init_shrink** \* **erf.fixed_dt**.
 
 Restart Capability
 ==================
@@ -443,7 +479,7 @@ Examples of Usage
      coarse time steps. The print statements have the form
    | TIME= 1.91717746 MASS= 1.792410279e+34
    | for example. If this line is commented out then it will not compute
-     and print these quanitities.
+     and print these quantities.
 
 
 Diffusive Physics
@@ -564,7 +600,7 @@ diffusivity.
 
 Right now, the QKE equation is solved if and only if the MYNN2.5 PBL model is selected. In that
 transport equation, it is optional to advect QKE, and to apply LES diffusive transport for QKE
-in the horizontal directions (the veritcal component is always computed as part of the PBL
+in the horizontal directions (the vertical component is always computed as part of the PBL
 scheme).
 
 Forcing Terms
@@ -611,65 +647,76 @@ List of Parameters
 Initialization
 ==============
 
-ERF can be initialzed in different ways. These are listed below:
+ERF can be initialized in different ways. These are listed below:
 
 - Custom initialization:
     Several problems under **Exec** are initialized in a custom manner. The state and velocity components are specific to the problem. These problems are meant for demonstration and do not include any terrain or map scale factors.
 - Initialization using a NetCDF file:
-    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesocale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
+    Problems in ERF can be initialized using a NetCDF file containing the mesoscale data. The state and velocity components of the ERF domain are ingested from the mesoscale data. This is a more realistic problem with real atmospheric data used for initialization. The typical filename used for initialization is ``wrfinput_d01``, which is the outcome of running ``ideal.exe`` or ``real.exe`` of the WPS/WRF system.  These problems are run with both terrain and map scale factors.
 - Initialization using an ``input_sounding`` file:
     Problems in ERF can be initialized using an ``input_sounding`` file containing the vertical profile. This file has the same format as used by ``ideal.exe`` executable in WRF. Using this option for initialization, running ``ideal.exe`` and reading from the resulting ``wrfinput_d01`` file are not needed. This option is used for initializing ERF domain to a horizontally homogeneous mesoscale state and does not include terrain or map scale factors.
+
+In addition, there is a run-time option to project the initial velocity field to make it divergence-free.  To take
+advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE`` in the GNUmakefile if using gmake, or with
+``-DERF_ENABLE_POISSON_SOLVE:BOOL=ON`` in the cmake.sh file if using cmake.
 
 List of Parameters
 ------------------
 
-+-----------------------------+-------------------+--------------------+------------+
-| Parameter                   | Definition        | Acceptable         | Default    |
-|                             |                   | Values             |            |
-+=============================+===================+====================+============+
-| **erf.init_type**           | Initialization    | “custom”,          | “*custom*” |
-|                             | type              | “ideal”,           |            |
-|                             |                   | "real",            |            |
-|                             |                   |"input_sounding"    |            |
-+-----------------------------+-------------------+--------------------+------------+
-| **erf.nc_init_file**        | NetCDF file with  |  String            | NONE       |
-|                             | initial mesocale  |                    |            |
-|                             | data              |                    |            |
-+-----------------------------+-------------------+--------------------+------------+
-| **erf.nc_bdy_file**         | NetCDF file with  |  String            | NONE       |
-|                             | mesocale data at  |                    |            |
-|                             | lateral boundaries|                    |            |
-+-----------------------------+-------------------+--------------------+------------+
++----------------------------------+-------------------+--------------------+------------+
+| Parameter                        | Definition        | Acceptable         | Default    |
+|                                  |                   | Values             |            |
++==================================+===================+====================+============+
+| **erf.init_type**                | Initialization    | “custom”,          | “*custom*” |
+|                                  | type              | “ideal”,           |            |
+|                                  |                   | "real",            |            |
+|                                  |                   |"input_sounding"    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE       |
+|                                  | initial mesoscale |                    |            |
+|                                  | data              |                    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE       |
+|                                  | mesoscale data at |                    |            |
+|                                  | lateral boundaries|                    |            |
++----------------------------------+-------------------+--------------------+------------+
+| **erf.project_initial_velocity** | project initial   |  Integer           | 1          |
+|                                  | velocity?         |                    |            |
++----------------------------------+-------------------+--------------------+------------+
 
 Notes
 -----------------
 
-If **erf.init_type = ideal**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in vertical direction.
+If **erf.init_type = ideal**, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are horizontally homogeneous, i.e., there is variation only in the vertical direction.
 
-If **erf.init_type = real**”, the problem is initialized with mesoscale data contained in a NetCDF file, provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.  In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**”
+If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file,
+provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.
+In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**
 
-If **erf.init_type = custom**” or **erf.init_type = input_sounding**”, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
+If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
+
+Setting **erf.project_initial_velocity = 1** will have no effect if the code is not built with **ERF_USE_POISSON_SOLVE** defined.
 
 Map Scale Factors
 =================
 
 Map scale factors are always present in the evolution equations, but the values default to one
-unless specified in the initialization when **erf.init_type = real**”.
+unless specified in the initialization when **erf.init_type = real**.
 
-There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**”; this
+There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
 
 Terrain
 =======
 
 ERF allows the use to specify whether terrain-fitted coordinates should be used by
-setting **erf.use_terrain**” (default false).
+setting **erf.use_terrain** (default false).
 If terrain-fitted coordinates are chosen, they are defined to be static (default)
-or moving by setting **erf.terrain_type.**”
+or moving by setting **erf.terrain_type.**
 If using terrain, the user also has the option to specify one of three
 methods for defining how the terrain-fitted coordinates given the topography:
 
-- Basic Terain Following (BTF):
+- Basic Terrain Following (BTF):
     The influence of the terrain decreases linearly with height.
 - Smoothed Terrain Following (STF):
     Small-scale terrain structures are progressively smoothed out of the coordinate system as height increases.
@@ -683,7 +730,7 @@ List of Parameters
 | Parameter                   | Definition         | Acceptable         | Default    |
 |                             |                    | Values             |            |
 +=============================+====================+====================+============+
-| **erf.use_terrain**         | use terrain-fitted |  true / fasle      | false      |
+| **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
 |                             | coordinates?       |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_type**        | static or moving?  |  0 / 1             | 0          |
@@ -705,3 +752,28 @@ Examples of Usage
 
 -  **erf.terrain_smoothing**  = 2
     Sullivan TF is used when generating the terrain following coordinate.
+
+Moisture
+========
+
+ERF has two different moisture models -- one that includes only water vapor and cloud water,
+and a more complete model that includes water vapor, cloud water, cloud ice, rain, snow and graupel.
+
+If ERF is compiled with ERF_USE_WARM_NO_PRECIP defined, then the first model is used and no
+further inputs are required.
+
+If ERF is compiled with ERF_USE_MOISTURE defined, then the following run-time options control how
+the full moisture model is used.
+
+List of Parameters
+------------------
+
++-----------------------------+--------------------------+--------------------+------------+
+| Parameter                   | Definition               | Acceptable         | Default    |
+|                             |                          | Values             |            |
++=============================+==========================+====================+============+
+| **erf.do_cloud**            | use basic moisture model |  true / false      | true       |
++-----------------------------+--------------------------+--------------------+------------+
+| **erf.do_precip**           | include precipitation    |  true / false      | true       |
+|                             | in treatment of moisture |                    |            |
++-----------------------------+--------------------------+--------------------+------------+

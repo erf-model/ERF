@@ -34,6 +34,7 @@ void
 erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Vector<Real>& /*ubar*/,
                   amrex::Vector<Real>& /*vbar*/,
+                  amrex::Vector<Real>& /*wbar*/,
                   amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
@@ -42,19 +43,31 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
 
 void
 init_custom_prob(
-  const Box& bx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const& r_hse,
-  Array4<Real> const& p_hse,
-  Array4<Real const> const& z_nd,
-  Array4<Real const> const& z_cc,
-  amrex::GeometryData const& geomdata,
-  Array4<Real const> const& mf_m,
-  Array4<Real const> const& mf_u,
-  Array4<Real const> const& mf_v)
+    const Box& /*bx*/,
+    const Box& /*xbx*/,
+    const Box& /*ybx*/,
+    const Box& /*zbx*/,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
+#if defined(ERF_USE_MOISTURE)
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    Array4<Real      > const&,
+    Array4<Real      > const&,
+#endif
+    GeometryData const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
+    const SolverChoice&)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }
@@ -83,6 +96,7 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
+void
 amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)

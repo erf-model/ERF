@@ -1,0 +1,32 @@
+This problem setup is designed to test the advection and diffusion of scalar
+fields in a relatively simple flow.
+
+There are seven inputs files in this directory, each doing a slightly different test.
+
+Below are their names in the CI tests, the corresponding inputs files here, and a brief description.
+
+ScalarAdvectionDiffusionUniformU  inputs_adv_diff_uniformU
+
+   Advection and diffusion of a spherical blob in a uniform velocity field (100,0,0)
+
+ScalarAdvectionShearedU           inputs_advect_shearU
+
+   Advection of a spherical blob in a uniform shearing velocity field (8 log( (z+z0)/z0 ) / log ( (zref+z0)/z0 )
+   with z0 = 0.1 and zref = 80 in a domain 8x8x8
+
+ScalarAdvectionUniformU          inputs_advect_uniformU
+
+   Advection of a spherical blob in a uniform velocity field (10,5,0)
+
+ScalarDiffusionGaussian           inputs_diffuse_Gaussian
+
+   Diffusion of a spherical blob of scalar
+
+ScalarDiffusionSine               inputs_diffuse_sine
+
+   Diffusion of a scalar initialized as sin(x)
+
+RayleighDamping                  inputs_test_rayleigh 
+
+   This tests Rayleigh damping.  The problem is initialized as in the shear flow case, then
+   Rayleigh damping is applied with a target mean profile of (2,1,0).

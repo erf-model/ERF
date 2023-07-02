@@ -1,0 +1,52 @@
+# ------------------  INPUTS FOR ERF  -------------------
+# PROBLEM SIZE & GEOMETRY
+erf1.prob_lo     = -25600.    0.     0.
+erf1.prob_hi     =  25600.  400.  6400.
+erf1.n_cell      =    512     4     64
+
+# REFINEMENT RATIO
+erf1.ref_ratio   = (2,2,2)
+
+# PERIODICITY AND BCs
+erf1.is_periodic = 1 1 0
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# MAX LEVEL
+erf1.max_level = 0
+
+# COORDINATE SYSTEM
+erf1.coord = 0
+    
+# TIME STEP CONTROL
+erf1.fixed_dt       = 1.0
+erf1.fixed_fast_dt  = 0.25
+
+# DIAGNOSTICS & VERBOSITY
+erf1.sum_interval   = 1       # timesteps between computing mass
+erf1.v              = 1       # verbosity in ERF.cpp
+
+# CHECKPOINT FILES
+erf1.check_file      = erf1_chk  # root name of checkpoint file
+erf1.check_int       = 1         # number of timesteps between checkpoints
+
+# PLOTFILES
+erf1.plot_file_1         = erf1_plt    # root name of plotfile
+erf1.plot_int_1          = 1           # number of timesteps between plotfiles
+erf1.plot_vars_1         = density x_velocity y_velocity z_velocity
+
+# SOLVER CHOICE
+erf1.use_gravity          = true
+erf1.use_coriolis         = false
+erf1.use_rayleigh_damping = false
+erf1.les_type             = "None"
+
+# DIFFUSION COEFF
+erf1.molec_diff_type  = "ConstantAlpha"
+erf1.rho0_trans       = 1.0 
+erf1.dynamicViscosity = 75.0 
+erf1.alpha_T          = 75.0
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0 = 300.0
+prob.U_0 = 0.0 

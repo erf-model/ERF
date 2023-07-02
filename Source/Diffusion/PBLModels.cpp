@@ -2,6 +2,17 @@
 #include "DirectionSelector.H"
 #include "Diffusion.H"
 
+/**
+ * Function to compute turbulent viscosity with PBL.
+ *
+ * @param[in] xvel velocity in x-dir
+ * @param[in] yvel velocity in y-dir
+ * @param[in] cons_in cell center conserved quantities
+ * @param[out] eddyViscosity holds turbulent viscosity
+ * @param[in] geom problem geometry
+ * @param[in] solverChoice container with solver parameters
+ * @param[in] most pointer to Monin-Obukhov class if instantiated
+ */
 void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,
@@ -70,9 +81,20 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
       amrex::Real dz_inv = geom.InvCellSize(2);
       int izmin = geom.Domain().smallEnd(2);
       int izmax = geom.Domain().bigEnd(2);
-      const amrex::Real l_obukhov = most->obukhov_len;
-      const amrex::Real surface_heat_flux = most->surf_temp_flux;
-      const amrex::Real theta0 = most->theta_mean; //(TODO: IS THIS ACTUALLY RHOTHETA)
+
+      // Spatially varying MOST
+      amrex::Real eps       = 1.0e-16;
+      amrex::Real d_kappa   = most->kappa;
+      amrex::Real d_gravity = most->gravity;
+
+      const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
+      const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
+      const auto& t_star_mf = most->get_t_star(0);    // Use coarsest level
+
+      const auto& tm_arr     = t_mean_mf->array(mfi); // TODO: IS THIS ACTUALLY RHOTHETA
+      const auto& u_star_arr = u_star_mf->array(mfi);
+      const auto& t_star_arr = t_star_mf->array(mfi);
+
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
       {
           // Compute some partial derivatives that we will need (1st order at domain boundary)
@@ -93,6 +115,17 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
               dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
               dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
+          }
+
+          // Spatially varying MOST
+          amrex::Real surface_heat_flux = u_star_arr(i,k,0) * t_star_arr(i,j,0);
+          amrex::Real theta0            = tm_arr(i,j,0); // TODO: IS THIS ACTUALLY RHOTHETA
+          amrex::Real l_obukhov;
+          if (std::abs(surface_heat_flux) > eps) {
+              l_obukhov = ( theta0 * u_star_arr(i,j,0) * u_star_arr(i,j,0) ) /
+                          ( d_kappa * d_gravity * t_star_arr(i,j,0) );
+          } else {
+              l_obukhov = std::numeric_limits<amrex::Real>::max();
           }
 
           // First Length Scale
@@ -150,7 +183,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
           // Finally, compute the eddy viscosity/diffusivities
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
-          K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM;
+          K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM * 0.5;
           K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
           K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * 3.0 * SQ;
 
