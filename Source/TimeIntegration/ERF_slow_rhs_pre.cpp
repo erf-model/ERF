@@ -68,6 +68,34 @@ using namespace amrex;
  * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
  */
 
+void ApplySpongeZoneBCs(const amrex::Geometry geom,
+					   const Box &tbx,
+					   const Array4<Real>& rho_u_rhs,
+					   const Array4<const Real>& rho_u)
+{
+	// Domain cell size and real bounds
+	auto dx = geom.CellSizeArray();
+	auto ProbHiArr = geom.ProbHiArray();
+
+	// Domain valid box
+	const amrex::Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+
+	amrex::ParallelFor(tbx,
+        	[=] AMREX_GPU_DEVICE (int i, int j, int k)
+	{
+		// Clip indices for ghost-cells
+		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+		// Location of nodes
+		Real x = ii*dx[0];
+
+		if(x > 4.0){
+			Real xi = (x-4.0)/(ProbHiArr[0]-4.0);	
+			rho_u_rhs(i, j, k) -= 50000.0*xi*xi*(rho_u(i,j,k)-1.16*10.0);
+		}
+	});
+}
+			
 void erf_slow_rhs_pre (int /*level*/, int nrk,
                        amrex::Real dt,
                        BoxArray& grids_to_evolve,
@@ -806,6 +834,27 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
             }
 
+			// Domain cell size and real bounds
+			/*auto dx = geom.CellSizeArray();
+			auto ProbHiArr = geom.ProbHiArray();
+
+		     // Domain valid box
+     		const amrex::Box& domain = geom.Domain();
+     		int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+
+			// Clip indices for ghost-cells
+			int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+
+             // Location of nodes
+             Real x = ii*dx[0];
+
+			if(x > 4.0){
+				Real xi = (x-4.0)/(ProbHiArr[0]-4.0);	
+				rho_u_rhs(i, j, k) -= 50000.0*xi*xi*(rho_u(i,j,k)-1.16*10.0);
+			}*/
+			
+
+
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
             {
@@ -1056,7 +1105,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
         });
-        } // no terrain
+        } // no terrain	
+		ApplySpongeZoneBCs(geom, tbx, rho_u_rhs, rho_u);	
         } // end profile
     } // mfi
 
