@@ -92,7 +92,7 @@ public:
     ERF(ERF&&)  noexcept = default;
 
     // Declare a default move assignment operator
-    ERF& operator=(ERF&& other)  noexcept = default;
+    ERF& operator=(ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
     ERF(const ERF& other) = delete;
