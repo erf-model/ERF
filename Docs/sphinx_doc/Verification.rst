@@ -34,6 +34,10 @@ accuracy of the RK3 scheme.
 .. |bconv| image:: figures/conv_plot_temporal.png
            :width: 300
 
+.. _fig:convergence
+
+.. table:: Convergence studies of spatial and temporal error
+
    +-----------------------------------------------------+------------------------------------------------------+
    |                     |aconv|                         |                      |bconv|                         |
    +-----------------------------------------------------+------------------------------------------------------+
