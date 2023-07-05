@@ -23,7 +23,7 @@ the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that t
 the temporal error.
 
 The second study, shown on the right below, tests the temporal accuracy by first setting :math:`\Delta t = 0.0005`
-and :math:`\Delta x = 1/8`, then reducing both :math:`\Delta t` and :math:'\Delta x` by a factor of two, keeping
+and :math:`\Delta x = 1/8`, then reducing both :math:`\Delta t` and :math:`\Delta x` by a factor of two, keeping
 the ratio of :math:`\Delta t` to :math:`\Delta x` constant.   These tests were run with the 6th order accurate
 spatial stencil so that the temporal error dominated the spatial error.  Here we recover the expected 3rd order
 accuracy of the RK3 scheme.
@@ -33,6 +33,10 @@ accuracy of the RK3 scheme.
 
 .. |bconv| image:: figures/conv_plot_temporal.png
            :width: 300
+
+.. _fig:convergence
+
+.. table:: Convergence studies of spatial and temporal error
 
    +-----------------------------------------------------+------------------------------------------------------+
    |                     |aconv|                         |                      |bconv|                         |
