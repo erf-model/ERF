@@ -70,30 +70,139 @@ using namespace amrex;
 
 void ApplySpongeZoneBCs(const amrex::Geometry geom,
 					   const Box &tbx,
+					   const Box &tby,
+					   const Box &tbz,
 					   const Array4<Real>& rho_u_rhs,
-					   const Array4<const Real>& rho_u)
+					   const Array4<Real>& rho_v_rhs,
+					   const Array4<Real>& rho_w_rhs,
+					   const Array4<const Real>& rho_u,
+					   const Array4<const Real>& rho_v,
+					   const Array4<const Real>& rho_w, 
+					   const Box &bx,
+					   const Array4<Real>& cell_rhs,
+					   const Array4<const Real>& cell_data)
 {
 	// Domain cell size and real bounds
 	auto dx = geom.CellSizeArray();
 	auto ProbHiArr = geom.ProbHiArray();
+	auto ProbLoArr = geom.ProbLoArray();
 
 	// Domain valid box
 	const amrex::Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
 
 	amrex::ParallelFor(tbx,
         	[=] AMREX_GPU_DEVICE (int i, int j, int k)
 	{
-		// Clip indices for ghost-cells
+
 		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-		// Location of nodes
+		int kk = amrex::min(amrex::max(k,domlo_z),domhi_z);
+
+		Real x = ii*dx[0];
+		Real z = kk*dx[2];
+		
+		/*Real theta = std::atan2(z,(x-5.0));
+    	Real rval = std::sqrt((x-5.0)*(x-5.0) + z*z);
+		rval = rval + 1e-10;
+    	Real Ur = 10.0*(1.0 - 0.5*0.5/(rval*rval))*std::cos(theta);
+    	Real Utheta = -10.0*(1.0 + 0.5*0.5/(rval*rval))*std::sin(theta);
+    	Real xvel = Ur*std::cos(theta) - Utheta*std::sin(theta);*/
+	
+		Real xvel = 10.0;
+ 
+		// x left sponge
+		if(x < 4.0){
+			Real xi = (4.0-x)/(4.0-ProbLoArr[0]);	
+			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
+		}
+
+		// x right sponge
+		if(x > 16.0){
+			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
+			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
+		}
+
+		// z top sponge		
+		if(z > 4.0){
+			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
+			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
+		}	
+	});
+
+
+	amrex::ParallelFor(tbz,
+        	[=] AMREX_GPU_DEVICE (int i, int j, int k)
+	{
+		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+		int kk = amrex::min(amrex::max(k,domlo_z),domhi_z);
+
+		Real x = ii*dx[0];
+		Real z = kk*dx[2];
+		
+		/*Real theta = std::atan2(z,x);
+    	Real rval = std::sqrt(x*x + z*z);
+		rval = rval + 1e-10;
+    	Real Ur = 10.0*(1.0 - 0.5*0.5/(rval*rval))*std::cos(theta);
+    	Real Utheta = -10.0*(1.0 + 0.5*0.5/(rval*rval))*std::sin(theta);
+    	Real zvel = Ur*std::sin(theta) + Utheta*std::cos(theta);*/
+
+		Real zvel = 0.0;
+		
+		// x left sponge
+		if(x < 4.0){
+			Real xi = (4.0-x)/(4.0-ProbLoArr[0]);	
+			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
+		}
+
+		// x right sponge
+		if(x > 16.0){
+			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
+			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
+		}
+
+		
+		// z top sponge		
+		if(z > 4.0){
+			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
+			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
+		}	
+	});
+
+
+	ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+	{
+		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
 		Real x = ii*dx[0];
 
-		if(x > 4.0){
-			Real xi = (x-4.0)/(ProbHiArr[0]-4.0);	
-			rho_u_rhs(i, j, k) -= 50000.0*xi*xi*(rho_u(i,j,k)-1.16*10.0);
+		// x left sponge
+		if(x < 2.0){
+			Real xi = (2.0-x)/(2.0-ProbLoArr[0]);
+			cell_rhs(i, j, k, 0) -= 10000.0*xi*xi*(cell_data(i, j, k, 0)-1.2); 
+		}
+		// x right sponge
+		if(x > 8.0){
+			Real xi = (x-8.0)/(ProbHiArr[0]-8.0);	
+			cell_rhs(i, j, k, 0) -= 10000.0*xi*xi*(cell_data(i, j, k, 0)-1.2); 
 		}
 	});
+
+	/*amrex::ParallelFor(tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    {
+		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+        Real x = ii*dx[0];
+		
+		if(x > 4.0){
+            Real xi = (x-4.0)/(ProbHiArr[0]-4.0);
+            rho_v_rhs(i, j, k) -= 10000.0*xi*xi*(rho_v(i,j,k));
+        }
+	});*/
+
+
+	
+
 }
 			
 void erf_slow_rhs_pre (int /*level*/, int nrk,
@@ -834,27 +943,6 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                         (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
             }
 
-			// Domain cell size and real bounds
-			/*auto dx = geom.CellSizeArray();
-			auto ProbHiArr = geom.ProbHiArray();
-
-		     // Domain valid box
-     		const amrex::Box& domain = geom.Domain();
-     		int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-
-			// Clip indices for ghost-cells
-			int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-
-             // Location of nodes
-             Real x = ii*dx[0];
-
-			if(x > 4.0){
-				Real xi = (x-4.0)/(ProbHiArr[0]-4.0);	
-				rho_u_rhs(i, j, k) -= 50000.0*xi*xi*(rho_u(i,j,k)-1.16*10.0);
-			}*/
-			
-
-
             // Add Rayleigh damping
             if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
             {
@@ -1106,7 +1194,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
         });
         } // no terrain	
-		ApplySpongeZoneBCs(geom, tbx, rho_u_rhs, rho_u);	
+		ApplySpongeZoneBCs(geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v, rho_w, bx, cell_rhs, cell_data);	
         } // end profile
     } // mfi
 
