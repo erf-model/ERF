@@ -103,13 +103,6 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 		Real x = ii*dx[0];
 		Real z = kk*dx[2];
 		
-		/*Real theta = std::atan2(z,(x-5.0));
-    	Real rval = std::sqrt((x-5.0)*(x-5.0) + z*z);
-		rval = rval + 1e-10;
-    	Real Ur = 10.0*(1.0 - 0.5*0.5/(rval*rval))*std::cos(theta);
-    	Real Utheta = -10.0*(1.0 + 0.5*0.5/(rval*rval))*std::sin(theta);
-    	Real xvel = Ur*std::cos(theta) - Utheta*std::sin(theta);*/
-	
 		Real xvel = 10.0;
  
 		// x left sponge
@@ -117,13 +110,11 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 			Real xi = (4.0-x)/(4.0-ProbLoArr[0]);	
 			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
 		}
-
 		// x right sponge
 		if(x > 16.0){
 			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
 			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
 		}
-
 		// z top sponge		
 		if(z > 4.0){
 			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
@@ -141,13 +132,6 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 		Real x = ii*dx[0];
 		Real z = kk*dx[2];
 		
-		/*Real theta = std::atan2(z,x);
-    	Real rval = std::sqrt(x*x + z*z);
-		rval = rval + 1e-10;
-    	Real Ur = 10.0*(1.0 - 0.5*0.5/(rval*rval))*std::cos(theta);
-    	Real Utheta = -10.0*(1.0 + 0.5*0.5/(rval*rval))*std::sin(theta);
-    	Real zvel = Ur*std::sin(theta) + Utheta*std::cos(theta);*/
-
 		Real zvel = 0.0;
 		
 		// x left sponge
@@ -155,14 +139,11 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 			Real xi = (4.0-x)/(4.0-ProbLoArr[0]);	
 			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
 		}
-
 		// x right sponge
 		if(x > 16.0){
 			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
 			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
 		}
-
-		
 		// z top sponge		
 		if(z > 4.0){
 			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
@@ -187,22 +168,6 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 			cell_rhs(i, j, k, 0) -= 10000.0*xi*xi*(cell_data(i, j, k, 0)-1.2); 
 		}
 	});
-
-	/*amrex::ParallelFor(tby,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
-    {
-		int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-        Real x = ii*dx[0];
-		
-		if(x > 4.0){
-            Real xi = (x-4.0)/(ProbHiArr[0]-4.0);
-            rho_v_rhs(i, j, k) -= 10000.0*xi*xi*(rho_v(i,j,k));
-        }
-	});*/
-
-
-	
-
 }
 			
 void erf_slow_rhs_pre (int /*level*/, int nrk,
