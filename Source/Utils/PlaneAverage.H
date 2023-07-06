@@ -16,7 +16,7 @@ public:
     explicit PlaneAverage(const amrex::MultiFab* field_in,
                           amrex::Geometry geom_in,
                           int axis_in);
-    PlaneAverage() = default;
+    PlaneAverage() = delete;
     ~PlaneAverage() = default;
 
     AMREX_FORCE_INLINE
