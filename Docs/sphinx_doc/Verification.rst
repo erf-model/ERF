@@ -22,27 +22,40 @@ second through sixth order, including the WENO 3rd and 5th order stencils.  In a
 the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates
 the temporal error.
 
-The second study, shown on the right below, tests the temporal accuracy by first setting :math:`\Delta t = 0.0005`
+.. |aconv| image:: figures/conv_plot_spatial.png
+           :width: 300
+
+.. |bconv| image:: figures/conv_plot_spatial_WENO.png
+           :width: 300
+
+.. _fig:convergence_spatial
+
+.. table:: Convergence studies of spatial error
+
+   +-----------------------------------------------------+------------------------------------------------------+
+   |                     |aconv|                         |                      |bconv|                         |
+   +-----------------------------------------------------+------------------------------------------------------+
+   |  Spatial convergence study (centered/upwind)        |  Temporal convergence study (WENO)                   |
+   +-----------------------------------------------------+------------------------------------------------------+
+
+The second study tests the temporal accuracy by first setting :math:`\Delta t = 0.0005`
 and :math:`\Delta x = 1/8`, then reducing both :math:`\Delta t` and :math:`\Delta x` by a factor of two, keeping
 the ratio of :math:`\Delta t` to :math:`\Delta x` constant.   These tests were run with the 6th order accurate
 spatial stencil so that the temporal error dominated the spatial error.  Here we recover the expected 3rd order
 accuracy of the RK3 scheme.
 
-.. |aconv| image:: figures/conv_plot_spatial.png
+.. |tconv| image:: figures/conv_plot_temporal.png
            :width: 300
 
-.. |bconv| image:: figures/conv_plot_temporal.png
-           :width: 300
+.. _fig:convergence_temporal
 
-.. _fig:convergence
+.. table:: Convergence studies of temporal error
 
-.. table:: Convergence studies of spatial and temporal error
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                     |aconv|                         |                      |bconv|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |  Spatial convergence study                          |  Temporal convergence study                          |
-   +-----------------------------------------------------+------------------------------------------------------+
+   +-----------------------------------------------------+
+   |                     |tconv|                         |
+   +-----------------------------------------------------+
+   |  Temporal convergence study                         |
+   +-----------------------------------------------------+
 
 
 Nonlinear Density Current
