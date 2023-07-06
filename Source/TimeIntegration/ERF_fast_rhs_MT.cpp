@@ -82,7 +82,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
-    const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dxi = dxInv[0];

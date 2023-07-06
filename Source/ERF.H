@@ -89,7 +89,7 @@ public:
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    ERF(ERF&&)  noexcept = default;
+    ERF(ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
     ERF& operator=(ERF&& other)  noexcept = delete;
