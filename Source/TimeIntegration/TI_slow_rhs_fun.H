@@ -194,7 +194,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type == "real" && level == 0)
+        if (init_type=="real" && level==0 && nrk==0)
             compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
                                        wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                        S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,

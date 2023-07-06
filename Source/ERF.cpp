@@ -1525,33 +1525,33 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 void
 ERF::define_grids_to_evolve (int lev) // NOLINT
 {
-   int width = wrfbdy_width - 1;
-   Box domain(geom[lev].Domain());
-   if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
-   {
-      Box shrunk_domain(domain);
-      shrunk_domain.grow(0,-width);
-      shrunk_domain.grow(1,-width);
-      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
-   } else if (lev == 1) {
-      Box shrunk_domain(boxes_at_level[lev][0]);
-      shrunk_domain.grow(0,-width);
-      shrunk_domain.grow(1,-width);
-      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
+    int width = wrfbdy_set_width;
+    Box domain(geom[lev].Domain());
+    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
+    {
+        Box shrunk_domain(domain);
+        shrunk_domain.grow(0,-width);
+        shrunk_domain.grow(1,-width);
+        grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
+    } else if (lev == 1) {
+        Box shrunk_domain(boxes_at_level[lev][0]);
+        shrunk_domain.grow(0,-width);
+        shrunk_domain.grow(1,-width);
+        grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
 #if 0
-      if (num_boxes_at_level[lev] > 1) {
-          for (int i = 1; i < num_boxes_at_level[lev]; i++) {
-              Box shrunk_domain(boxes_at_level[lev][i]);
-              shrunk_domain.grow(0,-width);
-              shrunk_domain.grow(1,-width);
-              grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
-          }
-      }
+        if (num_boxes_at_level[lev] > 1) {
+            for (int i = 1; i < num_boxes_at_level[lev]; i++) {
+                Box shrunk_domain(boxes_at_level[lev][i]);
+                shrunk_domain.grow(0,-width);
+                shrunk_domain.grow(1,-width);
+                grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
+            }
+        }
 #endif
-   } else {
-      // Just copy grids...
-      grids_to_evolve[lev] = grids[lev];
-   }
+    } else {
+        // Just copy grids...
+        grids_to_evolve[lev] = grids[lev];
+    }
 }
 
 #ifdef ERF_USE_MULTIBLOCK
