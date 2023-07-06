@@ -420,7 +420,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             // 4 halo boxes w/ no ghost cells for CC vars
             Box domain = geom.Domain();
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,NVAR);
@@ -437,7 +437,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             Box domain = geom.Domain();
             domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
@@ -457,6 +457,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         Box domain = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
         const auto& dom_hi = ubound(domain);
+        const auto& dom_lo = lbound(domain);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -517,27 +518,32 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Corners with x boxes
-                int j_lo = std::min(j,width-1);
+                int j_lo = std::min(j-dom_lo.y,width-1);
                 int j_hi = std::min(dom_hi.y-j,width-1);
                 int jj   = std::min(j_lo,j_hi);
-                int n    = std::min(i,jj) + 1;
+                int n    = std::min(i-dom_lo.x,jj) + 1;
                 if (n <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
                     Real Factor   = (num - Real(n))/denom;
-                    Real delta    = arr_xlo(i  ,j  ,k) - data_arr(i  ,j  ,k,icomp);
-                    Real delta_xp = arr_xlo(i+1,j  ,k) - data_arr(i+1,j  ,k,icomp);
-                    Real delta_xm = arr_xlo(i-1,j  ,k) - data_arr(i-1,j  ,k,icomp);
-                    Real delta_yp = arr_xlo(i  ,j+1,k) - data_arr(i  ,j+1,k,icomp);
-                    Real delta_ym = arr_xlo(i  ,j-1,k) - data_arr(i  ,j-1,k,icomp);
+                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+                    Real delta    = arr_xlo(i  ,j  ,k) - d;
+                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) = (F1*delta - F2*Laplacian) * Factor;
+                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Corners with x boxes
-                int j_lo = std::min(j,width-1);
+                int j_lo = std::min(j-dom_lo.y,width-1);
                 int j_hi = std::min(dom_hi.y-j,width-1);
                 int jj   = std::min(j_lo,j_hi);
                 int n    = std::min(dom_hi.x-i,jj) + 1;
@@ -545,13 +551,18 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
                     Real Factor   = (num - Real(n))/denom;
-                    Real delta    = arr_xhi(i  ,j  ,k) - data_arr(i  ,j  ,k,icomp);
-                    Real delta_xp = arr_xhi(i+1,j  ,k) - data_arr(i+1,j  ,k,icomp);
-                    Real delta_xm = arr_xhi(i-1,j  ,k) - data_arr(i-1,j  ,k,icomp);
-                    Real delta_yp = arr_xhi(i  ,j+1,k) - data_arr(i  ,j+1,k,icomp);
-                    Real delta_ym = arr_xhi(i  ,j-1,k) - data_arr(i  ,j-1,k,icomp);
+                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+                    Real delta    = arr_xlo(i  ,j  ,k) - d;
+                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) = (F1*delta - F2*Laplacian) * Factor;
+                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
             });
 
@@ -559,18 +570,23 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // No corners for y boxes
-                int n = j + 1;
+                int n = j -dom_lo.y + 1;
                 if (n <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
                     Real Factor   = (num - Real(n))/denom;
-                    Real delta    = arr_ylo(i  ,j  ,k) - data_arr(i  ,j  ,k,icomp);
-                    Real delta_xp = arr_ylo(i+1,j  ,k) - data_arr(i+1,j  ,k,icomp);
-                    Real delta_xm = arr_ylo(i-1,j  ,k) - data_arr(i-1,j  ,k,icomp);
-                    Real delta_yp = arr_ylo(i  ,j+1,k) - data_arr(i  ,j+1,k,icomp);
-                    Real delta_ym = arr_ylo(i  ,j-1,k) - data_arr(i  ,j-1,k,icomp);
+                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+                    Real delta    = arr_xlo(i  ,j  ,k) - d;
+                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) = (F1*delta - F2*Laplacian) * Factor;
+                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -581,13 +597,18 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
                     Real Factor   = (num - Real(n))/denom;
-                    Real delta    = arr_yhi(i  ,j  ,k) - data_arr(i  ,j  ,k,icomp);
-                    Real delta_xp = arr_yhi(i+1,j  ,k) - data_arr(i+1,j  ,k,icomp);
-                    Real delta_xm = arr_yhi(i-1,j  ,k) - data_arr(i-1,j  ,k,icomp);
-                    Real delta_yp = arr_yhi(i  ,j+1,k) - data_arr(i  ,j+1,k,icomp);
-                    Real delta_ym = arr_yhi(i  ,j-1,k) - data_arr(i  ,j-1,k,icomp);
+                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+                    Real delta    = arr_xlo(i  ,j  ,k) - d;
+                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) = (F1*delta - F2*Laplacian) * Factor;
+                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
             });
         } // mfi
