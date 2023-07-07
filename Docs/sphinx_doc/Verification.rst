@@ -11,14 +11,15 @@ The following tests are used to verify the correct behavior of different algorit
 Scalar Advection
 ----------------
 
-Here we present two convergence studies of simple scalar advection with a uniform velocity field.
+Here we present spatial and temporal convergence studies for simple scalar advection with a uniform velocity field.
 The initial data has constant density and pressure, constant velocity :math:`u=10` in the x-direction,
 and a scalar initialized with profile :math:`cos(\pi x)` in a domain that is 2 units wide and
 periodic in the lateral directions with slip walls on top and bottom.
 The simulation is run for one period, i.e. until time :math:`t=0.2`
 
-The first study, shown below on the left, tests the horizontal advection stencils for
-second through sixth order, including the WENO 3rd and 5th order stencils.  In all of these cases,
+The first study, shown below on the left, tests the horizontal centered/upwind advection stencils for
+second through sixth order. The study on the right tests the WENO 3rd and 5th order stencils,
+with and without the ``smoothing'' contributions in the stencil.  In all of these cases,
 the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates
 the temporal error.
 
@@ -35,7 +36,7 @@ the temporal error.
    +-----------------------------------------------------+------------------------------------------------------+
    |                     |aconv|                         |                      |bconv|                         |
    +-----------------------------------------------------+------------------------------------------------------+
-   |  Spatial convergence study (centered/upwind)        |  Temporal convergence study (WENO)                   |
+   |  Spatial convergence study (centered/upwind)        |  Spatial convergence study (WENO)                    |
    +-----------------------------------------------------+------------------------------------------------------+
 
 The second study tests the temporal accuracy by first setting :math:`\Delta t = 0.0005`
@@ -49,7 +50,7 @@ accuracy of the RK3 scheme.
 
 .. _fig:convergence_temporal
 
-.. table:: Convergence studies of temporal error
+.. table:: Convergence study of temporal error
 
    +-----------------------------------------------------+
    |                     |tconv|                         |
