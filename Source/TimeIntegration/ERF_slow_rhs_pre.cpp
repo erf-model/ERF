@@ -111,13 +111,13 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
 		}
 		// x right sponge
-		if(x > 16.0){
-			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
+		if(x > 26.0){
+			Real xi = (x-26.0)/(ProbHiArr[0]-26.0);	
 			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
 		}
 		// z top sponge		
-		if(z > 4.0){
-			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
+		if(z > 8.0){
+			Real xi = (z-8.0)/(ProbHiArr[2]-8.0);	
 			rho_u_rhs(i, j, k) -= 10000.0*xi*xi*(rho_u(i,j,k)-1.2*xvel);
 		}	
 	});
@@ -140,13 +140,13 @@ void ApplySpongeZoneBCs(const amrex::Geometry geom,
 			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
 		}
 		// x right sponge
-		if(x > 16.0){
-			Real xi = (x-16.0)/(ProbHiArr[0]-16.0);	
+		if(x > 26.0){
+			Real xi = (x-26.0)/(ProbHiArr[0]-26.0);	
 			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
 		}
 		// z top sponge		
-		if(z > 4.0){
-			Real xi = (z-4.0)/(ProbHiArr[2]-4.0);	
+		if(z > 8.0){
+			Real xi = (z-8.0)/(ProbHiArr[2]-8.0);	
 			rho_w_rhs(i, j, k) -= 10000.0*xi*xi*(rho_w(i,j,k)-1.2*zvel);
 		}	
 	});
