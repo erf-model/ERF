@@ -77,12 +77,10 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     //-----------------------------------------------------------------
     // Coarse-Fine set region
     if (lev>0) {
-        amrex::Print() << "FP Started C/U/V/W\n";
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
         FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
-        amrex::Print() << "FP Filled C/U/V/W\n";
     }
 
     // ***************************************************************************
@@ -236,12 +234,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //-----------------------------------------------------------------
     // Coarse-Fine set region
     if (lev>0) {
-        amrex::Print() << "FIP Started C/U/V/W\n";
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
         FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
-        amrex::Print() << "FIP Filled C/U/V/W\n";
     }
 
     // ***************************************************************************

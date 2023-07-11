@@ -106,6 +106,7 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  */
 void
 wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
+                                  const Real& start_bdy_time,
                                   const Real& time,
                                   const Real& delta_t,
                                   const int&  width,
@@ -116,8 +117,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                   Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                                  const Real start_bdy_time)
+                                  Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
 
@@ -138,9 +138,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
-#endif
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
@@ -151,21 +148,11 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     // End of loop for WRFBdyVars
     int WRFBdyEnd = WRFBdyVars::NumTypes-3;
 
-#if defined(ERF_USE_MOISTURE)
-     var_map.push_back( Vars::cons );
-    comp_map.push_back( RhoQt_comp );
-    WRFBdyEnd +=1;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-     var_map.push_back( Vars::cons );
-    comp_map.push_back( RhoQv_comp );
-    WRFBdyEnd +=1;
-#endif
 
-    // Size the FABs for each variable
+    // Size the FABs
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
-        // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
@@ -174,8 +161,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         // NOTE: 2 ghost cells needed for U -> rho*U
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
-
-        // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
@@ -195,11 +180,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         } else if (ivar  == WRFBdyVars::T){
             T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
             T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == WRFBdyVars::QV ) {
-            Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
-            Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
-#endif
         } else {
             continue;
         }
@@ -218,16 +198,11 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
-    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
-#endif
 
     // Populate FABs from boundary interpolation
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
-        // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
@@ -238,8 +213,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         // NOTE: 2 ghost cells needed for U -> rho*U
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
-
-        // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
@@ -261,11 +234,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         } else if (ivar  == WRFBdyVars::T){
             arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
             arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == WRFBdyVars::QV ) {
-            arr_xlo = Q_xlo.array(); arr_xhi = Q_xhi.array();
-            arr_ylo = Q_ylo.array(); arr_yhi = Q_yhi.array();
-#endif
         } else {
             continue;
         }
@@ -322,11 +290,11 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         });
     } // ivar
 
+
     // Velocity to momentum
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::V; ivar++)
     {
-        // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
@@ -335,8 +303,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         // NOTE: 1 ghost cell needed for Laplacian
         IntVect ng_vect{1,1,0};
         Box gdom(domain); gdom.grow(ng_vect);
-
-        // 4 halo boxes w/ interior ghost cells
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
         compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
                                       bx_xlo, bx_xhi,
@@ -408,7 +374,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     } // ivar
 
 
-    // Compute the RHS (fill all CONS & W first)
+    // Zero RHS in set region
     //==========================================================
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -416,10 +382,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         {
-             // Tilebox
             Box tbx = mfi.tilebox();
-
-            // 4 halo boxes w/ no ghost cells for CC vars
             Box domain = geom.Domain();
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
@@ -432,10 +395,35 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
 
         {
-            // Tilebox
-            Box tbx = mfi.tilebox(IntVect(0,0,1));
+            Box tbx = mfi.tilebox(IntVect(1,0,0));
+            Box domain = geom.Domain();
+            domain.convert(S_rhs[IntVar::xmom].boxArray().ixType());
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
+            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
+            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
+            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+        }
 
-            // 4 halo boxes w/ no ghost cells for Z-face vars
+        {
+            Box tbx = mfi.tilebox(IntVect(0,1,0));
+            Box domain = geom.Domain();
+            domain.convert(S_rhs[IntVar::ymom].boxArray().ixType());
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
+            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
+            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
+            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+        }
+
+        {
+            Box tbx = mfi.tilebox(IntVect(0,0,1));
             Box domain = geom.Domain();
             domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
@@ -449,13 +437,14 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
     } // mfi
 
+
+    // Compute RHS in relaxation region
+    //==========================================================
     for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
-        // Variable & comp maps
         int var_idx =  var_map[ivar];
         int icomp   = comp_map[ivar];
 
-        // Convert the domain to the ixtype of the variable
         Box domain = geom.Domain();
         domain.convert(S_data[var_idx].boxArray().ixType());
         const auto& dom_hi = ubound(domain);
@@ -466,11 +455,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
 #endif
         for ( MFIter mfi(S_data[var_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            // Tilebox
             Box tbx = mfi.tilebox();
-
-            // Intersection of tilebox and 4 boxes w/o ANY ghost cells
-            // NOTE: 0 ghost cells needed
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
@@ -500,13 +485,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-            } else if (ivar  == WRFBdyVars::QV ) {
-                arr_xlo  = Q_xlo.array(); arr_xhi = Q_xhi.array();
-                arr_ylo  = Q_ylo.array(); arr_yhi = Q_yhi.array();
-                rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                data_arr = S_data[IntVar::cons].array(mfi);
-#endif
             } else {
                 continue;
             }
@@ -520,14 +498,14 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Corners with x boxes
-                int j_lo = std::min(j-dom_lo.y,width-1);
-                int j_hi = std::min(dom_hi.y-j,width-1);
-                int jj   = std::min(j_lo,j_hi);
-                int n    = std::min(i-dom_lo.x,jj) + 1;
-                if (n <= Spec_z) {
+                int j_lo  = std::min(j-dom_lo.y,width-1);
+                int j_hi  = std::min(dom_hi.y-j,width-1);
+                int jj    = std::min(j_lo,j_hi);
+                int n_ind = std::min(i-dom_lo.x,jj) + 1;
+                if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
                     Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
                     Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
@@ -545,24 +523,24 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Corners with x boxes
-                int j_lo = std::min(j-dom_lo.y,width-1);
-                int j_hi = std::min(dom_hi.y-j,width-1);
-                int jj   = std::min(j_lo,j_hi);
-                int n    = std::min(dom_hi.x-i,jj) + 1;
-                if (n <= Spec_z) {
+                int j_lo  = std::min(j-dom_lo.y,width-1);
+                int j_hi  = std::min(dom_hi.y-j,width-1);
+                int jj    = std::min(j_lo,j_hi);
+                int n_ind = std::min(dom_hi.x-i,jj) + 1;
+                if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
                     Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
                     Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
                     Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
                     Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_xlo(i  ,j  ,k) - d;
-                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
+                    Real delta    = arr_xhi(i  ,j  ,k) - d;
+                    Real delta_xp = arr_xhi(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_xhi(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_xhi(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_xhi(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                     rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
@@ -572,21 +550,21 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // No corners for y boxes
-                int n = j -dom_lo.y + 1;
-                if (n <= Spec_z) {
+                int n_ind = j -dom_lo.y + 1;
+                if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
                     Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
                     Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
                     Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
                     Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_xlo(i  ,j  ,k) - d;
-                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
+                    Real delta    = arr_ylo(i  ,j  ,k) - d;
+                    Real delta_xp = arr_ylo(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_ylo(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_ylo(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_ylo(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                     rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
@@ -594,21 +572,21 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // No corners for y boxes
-                int n = dom_hi.y - j + 1;
-                if (n <= Spec_z) {
+                int n_ind = dom_hi.y - j + 1;
+                if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,icomp) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
                     Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
                     Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
                     Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
                     Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_xlo(i  ,j  ,k) - d;
-                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
+                    Real delta    = arr_yhi(i  ,j  ,k) - d;
+                    Real delta_xp = arr_yhi(i+1,j  ,k) - d_ip1;
+                    Real delta_xm = arr_yhi(i-1,j  ,k) - d_im1;
+                    Real delta_yp = arr_yhi(i  ,j+1,k) - d_jp1;
+                    Real delta_ym = arr_yhi(i  ,j-1,k) - d_jm1;
                     Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                     rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
                 }
@@ -618,6 +596,289 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
 }
 
 
+/**
+ * Compute the RHS in the relaxation zone for moisture
+ *
+ * @param[in] bdy_time_interval time interval between boundary condition time stamps
+ * @param[in] time    current time
+ * @param[in] delta_t timestep
+ * @param[in] width   number of cells in (relaxation+specified) zone
+ * @param[in] set_width number of cells in (specified) zone
+ * @param[in] geom     container for geometric information
+ * @param[out] S_rhs   RHS to be computed here
+ * @param[in] S_data   current value of the solution
+ * @param[in] bdy_data_xlo boundary data on interior of low x-face
+ * @param[in] bdy_data_xhi boundary data on interior of high x-face
+ * @param[in] bdy_data_ylo boundary data on interior of low y-face
+ * @param[in] bdy_data_yhi boundary data on interior of high y-face
+ * @param[in] start_bdy_time time of the first boundary data read in
+ */
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+void
+wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
+                                        const Real& bdy_time_interval,
+                                        const Real& start_bdy_time,
+                                        const Real& time,
+                                        const Real& delta_t,
+                                        const int&  width,
+                                        const int&  set_width,
+                                        const Geometry& geom,
+                                        const Array4<Real>& rhs_arr,
+                                        const Array4<Real>& data_arr,
+                                        Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                                        Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                                        Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                                        Vector<Vector<FArrayBox>>& bdy_data_yhi)
+{
+    BL_PROFILE_REGION("wrfbdy_compute_moist_interior_ghost_RHS()");
+
+    // Relaxation constants
+    Real F1 = 1./(10.*delta_t);
+    Real F2 = 1./(50.*delta_t);
+
+    // Time interpolation
+    Real dT = bdy_time_interval;
+    Real time_since_start = (time - start_bdy_time) / 1.e10;
+    int n_time = static_cast<int>( time_since_start / dT);
+    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+    amrex::Real oma   = 1.0 - alpha;
+
+    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
+
+    int ivar = WRFBdyVars::QV;
+    int icomp;
+#if defined(ERF_USE_MOISTURE)
+    icomp = RhoQt_comp;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    icomp = RhoQv_comp;
+#endif
+
+    // Size the FABs
+    //==========================================================
+    Box domain  = geom.Domain();
+    const auto& dom_hi = ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+    compute_interior_ghost_bxs_xy(domain, domain, width, 0,
+                                  bx_xlo, bx_xhi,
+                                  bx_ylo, bx_yhi);
+    Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
+    Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
+    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
+    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
+
+    // Populate FABs from boundary interpolation
+    //==========================================================
+    {
+    Array4<Real> arr_xlo = Q_xlo.array();  Array4<Real> arr_xhi = Q_xhi.array();
+    Array4<Real> arr_ylo = Q_ylo.array();  Array4<Real> arr_yhi = Q_yhi.array();
+
+
+    // Boundary data at fixed time intervals
+    const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
+    const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
+    const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
+    const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
+    const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
+    const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
+    const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
+    const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+
+    // Populate with interpolation (protect from ghost cells)
+    amrex::ParallelFor(bx_xlo, bx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        int ii = std::max(i , dom_lo.x);
+            ii = std::min(ii, dom_lo.x+width-1);
+        int jj = std::max(j , dom_lo.y);
+            jj = std::min(jj, dom_hi.y);
+        arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
+                       + alpha * bdatxlo_np1(ii,jj,k,0);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        int ii = std::max(i , dom_hi.x-width+1);
+            ii = std::min(ii, dom_hi.x);
+        int jj = std::max(j , dom_lo.y);
+            jj = std::min(jj, dom_hi.y);
+        arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
+                       + alpha * bdatxhi_np1(ii,jj,k,0);
+    });
+
+    amrex::ParallelFor(bx_ylo, bx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        int ii = std::max(i , dom_lo.x);
+            ii = std::min(ii, dom_hi.x);
+        int jj = std::max(j , dom_lo.y);
+            jj = std::min(jj, dom_lo.y+width-1);
+        arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
+                       + alpha * bdatylo_np1(ii,jj,k,0);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        int ii = std::max(i , dom_lo.x);
+            ii = std::min(ii, dom_hi.x);
+        int jj = std::max(j , dom_hi.y-width+1);
+            jj = std::min(jj, dom_hi.y);
+        arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
+                       + alpha * bdatyhi_np1(ii,jj,k,0);
+    });
+    }
+
+    // Zero RHS in set region
+    //==========================================================
+    Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                  tbx_xlo, tbx_xhi,
+                                  tbx_ylo, tbx_yhi);
+    amrex::ParallelFor(tbx_xlo, tbx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rhs_arr(i,j,k,icomp) = 0.0;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rhs_arr(i,j,k,icomp) = 0.0;
+    });
+
+    amrex::ParallelFor(tbx_ylo, tbx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rhs_arr(i,j,k,icomp) = 0.0;
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        rhs_arr(i,j,k,icomp) = 0.0;
+    });
+
+
+    // Compute RHS in relaxation region
+    //==========================================================
+    Array4<Real> arr_xlo  = Q_xlo.array(); Array4<Real> arr_xhi = Q_xhi.array();
+    Array4<Real> arr_ylo  = Q_ylo.array(); Array4<Real> arr_yhi = Q_yhi.array();
+
+    int Spec_z  = set_width;
+    int Relax_z = width - Spec_z + 1;
+    Real num    = Real(Spec_z + Relax_z);
+    Real denom  = Real(Relax_z - 1);
+    amrex::ParallelFor(tbx_xlo, tbx_xhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // Corners with x boxes
+        int j_lo  = std::min(j-dom_lo.y,width-1);
+        int j_hi  = std::min(dom_hi.y-j,width-1);
+        int jj    = std::min(j_lo,j_hi);
+        int n_ind = std::min(i-dom_lo.x,jj) + 1;
+        if (n_ind <= Spec_z) {
+            rhs_arr(i,j,k,icomp) = 0.0;
+        } else {
+            Real Factor   = (num - Real(n_ind))/denom;
+            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+            Real delta    = arr_xlo(i  ,j  ,k) - d;
+            Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
+            Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
+            Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
+            Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
+            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
+        }
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // Corners with x boxes
+        int j_lo  = std::min(j-dom_lo.y,width-1);
+        int j_hi  = std::min(dom_hi.y-j,width-1);
+        int jj    = std::min(j_lo,j_hi);
+        int n_ind = std::min(dom_hi.x-i,jj) + 1;
+        if (n_ind <= Spec_z) {
+            rhs_arr(i,j,k,icomp) = 0.0;
+        } else {
+            Real Factor   = (num - Real(n_ind))/denom;
+            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+            Real delta    = arr_xhi(i  ,j  ,k) - d;
+            Real delta_xp = arr_xhi(i+1,j  ,k) - d_ip1;
+            Real delta_xm = arr_xhi(i-1,j  ,k) - d_im1;
+            Real delta_yp = arr_xhi(i  ,j+1,k) - d_jp1;
+            Real delta_ym = arr_xhi(i  ,j-1,k) - d_jm1;
+            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
+        }
+    });
+
+    amrex::ParallelFor(tbx_ylo, tbx_yhi,
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // No corners for y boxes
+        int n_ind = j -dom_lo.y + 1;
+        if (n_ind <= Spec_z) {
+            rhs_arr(i,j,k,icomp) = 0.0;
+        } else {
+            Real Factor   = (num - Real(n_ind))/denom;
+            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+            Real delta    = arr_ylo(i  ,j  ,k) - d;
+            Real delta_xp = arr_ylo(i+1,j  ,k) - d_ip1;
+            Real delta_xm = arr_ylo(i-1,j  ,k) - d_im1;
+            Real delta_yp = arr_ylo(i  ,j+1,k) - d_jp1;
+            Real delta_ym = arr_ylo(i  ,j-1,k) - d_jm1;
+            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
+        }
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // No corners for y boxes
+        int n_ind = dom_hi.y - j + 1;
+        if (n_ind <= Spec_z) {
+            rhs_arr(i,j,k,icomp) = 0.0;
+        } else {
+            Real Factor   = (num - Real(n_ind))/denom;
+            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
+            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
+            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
+            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
+            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
+            Real delta    = arr_yhi(i  ,j  ,k) - d;
+            Real delta_xp = arr_yhi(i+1,j  ,k) - d_ip1;
+            Real delta_xm = arr_yhi(i-1,j  ,k) - d_im1;
+            Real delta_yp = arr_yhi(i  ,j+1,k) - d_jp1;
+            Real delta_ym = arr_yhi(i  ,j-1,k) - d_jm1;
+            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
+        }
+    });
+}
+#endif
+
+/**
+ * Compute the RHS in the fine relaxation zone
+ *
+ * @param[in]  time      current time
+ * @param[in]  delta_t   timestep
+ * @param[in]  width     number of cells in (relaxation+specified) zone
+ * @param[in]  set_width number of cells in (specified) zone
+ * @param[in]  FPr_c     cons fine patch container
+ * @param[in]  FPr_u     uvel fine patch container
+ * @param[in]  FPr_v     vvel fine patch container
+ * @param[in]  FPr_w     wvel fine patch container
+ * @param[in]  boxes_at_level boxes at current level
+ * @param[in]  domain_bcs_type boundary condition types
+ * @param[out] S_rhs     RHS to be computed here
+ * @param[in]  S_data    current value of the solution
+ */
 void
 fine_compute_interior_ghost_RHS(const Real& time,
                                 const Real& delta_t,
@@ -632,99 +893,148 @@ fine_compute_interior_ghost_RHS(const Real& time,
                                 Vector<MultiFab>& S_rhs_f,
                                 Vector<MultiFab>& S_data_f)
 {
-    amrex::Print() << "ENTER FCIG_RHS\n";
-
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
     // Relaxation constants
     Real F1 = 1./(10.*delta_t);
     Real F2 = 1./(50.*delta_t);
 
-    // Vector of MFs to hold data (dm differes w/ fine patch)
+    // Vector of MFs to hold data (dm differs w/ fine patch)
     Vector<MultiFab> fmf_p_v;
 
     // Loop over the variables
     for (int var_idx = 0; var_idx < IntVar::NumVars; ++var_idx) {
 
-      // Get fine, coarse, & rhs MFs
-      MultiFab& fmf = S_data_f[var_idx];
-      MultiFab& rhs = S_rhs_f [var_idx];
+        // Fine mfs
+        MultiFab& fmf = S_data_f[var_idx];
+        MultiFab& rhs = S_rhs_f [var_idx];
 
-      // Temp MF on box (distribution map differs w/ fine patch)
-      int num_var = 1;
-      if (var_idx == IntVar::cons) num_var = 2;
-      fmf_p_v.emplace_back(fmf.boxArray(), fmf.DistributionMap(), num_var, fmf.nGrowVect());
-      MultiFab& fmf_p = fmf_p_v[var_idx];
+        // Temp MF on box (distribution map differs w/ fine patch)
+        int num_var = 1;
+        if (var_idx == IntVar::cons) num_var = 2;
+        fmf_p_v.emplace_back(fmf.boxArray(), fmf.DistributionMap(), num_var, fmf.nGrowVect());
+        MultiFab& fmf_p = fmf_p_v[var_idx];
+        amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
 
-      // Copy all the data onto the temp MF
-      amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
+        // FIX ME: We only have 1 box at level>0, this should
+        //         be a loop over the num_boxes_at_level
+        Box domain  = boxes_at_level[0];
+        domain.convert(fmf.boxArray().ixType());
+        const auto& dom_lo = lbound(domain);
+        const auto& dom_hi = ubound(domain);
 
-      // Overwrite the interior halo region
-      if (var_idx == IntVar::cons)
-      {
-          FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
-      }
-      else if (var_idx == IntVar::xmom)
-      {
-          FPr_u->fill(fmf_p, time, void_bc, domain_bcs_type);
+        // Fill fine patch on interior halo region
+        //==========================================================
+        if (var_idx == IntVar::cons)
+        {
+            FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-            const Array4<Real>& prim_arr = fmf_p.array(mfi);
-            const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            for ( MFIter mfi(rhs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
-                prim_arr(i,j,k) *= rho_interp;
-            });
+                Box tbx = mfi.tilebox();
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,2);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,Rho_comp,2);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,Rho_comp,2);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,Rho_comp,2);
+            }
         }
-      }
-      else if (var_idx == IntVar::ymom)
-      {
-          FPr_v->fill(fmf_p, time, void_bc, domain_bcs_type);
+        else if (var_idx == IntVar::xmom)
+        {
+            FPr_u->fill(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-            const Array4<Real>& prim_arr = fmf_p.array(mfi);
-            const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
-                prim_arr(i,j,k) *= rho_interp;
-            });
+                Box tbx = mfi.tilebox();
+                const Array4<Real>& prim_arr = fmf_p.array(mfi);
+                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                    prim_arr(i,j,k) *= rho_interp;
+                });
+
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+            }
         }
-      }
-      else if (var_idx == IntVar::zmom)
-      {
-          FPr_w->fill(fmf_p, time, void_bc, domain_bcs_type);
+        else if (var_idx == IntVar::ymom)
+        {
+            FPr_v->fill(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-            const Array4<Real>& prim_arr = fmf_p.array(mfi);
-            const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
-                prim_arr(i,j,k) *= rho_interp;
-            });
+                Box tbx = mfi.tilebox();
+                const Array4<Real>& prim_arr = fmf_p.array(mfi);
+                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                    prim_arr(i,j,k) *= rho_interp;
+                });
+
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+            }
         }
-      } else {
-        amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
-      }
+        else if (var_idx == IntVar::zmom)
+        {
+            FPr_w->fill(fmf_p, time, void_bc, domain_bcs_type);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box tbx = mfi.tilebox();
+                const Array4<Real>& prim_arr = fmf_p.array(mfi);
+                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                    prim_arr(i,j,k) *= rho_interp;
+                });
+
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
+                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+            }
+        } else {
+            amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
+        }
 
 
+        // Compute RHS in relaxation region
+        //==========================================================
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -732,14 +1042,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
         {
             Box tbx = mfi.tilebox();
 
-            // FIX ME: We only have 1 box at level>0, this should
-            //         be a loop over the num_boxes_at_level
-            Box domain  = boxes_at_level[0];
-            domain.convert(fmf.boxArray().ixType());
-            const auto& dom_lo = lbound(domain);
-            const auto& dom_hi = ubound(domain);
-
-            // Intersection of tilebox and 4 boxes w/o ANY ghost cells
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
@@ -747,7 +1049,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
-            const Array4<Real>& rhs_arr  = rhs.array(mfi);
+            const Array4<Real>& rhs_arr        = rhs.array(mfi);
 
             // RHS computation
             int Spec_z  = set_width;
@@ -764,7 +1066,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,n) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
                     Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
                     Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
@@ -789,7 +1091,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,n) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
                     Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
                     Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
@@ -812,7 +1114,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,n) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
                     Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
                     Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
@@ -834,7 +1136,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 if (n_ind <= Spec_z) {
                     rhs_arr(i,j,k,n) = 0.0;
                 } else {
-                    Real Factor   = (num - Real(n))/denom;
+                    Real Factor   = (num - Real(n_ind))/denom;
                     Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
                     Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
                     Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
@@ -874,15 +1176,11 @@ update_interior_ghost(const Real& delta_t,
 {
     BL_PROFILE_REGION("update_interior_ghost()");
 
-    // Copy of the Domain
     Box domain = geom.Domain();
-
+    Vector<int> ncomp_map = {2, 1, 1, 1};
     for (int ivar(IntVar::cons); ivar < IntVar::NumVars; ivar++)
     {
-        // Variable and comp maps
-        int ncomp = S_data[ivar].nComp();
-
-        // Convert the domain to the ixtype of the variable
+        int ncomp = ncomp_map[ivar];
         domain.convert(S_data[ivar].boxArray().ixType());
 
 #ifdef _OPENMP
@@ -890,21 +1188,16 @@ update_interior_ghost(const Real& delta_t,
 #endif
         for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            // Tilebox
             Box tbx = mfi.tilebox();
-
-            // Intersection of tilebox and 4 boxes w/o ANY ghost cells
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
                                           tbx_ylo, tbx_yhi);
 
-            // Get the array4s
             Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
             Array4<const Real> old_arr = S_old[ivar].array(mfi);
             Array4<Real> new_arr       = S_data[ivar].array(mfi);
 
-            // Update computation
             amrex::ParallelFor(tbx_xlo, ncomp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {

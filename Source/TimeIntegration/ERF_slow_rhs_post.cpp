@@ -6,6 +6,7 @@
 #include <TI_headers.H>
 #include <TileNoZ.H>
 #include <ERF.H>
+#include <Utils.H>
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
@@ -45,7 +46,8 @@ using namespace amrex;
  * @param[in] incompressible are we running the incompressible algorithm
  */
 
-void erf_slow_rhs_post (int /*level*/, Real dt,
+void erf_slow_rhs_post (int /*level*/,
+                        Real dt,
                         BoxArray& grids_to_evolve,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
@@ -70,6 +72,18 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+                        const bool& moist_relax,
+                        const Real& bdy_time_interval,
+                        const Real& start_bdy_time,
+                        const Real& new_stage_time,
+                        const int&  wrfbdy_width,
+                        const int&  wrfbdy_set_width,
+                        Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                        Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                        Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                        Vector<Vector<FArrayBox>>& bdy_data_yhi,
+#endif
                         int incompressible)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
@@ -146,12 +160,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 #endif
     for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
         const Box& tbx = mfi.tilebox();
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = tbx & valid_bx;
 
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
@@ -209,9 +218,9 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
         if (incompressible) {
-            Box tbx_inc = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-            Box tby_inc = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
-            Box tbz_inc = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+            Box tbx_inc = mfi.nodaltilebox(0);
+            Box tby_inc = mfi.nodaltilebox(1);
+            Box tbz_inc = mfi.nodaltilebox(2);
 
             ParallelFor(tbx_inc, tby_inc, tbz_inc,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -233,7 +242,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         if (l_use_deardorff) {
             start_comp = RhoKE_comp;
               num_comp = 1;
-            AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr,
                                    dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
                                    l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
@@ -242,7 +251,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
-            AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr,
                                    dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
                                    l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
@@ -250,7 +259,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
         }
         start_comp = RhoScalar_comp;
           num_comp = S_data[IntVar::cons].nComp() - start_comp;
-        AdvectionSrcForScalars(bx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr,
                                dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
                                l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
@@ -270,14 +279,14 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 start_comp = RhoKE_comp;
                   num_comp = 1;
                 if (l_use_terrain) {
-                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
+                    DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 } else {
-                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
+                    DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -285,7 +294,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
@@ -293,14 +302,14 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                 start_comp = RhoQKE_comp;
                   num_comp = 1;
                 if (l_use_terrain) {
-                    DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
+                    DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 } else {
-                    DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
+                    DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -308,21 +317,21 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                            mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
             start_comp = RhoScalar_comp;
               num_comp = S_data[IntVar::cons].nComp() - start_comp;
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, start_comp, num_comp, u, v,
+                DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             } else {
-                DiffusionSrcForState_N(bx, domain, start_comp, num_comp, u, v,
+                DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -330,10 +339,19 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
                                        mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
             }
             if (l_use_ndiff) {
-                NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+                NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
                                    new_cons, cell_rhs, mf_u, mf_v, false, false);
             }
         }
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        // Populate RHS for moisture relaxation
+        if (moist_relax) {
+            wrfbdy_compute_moist_interior_ghost_RHS(tbx, bdy_time_interval, start_bdy_time, new_stage_time, dt,
+                                                    wrfbdy_width-1, wrfbdy_set_width, geom,
+                                                    cell_rhs, old_cons, bdy_data_xlo, bdy_data_xhi,
+                                                    bdy_data_ylo, bdy_data_yhi);
+        }
+#endif
 
         // NOTE: Computing the RHS is done over bx (union w/ grids to evolve).
         //       However, the update is over tbx (no union). The interior ghost

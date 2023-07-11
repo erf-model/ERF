@@ -17,7 +17,7 @@ private:
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
-    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real   )> slow_rhs_post;
+    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
     std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
                                                            const amrex::Real, const amrex::Real)> fast_rhs;
 
@@ -128,7 +128,7 @@ public:
     {
         slow_rhs_inc = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_post = F;
     }
@@ -366,7 +366,7 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
@@ -398,7 +398,7 @@ public:
 
             no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
 
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
           } // nrk

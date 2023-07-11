@@ -63,7 +63,8 @@ void erf_slow_rhs_pre(int level, int nrk,
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
  */
-void erf_slow_rhs_post(int level, amrex::Real dt,
+void erf_slow_rhs_post(int level,
+                       amrex::Real dt,
                        amrex::BoxArray& grids_to_evolve,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,
@@ -89,6 +90,18 @@ void erf_slow_rhs_post(int level, amrex::Real dt,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+                       const bool& moist_relax,
+                       const amrex::Real& bdy_time_interval,
+                       const amrex::Real& start_bdy_time,
+                       const amrex::Real& new_stage_time,
+                       const int&  wrfbdy_width,
+                       const int&  wrfbdy_set_width,
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+#endif
                        const int incompressible);
 
 /**

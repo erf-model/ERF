@@ -1362,6 +1362,13 @@ ERF::ReadParameters ()
 
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
+
+        // Query the set and total widths for interior ghost cells
+        pp.query("wrfbdy_width", wrfbdy_width);
+        pp.query("wrfbdy_set_width", wrfbdy_set_width);
+        AMREX_ALWAYS_ASSERT(wrfbdy_width >= 0);
+        AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
     }
 
 #ifdef ERF_USE_MULTIBLOCK

@@ -69,6 +69,7 @@ void compute_interior_ghost_bxs_xy(const amrex::Box& bx,
  * Compute relaxation zone RHS with wrfbdy
  */
 void wrfbdy_compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
+                                       const amrex::Real& start_bdy_time,
                                        const amrex::Real& time,
                                        const amrex::Real& delta_t,
                                        const int& width,
@@ -79,8 +80,27 @@ void wrfbdy_compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                                       const amrex::Real start_bdy_time);
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+
+/*
+ * Compute moist relaxation zone RHS with wrfbdy
+ */
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+void wrfbdy_compute_moist_interior_ghost_RHS(amrex::Box tbx,
+                                             const amrex::Real& bdy_time_interval,
+                                             const amrex::Real& start_bdy_time,
+                                             const amrex::Real& time,
+                                             const amrex::Real& delta_t,
+                                             const int& width,
+                                             const int& set_width,
+                                             const amrex::Geometry& geom,
+                                             const amrex::Array4<amrex::Real>& rhs_arr,
+                                             const amrex::Array4<amrex::Real>& data_arr,
+                                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+#endif
 
 /*
  * Compute relaxation zone RHS at fine-crse interface

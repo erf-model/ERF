@@ -25,6 +25,10 @@ yhi.type = "Outflow"
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
+# RELAXATION WIDTHS
+erf.wrfbdy_width     = 5
+erf.wrfbdy_set_width = 1
+
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.001  # fixed time step depending on grid resolution
 erf.no_substepping     = 1

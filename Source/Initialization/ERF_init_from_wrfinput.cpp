@@ -221,6 +221,7 @@ ERF::init_from_wrfinput(int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width, start_bdy_time);
 
+        if (wrfbdy_width-1 <= wrfbdy_set_width) wrfbdy_set_width = wrfbdy_width;
         amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
         amrex::Print() << "Running with specification width: " << wrfbdy_set_width
                        << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
@@ -269,8 +270,10 @@ ERF::init_from_wrfinput(int lev)
  * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
-init_state_from_wrfinput(int lev, FArrayBox& state_fab,
-                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+init_state_from_wrfinput(int lev,
+                         FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab,
+                         FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
 #if defined(ERF_USE_MOISTURE)
                          const Vector<FArrayBox>& NC_QVAPOR_fab,
