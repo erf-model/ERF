@@ -43,9 +43,9 @@ The governing equations for this model are
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d)
                 + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + \frac{\theta_d L_v}{T_d C_{pd}} f_{cond}
 
-  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_v + \nabla \cdot (\rho_d \alpha \nabla q_v) - f_{cond}
+  \frac{\partial (\rho_d q_v)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_vi) + \nabla \cdot (\rho_d \alpha \nabla q_v) - f_{cond}
 
-  \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c + \nabla \cdot (\rho_d \alpha \nabla q_c) + f_{cond}
+  \frac{\partial (\rho_d q_c)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} q_c) + \nabla \cdot (\rho_d \alpha \nabla q_c) + f_{cond}
 
 Here :math:`L_v` is the latent heat of vaporization, :math:`\theta_d` is the (dry) potential temperature
 :math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
