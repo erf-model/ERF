@@ -8,20 +8,21 @@
 #include <DataStruct.H>
 #include <IndexDefines.H>
 #include <ABLMost.H>
+#include <ERF_FillPatcher.H>
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
 void make_J   (const amrex::Geometry& geom,
-                     amrex::MultiFab& z_phys_nd,
-                     amrex::MultiFab& detJ_cc);
+               amrex::MultiFab& z_phys_nd,
+               amrex::MultiFab& detJ_cc);
 
 /*
  * Average z_phys_nd on nodes to cell centers
  */
 void make_zcc (const amrex::Geometry& geom,
-                     amrex::MultiFab& z_phys_nd,
-                     amrex::MultiFab& z_phys_cc);
+               amrex::MultiFab& z_phys_nd,
+               amrex::MultiFab& z_phys_cc);
 
 /*
  * Convert momentum to velocity by dividing by density averaged onto faces
@@ -65,21 +66,38 @@ void compute_interior_ghost_bxs_xy(const amrex::Box& bx,
                                    const bool get_int_ng=false);
 
 /*
- * Compute boxes to be used for specifying where in the relaxation zone to compute the RHS
+ * Compute relaxation zone RHS with wrfbdy
  */
-void compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
-                                const amrex::Real& time,
+void wrfbdy_compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
+                                       const amrex::Real& time,
+                                       const amrex::Real& delta_t,
+                                       const int& width,
+                                       const int& set_width,
+                                       const amrex::Geometry& geom,
+                                       amrex::Vector<amrex::MultiFab>& S_rhs,
+                                       amrex::Vector<amrex::MultiFab>& S_data,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                       const amrex::Real start_bdy_time);
+
+/*
+ * Compute relaxation zone RHS at fine-crse interface
+ */
+void
+fine_compute_interior_ghost_RHS(const amrex::Real& time,
                                 const amrex::Real& delta_t,
                                 const int& width,
                                 const int& set_width,
-                                const amrex::Geometry& geom,
-                                amrex::Vector<amrex::MultiFab>& S_rhs,
-                                amrex::Vector<amrex::MultiFab>& S_data,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                                const amrex::Real start_bdy_time);
+                                ERFFillPatcher* FPr_c,
+                                ERFFillPatcher* FPr_u,
+                                ERFFillPatcher* FPr_v,
+                                ERFFillPatcher* FPr_w,
+                                amrex::Vector<amrex::Box>& boxes_at_level,
+                                amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                                amrex::Vector<amrex::MultiFab>& S_rhs_f,
+                                amrex::Vector<amrex::MultiFab>& S_data_f);
 
 /*
  * Update the variables in the relaxation zone

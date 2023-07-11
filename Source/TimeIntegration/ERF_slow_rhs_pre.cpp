@@ -478,7 +478,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real>       & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step

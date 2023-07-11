@@ -5,7 +5,9 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput(int lev, const std::string& fname,
+read_from_wrfinput(int lev,
+                   const Box& domain,
+                   const std::string& fname,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
@@ -58,7 +60,7 @@ read_from_wrfinput(int lev, const std::string& fname,
 
     // Read the netcdf file and fill these FABs
     amrex::Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
+    BuildFABsFromNetCDFFile(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
     //
     // Convert the velocities using the map factors

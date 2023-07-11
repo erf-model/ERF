@@ -198,7 +198,7 @@ void erf_slow_rhs_post (int /*level*/, Real dt,
 
         {
         BL_PROFILE("rhs_post_7");
-        ParallelFor(bx, ncomp_slow[IntVar::cons],
+        ParallelFor(tbx, ncomp_slow[IntVar::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVar::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
