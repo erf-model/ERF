@@ -60,6 +60,17 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
+// new updates for GPU opt July 2023
+    // smallest box containing all 3 of bxx, bxy, and bxz
+    IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
+    IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
+    Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0); 
+    //FArrayBox mf_u_inv_hi(bxx, )
+
+Print() << "Orig boxes: \n" << bxx << '\n' << bxy << '\n' << bxz << "\n\n";
+Print() << "New 2D box: \n" << box2d << "\n\n";
+Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
+
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
