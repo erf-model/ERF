@@ -80,20 +80,20 @@ The potential flow over a semi-cylinder problem tests the terrain feature in two
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which 
 has an `exact solution`_. The flow velocity is 10 m/s, and sponge zones are used on both the streamwise 
 boundaries as well as the top boundary. The bottom wall is inviscid, slip wall. The schematic of the 
-computational domain and the steady state streamwise velocity profiles at two different horizontal 
-and vertical locations are shown below.
+computational domain and the steady state velocity profiles at two different horizontal and vertical 
+locations are shown below.
 
 .. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder 
 
 .. |aek| image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
-.. table:: Steady state solution 
+.. table:: Schematic of the computational domain and
 
    +-----------------------------------------------------+
    |                        |aek|                        |
    +-----------------------------------------------------+
-   |   Schematic of the computational domain and  	     |  
+   |   Schematic of the computational domain and         |  
    +-----------------------------------------------------+
 
 
