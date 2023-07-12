@@ -83,7 +83,7 @@ boundaries as well as the top boundary. The bottom wall is inviscid, slip wall.
 
 .. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder 
 
-.. image:: figures/Terrain2d_Cylinder.png
+.. |aek| image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
    +-----------------------------------------------------+
