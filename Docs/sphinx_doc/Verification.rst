@@ -85,13 +85,13 @@ locations are shown below.
 
 .. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder 
 
-.. |aek| image:: figures/Terrain2d_Cylinder.png
+.. |cek| image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
 .. table:: Schematic of the computational domain and
 
    +-----------------------------------------------------+
-   |                        |aek|                        |
+   |                        |cek|                        |
    +-----------------------------------------------------+
    |   Schematic of the computational domain and         |  
    +-----------------------------------------------------+
