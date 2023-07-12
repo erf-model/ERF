@@ -167,7 +167,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
 
-        // Size the FABs
         if (ivar  == WRFBdyVars::U) {
             U_xlo.resize(bx_xlo,1); U_xhi.resize(bx_xhi,1);
             U_ylo.resize(bx_ylo,1); U_yhi.resize(bx_yhi,1);
@@ -219,7 +218,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
 
-        // Get the FAB array4s
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
         if (ivar  == WRFBdyVars::U) {
@@ -309,11 +307,9 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
 
-        // Density FAB array4s
         Array4<Real> rarr_xlo = R_xlo.array();  Array4<Real> rarr_xhi = R_xhi.array();
         Array4<Real> rarr_ylo = R_ylo.array();  Array4<Real> rarr_yhi = R_yhi.array();
 
-        // Get the FAB array4s
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
         if (ivar  == WRFBdyVars::U) {
@@ -381,6 +377,10 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
 #endif
     for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
+        const Array4<Real> rhs_cons = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real> rhs_xmom = S_rhs[IntVar::xmom].array(mfi);
+        const Array4<Real> rhs_ymom = S_rhs[IntVar::ymom].array(mfi);
+        const Array4<Real> rhs_zmom = S_rhs[IntVar::zmom].array(mfi);
         {
             Box tbx = mfi.tilebox();
             Box domain = geom.Domain();
@@ -388,10 +388,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,2);
-            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_xhi,Rho_comp,2);
-            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_ylo,Rho_comp,2);
-            S_rhs[IntVar::cons][mfi].template setVal<RunOn::Device>(0.,bx_yhi,Rho_comp,2);
+            zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
         }
 
         {
@@ -402,10 +399,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
-            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
-            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
-            S_rhs[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
         }
 
         {
@@ -416,10 +410,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
-            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
-            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
-            S_rhs[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
 
         {
@@ -430,10 +421,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xlo);
-            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_xhi);
-            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_ylo);
-            S_rhs[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,bx_yhi);
+            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
         }
     } // mfi
 
@@ -461,7 +449,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                           tbx_xlo, tbx_xhi,
                                           tbx_ylo, tbx_yhi);
 
-            // Get the array4s
             Array4<Real> rhs_arr; Array4<Real> data_arr;
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
@@ -489,108 +476,10 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                 continue;
             }
 
-            // RHS computation
-            int Spec_z  = set_width;
-            int Relax_z = width - Spec_z + 1;
-            Real num    = Real(Spec_z + Relax_z);
-            Real denom  = Real(Relax_z - 1);
-            amrex::ParallelFor(tbx_xlo, tbx_xhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Corners with x boxes
-                int j_lo  = std::min(j-dom_lo.y,width-1);
-                int j_hi  = std::min(dom_hi.y-j,width-1);
-                int jj    = std::min(j_lo,j_hi);
-                int n_ind = std::min(i-dom_lo.x,jj) + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,icomp) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_xlo(i  ,j  ,k) - d;
-                    Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // Corners with x boxes
-                int j_lo  = std::min(j-dom_lo.y,width-1);
-                int j_hi  = std::min(dom_hi.y-j,width-1);
-                int jj    = std::min(j_lo,j_hi);
-                int n_ind = std::min(dom_hi.x-i,jj) + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,icomp) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_xhi(i  ,j  ,k) - d;
-                    Real delta_xp = arr_xhi(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_xhi(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_xhi(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_xhi(i  ,j-1,k) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            });
-
-            amrex::ParallelFor(tbx_ylo, tbx_yhi,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // No corners for y boxes
-                int n_ind = j -dom_lo.y + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,icomp) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_ylo(i  ,j  ,k) - d;
-                    Real delta_xp = arr_ylo(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_ylo(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_ylo(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_ylo(i  ,j-1,k) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                // No corners for y boxes
-                int n_ind = dom_hi.y - j + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,icomp) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-                    Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-                    Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-                    Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-                    Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-                    Real delta    = arr_yhi(i  ,j  ,k) - d;
-                    Real delta_xp = arr_yhi(i+1,j  ,k) - d_ip1;
-                    Real delta_xm = arr_yhi(i-1,j  ,k) - d_im1;
-                    Real delta_yp = arr_yhi(i  ,j+1,k) - d_jp1;
-                    Real delta_ym = arr_yhi(i  ,j-1,k) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            });
+            compute_Laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
+                                         tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                         arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                         data_arr, rhs_arr);
         } // mfi
     } // ivar
 }
@@ -674,7 +563,6 @@ wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
     Array4<Real> arr_xlo = Q_xlo.array();  Array4<Real> arr_xhi = Q_xhi.array();
     Array4<Real> arr_ylo = Q_ylo.array();  Array4<Real> arr_yhi = Q_yhi.array();
 
-
     // Boundary data at fixed time intervals
     const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
     const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
@@ -729,29 +617,7 @@ wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
 
     // Zero RHS in set region
     //==========================================================
-    Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                  tbx_xlo, tbx_xhi,
-                                  tbx_ylo, tbx_yhi);
-    amrex::ParallelFor(tbx_xlo, tbx_xhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rhs_arr(i,j,k,icomp) = 0.0;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rhs_arr(i,j,k,icomp) = 0.0;
-    });
-
-    amrex::ParallelFor(tbx_ylo, tbx_yhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rhs_arr(i,j,k,icomp) = 0.0;
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        rhs_arr(i,j,k,icomp) = 0.0;
-    });
+    zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
 
 
     // Compute RHS in relaxation region
@@ -759,107 +625,10 @@ wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
     Array4<Real> arr_xlo  = Q_xlo.array(); Array4<Real> arr_xhi = Q_xhi.array();
     Array4<Real> arr_ylo  = Q_ylo.array(); Array4<Real> arr_yhi = Q_yhi.array();
 
-    int Spec_z  = set_width;
-    int Relax_z = width - Spec_z + 1;
-    Real num    = Real(Spec_z + Relax_z);
-    Real denom  = Real(Relax_z - 1);
-    amrex::ParallelFor(tbx_xlo, tbx_xhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,icomp) = 0.0;
-        } else {
-            Real Factor   = (num - Real(n_ind))/denom;
-            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-            Real delta    = arr_xlo(i  ,j  ,k) - d;
-            Real delta_xp = arr_xlo(i+1,j  ,k) - d_ip1;
-            Real delta_xm = arr_xlo(i-1,j  ,k) - d_im1;
-            Real delta_yp = arr_xlo(i  ,j+1,k) - d_jp1;
-            Real delta_ym = arr_xlo(i  ,j-1,k) - d_jm1;
-            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        // Corners with x boxes
-        int j_lo  = std::min(j-dom_lo.y,width-1);
-        int j_hi  = std::min(dom_hi.y-j,width-1);
-        int jj    = std::min(j_lo,j_hi);
-        int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,icomp) = 0.0;
-        } else {
-            Real Factor   = (num - Real(n_ind))/denom;
-            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-            Real delta    = arr_xhi(i  ,j  ,k) - d;
-            Real delta_xp = arr_xhi(i+1,j  ,k) - d_ip1;
-            Real delta_xm = arr_xhi(i-1,j  ,k) - d_im1;
-            Real delta_yp = arr_xhi(i  ,j+1,k) - d_jp1;
-            Real delta_ym = arr_xhi(i  ,j-1,k) - d_jm1;
-            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-        }
-    });
-
-    amrex::ParallelFor(tbx_ylo, tbx_yhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        // No corners for y boxes
-        int n_ind = j -dom_lo.y + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,icomp) = 0.0;
-        } else {
-            Real Factor   = (num - Real(n_ind))/denom;
-            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-            Real delta    = arr_ylo(i  ,j  ,k) - d;
-            Real delta_xp = arr_ylo(i+1,j  ,k) - d_ip1;
-            Real delta_xm = arr_ylo(i-1,j  ,k) - d_im1;
-            Real delta_yp = arr_ylo(i  ,j+1,k) - d_jp1;
-            Real delta_ym = arr_ylo(i  ,j-1,k) - d_jm1;
-            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-        }
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        // No corners for y boxes
-        int n_ind = dom_hi.y - j + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,icomp) = 0.0;
-        } else {
-            Real Factor   = (num - Real(n_ind))/denom;
-            Real d        = data_arr(i  ,j  ,k,icomp) + delta_t*rhs_arr(i  , j  , k,icomp);
-            Real d_ip1    = data_arr(i+1,j  ,k,icomp) + delta_t*rhs_arr(i+1, j  , k,icomp);
-            Real d_im1    = data_arr(i-1,j  ,k,icomp) + delta_t*rhs_arr(i-1, j  , k,icomp);
-            Real d_jp1    = data_arr(i  ,j+1,k,icomp) + delta_t*rhs_arr(i  , j+1, k,icomp);
-            Real d_jm1    = data_arr(i  ,j-1,k,icomp) + delta_t*rhs_arr(i  , j-1, k,icomp);
-            Real delta    = arr_yhi(i  ,j  ,k) - d;
-            Real delta_xp = arr_yhi(i+1,j  ,k) - d_ip1;
-            Real delta_xm = arr_yhi(i-1,j  ,k) - d_im1;
-            Real delta_yp = arr_yhi(i  ,j+1,k) - d_jp1;
-            Real delta_ym = arr_yhi(i  ,j-1,k) - d_jm1;
-            Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,icomp) += (F1*delta - F2*Laplacian) * Factor;
-        }
-    });
+    compute_Laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
+                                 bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+                                 arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                 data_arr, rhs_arr);
 }
 #endif
 
@@ -935,14 +704,12 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(rhs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
+                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                 compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,Rho_comp,2);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,Rho_comp,2);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,Rho_comp,2);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,Rho_comp,2);
+                zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
             }
         }
         else if (var_idx == IntVar::xmom)
@@ -955,6 +722,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
+                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
                 amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -967,10 +735,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
             }
         }
         else if (var_idx == IntVar::ymom)
@@ -983,6 +748,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
+                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
                 amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -995,10 +761,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
             }
         }
         else if (var_idx == IntVar::zmom)
@@ -1011,6 +774,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
+                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
                 amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -1023,10 +787,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xlo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_xhi,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_ylo,0,1);
-                rhs[mfi].template setVal<RunOn::Device>(0.,bx_yhi,0,1);
+                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
             }
         } else {
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
@@ -1041,7 +802,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
         for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
-
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           tbx_xlo, tbx_xhi,
@@ -1050,107 +810,10 @@ fine_compute_interior_ghost_RHS(const Real& time,
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<Real>& rhs_arr        = rhs.array(mfi);
-
-            // RHS computation
-            int Spec_z  = set_width;
-            int Relax_z = width - Spec_z + 1;
-            Real num    = Real(Spec_z + Relax_z);
-            Real denom  = Real(Relax_z - 1);
-            amrex::ParallelFor(tbx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                // Corners with x boxes
-                int j_lo  = std::min(j-dom_lo.y,width-1);
-                int j_hi  = std::min(dom_hi.y-j,width-1);
-                int jj    = std::min(j_lo,j_hi);
-                int n_ind = std::min(i-dom_lo.x,jj) + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,n) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
-                    Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
-                    Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
-                    Real d_jp1    = data_arr(i  ,j+1,k,n) + delta_t*rhs_arr(i  , j+1, k,n);
-                    Real d_jm1    = data_arr(i  ,j-1,k,n) + delta_t*rhs_arr(i  , j-1, k,n);
-                    Real delta    = fine_arr(i  ,j  ,k,n) - d;
-                    Real delta_xp = fine_arr(i+1,j  ,k,n) - d_ip1;
-                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
-                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
-                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            },
-            tbx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                // Corners with x boxes
-                int j_lo  = std::min(j-dom_lo.y,width-1);
-                int j_hi  = std::min(dom_hi.y-j,width-1);
-                int jj    = std::min(j_lo,j_hi);
-                int n_ind = std::min(dom_hi.x-i,jj) + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,n) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
-                    Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
-                    Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
-                    Real d_jp1    = data_arr(i  ,j+1,k,n) + delta_t*rhs_arr(i  , j+1, k,n);
-                    Real d_jm1    = data_arr(i  ,j-1,k,n) + delta_t*rhs_arr(i  , j-1, k,n);
-                    Real delta    = fine_arr(i  ,j  ,k,n) - d;
-                    Real delta_xp = fine_arr(i+1,j  ,k,n) - d_ip1;
-                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
-                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
-                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            });
-
-            amrex::ParallelFor(tbx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                // No corners for y boxes
-                int n_ind = j - dom_lo.y + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,n) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
-                    Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
-                    Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
-                    Real d_jp1    = data_arr(i  ,j+1,k,n) + delta_t*rhs_arr(i  , j+1, k,n);
-                    Real d_jm1    = data_arr(i  ,j-1,k,n) + delta_t*rhs_arr(i  , j-1, k,n);
-                    Real delta    = fine_arr(i  ,j  ,k,n) - d;
-                    Real delta_xp = fine_arr(i+1,j  ,k,n) - d_ip1;
-                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
-                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
-                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            },
-            tbx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                // No corners for y boxes
-                int n_ind = dom_hi.y - j + 1;
-                if (n_ind <= Spec_z) {
-                    rhs_arr(i,j,k,n) = 0.0;
-                } else {
-                    Real Factor   = (num - Real(n_ind))/denom;
-                    Real d        = data_arr(i  ,j  ,k,n) + delta_t*rhs_arr(i  , j  , k,n);
-                    Real d_ip1    = data_arr(i+1,j  ,k,n) + delta_t*rhs_arr(i+1, j  , k,n);
-                    Real d_im1    = data_arr(i-1,j  ,k,n) + delta_t*rhs_arr(i-1, j  , k,n);
-                    Real d_jp1    = data_arr(i  ,j+1,k,n) + delta_t*rhs_arr(i  , j+1, k,n);
-                    Real d_jm1    = data_arr(i  ,j-1,k,n) + delta_t*rhs_arr(i  , j-1, k,n);
-                    Real delta    = fine_arr(i  ,j  ,k,n) - d;
-                    Real delta_xp = fine_arr(i+1,j  ,k,n) - d_ip1;
-                    Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
-                    Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
-                    Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
-                    Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-                }
-            });
+            compute_Laplacian_relaxation(delta_t, 0, num_var, width, set_width, dom_lo, dom_hi, F1, F2,
+                                         tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                         fine_arr, fine_arr, fine_arr, fine_arr,
+                                         data_arr, rhs_arr);
         } // mfi
     } // var_idx
 }

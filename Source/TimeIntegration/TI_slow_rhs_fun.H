@@ -205,7 +205,7 @@
         // FIX ME: Need flag for one-way coupled here!
         //-----------------------------------------------------------------
         // Compute RHS for fine interior ghost
-        if (level > 0) {
+        if (level>0 && nrk==0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             wrfbdy_width-1, wrfbdy_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -263,8 +263,9 @@
 
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
         // Flag for moisture relaxation zone
-        bool moist_relax = false;
+        bool moist_relax = false; bool moist_zero = false;
         if (init_type=="real" && level==0 && nrk==0) moist_relax=true;
+        if (init_type=="real" && level==0 && nrk>0)  moist_zero =true;
 #endif
 
         // Moving terrain
@@ -278,8 +279,8 @@
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              moist_relax, bdy_time_interval, start_bdy_time, new_stage_time,
-                              wrfbdy_width, wrfbdy_set_width,
+                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              wrfbdy_width-1, wrfbdy_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               incompressible);
@@ -293,8 +294,8 @@
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              moist_relax, bdy_time_interval, start_bdy_time, new_stage_time,
-                              wrfbdy_width, wrfbdy_set_width,
+                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              wrfbdy_width-1, wrfbdy_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               incompressible);

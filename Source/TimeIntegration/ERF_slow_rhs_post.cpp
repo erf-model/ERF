@@ -74,11 +74,12 @@ void erf_slow_rhs_post (int /*level*/,
                         std::unique_ptr<MultiFab>& mapfac_v,
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
                         const bool& moist_relax,
+                        const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
-                        const int&  wrfbdy_width,
-                        const int&  wrfbdy_set_width,
+                        const int&  width,
+                        const int&  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -347,9 +348,21 @@ void erf_slow_rhs_post (int /*level*/,
         // Populate RHS for moisture relaxation
         if (moist_relax) {
             wrfbdy_compute_moist_interior_ghost_RHS(tbx, bdy_time_interval, start_bdy_time, new_stage_time, dt,
-                                                    wrfbdy_width-1, wrfbdy_set_width, geom,
+                                                    width, set_width, geom,
                                                     cell_rhs, old_cons, bdy_data_xlo, bdy_data_xhi,
                                                     bdy_data_ylo, bdy_data_yhi);
+        } else if (moist_zero) {
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            int icomp;
+#if defined(ERF_USE_MOISTURE)
+            icomp = RhoQt_comp;
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+            icomp = RhoQv_comp;
+#endif
+            zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
         }
 #endif
 
@@ -402,7 +415,6 @@ void erf_slow_rhs_post (int /*level*/,
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-
             });
 
             if (l_use_deardorff) {

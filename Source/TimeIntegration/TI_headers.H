@@ -12,7 +12,7 @@
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
  */
-void erf_slow_rhs_pre(int level, int nrk,
+void erf_slow_rhs_pre (int level, int nrk,
                       amrex::Real dt,
                       amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -63,7 +63,7 @@ void erf_slow_rhs_pre(int level, int nrk,
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
  */
-void erf_slow_rhs_post(int level,
+void erf_slow_rhs_post (int level,
                        amrex::Real dt,
                        amrex::BoxArray& grids_to_evolve,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -92,11 +92,12 @@ void erf_slow_rhs_post(int level,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
                        const bool& moist_relax,
+                       const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,
                        const amrex::Real& start_bdy_time,
                        const amrex::Real& new_stage_time,
-                       const int&  wrfbdy_width,
-                       const int&  wrfbdy_set_width,
+                       const int&  width,
+                       const int&  set_width,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
@@ -205,7 +206,7 @@ void make_fast_coeffs (int level,
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  */
-void make_buoyancy(amrex::BoxArray& grids_to_evolve,
+void make_buoyancy (amrex::BoxArray& grids_to_evolve,
                    amrex::Vector<  amrex::MultiFab>& S_data,
                    const           amrex::MultiFab & S_prim,
                          amrex::MultiFab& buoyancy,
@@ -225,7 +226,7 @@ void make_buoyancy(amrex::BoxArray& grids_to_evolve,
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
  */
-void erf_slow_rhs_inc(int level, int nrk,
+void erf_slow_rhs_inc (int level, int nrk,
                       amrex::Real dt,
                       amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
