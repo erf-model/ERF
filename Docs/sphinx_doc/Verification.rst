@@ -90,10 +90,4 @@ at two different horizontal and vertical locations are shown below.
 
 .. table:: Schematic and comparison with exact solution 
 
-   +-----------------------------------------------------+
-   |                        |cek|                        |
-   +-----------------------------------------------------+
-   |   Schematic of the computational domain and comparison of the steady state streamwise velocity profiles with the exact solution at two different horizontal and vertical locations          |  
-   +-----------------------------------------------------+
-
 
