@@ -75,11 +75,10 @@ The steady solution is shown below, as well as a log-log plot showing the error 
    +-----------------------------------------------------+------------------------------------------------------+
 
 Potential flow over a semi-cylinder
-____________________________________
-
+----------------------------------------
 
 .. image:: figures/Terrain2d_Cylinder.png
-  :width: 400
+  :width: 800
 
 
 
