@@ -77,7 +77,7 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
  * @param[in] bx_yhi box for high y relaxation
  * @param[out] rhs_arr RHS array
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 zero_RHS_in_set_region (const int& icomp,
@@ -131,7 +131,7 @@ zero_RHS_in_set_region (const int& icomp,
  * @param[in] data_arr data array
  * @param[out] rhs_arr RHS array
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
 compute_Laplacian_relaxation (const amrex::Real& delta_t,

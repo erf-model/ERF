@@ -16,6 +16,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>&,
                   amrex::Geometry const& geom)
 {
+  amrex::Real rho_init = parms.rho_0;
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -25,7 +26,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
         const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            rho_hse_arr(i,j,k) = parms.rho_0;
+            rho_hse_arr(i,j,k) = rho_init;
         });
     }
 }
