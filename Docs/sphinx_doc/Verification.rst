@@ -86,5 +86,10 @@ boundaries as well as the top boundary. The bottom wall is inviscid, slip wall.
 .. image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
+   +-----------------------------------------------------+
+   |                        |aek|                        |
+   +-----------------------------------------------------+
+   |   Schematic of the computational domain and comparison of the streamwise velocity profiles at two different horizontal and vertical locations|  
+   +-----------------------------------------------------+
 
 
