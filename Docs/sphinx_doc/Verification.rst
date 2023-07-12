@@ -93,7 +93,7 @@ and vertical locations are shown below.
    +-----------------------------------------------------+
    |                        |aek|                        |
    +-----------------------------------------------------+
-   |   Schematic of the computational domain and steady state velocity profiles at two different horizontal and vertical locations |  
+   |   Schematic of the computational domain and  	     |  
    +-----------------------------------------------------+
 
 
