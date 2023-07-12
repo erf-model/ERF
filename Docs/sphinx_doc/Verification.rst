@@ -85,9 +85,7 @@ at two different horizontal and vertical locations are shown below.
 
 .. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder 
 
-.. |cek| image:: figures/Terrain2d_Cylinder.png
+.. image:: figures/Terrain2d_Cylinder.png
   :width: 600
-
-.. table:: Schematic and comparison with exact solution 
 
 
