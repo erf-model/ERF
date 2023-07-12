@@ -88,7 +88,7 @@ at two different horizontal and vertical locations are shown below.
 .. |cek| image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
-.. table:: 
+.. table:: Schematic and comparison with exact solution 
 
    +-----------------------------------------------------+
    |                        |cek|                        |
