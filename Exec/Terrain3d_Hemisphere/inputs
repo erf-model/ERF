@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1
+max_step = 2000
 
 amrex.fpe_trap_invalid = 1
 
@@ -7,9 +7,9 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = 0.   0.  0. 
-geometry.prob_hi     = 5.  5.  2.
+geometry.prob_hi     = 10.  10.  10.
 
-amr.n_cell           = 128  128   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 128  128   128   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 geometry.is_periodic = 0 1 0
 
@@ -23,9 +23,23 @@ xlo.scalar   = 0.
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
 
+erf.sponge_strength = 100.0
+erf.use_xlo_sponge_damping = true
+erf.xlo_sponge_end = 2.0
+erf.use_xhi_sponge_damping = true
+erf.xhi_sponge_start = 8.0
+erf.use_ylo_sponge_damping = true
+erf.ylo_sponge_end = 2.0
+erf.use_yhi_sponge_damping = true
+erf.yhi_sponge_start = 8.0
+erf.use_zhi_sponge_damping = true
+erf.zhi_sponge_start = 8.0
+
 # TIME STEP CONTROL
 erf.no_substepping     = 1
-erf.fixed_dt           = 1E-5     
+#erf.fixed_dt           = 1E-5
+erf.cfl = 0.3
+
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
