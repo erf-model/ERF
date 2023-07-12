@@ -77,9 +77,11 @@ The steady solution is shown below, as well as a log-log plot showing the error 
 Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions. 
-This is a classic text book problem which has an exact solution. The flow velocity is 10 m/s, 
-and sponge zones are used on both the streamwise boundaries as well as the top boundary. The 
-wall is inviscid, slip wall. 
+This is a classic text book problem which has an `exact solution`_. The flow velocity is 10 m/s, 
+and sponge zones are used on both the streamwise boundaries as well as the top boundary. The bottom 
+wall is inviscid, slip wall.
+
+.. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder 
 
 .. image:: figures/Terrain2d_Cylinder.png
   :width: 600
