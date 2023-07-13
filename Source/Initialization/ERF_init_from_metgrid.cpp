@@ -11,7 +11,7 @@
 using namespace amrex;
 
 void
-read_from_metgrid(int lev, const std::string& fname,
+read_from_metgrid(int lev, const Box& domain, const std::string& fname,
                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
                   FArrayBox& NC_pres_fab, FArrayBox& NC_hgt_fab,
@@ -80,8 +80,9 @@ ERF::init_from_metgrid(int lev)
 
     for (int idx = 0; idx < nboxes; idx++)
     {
-        read_from_metgrid(lev,nc_init_file[lev][idx],NC_xvel_fab[idx],NC_yvel_fab[idx],
-                          NC_temp_fab[idx],NC_rhum_fab[idx],
+        read_from_metgrid(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
+                          NC_xvel_fab[idx], NC_yvel_fab[idx],
+                          NC_temp_fab[idx], NC_rhum_fab[idx],
                           NC_pres_fab[idx], NC_hgt_fab[idx],
                           NC_MSFU_fab[idx], NC_MSFV_fab[idx], NC_MSFM_fab[idx] );
     }

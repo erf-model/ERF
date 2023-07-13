@@ -25,7 +25,7 @@ using namespace amrex;
  * @param[in]  dxInv inverse cell size array
  */
 void
-ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
+ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                         Array4<Real>& tau12, Array4<Real>& tau13,
                         Array4<Real>& tau21, Array4<Real>& tau23,
@@ -270,7 +270,7 @@ ComputeStressConsVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  dxInv inverse cell size array
  */
 void
-ComputeStressVarVisc_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
+ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                        const Array4<const Real>& mu_turb,
                        Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                        Array4<Real>& tau12, Array4<Real>& tau13,

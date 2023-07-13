@@ -194,12 +194,22 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type=="real" && level==0 && nrk==0)
-            compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
-                                       wrfbdy_width-1, wrfbdy_set_width, fine_geom,
-                                       S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                       bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+        if (init_type=="real" && level==0 && nrk==0) {
+            wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                              wrfbdy_width-1, wrfbdy_set_width, fine_geom,
+                                              S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
+                                              bdy_data_ylo, bdy_data_yhi);
+        }
 #endif
+
+        // Compute RHS for fine interior ghost
+        if (level>0 && coupling_type=="OneWay" && nrk==0) {
+            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
+                                            wrfbdy_width-1, wrfbdy_set_width,
+                                            &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
+                                            boxes_at_level[level], domain_bcs_type,
+                                            S_rhs, S_data);
+        }
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());
@@ -223,8 +233,7 @@
     {
         bool fast_only = false;
         bool vel_and_mom_synced = false;
-        apply_bcs(S_data, time_for_fp,
-                  ng_cons, ng_vel, fast_only, vel_and_mom_synced);
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
     };
 
     // *************************************************************
@@ -237,7 +246,8 @@
                                  Vector<MultiFab>& S_scratch,
                                  const Real old_step_time,
                                  const Real old_stage_time,
-                                 const Real new_stage_time)
+                                 const Real new_stage_time,
+                                 const int nrk)
     {
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<
@@ -248,23 +258,44 @@
         // will be used to advance to
         Real slow_dt = new_stage_time - old_step_time;
 
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+        // Flag for moisture relaxation zone
+        bool moist_relax = false; bool moist_zero = false;
+        if (init_type=="real" && level==0 && nrk==0) moist_relax=true;
+        if (init_type=="real" && level==0 && nrk>0)  moist_zero =true;
+#endif
+
         // Moving terrain
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
-            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
+            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level],
+                              S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level], incompressible);
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              wrfbdy_width-1, wrfbdy_set_width,
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
+                              incompressible);
         } else {
-            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
+            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level],
+                              S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level], incompressible);
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              wrfbdy_width-1, wrfbdy_set_width,
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+#endif
+                              incompressible);
         }
     }; // end slow_rhs_fun_post
 
@@ -291,7 +322,8 @@
 #endif
                       fine_geom, solverChoice, r0);
 
-        erf_slow_rhs_inc(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_old, S_data, S_prim, S_scratch,
+        erf_slow_rhs_inc(level, nrk, slow_dt, grids_to_evolve[level],
+                         S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                          qmoist[level],
@@ -308,11 +340,21 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type == "real" && level == 0)
-            compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
-                                       wrfbdy_width-1, wrfbdy_set_width, fine_geom,
-                                       S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                       bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+        if (init_type=="real" && level==0 && nrk==0) {
+            wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                              wrfbdy_width-1, wrfbdy_set_width, fine_geom,
+                                              S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
+                                              bdy_data_ylo, bdy_data_yhi);
+        }
 #endif
+
+        // Compute RHS for fine interior ghost
+        if (level>0 && coupling_type=="OneWay" && nrk==0) {
+            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
+                                            wrfbdy_width-1, wrfbdy_set_width,
+                                            &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
+                                            boxes_at_level[level], domain_bcs_type,
+                                            S_rhs, S_data);
+        }
     }; // end slow_rhs_fun_inc
 #endif

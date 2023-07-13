@@ -2,6 +2,7 @@
 #include <ERF_PhysBCFunct.H>
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
+#include <ERF_FillPatcher.H>
 
 using namespace amrex;
 
@@ -71,6 +72,14 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
         } // lev > 0
     } // var_idx
 
+    // Coarse-Fine set region
+    if (lev>0 && coupling_type=="OneWay") {
+        FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
+        FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
+        FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
+        FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
+    }
+
     // ***************************************************************************
     // Physical bc's at domain boundary
     // ***************************************************************************
@@ -83,7 +92,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type == "real") fill_from_wrfbdy(mfs,time);
+    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
@@ -214,7 +223,15 @@ ERF::FillIntermediatePatch (int lev, Real time,
                                       icomp, icomp, ncomp, geom[lev-1], geom[lev],
                                       null_bc, 0, null_bc, 0, refRatio(lev-1),
                                       mapper, domain_bcs_type, bccomp);
-        }
+        } // lev > 0
+    } // var_idx
+
+    // Coarse-Fine set region
+    if (lev>0 && coupling_type=="OneWay") {
+        FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
+        FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
+        FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
+        FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
     }
 
     // ***************************************************************************
@@ -225,7 +242,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type == "real") fill_from_wrfbdy(mfs,time);
+    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
