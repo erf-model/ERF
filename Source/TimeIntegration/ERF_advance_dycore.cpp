@@ -307,10 +307,8 @@ void ERF::advance_dycore(int level,
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
-    // FIX ME: Need flag for one-way coupled here!
-    //-----------------------------------------------------------------
     // Register coarse data for coarse-fine fill
-    if (level < finest_level) {
+    if (level<finest_level && coupling_type=="OneWay") {
         FPr_c[level].registerCoarseData({&cons_old, &cons_new}, {old_time, old_time + dt_advance});
         FPr_u[level].registerCoarseData({&xvel_old, &xvel_new}, {old_time, old_time + dt_advance});
         FPr_v[level].registerCoarseData({&yvel_old, &yvel_new}, {old_time, old_time + dt_advance});

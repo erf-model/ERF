@@ -202,17 +202,14 @@
         }
 #endif
 
-        // FIX ME: Need flag for one-way coupled here!
-        //-----------------------------------------------------------------
         // Compute RHS for fine interior ghost
-        if (level>0 && nrk==0) {
+        if (level>0 && coupling_type=="OneWay" && nrk==0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             wrfbdy_width-1, wrfbdy_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);
         }
-
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
         // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());
@@ -351,10 +348,8 @@
         }
 #endif
 
-        // FIX ME: Need flag for one-way coupled here!
-        //-----------------------------------------------------------------
         // Compute RHS for fine interior ghost
-        if (level > 0) {
+        if (level>0 && coupling_type=="OneWay" && nrk==0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             wrfbdy_width-1, wrfbdy_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],

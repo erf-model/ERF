@@ -72,11 +72,8 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
         } // lev > 0
     } // var_idx
 
-    // FIX ME: Need flag for one-way coupled here!
-    // OPTIM:  Could use copy/move constructor to have 1 fill call after FPTL?
-    //-----------------------------------------------------------------
     // Coarse-Fine set region
-    if (lev>0) {
+    if (lev>0 && coupling_type=="OneWay") {
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
@@ -229,11 +226,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
         } // lev > 0
     } // var_idx
 
-    // FIX ME: Need flag for one-way coupled here!
-    // OPTIM:  Could use copy/move constructor to have 1 fill call after FPTL?
-    //-----------------------------------------------------------------
     // Coarse-Fine set region
-    if (lev>0) {
+    if (lev>0 && coupling_type=="OneWay") {
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);

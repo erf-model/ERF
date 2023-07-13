@@ -672,11 +672,21 @@ fine_compute_interior_ghost_RHS(const Real& time,
     Vector<MultiFab> fmf_p_v;
 
     // Loop over the variables
-    for (int var_idx = 0; var_idx < IntVar::NumVars; ++var_idx) {
-
+    for (int var_idx = 0; var_idx < IntVar::NumVars; ++var_idx)
+    {
         // Fine mfs
         MultiFab& fmf = S_data_f[var_idx];
         MultiFab& rhs = S_rhs_f [var_idx];
+
+        // NOTE: These temporary MFs and copy operations are horrible
+        //       for memory usage and efficiency. However, we need to
+        //       have access to ghost cells in the cons array to convert
+        //       from primitive u/v/w to momentum. Furthermore, the BA
+        //       for the fine patches in ERFFillPatcher don't match the
+        //       BA for the data/RHS. For this reason, the data is copied
+        //       to a vector of MFs (with ghost cells) so the BAs match
+        //       the BA of data/RHS and we have access to rho to convert
+        //       prim to conserved.
 
         // Temp MF on box (distribution map differs w/ fine patch)
         int num_var = 1;
@@ -684,13 +694,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
         fmf_p_v.emplace_back(fmf.boxArray(), fmf.DistributionMap(), num_var, fmf.nGrowVect());
         MultiFab& fmf_p = fmf_p_v[var_idx];
         amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
-
-        // FIX ME: We only have 1 box at level>0, this should
-        //         be a loop over the num_boxes_at_level
-        Box domain  = boxes_at_level[0];
-        domain.convert(fmf.boxArray().ixType());
-        const auto& dom_lo = lbound(domain);
-        const auto& dom_hi = ubound(domain);
 
         // Fill fine patch on interior halo region
         //==========================================================
@@ -705,12 +708,19 @@ fine_compute_interior_ghost_RHS(const Real& time,
             {
                 Box tbx = mfi.tilebox();
                 const Array4<Real>& rhs_arr  = rhs.array(mfi);
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-            }
+                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                {
+                    Box domain  = boxes_at_level[g_ind];
+                    domain.convert(fmf.boxArray().ixType());
+
+                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                  bx_xlo, bx_xhi,
+                                                  bx_ylo, bx_yhi);
+
+                    zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
+                } // g_ind
+            } // mfi
         }
         else if (var_idx == IntVar::xmom)
         {
@@ -725,18 +735,43 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
-                    prim_arr(i,j,k) *= rho_interp;
-                });
 
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-            }
+                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                {
+                    Box domain  = boxes_at_level[g_ind];
+                    domain.convert(fmf.boxArray().ixType());
+
+                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                  bx_xlo, bx_xhi,
+                                                  bx_ylo, bx_yhi);
+
+                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
+
+
+                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+
+                } // g_ind
+            } // mfi
         }
         else if (var_idx == IntVar::ymom)
         {
@@ -751,18 +786,41 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
-                    prim_arr(i,j,k) *= rho_interp;
-                });
 
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-            }
+                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                {
+                    Box domain  = boxes_at_level[g_ind];
+                    domain.convert(fmf.boxArray().ixType());
+
+                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                  bx_xlo, bx_xhi,
+                                                  bx_ylo, bx_yhi);
+
+                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
+
+                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+                } // g_ind
+            } // mfi
         }
         else if (var_idx == IntVar::zmom)
         {
@@ -777,18 +835,41 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
-                amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
-                    prim_arr(i,j,k) *= rho_interp;
-                });
 
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-            }
+                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                {
+                    Box domain = boxes_at_level[g_ind];
+                    domain.convert(fmf.boxArray().ixType());
+
+                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                  bx_xlo, bx_xhi,
+                                                  bx_ylo, bx_yhi);
+
+                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
+
+                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
+                        prim_arr(i,j,k) *= rho_interp;
+                    });
+                } // g_ind
+            } // mfi
         } else {
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
         }
@@ -802,18 +883,27 @@ fine_compute_interior_ghost_RHS(const Real& time,
         for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
-            Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                          tbx_xlo, tbx_xhi,
-                                          tbx_ylo, tbx_yhi);
-
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<Real>& rhs_arr        = rhs.array(mfi);
-            compute_Laplacian_relaxation(delta_t, 0, num_var, width, set_width, dom_lo, dom_hi, F1, F2,
-                                         tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                         fine_arr, fine_arr, fine_arr, fine_arr,
-                                         data_arr, rhs_arr);
+
+            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+            {
+                Box domain = boxes_at_level[g_ind];
+                domain.convert(fmf.boxArray().ixType());
+                const auto& dom_hi = ubound(domain);
+                const auto& dom_lo = lbound(domain);
+
+                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                              tbx_xlo, tbx_xhi,
+                                              tbx_ylo, tbx_yhi);
+
+                compute_Laplacian_relaxation(delta_t, 0, num_var, width, set_width, dom_lo, dom_hi, F1, F2,
+                                             tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                             fine_arr, fine_arr, fine_arr, fine_arr,
+                                             data_arr, rhs_arr);
+            } // g_ind
         } // mfi
     } // var_idx
 }

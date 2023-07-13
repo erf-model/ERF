@@ -532,7 +532,9 @@ ERF::InitData ()
 
     // NOTE: we must set up the FillPatcher object before calling
     //       WritePlotFile because WritePlotFile calls FillPatch
-    Define_ERFFillPatchers();
+    if (coupling_type=="OneWay") {
+        Define_ERFFillPatchers();
+    }
 
     if (restart_chkfile.empty() && check_int > 0)
     {
@@ -1592,6 +1594,7 @@ ERF::Define_ERFFillPatchers ()
         auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
         auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
+        // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
         FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                            ba_crse, dm_crse, geom[lev-1],
                            -wrfbdy_width, -wrfbdy_set_width, 2, &cell_cons_interp);
