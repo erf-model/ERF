@@ -524,7 +524,21 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0         |
 |                                  | Number             |                     |             |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.spatial_order**            |                    |  2 / 3 / 4 / 5 / 6  | 2           |
+| **erf.horiz/vert_spatial_order** | Horizontal and     | 2 / 3 / 4 / 5 / 6   | 2           |
+|                                  | vertical spatial   |                     |             |
+|                                  | order              |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.all_use_WENO**             | Use WENO for all   | "True",             | "False"     |
+|                                  | scalar variables   | "False"             |             |
+|                                  |                    |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.spatial_order_WENO**       | Spatial order      | 3/5                 | 3           |
+|                                  | for WENO           |                     |             |
+|                                  |                    |                     |             |
++----------------------------------+--------------------+---------------------+-------------+
+| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"     |
+|                                  | numerical diffusion| "False"             |             |
+|                                  |                    |                     |             |
 +----------------------------------+--------------------+---------------------+-------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
