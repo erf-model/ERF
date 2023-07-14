@@ -61,15 +61,30 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
 // new updates for GPU opt July 2023
-    // smallest box containing all 3 of bxx, bxy, and bxz
+    // compute mf_u and mf_v inverses
+    // smallest 2D box containing bxx and bxy
     IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
     IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
     Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0); 
-    //FArrayBox mf_u_inv_hi(bxx, )
 
+    // now create mf_u_inv and mf_v_inv FABs/arrays
+    FArrayBox mf_u_invFAB(box2d); FArrayBox mf_v_invFAB(box2d);
+    const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
+    const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
+
+    // compute inverses 
+    ParallelFor(box2d,
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    {
+        mf_u_inv(i,j,0) = 1. / mf_u(i,j,0); 
+        mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
+    });
+    
+/*
 Print() << "Orig boxes: \n" << bxx << '\n' << bxy << '\n' << bxz << "\n\n";
 Print() << "New 2D box: \n" << box2d << "\n\n";
 Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
+*/
 
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
@@ -78,16 +93,17 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+/*
                 Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
                 Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
                 Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0);
                 Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_4   = 1. / mf_v(i-1,j  ,0);
+*/
+                Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i+1, j  , k) * mf_u_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
+                Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i-1, j  , k) * mf_u_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
 
-                Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv_mid + rho_u(i+1, j  , k) * mf_u_inv_hi) * (u(i+1,j,k) + u(i,j,k));
-                Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_u_inv_mid + rho_u(i-1, j  , k) * mf_u_inv_lo) * (u(i-1,j,k) + u(i,j,k));
-
-                Real yflux_hi = 0.25 * (rho_v(i, j+1, k) * mf_v_inv_1 + rho_v(i-1, j+1, k) * mf_v_inv_2) * (u(i,j+1,k) + u(i,j,k));
-                Real yflux_lo = 0.25 * (rho_v(i, j  , k) * mf_v_inv_3 + rho_v(i-1, j  , k) * mf_v_inv_4) * (u(i,j-1,k) + u(i,j,k));
+                Real yflux_hi = 0.25 * (rho_v(i, j+1, k) * mf_v_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_v_inv(i-1,j+1,0)) * (u(i,j+1,k) + u(i,j,k));
+                Real yflux_lo = 0.25 * (rho_v(i, j  , k) * mf_v_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_v_inv(i-1,j  ,0)) * (u(i,j-1,k) + u(i,j,k));
 
                 Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i-1, j, k+1)) * (u(i,j,k+1) + u(i,j,k));
                 Real zflux_lo = 0.25 * (Omega(i, j, k  ) + Omega(i-1, j, k  )) * (u(i,j,k-1) + u(i,j,k));
@@ -101,16 +117,17 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+/*
                 Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0);
                 Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
                 Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0);
                 Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_4   = 1. / mf_u(i  ,j-1,0);
+*/
+                Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_u_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
+                Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_u_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
 
-                Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_u_inv_1 + rho_u(i+1, j-1, k) * mf_u_inv_2) * (v(i+1,j,k) + v(i,j,k));
-                Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_u_inv_3 + rho_u(i  , j-1, k) * mf_u_inv_4) * (v(i-1,j,k) + v(i,j,k));
-
-                Real yflux_hi = 0.25 * (rho_v(i  ,j+1,k) * mf_v_inv_hi  + rho_v(i  ,j  ,k) * mf_v_inv_mid) * (v(i,j+1,k) + v(i,j,k));
-                Real yflux_lo = 0.25 * (rho_v(i  ,j  ,k) * mf_v_inv_mid + rho_v(i  ,j-1,k) * mf_v_inv_lo ) * (v(i,j-1,k) + v(i,j,k));
+                Real yflux_hi = 0.25 * (rho_v(i  ,j+1,k) * mf_v_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_v_inv(i,j  ,0)) * (v(i,j+1,k) + v(i,j,k));
+                Real yflux_lo = 0.25 * (rho_v(i  ,j  ,k) * mf_v_inv(i,j  ,0) + rho_v(i  ,j-1,k) * mf_v_inv(i,j-1,0) ) * (v(i,j-1,k) + v(i,j,k));
 
                 Real zflux_hi = 0.25 * (Omega(i, j, k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k));
                 Real zflux_lo = 0.25 * (Omega(i, j, k  ) + Omega(i, j-1, k  )) * (v(i,j,k-1) + v(i,j,k));
@@ -124,14 +141,15 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+/*
                 Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
                 Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
+*/
+                Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
+                Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
 
-                Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv_hi * (w(i+1,j,k) + w(i,j,k));
-                Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_u_inv_lo * (w(i-1,j,k) + w(i,j,k));
-
-                Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_v_inv_hi * (w(i,j+1,k) + w(i,j,k));
-                Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_v_inv_lo * (w(i,j-1,k) + w(i,j,k));
+                Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_v_inv(i  ,j+1,0) * (w(i,j+1,k) + w(i,j,k));
+                Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0) * (w(i,j-1,k) + w(i,j,k));
 
                 Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
