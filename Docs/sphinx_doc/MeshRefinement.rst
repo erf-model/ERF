@@ -152,7 +152,7 @@ and analogously the width of the interior Dirichlet region may be specified with
    |  Image taken from `Skamarock et al. (2021)`_        |
    +-----------------------------------------------------+
 
-   .. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
+.. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
 
 Within the interior Dirichlet region (yellow), the RHS is exactly 0. However, within the relaxation region (blue),
 the RHS (:math:`F`) is given by the following:
