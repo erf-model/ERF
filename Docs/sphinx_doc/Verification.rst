@@ -11,52 +11,16 @@ The following tests are used to verify the correct behavior of different algorit
 Scalar Advection
 ----------------
 
-Here we present spatial and temporal convergence studies for simple scalar advection with a uniform velocity field.
-The initial data has constant density and pressure, constant velocity :math:`u=10` in the x-direction,
+Here we present a convergence study of the advection stencils in ERF for second through sixth order.
+The initial data is constant density and pressure, constant velocity :math:`u=10` in the x-direction,
 and a scalar initialized with profile :math:`cos(\pi x)` in a domain that is 2 units wide and
 periodic in the lateral directions with slip walls on top and bottom.
-The simulation is run for one period, i.e. until time :math:`t=0.2`
 
-The first study, shown below on the left, tests the horizontal centered/upwind advection stencils for
-second through sixth order. The study on the right tests the WENO 3rd and 5th order stencils,
-with and without the ``smoothing'' contributions in the stencil.  In all of these cases,
-the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates
-the temporal error.
+The simulation is run for one period, i.e. until time :math:`t=0.2`  For all cases shown here, the time step
+was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates the temporal error.
 
-.. |aconv| image:: figures/conv_plot_spatial.png
-           :width: 300
-
-.. |bconv| image:: figures/conv_plot_spatial_WENO.png
-           :width: 300
-
-.. _fig:convergence_spatial
-
-.. table:: Convergence studies of spatial error
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                     |aconv|                         |                      |bconv|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |  Spatial convergence study (centered/upwind)        |  Spatial convergence study (WENO)                    |
-   +-----------------------------------------------------+------------------------------------------------------+
-
-The second study tests the temporal accuracy by first setting :math:`\Delta t = 0.0005`
-and :math:`\Delta x = 1/8`, then reducing both :math:`\Delta t` and :math:`\Delta x` by a factor of two, keeping
-the ratio of :math:`\Delta t` to :math:`\Delta x` constant.   These tests were run with the 6th order accurate
-spatial stencil so that the temporal error dominated the spatial error.  Here we recover the expected 3rd order
-accuracy of the RK3 scheme.
-
-.. |tconv| image:: figures/conv_plot_temporal.png
-           :width: 300
-
-.. _fig:convergence_temporal
-
-.. table:: Convergence study of temporal error
-
-   +-----------------------------------------------------+
-   |                     |tconv|                         |
-   +-----------------------------------------------------+
-   |  Temporal convergence study                         |
-   +-----------------------------------------------------+
+.. image:: figures/conv_plot.png
+  :width: 400
 
 
 Nonlinear Density Current
@@ -109,3 +73,19 @@ The steady solution is shown below, as well as a log-log plot showing the error 
    +-----------------------------------------------------+------------------------------------------------------+
    |   Flow profiles                                     |   Convergence study                                  |
    +-----------------------------------------------------+------------------------------------------------------+
+
+Potential flow over a semi-cylinder
+----------------------------------------
+The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
+effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
+has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
+are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
+slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
+with the exact solution at two different horizontal and vertical locations are shown below.
+
+.. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
+
+.. image:: figures/Terrain2d_Cylinder.png
+  :width: 600
+
+
