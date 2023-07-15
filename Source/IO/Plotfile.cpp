@@ -95,15 +95,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
+    if (ncomp_mf == 0)
+        return;
+
     // We fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled
     for (int lev = 0; lev <= finest_level; ++lev) {
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
     }
-
-    if (ncomp_mf == 0)
-        return;
 
     Vector<MultiFab> mf(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {

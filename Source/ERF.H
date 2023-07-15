@@ -298,7 +298,11 @@ private:
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
 
-    void define_grids_to_evolve (int lev); // NOLINT
+    void update_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
+    void update_terrain_arrays (int lev, amrex::Real time);
+
+    void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
 
     void Define_ERFFillPatchers ();
 
@@ -359,6 +363,7 @@ private:
 
     //! Initialize HSE
     void initHSE ();
+    void initHSE (int lev);
 
     //! Initialize Rayleigh damping profiles
     void initRayleigh ();
@@ -589,7 +594,7 @@ private:
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)
-    int regrid_int = 2;
+    int regrid_int = -1;
 
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
@@ -642,8 +647,6 @@ private:
 
     // mesh refinement
     static std::string coupling_type;
-    static int do_reflux;
-    static int do_avg_down;
 
     // Diagnostic output interval
     static int sum_interval;

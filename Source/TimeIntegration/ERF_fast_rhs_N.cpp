@@ -181,14 +181,14 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Box& valid_bx = grids_to_evolve[mfi.index()];
 
         // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
-
         Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
         Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
+#endif
 
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
