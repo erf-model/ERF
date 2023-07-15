@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include <Derive.H>
 
 using namespace amrex;
 
@@ -19,7 +20,19 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
     {
         std::unique_ptr<MultiFab> mf;
 
-        // This will work for static refinement
+        // This allows dynamic refinement based on the value of the scalar
+        if (ref_tags[j].Field() == "scalar") {
+            mf = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
+            for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                auto& dfab = (*mf)[mfi];
+                auto& sfab = vars_new[level][Vars::cons][mfi];
+                derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
+            } // mfi
+        } // scalar
+
+        // This is sufficient for static refinement (where we don't need mf filled first)
         ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
   }
 }
@@ -99,23 +112,23 @@ ERF::refinement_criteria_setup()
             }
 
             if (ppr.countval("value_greater")) {
-            int num_val = ppr.countval("value_greater");
-            Vector<Real> value(num_val);
-            ppr.getarr("value_greater",value,0,num_val);
+                int num_val = ppr.countval("value_greater");
+                Vector<Real> value(num_val);
+                ppr.getarr("value_greater",value,0,num_val);
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
             }
             else if (ppr.countval("value_less")) {
-            int num_val = ppr.countval("value_less");
-            Vector<Real> value(num_val);
-            ppr.getarr("value_less",value,0,num_val);
+                int num_val = ppr.countval("value_less");
+                Vector<Real> value(num_val);
+                ppr.getarr("value_less",value,0,num_val);
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
             }
             else if (ppr.countval("adjacent_difference_greater")) {
-            int num_val = ppr.countval("adjacent_difference_greater");
-            Vector<Real> value(num_val);
-            ppr.getarr("adjacent_difference_greater",value,0,num_val);
+                int num_val = ppr.countval("adjacent_difference_greater");
+                Vector<Real> value(num_val);
+                ppr.getarr("adjacent_difference_greater",value,0,num_val);
                 std::string field; ppr.get("field_name",field);
                 ref_tags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
             }

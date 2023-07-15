@@ -200,7 +200,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_MOISTURE)
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
+#endif
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
