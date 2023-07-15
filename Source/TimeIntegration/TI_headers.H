@@ -65,7 +65,6 @@ void erf_slow_rhs_pre (int level, int nrk,
  */
 void erf_slow_rhs_post (int level,
                        amrex::Real dt,
-                       amrex::BoxArray& grids_to_evolve,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,
                        amrex::Vector<amrex::MultiFab>& S_new,
