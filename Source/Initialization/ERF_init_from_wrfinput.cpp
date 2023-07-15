@@ -13,7 +13,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 
 void
-read_from_wrfinput(int lev, const std::string& fname,
+read_from_wrfinput(int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
@@ -130,10 +130,11 @@ ERF::init_from_wrfinput(int lev)
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
-        read_from_wrfinput(lev,nc_init_file[lev][idx],NC_xvel_fab[idx],NC_yvel_fab[idx],NC_zvel_fab[idx],NC_rho_fab[idx],
-                           NC_rhop_fab[idx],NC_rhoth_fab[idx], NC_MUB_fab[idx],
-                           NC_MSFU_fab[idx],NC_MSFV_fab[idx],NC_MSFM_fab[idx],
-                           NC_SST_fab[idx], NC_C1H_fab[idx],NC_C2H_fab[idx],NC_RDNW_fab[idx],
+        read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
+                           NC_xvel_fab[idx], NC_yvel_fab[idx],  NC_zvel_fab[idx], NC_rho_fab[idx],
+                           NC_rhop_fab[idx], NC_rhoth_fab[idx], NC_MUB_fab[idx],
+                           NC_MSFU_fab[idx], NC_MSFV_fab[idx],  NC_MSFM_fab[idx],
+                           NC_SST_fab[idx],  NC_C1H_fab[idx],   NC_C2H_fab[idx],  NC_RDNW_fab[idx],
 #if defined(ERF_USE_MOISTURE)
                            NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
 #elif defined(ERF_USE_WARM_NO_PRECIP)
@@ -220,6 +221,7 @@ ERF::init_from_wrfinput(int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width, start_bdy_time);
 
+        if (wrfbdy_width-1 <= wrfbdy_set_width) wrfbdy_set_width = wrfbdy_width;
         amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
         amrex::Print() << "Running with specification width: " << wrfbdy_set_width
                        << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
@@ -268,8 +270,10 @@ ERF::init_from_wrfinput(int lev)
  * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
-init_state_from_wrfinput(int lev, FArrayBox& state_fab,
-                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+init_state_from_wrfinput(int lev,
+                         FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab,
+                         FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
 #if defined(ERF_USE_MOISTURE)
                          const Vector<FArrayBox>& NC_QVAPOR_fab,

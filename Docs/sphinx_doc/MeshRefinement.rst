@@ -130,13 +130,49 @@ ERF supports both one-way and two-coupling; this is a run-time input
       erf.coupling_type = "OneWay" or "TwoWay"
 
 By one-way coupling, we mean that between each pair of refinement levels,
-the coarse mesh communicates Dirichlet data to the fine mesh in the form of ghost cell
-data (outside of the valid fine region) for cell-centered quantities, and face-baced normal
-momenta on the coarse-fine interface.  In both of these, the coarse data is conservatively
-interpolated to the fine mesh.
+only the coarse mesh communicates data to the fine mesh. For cell-centered quantities,
+and face-baced normal momenta on the coarse-fine interface, the coarse data is conservatively
+interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
+(outside of the valid fine region) as well as specify and relax data inside the lateral boundaries
+of the fine region. More specifically, a user may specify the total width of the interior
+Dirichlet and relaxation region with ``erf.wrfbdy_width = <Int>`` (yellow + blue)
+and analogously the width of the interior Dirichlet region may be specified with
+``erf.wrfbdy_set_width = <Int>`` (yellow).
 
-By two-way coupling, we mean that in additional to the one-way coupling operations, the fine mesh
-communicates data back to the coarse mesh in two ways:
+.. |wrfbdy| image:: figures/wrfbdy_BCs.png
+           :width: 300
+
+.. _fig:Lateral BCs
+
+.. table:: Lateral boundaries with OneWay coupling
+
+   +-----------------------------------------------------+
+   |                     |wrfbdy|                        |
+   +-----------------------------------------------------+
+   |  Image taken from `Skamarock et al. (2021)`_        |
+   +-----------------------------------------------------+
+
+.. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
+
+Within the interior Dirichlet region (yellow), the RHS is exactly 0. However, within the relaxation region (blue),
+the RHS (:math:`F`) is given by the following:
+
+.. math::
+
+   \begin{align}
+   F &= G + R, \\
+   \psi^{\prime} &= \psi^{n} + \Delta t \; G, \\
+   R &= H_{1} \left( \psi^{FP} - \psi^{\prime} \right) - H_{2} \Delta^2 \left( \psi^{FP} - \psi^{\prime} \right), \\
+   H_{1} &= \frac{1}{10 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1}, \\
+   H_{2} &= \frac{1}{50 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1},
+   \end{align}
+
+where :math:`G` is the RHS of the NS equations, :math:`\psi^{\prime}` is the predicted update without
+relaxation, :math:`\psi^{FP}` is the fine patch data obtained from space-time interpolation of the
+coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary.
+
+By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),
+the fine mesh communicates data back to the coarse mesh in two ways:
 
 - The fine cell-centered data is conservatively averaged onto the coarse mesh covered by fine mesh.
 

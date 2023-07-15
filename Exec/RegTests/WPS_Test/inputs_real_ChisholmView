@@ -21,9 +21,13 @@ yhi.type = "Outflow"
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
+# SET/RELAXATION REGIONS
+erf.wrfbdy_width = 1    
+erf.wrfbdy_set_width = 1
+
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
-
+    
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp

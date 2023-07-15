@@ -7,18 +7,35 @@ class ERFFillPatcher
 {
 public:
 
+    //ERFFillPatcher () = default;
+
     ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
                     amrex::Geometry const& fgeom,
                     amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
                     amrex::Geometry const& cgeom,
-                    int nghost, int ncomp, amrex::InterpBase* interp);
+                    int nghost, int nghost_subset, int ncomp, amrex::InterpBase* interp);
+
+    /*
+    // Declare a default move constructor so we ensure the destructor is
+    // not called when we return an object of this class by value
+    ERFFillPatcher (ERFFillPatcher&&)  noexcept = default;
+
+    // Delete the move assignment operator
+    ERFFillPatcher& operator=(ERFFillPatcher&& other)  noexcept = delete;
+
+    // Delete the copy constructor
+    ERFFillPatcher (const ERFFillPatcher& other) = delete;
+
+    // Delete the copy assignment operator
+    ERFFillPatcher& operator=(const ERFFillPatcher& other) = delete;
+    */
 
     void registerCoarseData (amrex::Vector<amrex::MultiFab const*> const& crse_data,
                              amrex::Vector<amrex::Real> const& crse_time);
 
     template <typename BC>
-    void fill(amrex::MultiFab& mf, amrex::Real time,
-              BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
+    void fill (amrex::MultiFab& mf, amrex::Real time,
+              BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset=false);
 
 private:
 
@@ -29,11 +46,13 @@ private:
     amrex::Geometry m_fgeom;
     amrex::Geometry m_cgeom;
     int m_nghost;
+    int m_nghost_subset;
     int m_ncomp;
     amrex::InterpBase* m_interp;
     amrex::IntVect m_ratio;
     amrex::Vector<amrex::MultiFab> m_cf_crse_data;
     amrex::MultiFab m_cf_fine_data;
+    amrex::MultiFab m_cf_fine_subset_data;
     amrex::Vector<amrex::Real> m_crse_times;
     amrex::Real m_dt_crse;
 };
@@ -49,27 +68,43 @@ private:
 template <typename BC>
 void
 ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
-                      BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
+                      BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset)
 {
-    cbc(m_cf_crse_data[0], 0, m_ncomp, amrex::IntVect(0), time, 0);
+    AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]) && (time <= m_crse_times[1]));
 
-    amrex::MultiFab crse_data_time_interp(m_cf_crse_data[0].boxArray(), m_cf_crse_data[0].DistributionMap(),
-                                          m_ncomp, amrex::IntVect{0});
-
+    // Time interpolation factors
     amrex::Real fac_new = (time - m_crse_times[0]) / m_dt_crse;
     amrex::Real fac_old = 1.0 - fac_new;
 
+    // Boundary condition operator
+    cbc(m_cf_crse_data[0], 0, m_ncomp, amrex::IntVect(0), time, 0);
+
+    // Coarse MF to hold time interpolated data
+    amrex::MultiFab crse_data_time_interp(m_cf_crse_data[0].boxArray(), m_cf_crse_data[0].DistributionMap(),
+                                          m_ncomp, amrex::IntVect{0});
+
     // Time interpolate the coarse data
-    amrex::MultiFab::LinComb(crse_data_time_interp,fac_old, m_cf_crse_data[0], 0,
-                                                   fac_new, m_cf_crse_data[1], 0,
+    amrex::MultiFab::LinComb(crse_data_time_interp,
+                             fac_old, m_cf_crse_data[0], 0,
+                             fac_new, m_cf_crse_data[1], 0,
                              0, m_ncomp, 0);
 
+    // Ensure fine domain box is correct index type
+    amrex::Box fdest_dom = amrex::convert(m_fgeom.Domain(),m_cf_fine_data.boxArray().ixType());
 
     // Spatially interpolate the time-interpolated coarse data
     amrex::FillPatchInterp(m_cf_fine_data, 0, crse_data_time_interp, 0, m_ncomp, amrex::IntVect(0),
-                           m_cgeom, m_fgeom, m_fgeom.Domain(), m_ratio, m_interp, bcs, 0);
+                           m_cgeom, m_fgeom, fdest_dom, m_ratio, m_interp, bcs, 0);
 
-    // Copy the spatially and temporally interpolated data back into the mf
-    mf.ParallelCopy(m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
+    // Fill whole region or subset?
+    if (fill_subset) {
+        //amrex::MultiFab::Copy(m_cf_fine_subset_data, m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0});
+        m_cf_fine_subset_data.ParallelCopy(m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
+        mf.ParallelCopy(m_cf_fine_subset_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
+    } else {
+        mf.ParallelCopy(m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
+    }
+
+
 }
 #endif
