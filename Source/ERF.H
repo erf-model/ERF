@@ -203,8 +203,10 @@ public:
                          amrex::Real dt, amrex::Real time,
                          amrex::InterpFaceRegister* ifr);
 
+#if defined(ERF_USE_MOISTURE)
     void advance_microphysics (int lev, amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
+#endif
 
     amrex::MultiFab& build_fine_mask (int lev);
 

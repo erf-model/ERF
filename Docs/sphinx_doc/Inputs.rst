@@ -112,8 +112,9 @@ List of Parameters
 |                           | subsequent      |                 |             |
 |                           | levels          |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_int**        | how often to    | Integer > 0     | must be set |
-|                           | regrid          |                 |             |
+| **amr.regrid_int**        | how often to    | Integer > 0     | -1          |
+|                           | regrid          | (if negative,   |             |
+|                           |                 | no regridding)  |             |
 +---------------------------+-----------------+-----------------+-------------+
 | **amr.regrid_on_restart** | should we       | 0 or 1          | 0           |
 |                           | regrid          |                 |             |

@@ -18,7 +18,6 @@ using namespace amrex;
  *
  * @param[in]  level level of resolution
  * @param[in]  dt    slow time step
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[out]  S_rhs RHS computed here
  * @param[in]  S_old solution at start of time step
  * @param[in]  S_new solution at end of current RK stage
@@ -48,7 +47,6 @@ using namespace amrex;
 
 void erf_slow_rhs_post (int /*level*/,
                         Real dt,
-                        BoxArray& grids_to_evolve,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_new,

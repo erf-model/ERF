@@ -34,13 +34,13 @@ one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents 
           amr.max_level = 1
           amr.ref_ratio = 2
 
-          amr.refinement_indicators = box1 box2
+          erf.refinement_indicators = box1 box2
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
-          amr.box2.in_box_lo = .65 .75
-          amr.box2.in_box_hi = .85 .95
+          erf.box2.in_box_lo = .65 .75
+          erf.box2.in_box_hi = .85 .95
 
 In the example below, we refine the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
 by two levels of factor 3 refinement. In this case, the refined region at level 1 will
@@ -51,10 +51,10 @@ be sufficient to enclose the refined region at level 2.
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
-          amr.refinement_indicators = box1
+          erf.refinement_indicators = box1
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
 And in this final example, the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
 will be refined by two levels of factor 3, but the larger region, ((.05,.05,prob_lo_z)(.75,.75,prob_hi_z))
@@ -65,14 +65,14 @@ will be refined by a single factor 3 refinement.
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
-          amr.refinement_indicators = box1 box2
+          erf.refinement_indicators = box1 box2
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
-          amr.box2.in_box_lo = .05 .05
-          amr.box2.in_box_hi = .75 .75
-          amr.box2.max_level = 1
+          erf.box2.in_box_lo = .05 .05
+          erf.box2.in_box_hi = .75 .75
+          erf.box2.max_level = 1
 
 
 Dynamic Mesh Refinement
@@ -102,23 +102,23 @@ computed by dividing the variable named rhotheta by the variable named density.
 
 ::
 
-          amr.refinement_indicators = hi_rho lo_theta advdiff
+          erf.refinement_indicators = hi_rho lo_theta advdiff
 
-          amr.hi_rho.max_level = 3
-          amr.hi_rho.value_greater = 1. 2.
-          amr.hi_rho.field_name = density
+          erf.hi_rho.max_level = 3
+          erf.hi_rho.value_greater = 1. 2.
+          erf.hi_rho.field_name = density
 
-          amr.lo_theta.max_level = 1
-          amr.lo_theta.value_less = 300
-          amr.lo_theta.field_name = rhotheta
-          amr.lo_theta.in_box_lo = .25 .25 .25
-          amr.lo_theta.in_box_hi = .75 .75 .75
+          erf.lo_theta.max_level = 1
+          erf.lo_theta.value_less = 300
+          erf.lo_theta.field_name = rhotheta
+          erf.lo_theta.in_box_lo = .25 .25 .25
+          erf.lo_theta.in_box_hi = .75 .75 .75
 
-          amr.advdiff.max_level = 2
-          amr.advdiff.adjacent_difference_greater = 0.01
-          amr.advdiff.field_name = rhoadv_0
-          amr.advdiff.start_time = 0.001
-          amr.advdiff.end_time = 0.002
+          erf.advdiff.max_level = 2
+          erf.advdiff.adjacent_difference_greater = 0.01
+          erf.advdiff.field_name = rhoadv_0
+          erf.advdiff.start_time = 0.001
+          erf.advdiff.end_time = 0.002
 
 Coupling Types
 --------------

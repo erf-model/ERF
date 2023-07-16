@@ -267,7 +267,7 @@
 
         // Moving terrain
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
-            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level],
+            erf_slow_rhs_post(level, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
@@ -282,7 +282,7 @@
 #endif
                               incompressible);
         } else {
-            erf_slow_rhs_post(level, slow_dt, grids_to_evolve[level],
+            erf_slow_rhs_post(level, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
