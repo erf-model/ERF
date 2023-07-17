@@ -171,9 +171,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                z_t_rk[lev] = nullptr;
     }
 
-    // Build the data structures for terrain-related quantities
-    update_terrain_arrays(lev, time);
-
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
     // ********************************************************************************************
@@ -191,9 +188,24 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     // ********************************************************************************************
     // Initialize the data itself
+    // If (init_type == "real") then we are initializing terrain and the initial data in
+    //                          the same call so we must call init_only before update_terrain_arrays
+    // If (init_type != "real") then we want to initialize the terrain before the initial data
+    //                          since we may need to use the grid information before constructing
+    //                          initial idealized data
     // ********************************************************************************************
-    if (restart_chkfile.empty()) {
-        init_only(lev, start_time);
+    if (init_type == "real") {
+        if (restart_chkfile.empty()) {
+            init_only(lev, start_time);
+        }
+        // Build the data structures for terrain-related quantities
+        update_terrain_arrays(lev, time);
+    } else {
+        // Build the data structures for terrain-related quantities
+        update_terrain_arrays(lev, time);
+        if (restart_chkfile.empty()) {
+            init_only(lev, start_time);
+        }
     }
 }
 
