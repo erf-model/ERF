@@ -541,6 +541,10 @@ List of Parameters
 |                                  | numerical diffusion| "False"             |             |
 |                                  |                    |                     |             |
 +----------------------------------+--------------------+---------------------+-------------+
+| **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0         |
+|                                  | 6th order          | [0.0,  1.0]         |             |
+|                                  | numerical diffusion|                     |             |
++----------------------------------+--------------------+---------------------+-------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.

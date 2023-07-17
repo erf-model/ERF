@@ -140,7 +140,7 @@ and analogously the width of the interior Dirichlet region may be specified with
 ``erf.wrfbdy_set_width = <Int>`` (yellow).
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
-           :width: 300
+           :width: 600
 
 .. _fig:Lateral BCs
 
