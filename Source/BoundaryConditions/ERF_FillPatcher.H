@@ -7,28 +7,11 @@ class ERFFillPatcher
 {
 public:
 
-    //ERFFillPatcher () = default;
-
     ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
                     amrex::Geometry const& fgeom,
                     amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
                     amrex::Geometry const& cgeom,
                     int nghost, int nghost_subset, int ncomp, amrex::InterpBase* interp);
-
-    /*
-    // Declare a default move constructor so we ensure the destructor is
-    // not called when we return an object of this class by value
-    ERFFillPatcher (ERFFillPatcher&&)  noexcept = default;
-
-    // Delete the move assignment operator
-    ERFFillPatcher& operator=(ERFFillPatcher&& other)  noexcept = delete;
-
-    // Delete the copy constructor
-    ERFFillPatcher (const ERFFillPatcher& other) = delete;
-
-    // Delete the copy assignment operator
-    ERFFillPatcher& operator=(const ERFFillPatcher& other) = delete;
-    */
 
     void registerCoarseData (amrex::Vector<amrex::MultiFab const*> const& crse_data,
                              amrex::Vector<amrex::Real> const& crse_time);
@@ -70,7 +53,8 @@ void
 ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
                       BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset)
 {
-    AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]) && (time <= m_crse_times[1]));
+    constexpr amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
 
     // Time interpolation factors
     amrex::Real fac_new = (time - m_crse_times[0]) / m_dt_crse;
