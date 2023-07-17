@@ -108,15 +108,6 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
     DistributionMapping gcf_dm(gcf_fba);
     DistributionMapping cf_dm_s(cf_fba_s);
 
-    /*
-    amrex::Print() << "\n";
-    amrex::Print() << "BA: " << gcf_fba << ' ' << gcf_cba << "\n";
-    amrex::Print() << "DM: " << gcf_dm << "\n";
-    amrex::Print() << "BA_s: " << cf_fba_s << "\n";
-    amrex::Print() << "DM_s: " << cf_dm_s << "\n";
-    amrex::Print() << "\n";
-    */
-
     // Fine patch to hold the time-interpolated state
     m_cf_fine_data.define(gcf_fba, gcf_dm, m_ncomp, 0);
 
