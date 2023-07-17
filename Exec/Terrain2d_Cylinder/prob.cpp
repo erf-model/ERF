@@ -233,7 +233,7 @@ init_custom_prob(
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(p_hse(i,j,k)/p_0,1.0/Gamma) * p_0 / R_d;
-    state(i, j, k, Rho_comp) = 1.2;//state(i, j, k, RhoTheta_comp) / theta_perturbed;
+    state(i, j, k, Rho_comp) = 1.2;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -268,7 +268,7 @@ init_custom_prob(
   // Set the z-velocity from impenetrable condition
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;//WFromOmega(i, j, k, 0.0, x_vel, y_vel, z_nd, dxInv);
+      z_vel(i, j, k) = 0.0;
   });
 
   amrex::Gpu::streamSynchronize();
@@ -342,21 +342,12 @@ init_custom_terrain (const Geometry& geom,
 
             // Clip indices for ghost-cells
             int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
-             //int jj = amrex::min(amrex::max(j,domlo_y),domhi_y);
 
             // Location of nodes
             Real x = (ii  * dx[0] - xcen);
-            //Real y = (jj  * dx[1] - ycen);
-            // Real y = (jj  * dx[1] - ycen);
 
-            // WoA Hill in x-direction
-            Real height = num / (x*x + 4 * a * a);
-
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-
-			if(fabs(x-0.0)<0.5){
-				z_arr(i,j,k0) = pow(0.5*0.5 - (x-0.0)*(x-0.0), 0.5);
+			if(fabs(x)<a){
+				z_arr(i,j,k0) = pow(a*a - x*x, 0.5);
 			}
 			else{
 				z_arr(i,j,k0) = 0.0;

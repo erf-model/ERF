@@ -115,6 +115,11 @@ ApplySpongeZoneBCs(
   const amrex::Real zlo_sponge_end   = solverChoice.zlo_sponge_end;
   const amrex::Real zhi_sponge_start = solverChoice.zhi_sponge_start;
 
+  const amrex::Real sponge_density = solverChoice.sponge_density;	
+  const amrex::Real sponge_x_velocity = solverChoice.sponge_x_velocity;	
+  const amrex::Real sponge_y_velocity = solverChoice.sponge_y_velocity;	
+  const amrex::Real sponge_z_velocity = solverChoice.sponge_z_velocity;	
+
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
   int domlo_x = domain.smallEnd(0);
@@ -124,54 +129,67 @@ ApplySpongeZoneBCs(
   int domlo_z = domain.smallEnd(2);
   int domhi_z = domain.bigEnd(2) + 1;
 
-  /*std::cout << "Using sponges " << 
-  use_xlo_sponge_damping << " " << use_xhi_sponge_damping << " " << 
-  use_ylo_sponge_damping << " " << use_yhi_sponge_damping << " " << 
-  use_zlo_sponge_damping << " " << use_zhi_sponge_damping << "\n";
-
-  if(use_xlo_sponge_damping){
-    std::cout << "xlo sponge end is " << xlo_sponge_end << "\n";
-  }
-  if(use_xhi_sponge_damping){
-    std::cout << "xhi sponge end is " << xhi_sponge_start << "\n";
-  }
-  if(use_ylo_sponge_damping){
-    std::cout << "ylo sponge end is " << ylo_sponge_end << "\n";
-  }
-  if(use_yhi_sponge_damping){
-    std::cout << "yhi sponge end is " << yhi_sponge_start << "\n";
-  }
-  if(use_zlo_sponge_damping){
-    std::cout << "zlo sponge end is " << zlo_sponge_end << "\n";
-  }
-  if(use_zhi_sponge_damping){
-    std::cout << "zhi sponge end is " << zhi_sponge_start << "\n";
-  }
-
-	exit(1);*/
+  if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
+  if(use_xhi_sponge_damping)AMREX_ALWAYS_ASSERT(xhi_sponge_start < ProbHiArr[0]);	 
+  if(use_ylo_sponge_damping)AMREX_ALWAYS_ASSERT(ylo_sponge_end   > ProbLoArr[1]);
+  if(use_yhi_sponge_damping)AMREX_ALWAYS_ASSERT(yhi_sponge_start < ProbHiArr[1]);	 
+  if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
+  if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);	 
 
   ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
-    Real x = ii * dx[0];
+    int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
+    int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
+
+    Real x = (ii+0.5) * dx[0];
+	Real y = (jj+0.5) * dx[1];
+    Real z = (kk+0.5) * dx[2];
 
     // x left sponge
 	if(use_xlo_sponge_damping){
     	if (x < xlo_sponge_end) {
       		Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
-      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - 1.2);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
     	}
 	}
     // x right sponge
 	if(use_xhi_sponge_damping){
     	if (x > xhi_sponge_start) {
       		Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
-      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - 1.2);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+    	}
+	}
+
+    // y left sponge
+	if(use_ylo_sponge_damping){
+    	if (y < ylo_sponge_end) {
+      		Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+    	}
+	}
+    // x right sponge
+	if(use_yhi_sponge_damping){
+    	if (y > yhi_sponge_start) {
+      		Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+    	}
+	}
+
+    // x left sponge
+	if(use_zlo_sponge_damping){
+    	if (z < zlo_sponge_end) {
+      		Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
+    	}
+	}
+    // x right sponge
+	if(use_zhi_sponge_damping){
+    	if (z > zhi_sponge_start) {
+      		Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
+      		cell_rhs(i, j, k, 0) -= sponge_strength * xi * xi * (cell_data(i, j, k, 0) - sponge_density);
     	}
 	}
   });
-
-
-
 
   amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
     int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
@@ -179,23 +197,21 @@ ApplySpongeZoneBCs(
     int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
     Real x = ii * dx[0];
-    Real y = jj * dx[1];
-    Real z = kk * dx[2];
+    Real y = (jj+0.5) * dx[1];
+    Real z = (kk+0.5) * dx[2];
 
-    Real xvel = 10.0;
-	
     // x lo sponge
     if(use_xlo_sponge_damping){
     	if (x < xlo_sponge_end) {
       		Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
     // x hi sponge
 	if(use_xhi_sponge_damping){
     	if (x > xhi_sponge_start) {
       		Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
 
@@ -203,14 +219,14 @@ ApplySpongeZoneBCs(
    if(use_ylo_sponge_damping){
     	if (y < ylo_sponge_end) {
       		Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
     // x right sponge
 	if(use_yhi_sponge_damping){
     	if (y > yhi_sponge_start) {
       		Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
 
@@ -218,7 +234,7 @@ ApplySpongeZoneBCs(
  	if(use_zlo_sponge_damping){
     	if (z < zlo_sponge_end) {
       		Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
 
@@ -227,7 +243,7 @@ ApplySpongeZoneBCs(
 	if(use_zhi_sponge_damping){
     	if (z > zhi_sponge_start) {
       		Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - 1.2 * xvel);
+      		rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - sponge_density*sponge_x_velocity);
     	}
 	}
   });
@@ -238,24 +254,22 @@ ApplySpongeZoneBCs(
     int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
     int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-    Real x = ii * dx[0];
+    Real x = (ii+0.5) * dx[0];
     Real y = jj * dx[1];
-    Real z = kk * dx[2];
+    Real z = (kk+0.5) * dx[2];
 
-    Real yvel = 0.0;
-	
     // x lo sponge
     if(use_xlo_sponge_damping){
     	if (x < xlo_sponge_end) {
       		Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
     // x hi sponge
 	if(use_xhi_sponge_damping){
     	if (x > xhi_sponge_start) {
       		Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
 
@@ -263,14 +277,14 @@ ApplySpongeZoneBCs(
    if(use_ylo_sponge_damping){
     	if (y < ylo_sponge_end) {
       		Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
     // x right sponge
 	if(use_yhi_sponge_damping){
     	if (y > yhi_sponge_start) {
       		Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
 
@@ -278,7 +292,7 @@ ApplySpongeZoneBCs(
  	if(use_zlo_sponge_damping){
     	if (z < zlo_sponge_end) {
       		Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
 
@@ -287,7 +301,7 @@ ApplySpongeZoneBCs(
 	if(use_zhi_sponge_damping){
     	if (z > zhi_sponge_start) {
       		Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - 1.2 * yvel);
+      		rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - sponge_density*sponge_y_velocity);
     	}
 	}
   });
@@ -297,24 +311,22 @@ ApplySpongeZoneBCs(
     int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
     int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-    Real x = ii * dx[0];
-    Real y = jj * dx[1];
+    Real x = (ii+0.5) * dx[0];
+    Real y = (jj+0.5) * dx[1];
     Real z = kk * dx[2];
-
-    Real zvel = 0.0;
 
     // x left sponge
 	if(use_xlo_sponge_damping){
     	if (x < xlo_sponge_end) {
       		Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
-      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
     	}
 	}
     // x right sponge
 	if(use_xhi_sponge_damping){
     	if (x > xhi_sponge_start) {
       		Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
-      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
     	}
 	}
 
@@ -322,14 +334,14 @@ ApplySpongeZoneBCs(
    if(use_ylo_sponge_damping){
         if (y < ylo_sponge_end) {
             Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
-            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
         }
     }
     // x right sponge
     if(use_yhi_sponge_damping){
         if (y > yhi_sponge_start) {
             Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
-            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
         }
     }
 
@@ -337,7 +349,7 @@ ApplySpongeZoneBCs(
     if(use_zlo_sponge_damping){
         if (z < zlo_sponge_end) {
             Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
-            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+            rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
         }
     }
 
@@ -346,11 +358,10 @@ ApplySpongeZoneBCs(
 	if(use_zhi_sponge_damping){
     	if (z > zhi_sponge_start) {
       		Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
-      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - 1.2 * zvel);
+      		rho_w_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_w(i, j, k) - sponge_density*sponge_z_velocity);
     	}
 	}
   });
-
 }
 
 void

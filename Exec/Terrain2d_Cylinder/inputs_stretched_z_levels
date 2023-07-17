@@ -33,11 +33,6 @@ erf.xhi_sponge_start = 26.0
 erf.use_zhi_sponge_damping = true
 erf.zhi_sponge_start = 8.0 
 
-erf.sponge_density = 1.2
-erf.sponge_x_velocity = 10.0
-erf.sponge_y_velocity = 0.0
-erf.sponge_z_velocity = 0.0
-
 # TIME STEP CONTROL
 erf.no_substepping     = 1
 #erf.fixed_dt           = 1E-5
