@@ -351,7 +351,7 @@ void erf_slow_rhs_post (int /*level*/,
                                                     bdy_data_ylo, bdy_data_yhi);
         } else if (moist_zero) {
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(domain, domain, width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
             int icomp;
