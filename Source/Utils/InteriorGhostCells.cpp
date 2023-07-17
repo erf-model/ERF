@@ -617,6 +617,10 @@ wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
 
     // Zero RHS in set region
     //==========================================================
+    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                  bx_xlo, bx_xhi,
+                                  bx_ylo, bx_yhi);
+
     zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
 
 
