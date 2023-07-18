@@ -346,12 +346,12 @@ init_custom_terrain (const Geometry& geom,
             // Location of nodes
             Real x = (ii  * dx[0] - xcen);
 
-			if(fabs(x)<a){
-				z_arr(i,j,k0) = pow(a*a - x*x, 0.5);
-			}
-			else{
-				z_arr(i,j,k0) = 0.0;
-			}
+            if(fabs(x)<a){
+                z_arr(i,j,k0) = pow(a*a - x*x, 0.5);
+            }
+            else{
+                z_arr(i,j,k0) = 0.0;
+            }
 
         });
     }
