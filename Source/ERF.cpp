@@ -43,12 +43,6 @@ std::string ERF::coupling_type = "OneWay";
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
 
-// Use the native ERF MRI integrator
-int         ERF::use_native_mri = 1;
-int         ERF::no_substepping = 0;
-int         ERF::force_stage1_single_substep = 1;
-int         ERF::incompressible = 0;
-
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
 amrex::Real ERF::sum_per       = -1.0;
@@ -788,17 +782,6 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
 
-        // Use the native ERF MRI integrator
-        pp.query("use_native_mri", use_native_mri);
-        pp.query("no_substepping", no_substepping);
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
-        pp.query("incompressible", incompressible);
-
-        // If this is set, it must be even
-        if (incompressible != 0 && no_substepping == 0)
-        {
-            amrex::Abort("If you specify incompressible, you must specific no_substepping");
-        }
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);

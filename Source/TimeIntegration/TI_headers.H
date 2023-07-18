@@ -88,9 +88,9 @@ void erf_slow_rhs_post (int level,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       std::unique_ptr<amrex::MultiFab>& mapfac_v
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                       const bool& moist_relax,
+                      ,const bool& moist_relax,
                        const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,
                        const amrex::Real& start_bdy_time,
@@ -100,9 +100,9 @@ void erf_slow_rhs_post (int level,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi
 #endif
-                       const int incompressible);
+                       );
 
 /**
  * Function for computing the fast RHS with no terrain

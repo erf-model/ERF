@@ -42,7 +42,6 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
- * @param[in] incompressible are we running the incompressible algorithm
  */
 
 void erf_slow_rhs_post (int /*level*/,
@@ -69,9 +68,9 @@ void erf_slow_rhs_post (int /*level*/,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v,
+                        std::unique_ptr<MultiFab>& mapfac_v
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                        const bool& moist_relax,
+                       ,const bool& moist_relax,
                         const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
@@ -81,9 +80,9 @@ void erf_slow_rhs_post (int /*level*/,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                        Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                        Vector<Vector<FArrayBox>>& bdy_data_yhi
 #endif
-                        int incompressible)
+                        )
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -216,7 +215,7 @@ void erf_slow_rhs_post (int /*level*/,
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
         //    we need to copy from S_data (projected) into S_scratch
-        if (incompressible) {
+        if (solverChoice.incompressible) {
             Box tbx_inc = mfi.nodaltilebox(0);
             Box tby_inc = mfi.nodaltilebox(1);
             Box tbz_inc = mfi.nodaltilebox(2);
