@@ -87,5 +87,3 @@ with the exact solution at two different horizontal and vertical locations are s
 
 .. image:: figures/Terrain2d_Cylinder.png
   :width: 600
-
-
