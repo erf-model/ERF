@@ -195,14 +195,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //                          initial idealized data
     // ********************************************************************************************
     if (init_type == "real") {
+
+        // If called from restart, the data structures for terrain-related quantities
+        //    are built in the ReadCheckpoint routine.  Otherwise we build them here.
         if (restart_chkfile.empty()) {
             init_only(lev, start_time);
+            update_terrain_arrays(lev, time);
         }
-        // Build the data structures for terrain-related quantities
-        update_terrain_arrays(lev, time);
+
     } else {
         // Build the data structures for terrain-related quantities
         update_terrain_arrays(lev, time);
+
+        // Initialize the solution data itself
         if (restart_chkfile.empty()) {
             init_only(lev, start_time);
         }
@@ -481,9 +486,9 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     }
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
-    mri_integrator_mem[lev]->setIncompressible(incompressible);
-    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
+    mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
+    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
+    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                      solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,

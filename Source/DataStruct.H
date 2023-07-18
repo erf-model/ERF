@@ -189,6 +189,18 @@ struct SolverChoice {
         rhoAlpha_T = rho0_trans * alpha_T;
         rhoAlpha_C = rho0_trans * alpha_C;
 
+        // Turn off acoustic substepping?
+        pp.query("no_substepping", no_substepping);
+
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+        pp.query("incompressible", incompressible);
+
+        // If this is set, it must be even
+        if (incompressible != 0 && no_substepping == 0)
+        {
+            amrex::Abort("If you specify incompressible, you must specific no_substepping");
+        }
+
         // Order of spatial discretization
         pp.query("horiz_spatial_order", horiz_spatial_order);
         pp.query("vert_spatial_order",   vert_spatial_order);
@@ -275,24 +287,27 @@ struct SolverChoice {
     void display()
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
-        amrex::Print() << "use_rayleigh_damping  : " << use_rayleigh_damping << std::endl;
-        amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
-        amrex::Print() << "rho0_trans            : " << rho0_trans << std::endl;
-        amrex::Print() << "alpha_T               : " << alpha_T << std::endl;
-        amrex::Print() << "alpha_C               : " << alpha_C << std::endl;
-        amrex::Print() << "dynamicViscosity      : " << dynamicViscosity << std::endl;
-        amrex::Print() << "Cs                    : " << Cs << std::endl;
-        amrex::Print() << "CI                    : " << CI << std::endl;
-        amrex::Print() << "Ce                    : " << Ce << std::endl;
-        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
-        amrex::Print() << "Ck                    : " << Ck << std::endl;
-        amrex::Print() << "reference theta       : " << theta_ref << std::endl;
-        amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
-        amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
-        amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
-        amrex::Print() << "horiz spatial_order   : " << horiz_spatial_order << std::endl;
-        amrex::Print() << "vert  spatial_order   : " << vert_spatial_order << std::endl;
+        amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
+        amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
+        amrex::Print() << "incompressible              : "  << incompressible << std::endl;
+        amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
+        amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
+        amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
+        amrex::Print() << "rho0_trans                  : " << rho0_trans << std::endl;
+        amrex::Print() << "alpha_T                     : " << alpha_T << std::endl;
+        amrex::Print() << "alpha_C                     : " << alpha_C << std::endl;
+        amrex::Print() << "dynamicViscosity            : " << dynamicViscosity << std::endl;
+        amrex::Print() << "Cs                          : " << Cs << std::endl;
+        amrex::Print() << "CI                          : " << CI << std::endl;
+        amrex::Print() << "Ce                          : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
+        amrex::Print() << "Ck                          : " << Ck << std::endl;
+        amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+        amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+        amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
+        amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
+        amrex::Print() << "horiz spatial_order         : " << horiz_spatial_order << std::endl;
+        amrex::Print() << "vert  spatial_order         : " << vert_spatial_order << std::endl;
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -363,6 +378,10 @@ struct SolverChoice {
 
     // Default prefix
     std::string pp_prefix {"erf"};
+
+    int         no_substepping              = 0;
+    int         force_stage1_single_substep = 1;
+    int         incompressible              = 0;
 
     bool        use_terrain            = false;
     bool        test_mapfactor         = false;
