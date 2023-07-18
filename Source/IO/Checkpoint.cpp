@@ -340,6 +340,7 @@ ERF::ReadCheckpointFile ()
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ngvect);
+           update_terrain_arrays(lev, t_new[lev]);
         }
 
         // Note that we read the ghost cells of the mapfactors

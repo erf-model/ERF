@@ -195,14 +195,19 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //                          initial idealized data
     // ********************************************************************************************
     if (init_type == "real") {
+
+        // If called from restart, the data structures for terrain-related quantities
+        //    are built in the ReadCheckpoint routine.  Otherwise we build them here.
         if (restart_chkfile.empty()) {
             init_only(lev, start_time);
+            update_terrain_arrays(lev, time);
         }
-        // Build the data structures for terrain-related quantities
-        update_terrain_arrays(lev, time);
+
     } else {
         // Build the data structures for terrain-related quantities
         update_terrain_arrays(lev, time);
+
+        // Initialize the solution data itself
         if (restart_chkfile.empty()) {
             init_only(lev, start_time);
         }
