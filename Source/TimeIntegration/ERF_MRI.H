@@ -210,50 +210,15 @@ public:
         /**********************************************/
         /* RK3 Integration with Acoustic Sub-stepping */
         /**********************************************/
-
-        // Start with S_new (aka S_stage) holding S_old
-    #ifdef _OPENMP
-    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
+        Vector<int> num_vars = {Cons::NumVars, 1, 1, 1};
+        for (int i(0); i<n_data; ++i)
         {
-            for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
-                const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
+            // Copy old -> new
+            MultiFab::Copy(S_new[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
 
-                Vector<Array4<Real> > sold_h(n_data);
-                Vector<Array4<Real> > snew_h(n_data);
-
-                for (int i = 0; i < n_data; ++i) {
-                    sold_h[i] = S_old[i].array(mfi);
-                    snew_h[i] = S_new[i].array(mfi);
-                }
-
-                Gpu::AsyncVector<Array4<Real> > sold_d(n_data);
-                Gpu::AsyncVector<Array4<Real> > snew_d(n_data);
-
-                Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
-                Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
-
-                Array4<Real>* sold = sold_d.dataPtr();
-                Array4<Real>* snew = snew_d.dataPtr();
-
-                ParallelFor(gbx, static_cast<int>(Cons::NumVars),
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                });
-
-                ParallelFor(gtbx, gtby, gtbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k);
-                });
+            // Copy old momentum -> scratch momentum
+            if (i>=1) {
+                MultiFab::Copy((*S_scratch)[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
             }
         }
 
@@ -262,40 +227,6 @@ public:
 
         // How many timesteps taken by the fast integrator
         int nsubsteps;
-
-        // We copy (rho theta) and the velocities here -- the velocities
-        //    will be over-written in slow_rhs on all valid faces but we
-        //    use this copy to fill in the ghost locations which will
-        //    be needed for metric terms
-    #ifdef _OPENMP
-    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
-        {
-            for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
-
-                const Array4<Real>& scrh_xmom = (*S_scratch)[IntVar::xmom].array(mfi);
-                const Array4<Real>& scrh_ymom = (*S_scratch)[IntVar::ymom].array(mfi);
-                const Array4<Real>& scrh_zmom = (*S_scratch)[IntVar::zmom].array(mfi);
-
-                const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
-                const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
-                const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
-
-                ParallelFor(gtbx, gtby, gtbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_xmom(i,j,k) = sold_xmom(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_ymom(i,j,k) = sold_ymom(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_zmom(i,j,k) = sold_zmom(i,j,k);
-                });
-            }
-        }
 
         // This is the final time of the full timestep (also the 3rd RK stage)
         // Real new_time = time + timestep;
