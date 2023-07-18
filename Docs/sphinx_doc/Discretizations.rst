@@ -177,7 +177,7 @@ Differencing of Different Orders
 
 Interpolation Methods
 ---------------------
-The midpoint values given above :math:`q_{m - \frac{1}{2}}`, where :math:`q` may be :math:`[\rho, u, v, w, \rho\theta]`, :math:`m = i, j, k`, :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively, the following interpolation schemes are available:
+The midpoint values given above :math:`q_{m - \frac{1}{2}}`, where :math:`q` may be :math:`[u, v, w, \theta, C]`, :math:`m = i, j, k`, :math:`U_d = [u, v, w]` for :math:`[x, y, z]` directions respectively, the following interpolation schemes are available:
 
 .. math::
 
