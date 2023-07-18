@@ -486,9 +486,9 @@ ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     }
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
-    mri_integrator_mem[lev]->setIncompressible(incompressible);
-    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
+    mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
+    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
+    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                      solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,

@@ -274,13 +274,13 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level] 
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                             ,moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi
 #endif
-                              incompressible);
+                              );
         } else {
             erf_slow_rhs_post(level, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
@@ -289,13 +289,13 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level] 
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                             ,moist_relax, moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi
 #endif
-                              incompressible);
+                              );
         }
     }; // end slow_rhs_fun_post
 

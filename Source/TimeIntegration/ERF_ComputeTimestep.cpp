@@ -64,6 +64,8 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                                &vars_new[level][Vars::yvel],
                                &vars_new[level][Vars::zvel]});
 
+  int l_no_substepping = solverChoice.no_substepping;
+
   Real estdt_comp_inv = amrex::ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
@@ -83,7 +85,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
 
                // If we are not doing the acoustic substepping, then the z-direction contributes
                //    to the computation of the time step
-               if (no_substepping) {
+               if (l_no_substepping) {
                    new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                             ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
                                             ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
@@ -154,7 +156,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   }
 
   // Force time step ratio to be an even value
-  if (force_stage1_single_substep) {
+  if (solverChoice.force_stage1_single_substep) {
       if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
   } else {
       if ( dt_fast_ratio%6 != 0) {
@@ -170,7 +172,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   if (fixed_dt > 0.0) {
     return fixed_dt;
   } else {
-    if (no_substepping) {
+    if (l_no_substepping) {
         return estdt_comp;
     } else {
         return estdt_lowM;
