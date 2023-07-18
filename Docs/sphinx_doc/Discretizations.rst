@@ -230,7 +230,7 @@ With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} =
    q_{m + \frac{1}{2}}^{(3)} = \frac{1}{3} q_{m} + \frac{5}{6} q_{m+1} - \frac{1}{6} q_{m+2}
    \end{array}
 
-By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may utilize the WENO scheme for all variables, with a specified order, via the following inputs:
+By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may utilize the WENO scheme for all scalar variables, with a specified order, via the following inputs:
 
 ::
 

@@ -27,8 +27,8 @@ using namespace amrex;
  * @param[in] mf_m map factor at cell centers
  * @param[in] mf_u map factor at x-faces
  * @param[in] mf_v map factor at y-faces
- * @param[in] horiz_spatial_order sets the spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order sets the spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order sets the spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order sets the spatial order to be used for vertical derivatives
  * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
  * @param[in] domhi_z maximum k value in the domain
  */

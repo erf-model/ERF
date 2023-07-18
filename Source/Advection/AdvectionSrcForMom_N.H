@@ -13,8 +13,8 @@
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -88,8 +88,8 @@ AdvectionSrcForXMom_N (int i, int j, int k,
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -162,8 +162,8 @@ AdvectionSrcForYMom_N (int i, int j, int k,
  * @param[in] mf_m map factor on cell centers
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  * @param[in] domhi_z maximum k value in the domain
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>

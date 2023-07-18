@@ -4,7 +4,7 @@
 
 /**
  * Function for computing the advective tendency for the x-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of x-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -16,8 +16,8 @@
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -98,7 +98,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the y-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of y-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -110,8 +110,8 @@ AdvectionSrcForXMom_T (int i, int j, int k,
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -191,7 +191,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the z-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of z-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -204,8 +204,8 @@ AdvectionSrcForYMom_T (int i, int j, int k,
  * @param[in] mf_m map factor on cell centers
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives
+ * @param[in] vert_spatial_order spatial order to be used for vertical derivatives
  * @param[in] domhi_z maximum k value in the domain
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
