@@ -100,7 +100,7 @@ void erf_slow_rhs_post (int level,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi 
+                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi
 #endif
                        );
 

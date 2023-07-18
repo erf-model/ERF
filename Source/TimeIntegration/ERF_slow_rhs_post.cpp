@@ -68,7 +68,7 @@ void erf_slow_rhs_post (int /*level*/,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v 
+                        std::unique_ptr<MultiFab>& mapfac_v
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
                        ,const bool& moist_relax,
                         const bool& moist_zero,
@@ -80,7 +80,7 @@ void erf_slow_rhs_post (int /*level*/,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                        Vector<Vector<FArrayBox>>& bdy_data_yhi 
+                        Vector<Vector<FArrayBox>>& bdy_data_yhi
 #endif
                         )
 {
