@@ -81,9 +81,19 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 
-               new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                        ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                        ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
+               // If we are not doing the acoustic substepping, then the z-direction contributes
+               //    to the computation of the time step
+               if (no_substepping) {
+                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                            ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
+
+               // If we are     doing the acoustic substepping, then the z-direction does not contribute
+               //    to the computation of the time step
+               } else {
+                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+               }
            });
            return new_comp_dt;
        });
@@ -119,6 +129,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
             amrex::Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
         }
     }
+
     if (fixed_dt > 0.0) {
         amrex::Print() << "Based on cfl of 1.0 " << std::endl;
         amrex::Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
