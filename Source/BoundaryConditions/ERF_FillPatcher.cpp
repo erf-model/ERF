@@ -81,12 +81,6 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
       delete m_cf_fine_data;    delete m_cf_fine_subset_data;
       delete m_cf_crse_data[0]; delete m_cf_crse_data[1];
     }
-    /*
-    m_cf_fine_data.reset();
-    m_cf_fine_subset_data.reset();
-    m_cf_crse_data[0].reset();
-    m_cf_crse_data[1].reset();
-    */
 
     // Index type for the BL/BA
     IndexType m_ixt = fba.ixType();
@@ -165,17 +159,6 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
     // Two coarse patches to hold the data to be interpolated
     m_cf_crse_data[0] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
     m_cf_crse_data[1] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
-    /*
-    // Fine patch to hold the time-interpolated state
-    m_cf_fine_data = std::make_unique<MultiFab>(gcf_fba, gcf_dm, m_ncomp, 0);
-
-    // Fine subset patch to hold the time-interpolated state
-    m_cf_fine_subset_data = std::make_unique<MultiFab>(cf_fba_s, gcf_dm, m_ncomp, 0);
-
-    // Two coarse patches to hold the data to be interpolated
-    m_cf_crse_data[0] = std::make_unique<MultiFab>(gcf_cba, gcf_dm, m_ncomp, 0);
-    m_cf_crse_data[1] = std::make_unique<MultiFab>(gcf_cba, gcf_dm, m_ncomp, 0);
-    */
 }
 
 

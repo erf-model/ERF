@@ -19,12 +19,6 @@ public:
         delete m_cf_fine_subset_data;
         delete m_cf_crse_data[0];
         delete m_cf_crse_data[1];
-      /*
-        m_cf_fine_data.reset();
-        m_cf_fine_subset_data.reset();
-        m_cf_crse_data[0].reset();
-        m_cf_crse_data[1].reset();
-      */
     }
 
     void Define (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
@@ -56,11 +50,6 @@ private:
     amrex::Vector<amrex::MultiFab*> m_cf_crse_data;
     amrex::MultiFab* m_cf_fine_data;
     amrex::MultiFab* m_cf_fine_subset_data;
-  /*
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_cf_crse_data;
-    std::unique_ptr<amrex::MultiFab> m_cf_fine_data;
-    std::unique_ptr<amrex::MultiFab> m_cf_fine_subset_data;
-  */
     amrex::Vector<amrex::Real> m_crse_times;
     amrex::Real m_dt_crse;
 };
