@@ -273,3 +273,22 @@ void erf_slow_rhs_inc (int level, int nrk,
                       const amrex::Real* dptr_rayleigh_wbar,
                       const amrex::Real* dptr_rayleigh_thetabar);
 #endif
+void
+ApplySpongeZoneBCs(
+  const SolverChoice& solverChoice,
+  const amrex::Geometry geom,
+  const amrex::Box& tbx,
+  const amrex::Box& tby,
+  const amrex::Box& tbz,
+  const amrex::Array4<amrex::Real>& rho_u_rhs,
+  const amrex::Array4<amrex::Real>& rho_v_rhs,
+  const amrex::Array4<amrex::Real>& rho_w_rhs,
+  const amrex::Array4<const amrex::Real>& rho_u,
+  const amrex::Array4<const amrex::Real>& rho_v,
+  const amrex::Array4<const amrex::Real>& rho_w,
+  const amrex::Box& bx,
+  const amrex::Array4<amrex::Real>& cell_rhs,
+  const amrex::Array4<const amrex::Real>& cell_data);
+
+
+
