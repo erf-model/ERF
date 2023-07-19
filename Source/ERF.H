@@ -306,7 +306,11 @@ private:
 
     void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
 
-    void Define_ERFFillPatchers ();
+    void Construct_ERFFillPatchers (int lev);
+
+    void Define_ERFFillPatchers (int lev);
+
+    void Register_ERFFillPatchers (int lev);
 
     void init1DArrays ();
 
@@ -508,6 +512,8 @@ private:
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries
+    int cf_width{0};
+    int cf_set_width{0};
     amrex::Vector<ERFFillPatcher> FPr_c;
     amrex::Vector<ERFFillPatcher> FPr_u;
     amrex::Vector<ERFFillPatcher> FPr_v;

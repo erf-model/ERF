@@ -23,23 +23,70 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
                                 int nghost, int nghost_subset,
                                 int ncomp, InterpBase* interp)
     : m_fba(fba),
-      m_cba(std::move(cba)),
-      m_fdm(std::move(fdm)),
-      m_cdm(std::move(cdm)),
+      m_cba(cba),
+      m_fdm(fdm),
+      m_cdm(cdm),
       m_fgeom(fgeom),
-      m_cgeom(cgeom),
-      m_nghost(nghost),
-      m_nghost_subset(nghost_subset),
-      m_ncomp(ncomp),
-      m_interp(interp)
+      m_cgeom(cgeom)
 {
-    AMREX_ALWAYS_ASSERT(nghost < 0);
-    AMREX_ALWAYS_ASSERT(nghost_subset < 0);
-    AMREX_ALWAYS_ASSERT(nghost < nghost_subset);
     AMREX_ALWAYS_ASSERT(fba.ixType() == cba.ixType());
 
     // Vector to hold times for coarse data
     m_crse_times.resize(2);
+    m_cf_crse_data.resize(2);
+
+    // Init MF patches
+    m_cf_fine_data = nullptr;    m_cf_fine_subset_data = nullptr;
+    m_cf_crse_data[0] = nullptr; m_cf_crse_data[1] = nullptr;
+
+    // Define the coarse and fine MFs
+    Define(fba, fdm, fgeom, cba, cdm, cgeom,
+           nghost, nghost_subset, ncomp, interp);
+}
+
+
+/*
+ * Redefine the coarse and fine patch MultiFabs.
+ *
+ * @param[in] fba    BoxArray of data to be filled at fine level
+ * @param[in] fdm    DistributionMapping of data to be filled at fine level
+ * @param[in] fgeom  container of geometry infomation at fine level
+ * @param[in] cba    BoxArray of data to be filled at coarse level
+ * @param[in] cdm    DistributionMapping of data to be filled at coarse level
+ * @param[in] cgeom  container of geometry infomation at coarse level
+ * @param[in] nghost number of ghost cells to be filled
+ * @param[in] ncomp  number of components to be filled
+ * @param[in] interp interpolation operator to be used
+ */
+void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
+                             Geometry const& fgeom,
+                             BoxArray  cba, DistributionMapping  cdm,
+                             Geometry const& cgeom,
+                             int nghost, int nghost_subset,
+                             int ncomp, InterpBase* interp)
+{
+    AMREX_ALWAYS_ASSERT(nghost < 0);
+    AMREX_ALWAYS_ASSERT(nghost_subset <= 0);
+    AMREX_ALWAYS_ASSERT(nghost <= nghost_subset);
+
+    // Set data memebers
+    m_fba = fba; m_cba = cba;
+    m_fdm = fdm; m_cdm = cdm;
+    m_fgeom = fgeom; m_cgeom = cgeom;
+    m_nghost = nghost; m_nghost_subset = nghost_subset;
+    m_ncomp  = ncomp;  m_interp = interp;
+
+    // Delete old MFs if they exist
+    if (m_cf_fine_data) {
+      delete m_cf_fine_data;    delete m_cf_fine_subset_data;
+      delete m_cf_crse_data[0]; delete m_cf_crse_data[1];
+    }
+    /*
+    m_cf_fine_data.reset();
+    m_cf_fine_subset_data.reset();
+    m_cf_crse_data[0].reset();
+    m_cf_crse_data[1].reset();
+    */
 
     // Index type for the BL/BA
     IndexType m_ixt = fba.ixType();
@@ -108,16 +155,27 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
     DistributionMapping gcf_dm(gcf_fba);
     DistributionMapping cf_dm_s(cf_fba_s);
 
+
     // Fine patch to hold the time-interpolated state
-    m_cf_fine_data.define(gcf_fba, gcf_dm, m_ncomp, 0);
+    m_cf_fine_data = new MultiFab (gcf_fba, gcf_dm, m_ncomp, 0);
 
     // Fine subset patch to hold the time-interpolated state
-    //m_cf_fine_subset_data.define(cf_fba_s, cf_dm_s, m_ncomp, 0);
-    m_cf_fine_subset_data.define(cf_fba_s, gcf_dm, m_ncomp, 0);
+    m_cf_fine_subset_data = new MultiFab (cf_fba_s, gcf_dm, m_ncomp, 0);
 
     // Two coarse patches to hold the data to be interpolated
-    m_cf_crse_data.emplace_back(gcf_cba, gcf_dm, m_ncomp, 0);
-    m_cf_crse_data.emplace_back(gcf_cba, gcf_dm, m_ncomp, 0);
+    m_cf_crse_data[0] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
+    m_cf_crse_data[1] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
+    /*
+    // Fine patch to hold the time-interpolated state
+    m_cf_fine_data = std::make_unique<MultiFab>(gcf_fba, gcf_dm, m_ncomp, 0);
+
+    // Fine subset patch to hold the time-interpolated state
+    m_cf_fine_subset_data = std::make_unique<MultiFab>(cf_fba_s, gcf_dm, m_ncomp, 0);
+
+    // Two coarse patches to hold the data to be interpolated
+    m_cf_crse_data[0] = std::make_unique<MultiFab>(gcf_cba, gcf_dm, m_ncomp, 0);
+    m_cf_crse_data[1] = std::make_unique<MultiFab>(gcf_cba, gcf_dm, m_ncomp, 0);
+    */
 }
 
 
@@ -139,10 +197,10 @@ void ERFFillPatcher::registerCoarseData (Vector<MultiFab const*> const& crse_dat
     //       m_cf_crse_data into ghost cells in the z-dir. So we need
     //       to include ghost cells for crse_data when doing the copy
     IntVect src_ng = crse_data[0]->nGrowVect();
-    IntVect dst_ng = m_cf_crse_data[0].nGrowVect();
-    m_cf_crse_data[0].ParallelCopy(*crse_data[0], 0, 0, m_ncomp,
+    IntVect dst_ng = m_cf_crse_data[0]->nGrowVect();
+    m_cf_crse_data[0]->ParallelCopy(*crse_data[0], 0, 0, m_ncomp,
                                    src_ng, dst_ng, m_cgeom.periodicity()); // old data
-    m_cf_crse_data[1].ParallelCopy(*crse_data[1], 0, 0, m_ncomp,
+    m_cf_crse_data[1]->ParallelCopy(*crse_data[1], 0, 0, m_ncomp,
                                    src_ng, dst_ng, m_cgeom.periodicity()); // new data
 
     m_crse_times[0] = crse_time[0]; // time of "old" coarse data

@@ -1,0 +1,27 @@
+Host Name: ghidorah
+=== If no file names and line numbers are shown below, one can run
+            addr2line -Cpfie my_exefile my_line_address
+    to convert `my_line_address` (e.g., 0x4a6b) into file name and line number.
+    Or one can use amrex/Tools/Backtrace/parse_bt.py.
+
+=== Please note that the line number reported by addr2line may not be accurate.
+    One can use
+            readelf -wl my_exefile | grep my_line_address'
+    to find out the offset for that line.
+
+ 0: ./ERF3d.gnu.DEBUG.MPI.ex(+0xb21e66) [0x55d0280e9e66]
+    amrex::BLBackTrace::print_backtrace_info(_IO_FILE*) at /home/amlattanzi/git/amrex/Src/Base/AMReX_BLBackTrace.cpp:186
+
+ 1: ./ERF3d.gnu.DEBUG.MPI.ex(+0xb2194b) [0x55d0280e994b]
+    amrex::BLBackTrace::handler(int) at /home/amlattanzi/git/amrex/Src/Base/AMReX_BLBackTrace.cpp:96
+
+ 2: /lib/x86_64-linux-gnu/libc.so.6(+0x43090) [0x7f6f56ed4090]
+
+ 3: ./ERF3d.gnu.DEBUG.MPI.ex(+0x725617) [0x55d027ced617]
+    decltype ({parm#1}(0, 0, 0)) amrex::detail::call_f<VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1}>(VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1} const&, int, int, int) at /home/amlattanzi/git/amrex/Src/Base/AMReX_GpuLaunchFunctsC.H:26
+
+ 4: ./ERF3d.gnu.DEBUG.MPI.ex(+0x724c87) [0x55d027cecc87]
+    void amrex::ParallelFor<VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1}>(amrex::Box const&, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1}&&) at /home/amlattanzi/git/amrex/Src/Base/AMReX_GpuLaunchFunctsC.H:167 (discriminator 2)
+
+ 5: ./ERF3d.gnu.DEBUG.MPI.ex(+0x724800) [0x55d027cec800]
+    void amrex::ParallelFor<VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1}, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#2}, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#3}>(amrex::Box const&, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#3}, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#3}, VelocityToMomentum(amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::IntVect const&, amrex::MultiFab const&, amrex::MultiFab&, amrex::MultiFab&, amrex::MultiFab&, bool)::{lambda(int, int, int)#1}&

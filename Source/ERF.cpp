@@ -502,8 +502,12 @@ ERF::InitData ()
 
     // NOTE: we must set up the FillPatcher object before calling
     //       WritePlotFile because WritePlotFile calls FillPatch
-    if (coupling_type=="OneWay") {
-        Define_ERFFillPatchers();
+    if (coupling_type=="OneWay" && cf_width>0) {
+        // Define FillPatcher objects
+        for (int lev = 1; lev <= finest_level; ++lev) {
+            Construct_ERFFillPatchers(lev);
+            Register_ERFFillPatchers(lev);
+        }
     }
 
     if (solverChoice.use_rayleigh_damping)
@@ -912,12 +916,20 @@ ERF::ReadParameters ()
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
 
-        // Query the set and total widths for interior ghost cells
+        // Query the set and total widths for wrfbdy interior ghost cells
         pp.query("wrfbdy_width", wrfbdy_width);
         pp.query("wrfbdy_set_width", wrfbdy_set_width);
         AMREX_ALWAYS_ASSERT(wrfbdy_width >= 0);
         AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
         AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
+
+        // Query the set and total widths for crse-fine interior ghost cells
+        pp.query("cf_width", cf_width);
+        pp.query("cf_set_width", cf_set_width);
+        AMREX_ALWAYS_ASSERT(cf_width >= 0);
+        AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+        amrex::Print() << "READ CF params: " << cf_width << ' ' << cf_set_width << "\n";
     }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1093,10 +1105,11 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 void
 ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
 {
-    int width = wrfbdy_set_width;
+
     Box domain(geom[lev].Domain());
     if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
     {
+        int width = wrfbdy_set_width;
         Box shrunk_domain(domain);
         shrunk_domain.grow(0,-width);
         shrunk_domain.grow(1,-width);
@@ -1105,6 +1118,7 @@ ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
         for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
         grids_to_evolve[lev].define(std::move(bl));
     } else if (lev == 1 && regrid_int < 0) {
+        int width = cf_set_width;
         Box shrunk_domain(boxes_at_level[lev][0]);
         shrunk_domain.grow(0,-width);
         shrunk_domain.grow(1,-width);
@@ -1115,6 +1129,7 @@ ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
 #if 0
         if (num_boxes_at_level[lev] > 1) {
             for (int i = 1; i < num_boxes_at_level[lev]; i++) {
+                int width = cf_set_width;
                 Box shrunk_domain(boxes_at_level[lev][i]);
                 shrunk_domain.grow(0,-width);
                 shrunk_domain.grow(1,-width);
@@ -1132,43 +1147,64 @@ ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
 }
 
 void
-ERF::Define_ERFFillPatchers ()
+ERF::Construct_ERFFillPatchers (int lev)
 {
-    if (finest_level==0) return;
+    auto& fine_new = vars_new[lev];
+    auto& crse_new = vars_new[lev-1];
+    auto& ba_fine  = fine_new[Vars::cons].boxArray();
+    auto& ba_crse  = crse_new[Vars::cons].boxArray();
+    auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
+    auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // Construct the FillPatcher Objects for level>0
-    for (int lev = 1; lev <= finest_level; ++lev) {
-        auto& fine_new = vars_new[lev];
-        auto& crse_new = vars_new[lev-1];
-        auto& ba_fine  = fine_new[Vars::cons].boxArray();
-        auto& ba_crse  = crse_new[Vars::cons].boxArray();
-        auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
-        auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
+    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
+                       ba_crse, dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 2, &cell_cons_interp);
+    FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+}
 
-        // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
-        FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
-                           ba_crse, dm_crse, geom[lev-1],
-                           -wrfbdy_width, -wrfbdy_set_width, 2, &cell_cons_interp);
-        FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
-                           convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                           -wrfbdy_width, -wrfbdy_set_width, 1, &face_linear_interp);
-        FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
-                           convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                           -wrfbdy_width, -wrfbdy_set_width, 1, &face_linear_interp);
-        FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
-                           convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                           -wrfbdy_width, -wrfbdy_set_width, 1, &face_linear_interp);
-    }
+void
+ERF::Define_ERFFillPatchers (int lev)
+{
+    auto& fine_new = vars_new[lev];
+    auto& crse_new = vars_new[lev-1];
+    auto& ba_fine  = fine_new[Vars::cons].boxArray();
+    auto& ba_crse  = crse_new[Vars::cons].boxArray();
+    auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
+    auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // Register the coarse data for each FPr object
-    for (int lev = 0; lev < finest_level; ++lev) {
-        auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
-        FPr_c[lev].registerCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev], t_new[lev]});
-        FPr_u[lev].registerCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev], t_new[lev]});
-        FPr_v[lev].registerCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev], t_new[lev]});
-        FPr_w[lev].registerCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev], t_new[lev]});
-    }
+    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
+                        ba_crse, dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 2, &cell_cons_interp);
+    FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_v[lev-1].Define(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+}
+
+void
+ERF::Register_ERFFillPatchers (int lev)
+{
+    auto& lev_new = vars_new[lev-1];
+    auto& lev_old = vars_old[lev-1];
+    FPr_c[lev-1].registerCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_u[lev-1].registerCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_v[lev-1].registerCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_w[lev-1].registerCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
 }
 
 #ifdef ERF_USE_MULTIBLOCK

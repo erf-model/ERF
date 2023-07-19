@@ -135,9 +135,9 @@ and face-baced normal momenta on the coarse-fine interface, the coarse data is c
 interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
 (outside of the valid fine region) as well as specify and relax data inside the lateral boundaries
 of the fine region. More specifically, a user may specify the total width of the interior
-Dirichlet and relaxation region with ``erf.wrfbdy_width = <Int>`` (yellow + blue)
+Dirichlet and relaxation region with ``erf.cf_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
-``erf.wrfbdy_set_width = <Int>`` (yellow).
+``erf.cf_set_width = <Int>`` (yellow).
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
@@ -169,7 +169,12 @@ the RHS (:math:`F`) is given by the following:
 
 where :math:`G` is the RHS of the NS equations, :math:`\psi^{\prime}` is the predicted update without
 relaxation, :math:`\psi^{FP}` is the fine patch data obtained from space-time interpolation of the
-coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary.
+coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary. Finally, we
+note that time dependent Dirichlet data, provided via an external file, may be enforced on the
+lateral boundary conditions of the domain (coarsest mesh). For such cases, the relaxation region width
+at the domain edges may be specified with ``erf.wrfbdy_width = <Int>`` (yellow + blue) while the
+interior Dirichlet region may be specified with ``erf.wrfbdy_set_width = <Int>`` (yellow).
+
 
 By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),
 the fine mesh communicates data back to the coarse mesh in two ways:
