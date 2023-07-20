@@ -402,18 +402,6 @@ struct SolverChoice {
     bool        rayleigh_damp_W        = true;
     bool        rayleigh_damp_T        = false;
 
-    bool    use_xlo_sponge_damping     = false;
-    bool    use_xhi_sponge_damping     = false;
-    bool    use_ylo_sponge_damping     = false;
-    bool    use_yhi_sponge_damping     = false;
-    bool    use_zlo_sponge_damping     = false;
-    bool    use_zhi_sponge_damping     = false;
-    amrex::Real sponge_strength;
-    amrex::Real xlo_sponge_end, xhi_sponge_start;
-    amrex::Real ylo_sponge_end, yhi_sponge_start;
-    amrex::Real zlo_sponge_end, zhi_sponge_start;
-    amrex::Real sponge_density, sponge_x_velocity, sponge_y_velocity, sponge_z_velocity;
-
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;
 
