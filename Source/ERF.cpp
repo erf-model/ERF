@@ -500,16 +500,6 @@ ERF::InitData ()
         m_most->update_fluxes(lev);
     }
 
-    // NOTE: we must set up the FillPatcher object before calling
-    //       WritePlotFile because WritePlotFile calls FillPatch
-    if (coupling_type=="OneWay" && cf_width>0) {
-        // Define FillPatcher objects
-        for (int lev = 1; lev <= finest_level; ++lev) {
-            Construct_ERFFillPatchers(lev);
-            Register_ERFFillPatchers(lev);
-        }
-    }
-
     if (solverChoice.use_rayleigh_damping)
     {
         initRayleigh();
@@ -566,6 +556,13 @@ ERF::InitData ()
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // NOTE: we must set up the FillPatcher object before calling
+        //       FillPatch at a fine level
+        if (coupling_type=="OneWay" && cf_width>0 && lev>0) {
+                Construct_ERFFillPatchers(lev);
+                Register_ERFFillPatchers(lev);
+        }
+
         auto& lev_new = vars_new[lev];
 
         FillPatch(lev, t_new[lev],
