@@ -26,6 +26,8 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
+#include <AMReX_TracerParticles.H>
+
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
@@ -55,6 +57,8 @@
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
 #endif
+
+typedef amrex::ParticleContainer<AMREX_SPACEDIM, 0, 0, 0> TracerPC;
 
 /**
  * Enum of possible coarse/fine interpolation options
@@ -287,6 +291,8 @@ public:
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time);
 #endif
+
+    std::unique_ptr<amrex::TracerParticleContainer> tracer_particles;
 
 private:
 
