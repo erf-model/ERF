@@ -1,4 +1,4 @@
-# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+p ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 20
 
 amrex.fpe_trap_invalid = 1
@@ -18,9 +18,12 @@ zhi.type = "SlipWall"
 erf.use_lowM_dt    = 1
 erf.cfl            = 0.5     # cfl number for hyperbolic system
 
-# TEST WENO SCHEMES
-erf.all_use_WENO = true
-erf.spatial_order_WENO = 5 # MUST BE 3 or 5
+erf.dycore_horiz_adv_type    = "Centered_2nd"
+erf.dycore_vert_adv_type     = "Centered_2nd"
+erf.dryscal_horiz_adv_type   = "WENO5"
+erf.dryscal_vert_adv_type    = "WENO5"
+erf.moistscal_horiz_adv_type = "WENO5"
+erf.moistscal_vert_adv_type  = "WENO5"
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass

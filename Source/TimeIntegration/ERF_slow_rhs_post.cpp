@@ -89,8 +89,11 @@ void erf_slow_rhs_post (int /*level*/,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
-    const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
+    const std::string  l_dry_horiz_adv_type   = solverChoice.dryscal_horiz_adv_type;
+    const std::string  l_dry_vert_adv_type    = solverChoice.dryscal_vert_adv_type;
+    const std::string  l_moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
+    const std::string  l_moist_vert_adv_type  = solverChoice.moistscal_vert_adv_type;
+
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
@@ -104,11 +107,6 @@ void erf_slow_rhs_post (int /*level*/,
     const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
                                     solverChoice.pbl_type == PBLType::MYNN25 );
-    const bool l_all_WENO       = solverChoice.all_use_WENO;
-    const bool l_moist_WENO     = solverChoice.moist_use_WENO;
-    const bool l_all_WENO_Z     = solverChoice.all_use_WENO_Z;
-    const bool l_moist_WENO_Z   = solverChoice.moist_use_WENO_Z;
-    const int  l_spatial_order_WENO = solverChoice.spatial_order_WENO;
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -241,27 +239,47 @@ void erf_slow_rhs_post (int /*level*/,
             start_comp = RhoKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr,
-                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
-                                   l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                                   solverChoice.dryscal_horiz_adv_type,
+                                   solverChoice.dryscal_vert_adv_type,
                                    l_use_terrain);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr,
-                                   dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
-                                   l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                                   solverChoice.dryscal_horiz_adv_type,
+                                   solverChoice.dryscal_vert_adv_type,
                                    l_use_terrain);
         }
+
+        // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
-          num_comp = S_data[IntVar::cons].nComp() - start_comp;
+          num_comp = 1;
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr,
-                               dxInv, mf_m, l_all_WENO, l_moist_WENO, l_all_WENO_Z, l_moist_WENO_Z,
-                               l_spatial_order_WENO,l_horiz_spatial_order, l_vert_spatial_order,
+                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               solverChoice.dryscal_horiz_adv_type,
+                               solverChoice.dryscal_vert_adv_type,
                                l_use_terrain);
+
+#ifdef ERF_USE_MOISTURE
+        start_comp = RhoQt_comp;
+          num_comp = 2;
+        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               solverChoice.moistscal_horiz_adv_type,
+                               solverChoice.moistscal_vert_adv_type,
+                               l_use_terrain);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        start_comp = RhoQv_comp;
+          num_comp = 2;
+        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               solverChoice.moistscal_horiz_adv_type,
+                               solverChoice.moistscal_vert_adv_type,
+                               l_use_terrain);
+#endif
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);

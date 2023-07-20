@@ -201,9 +201,83 @@ struct SolverChoice {
             amrex::Abort("If you specify incompressible, you must specific no_substepping");
         }
 
-        // Order of spatial discretization
-        pp.query("horiz_spatial_order", horiz_spatial_order);
-        pp.query("vert_spatial_order",   vert_spatial_order);
+        // Order and type of spatial discretizations used in advection
+        pp.query("dycore_horiz_adv_type", dycore_horiz_adv_type);
+        pp.query("dycore_vert_adv_type" , dycore_vert_adv_type);
+        pp.query("dryscal_horiz_adv_type", dryscal_horiz_adv_type);
+        pp.query("dryscal_vert_adv_type" , dryscal_vert_adv_type);
+        pp.query("moistscal_horiz_adv_type", moistscal_horiz_adv_type);
+        pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_type);
+
+        if ( (dycore_horiz_adv_type != "Centered_2nd") &&
+             (dycore_horiz_adv_type != "Upwind_3rd"  ) &&
+             (dycore_horiz_adv_type != "Centered_4th") &&
+             (dycore_horiz_adv_type != "Upwind_5th"  ) &&
+             (dycore_horiz_adv_type != "Centered_6th") )
+        {
+            amrex::Error("Don't know this dycore_horiz_adv_type");
+        }
+
+        if ( (dycore_vert_adv_type != "Centered_2nd") &&
+             (dycore_vert_adv_type != "Upwind_3rd"  ) &&
+             (dycore_vert_adv_type != "Centered_4th") &&
+             (dycore_vert_adv_type != "Upwind_5th"  ) &&
+             (dycore_vert_adv_type != "Centered_6th") )
+        {
+            amrex::Error("Don't know this dycore_vert_adv_type");
+        }
+
+        if ( (dryscal_horiz_adv_type != "Centered_2nd") &&
+             (dryscal_horiz_adv_type != "Upwind_3rd"  ) &&
+             (dryscal_horiz_adv_type != "Centered_4th") &&
+             (dryscal_horiz_adv_type != "Upwind_5th"  ) &&
+             (dryscal_horiz_adv_type != "Centered_6th") &&
+             (dryscal_horiz_adv_type != "WENO3"       ) &&
+             (dryscal_horiz_adv_type != "WENOZ3"      ) &&
+             (dryscal_horiz_adv_type != "WENOMQZ3"    ) &&
+             (dryscal_horiz_adv_type != "WENOZ5"      ) )
+        {
+            amrex::Error("Don't know this dryscal_horiz_adv_type");
+        }
+
+        if ( (dryscal_vert_adv_type != "Centered_2nd") &&
+             (dryscal_vert_adv_type != "Upwind_3rd"  ) &&
+             (dryscal_vert_adv_type != "Centered_4th") &&
+             (dryscal_vert_adv_type != "Upwind_5th"  ) &&
+             (dryscal_vert_adv_type != "Centered_6th") &&
+             (dryscal_vert_adv_type != "WENO3"       ) &&
+             (dryscal_vert_adv_type != "WENOZ3"      ) &&
+             (dryscal_vert_adv_type != "WENOMQZ3"    ) &&
+             (dryscal_vert_adv_type != "WENOZ5"      ) )
+        {
+            amrex::Error("Don't know this dryscal_vert_adv_type");
+        }
+
+        if ( (moistscal_horiz_adv_type != "Centered_2nd") &&
+             (moistscal_horiz_adv_type != "Upwind_3rd"  ) &&
+             (moistscal_horiz_adv_type != "Centered_4th") &&
+             (moistscal_horiz_adv_type != "Upwind_5th"  ) &&
+             (moistscal_horiz_adv_type != "Centered_6th") &&
+             (moistscal_horiz_adv_type != "WENO3"       ) &&
+             (moistscal_horiz_adv_type != "WENOZ3"      ) &&
+             (moistscal_horiz_adv_type != "WENOMQZ3"    ) &&
+             (moistscal_horiz_adv_type != "WENOZ5"      ) )
+        {
+            amrex::Error("Don't know this moistscal_horiz_adv_type");
+        }
+
+        if ( (moistscal_vert_adv_type != "Centered_2nd") &&
+             (moistscal_vert_adv_type != "Upwind_3rd"  ) &&
+             (moistscal_vert_adv_type != "Centered_4th") &&
+             (moistscal_vert_adv_type != "Upwind_5th"  ) &&
+             (moistscal_vert_adv_type != "Centered_6th") &&
+             (moistscal_vert_adv_type != "WENO3"       ) &&
+             (moistscal_vert_adv_type != "WENOZ3"      ) &&
+             (moistscal_vert_adv_type != "WENOMQZ3"    ) &&
+             (moistscal_vert_adv_type != "WENOZ5"      ) )
+        {
+            amrex::Error("Don't know this moistscal_vert_adv_type");
+        }
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
@@ -250,28 +324,7 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
-        if(!moist_use_WENO_Z) moist_use_WENO = true;
 #endif
-
-        // Use WENO for advection?
-        pp.query("all_use_WENO", all_use_WENO);
-        if (all_use_WENO || moist_use_WENO) {
-            pp.query("spatial_order_WENO", spatial_order_WENO);
-            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
-                                      "WENO advection only supports orders 3 & 5.");
-        }
-
-        // Use WENO-Z for advection?
-        pp.query("all_use_WENO_Z", all_use_WENO_Z);
-        if (all_use_WENO_Z || moist_use_WENO_Z) {
-            pp.query("spatial_order_WENO", spatial_order_WENO);
-            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
-                                      "WENO advection only supports orders 3 & 5.");
-            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
-                                      "WENO and WENO-Z cannot be specified together.");
-        }
-
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
@@ -306,8 +359,12 @@ struct SolverChoice {
         amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
         amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
         amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
-        amrex::Print() << "horiz spatial_order         : " << horiz_spatial_order << std::endl;
-        amrex::Print() << "vert  spatial_order         : " << vert_spatial_order << std::endl;
+        amrex::Print() << "dycore_horiz_adv_type       : " << dycore_horiz_adv_type << std::endl;
+        amrex::Print() << "dycore_vert_adv_type        : " << dycore_vert_adv_type << std::endl;
+        amrex::Print() << "dryscal_horiz_adv_type      : " << dryscal_horiz_adv_type << std::endl;
+        amrex::Print() << "dryscal_vert_adv_type       : " << dryscal_vert_adv_type << std::endl;
+        amrex::Print() << "moistscal_horiz_adv_type    : " << moistscal_horiz_adv_type << std::endl;
+        amrex::Print() << "moistscal_vert_adv_type     : " << moistscal_vert_adv_type << std::endl;
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -476,15 +533,13 @@ struct SolverChoice {
     amrex::Real sinphi          = 0.0;
 
     // Spatial discretization
-    int   horiz_spatial_order = 2;
-    int    vert_spatial_order = 2;
-
-    // Positive definite advection scheme (3/5 order)
-    bool all_use_WENO{false};
-    bool moist_use_WENO{false};
-    bool all_use_WENO_Z{false};
-    bool moist_use_WENO_Z{false};
-    int  spatial_order_WENO{3};
+    // Order and type of spatial discretizations used in advection
+    std::string dycore_horiz_adv_type    = "Centered_2nd";
+    std::string dycore_vert_adv_type     = "Centered_2nd";
+    std::string dryscal_horiz_adv_type   = "Centered_2nd";
+    std::string dryscal_vert_adv_type    = "Centered_2nd";
+    std::string moistscal_horiz_adv_type = "WENO3";
+    std::string moistscal_vert_adv_type  = "WENO3";
 
     // Numerical diffusion
     bool use_NumDiff{false};

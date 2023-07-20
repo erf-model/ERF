@@ -41,9 +41,6 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
