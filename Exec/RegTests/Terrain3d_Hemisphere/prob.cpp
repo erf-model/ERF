@@ -355,12 +355,12 @@ init_custom_terrain (const Geometry& geom,
             // Populate terrain height
             z_arr(i,j,k0) = height;
 
-			if(std::pow(x*x + (y-0.0)*(y-0.0), 0.5) < 0.5){
-				z_arr(i,j,k0) = std::pow(0.5*0.5 - x*x - (y-0.0)*(y-0.0) , 0.5);
-			}
-			else{
-				z_arr(i,j,k0) = 0.0;
-			}
+            if(std::pow(x*x + (y-0.0)*(y-0.0), 0.5) < 0.5){
+                z_arr(i,j,k0) = std::pow(0.5*0.5 - x*x - (y-0.0)*(y-0.0) , 0.5);
+            }
+            else{
+                z_arr(i,j,k0) = 0.0;
+            }
 
         });
     }
