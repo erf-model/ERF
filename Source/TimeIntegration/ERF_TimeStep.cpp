@@ -34,6 +34,13 @@ ERF::timeStep (int lev, Real time, int iteration)
                 int old_finest = finest_level;
                 regrid(lev, time);
 
+                // NOTE: Def & Reg index lev backwards (so we add 1 here)
+                // Redefine & register the ERFFillpatcher objects
+                if (coupling_type=="OneWay" && cf_width>0) {
+                    Define_ERFFillPatchers(lev+1);
+                    Register_ERFFillPatchers(lev+1);
+                }
+
                 // mark that we have regridded this level already
                 for (int k = lev; k <= finest_level; ++k) {
                     last_regrid_step[k] = istep[k];
