@@ -18,7 +18,7 @@
 using namespace amrex;
 
 void
-ApplySpongeZoneBCs(
+ApplySpongeZoneBCs (
   const SolverChoice& solverChoice,
   const amrex::Geometry geom,
   const Box& tbx,
