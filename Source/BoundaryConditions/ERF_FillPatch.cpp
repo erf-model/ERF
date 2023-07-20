@@ -73,7 +73,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && coupling_type=="OneWay") {
+    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
@@ -227,7 +227,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && coupling_type=="OneWay") {
+    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
         FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
         FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
         FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
