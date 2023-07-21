@@ -348,12 +348,12 @@ init_custom_terrain (const Geometry& geom,
             Real x = (ii  * dx[0] - xcen);
             Real y = (jj  * dx[1] - ycen);
 
-			if(std::pow(x*x + y*y, 0.5) < a){
-				z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
-			}
-			else{
-				z_arr(i,j,k0) = 0.0;
-			}
+            if(std::pow(x*x + y*y, 0.5) < a){
+                z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
+            }
+            else{
+                z_arr(i,j,k0) = 0.0;
+            }
 
         });
     }

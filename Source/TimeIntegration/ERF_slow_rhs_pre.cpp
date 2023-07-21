@@ -1057,8 +1057,8 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
         });
         } // no terrain
-		 ApplySpongeZoneBCs(solverChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
-        					rho_w, bx, cell_rhs, cell_data);
+         ApplySpongeZoneBCs(solverChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
+                            rho_w, bx, cell_rhs, cell_data);
         } // end profile
     } // mfi
 
