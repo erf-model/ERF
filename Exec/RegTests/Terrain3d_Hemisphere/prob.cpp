@@ -347,16 +347,9 @@ init_custom_terrain (const Geometry& geom,
             // Location of nodes
             Real x = (ii  * dx[0] - xcen);
             Real y = (jj  * dx[1] - ycen);
-            // Real y = (jj  * dx[1] - ycen);
 
-            // WoA Hill in x-direction
-            Real height = num / (x*x + 4 * a * a);
-
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-
-			if(std::pow(x*x + (y-0.0)*(y-0.0), 0.5) < 0.5){
-				z_arr(i,j,k0) = std::pow(0.5*0.5 - x*x - (y-0.0)*(y-0.0) , 0.5);
+			if(std::pow(x*x + y*y, 0.5) < a){
+				z_arr(i,j,k0) = std::pow(a*a - x*x - y*y , 0.5);
 			}
 			else{
 				z_arr(i,j,k0) = 0.0;
