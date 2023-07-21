@@ -135,11 +135,5 @@ with the exact solution at two different horizontal locations are shown below.
 
 .. _`exact solution`: https://farside.ph.utexas.edu/teaching/336L/Fluidhtml/node102.html
 
-.. image:: figures/Terrain3d_Hemisphere_Schematic.png
+.. image:: figures/Terrain3d_Hemisphere.png
   :width: 600
-
-.. image:: figures/Terrain3d_Hemisphere_Comparison.png
-  :width: 600
-
-
-
