@@ -371,15 +371,15 @@ ERF provides the capability to apply sponge zones at the boundaries to prevent s
 where RHS are the other right-hand side terms. The parameters to be set by the user are - `A` is the sponge amplitude, `n` is the sponge strength and the `Q_\mathrm{target}` - the target solution in the sponge. `\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder``.
 
 ::
-	erf.sponge_strength = 10000.0
-	erf.use_xlo_sponge_damping = true
-	erf.xlo_sponge_end = 4.0
-	erf.use_xhi_sponge_damping = true
-	erf.xhi_sponge_start = 26.0
-	erf.use_zhi_sponge_damping = true
-	erf.zhi_sponge_start = 8.0
+    erf.sponge_strength = 10000.0
+    erf.use_xlo_sponge_damping = true
+    erf.xlo_sponge_end = 4.0
+    erf.use_xhi_sponge_damping = true
+    erf.xhi_sponge_start = 26.0
+    erf.use_zhi_sponge_damping = true
+    erf.zhi_sponge_start = 8.0
 
-	erf.sponge_density = 1.2
-	erf.sponge_x_velocity = 10.0
-	erf.sponge_y_velocity = 0.0
-	erf.sponge_z_velocity = 0.0
+    erf.sponge_density = 1.2
+    erf.sponge_x_velocity = 10.0
+    erf.sponge_y_velocity = 0.0
+    erf.sponge_z_velocity = 0.0
