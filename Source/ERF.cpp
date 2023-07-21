@@ -926,7 +926,6 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(cf_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
-        amrex::Print() << "READ CF params: " << cf_width << ' ' << cf_set_width << "\n";
     }
 
 #ifdef ERF_USE_MULTIBLOCK
