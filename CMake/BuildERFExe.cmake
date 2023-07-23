@@ -121,6 +121,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
