@@ -137,3 +137,4 @@ with the exact solution at two different horizontal locations are shown below.
 
 .. image:: figures/Terrain3d_Hemisphere.png
   :width: 600
+
