@@ -114,6 +114,10 @@ Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
+`Ekman Spiral Description`_
+
+.. _`Ekman Spiral Description`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
+
 
 has an `Exact solution`_
 
