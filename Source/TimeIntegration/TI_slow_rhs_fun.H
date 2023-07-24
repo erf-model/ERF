@@ -247,8 +247,11 @@
                                  const Real old_step_time,
                                  const Real old_stage_time,
                                  const Real new_stage_time,
-                                 const int /*nrk*/)
+                                 const int nrk)
     {
+#if (!defined(ERF_USE_MOISTURE) && !defined(ERF_USE_WARM_NO_PRECIP))
+        amrex::ignore_unused(nrk);
+#endif
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;

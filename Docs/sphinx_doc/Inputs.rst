@@ -482,6 +482,52 @@ Examples of Usage
    | for example. If this line is commented out then it will not compute
      and print these quantities.
 
+Advection Schemes
+=================
+
+.. _list-of-parameters-11:
+
+List of Parameters
+------------------
+
++----------------------------------+--------------------+---------------------+--------------+
+| Parameter                        | Definition         | Acceptable          | Default      |
+|                                  |                    | Values              |              |
++==================================+====================+=====================+==============+
+| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dycore vars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dycore vars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.moistscal_horiz_adv_type** | Horizontal         | see below           | WENO3        |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.moistscal_vert_adv_type**  | Vertical           | see below           | WENO3        |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+
+The allowed advection types for the dycore variables are
+"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th" and "Centered_6th".
+
+The allowed advection types for the dry and moist scalars are
+"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th", "Centered_6th" and in addition,
+"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
+
+Note: if using WENO schemes, the horizontal and vertical advection types must be set to
+the same string.
 
 Diffusive Physics
 =================
@@ -525,30 +571,6 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Centered_2nd |
-|                                  | advection type     |                     |              |
-|                                  | for dycore vars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Centered_2nd |
-|                                  | advection type     |                     |              |
-|                                  | for dycore vars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Centered_2nd |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Centered_2nd |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.moistscal_horiz_adv_type** | Horizontal         | see below           | WENO3        |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
-| **erf.moistscal_vert_adv_type**  | Vertical           | see below           | WENO3        |
-|                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
-+----------------------------------+--------------------+---------------------+--------------+
 | **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
 |                                  | numerical diffusion| "False"             |              |
 |                                  |                    |                     |              |
@@ -557,16 +579,6 @@ List of Parameters
 |                                  | 6th order          | [0.0,  1.0]         |              |
 |                                  | numerical diffusion|                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-
-The allowed advection types for the dycore variables are
-"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th" and "Centered_6th".
-
-The allowed advection types for the dry and moist scalars are
-"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th", "Centered_6th" and in addition,
-"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
-
-Note: if using WENO schemes, the horizontal and vertical advection types must be set to
-the same string.
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
