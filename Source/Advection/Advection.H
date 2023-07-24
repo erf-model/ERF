@@ -27,12 +27,12 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& mf_m,
                                  const amrex::Array4<const amrex::Real>& mf_u,
                                  const amrex::Array4<const amrex::Real>& mf_v,
-                                 const int horiz_spatial_order, const int vert_spatial_order,
+                                 const int horiz_adv_type, const int vert_adv_type,
                                  const int use_terrain);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
 void AdvectionSrcForScalars (const amrex::Box& bx,
-                             const int &icomp, const int &ncomp,
+                             const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
                              const amrex::Array4<const amrex::Real>& avg_ymom,
                              const amrex::Array4<const amrex::Real>& avg_zmom,
@@ -41,12 +41,8 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const bool all_use_WENO,
-                             const bool moist_use_WENO,
-                             const bool all_use_WENO_Z,
-                             const bool moist_use_WENO_Z,
-                             const int  spatial_order_WENO,
-                             const int horiz_spatial_order, const int vert_spatial_order, const int use_terrain);
+                             const int horiz_adv_type, const int vert_adv_type,
+                             const int use_terrain);
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
@@ -61,7 +57,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const int horiz_spatial_order, const int vert_spatial_order,
+                         const int horiz_adv_type, const int vert_adv_type,
                          const int use_terrain, const int domhi_z);
 
 #endif

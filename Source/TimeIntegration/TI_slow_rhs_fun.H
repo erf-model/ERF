@@ -104,8 +104,8 @@
 
             // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
             //    discretize the vertical pressure gradient in perturbational form.
-            AMREX_ALWAYS_ASSERT(solverChoice.horiz_spatial_order == 2);
-            AMREX_ALWAYS_ASSERT(solverChoice.vert_spatial_order == 2);
+            AMREX_ALWAYS_ASSERT(solverChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             Real dt_base  = (new_stage_time - old_step_time);
 
@@ -247,7 +247,7 @@
                                  const Real old_step_time,
                                  const Real old_stage_time,
                                  const Real new_stage_time,
-                                 const int nrk)
+                                 const int /*nrk*/)
     {
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<

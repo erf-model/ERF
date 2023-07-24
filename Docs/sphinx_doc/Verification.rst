@@ -19,7 +19,7 @@ The simulation is run for one period, i.e. until time :math:`t=0.2`
 
 The first study, shown below on the left, tests the horizontal centered/upwind advection stencils for
 second through sixth order. The study on the right tests the WENO 3rd and 5th order stencils,
-with and without the ``smoothing'' contributions in the stencil.  In all of these cases,
+with and without the ``smoothing`` contributions in the stencil.  In all of these cases,
 the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates
 the temporal error.
 
@@ -114,24 +114,27 @@ Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
-has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
+has an `exact result`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
 slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
-with the exact solution at two different horizontal and vertical locations are shown below.
+with the exact solution at two different horizontal and vertical locations are shown below. This case runs
+without any diffusion.
 
-.. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
+.. _`exact result`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
 
 .. image:: figures/Terrain2d_Cylinder.png
   :width: 600
 
 Potential flow over a hemisphere
 ----------------------------------------
-The potential flow over a semi-cylinder problem tests the terrain feature in three dimensions and the
+The potential flow over a hemisphere problem tests the terrain feature in three dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
 has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
 slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
-with the exact solution at two different horizontal locations are shown below.
+with the exact solution at two different horizontal locations are shown below. A small amount of physical diffusion
+was added to keep the simulation stable in this case. Hence the wall velocities in the plot below do not match
+exactly to the inviscid solution. But away from the walls, excellent quantitative agreement is observed.
 
 .. _`exact solution`: https://farside.ph.utexas.edu/teaching/336L/Fluidhtml/node102.html
 

@@ -75,19 +75,19 @@ The following problems are currently tested in the CI:
 |                               |          |          |          | SlipWall   |       |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order2          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 2     |
+|                               |          |          |          | SlipWall   |       | "Centered_2nd"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order3          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 3     |
+|                               |          |          |          | SlipWall   |       | "Upwind_3rd"          |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order4          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
+|                               |          |          |          | SlipWall   |       | "Centered_4th"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order5          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
+|                               |          |          |          | SlipWall   |       | "Upwind_5th"          |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order6          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 6     |
+|                               |          |          |          | SlipWall   |       | "Centered_6th"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarDiffusionGaussian       | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                       |
 |                               |          |          |          | SlipWall   |       |                       |
