@@ -116,7 +116,7 @@ The potential flow over a semi-cylinder problem tests the terrain feature in two
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
 `Exact Spiral`_
 
-.. _`Ekman Spiral`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
+.. _`Exact Spiral`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
 
 
 has an `Exact solution`_
