@@ -80,6 +80,6 @@ erf.hi_scal2.value_greater = 10.
 
 amr.n_error_buf  = 4
 erf.regrid_int   = 2 
-erf.cf_width     = 4
-erf.cf_set_width = 1
+erf.cf_width     = 0 # Internal relaxation
+erf.cf_set_width = 0 # Internal Dirichlet
 
