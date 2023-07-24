@@ -114,9 +114,9 @@ Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which has an 
-`exact solution`_
+`exact solutin`_
 
-.. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
+.. _`exact solutin`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
 
 
 has an `Exact solution`_
