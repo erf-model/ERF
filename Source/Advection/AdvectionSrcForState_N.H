@@ -91,29 +91,29 @@ AdvectionSrcForRhoThetaVert_N(const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& mf_m,
                               const amrex::Array4<const amrex::Real>& mf_u,
                               const amrex::Array4<const amrex::Real>& mf_v,
-                              const std::string vert_adv_type)
+                              const int vert_adv_type)
 {
-    if (vert_adv_type == "Centered_2nd") {
+    if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED2>(bx, vbx_hi, fac, advectionSrc,
                                                                  cell_prim, rho_u, rho_v, rho_w,
                                                                  avg_xmom, avg_ymom, avg_zmom,
                                                                  cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_adv_type == "Upwind_3rd") {
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                                cell_prim, rho_u, rho_v, rho_w,
                                                                avg_xmom, avg_ymom, avg_zmom,
                                                                cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_adv_type == "Centered_4th") {
+    } else if (vert_adv_type == AdvType::Centered_4th) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED4>(bx, vbx_hi, fac, advectionSrc,
                                                                  cell_prim, rho_u, rho_v, rho_w,
                                                                  avg_xmom, avg_ymom, avg_zmom,
                                                                  cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_adv_type == "Upwind_5th") {
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                                cell_prim, rho_u, rho_v, rho_w,
                                                                avg_xmom, avg_ymom, avg_zmom,
                                                                cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_adv_type == "Centered_6th") {
+    } else if (vert_adv_type == AdvType::Centered_6th) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED6>(bx, vbx_hi, fac, advectionSrc,
                                                                  cell_prim, rho_u, rho_v, rho_w,
                                                                  avg_xmom, avg_ymom, avg_zmom,
@@ -129,9 +129,7 @@ AdvectionSrcForRhoThetaVert_N(const amrex::Box& bx,
 template<typename InterpType_H, typename InterpType_V>
 void
 AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
-                                const int& ncomp,
-                                const int& icomp,
-                                const int& use_terrain,
+                                const int& ncomp, const int& icomp, const int& use_terrain,
                                 const amrex::Array4<      amrex::Real>& advectionSrc,
                                 const amrex::Array4<const amrex::Real>& cell_prim,
                                 const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -180,9 +178,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
 template<typename InterpType_H>
 void
 AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
-                             const int& ncomp,
-                             const int& icomp,
-                             const int& use_terrain,
+                             const int& ncomp, const int& icomp, const int& use_terrain,
                              const amrex::Array4<      amrex::Real>& advectionSrc,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -191,29 +187,29 @@ AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const std::string vert_adv_type)
+                             const int vert_adv_type)
 {
-    if (vert_adv_type == "Centered_2nd") {
+    if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED2>(bx, ncomp, icomp,
                                                                 use_terrain, advectionSrc, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom, detJ,
                                                                 cellSizeInv, mf_m);
-    } else if (vert_adv_type == "Upwind_3rd") {
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_adv_type == "Centered_4th") {
+    } else if (vert_adv_type == AdvType::Centered_4th) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED4>(bx, ncomp, icomp,
                                                                 use_terrain, advectionSrc, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom, detJ,
                                                                 cellSizeInv, mf_m);
-    } else if (vert_adv_type == "Upwind_5th") {
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND5>(bx, ncomp, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_adv_type == "Centered_6th") {
+    } else if (vert_adv_type == AdvType::Centered_6th) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED6>(bx, ncomp, icomp,
                                                                 use_terrain, advectionSrc, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom, detJ,

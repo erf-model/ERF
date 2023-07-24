@@ -89,11 +89,6 @@ void erf_slow_rhs_post (int /*level*/,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const std::string  l_dry_horiz_adv_type   = solverChoice.dryscal_horiz_adv_type;
-    const std::string  l_dry_vert_adv_type    = solverChoice.dryscal_vert_adv_type;
-    const std::string  l_moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
-    const std::string  l_moist_vert_adv_type  = solverChoice.moistscal_vert_adv_type;
-
     const bool l_use_terrain    = solverChoice.use_terrain;
     const bool l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);

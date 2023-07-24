@@ -49,8 +49,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<const Real>& mf_m,
                             const Array4<const Real>& mf_u,
                             const Array4<const Real>& mf_v,
-                            const std::string horiz_adv_type,
-                            const std::string vert_adv_type,
+                            const int horiz_adv_type,
+                            const int vert_adv_type,
                             const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
@@ -61,7 +61,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
-        if (horiz_adv_type == "Centered_2nd" && vert_adv_type == "Centered_2nd")
+        if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -100,31 +100,31 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         // Template higher order methods
         } else {
-            if (horiz_adv_type == "Centered_2nd") {
+            if (horiz_adv_type == AdvType::Centered_2nd) {
                 AdvectionSrcForRhoThetaVert_N<CENTERED2>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
                                                          cellSizeInv, mf_m, mf_u, mf_v,
                                                          vert_adv_type);
-            } else if (horiz_adv_type == "Upwind_3rd") {
+            } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForRhoThetaVert_N<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                        cell_prim, rho_u, rho_v, Omega,
                                                        avg_xmom, avg_ymom, avg_zmom,
                                                        cellSizeInv, mf_m, mf_u, mf_v,
                                                        vert_adv_type);
-            } else if (horiz_adv_type == "Centered_4th") {
+            } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForRhoThetaVert_N<CENTERED4>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
                                                          cellSizeInv, mf_m, mf_u, mf_v,
                                                          vert_adv_type);
-            } else if (horiz_adv_type == "Upwind_5th") {
+            } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForRhoThetaVert_N<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                        cell_prim, rho_u, rho_v, Omega,
                                                        avg_xmom, avg_ymom, avg_zmom,
                                                        cellSizeInv, mf_m, mf_u, mf_v,
                                                        vert_adv_type);
-            } else if (horiz_adv_type == "Centered_6th") {
+            } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForRhoThetaVert_N<CENTERED6>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
@@ -137,7 +137,7 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
 
     } else {
         // Inline with 2nd order for efficiency
-        if (horiz_adv_type == "Centered_2nd" && vert_adv_type == "Centered_2nd")
+        if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -188,31 +188,31 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
             });
         // Template higher order methods (horizontal first)
         } else {
-            if (horiz_adv_type == "Centered_2nd") {
+            if (horiz_adv_type == AdvType::Centered_2nd) {
                 AdvectionSrcForRhoThetaVert_T<CENTERED2>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
                                                          z_nd, detJ, cellSizeInv, mf_m,
                                                          mf_u, mf_v, vert_adv_type);
-            } else if (horiz_adv_type == "Upwind_3rd") {
+            } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForRhoThetaVert_T<UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                        cell_prim, rho_u, rho_v, Omega,
                                                        avg_xmom, avg_ymom, avg_zmom,
                                                        z_nd, detJ, cellSizeInv, mf_m,
                                                        mf_u, mf_v, vert_adv_type);
-            } else if (horiz_adv_type == "Centered_4th") {
+            } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForRhoThetaVert_T<CENTERED4>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
                                                          z_nd, detJ, cellSizeInv, mf_m,
                                                          mf_u, mf_v, vert_adv_type);
-            } else if (horiz_adv_type == "Upwind_5th") {
+            } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForRhoThetaVert_T<UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                        cell_prim, rho_u, rho_v, Omega,
                                                        avg_xmom, avg_ymom, avg_zmom,
                                                        z_nd, detJ, cellSizeInv, mf_m,
                                                        mf_u, mf_v, vert_adv_type);
-            } else if (horiz_adv_type == "Centered_6th") {
+            } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForRhoThetaVert_T<CENTERED6>(bx, vbx_hi, fac, advectionSrc,
                                                          cell_prim, rho_u, rho_v, Omega,
                                                          avg_xmom, avg_ymom, avg_zmom,
@@ -256,18 +256,16 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& mf_m,
-                        const std::string horiz_adv_type,
-                        const std::string vert_adv_type,
+                        const int horiz_adv_type,
+                        const int vert_adv_type,
                         const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
     // Inline with 2nd order for efficiency
-    if (horiz_adv_type == "Centered_2nd" && vert_adv_type == "Centered_2nd")
+    if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
-        amrex::Print() << "DOING ICOMP " << icomp << std::endl;
-        amrex::Print() << "DOING NCOMP " << ncomp << std::endl;
         amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
@@ -290,53 +288,52 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
         });
     // Template higher order methods (horizontal first)
     } else {
-#if 0
-        if (horiz_adv_type == "Centered_2nd") {
+        if (horiz_adv_type == AdvType::Centered_2nd) {
             AdvectionSrcForScalarsVert_N<CENTERED2>(bx, ncomp, icomp,
                                                     use_terrain, advectionSrc, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
                                                     cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == "Upwind_3rd") {
+        } else if (horiz_adv_type == AdvType::Upwind_3rd) {
             AdvectionSrcForScalarsVert_N<UPWIND3>(bx, ncomp, icomp,
                                                   use_terrain, advectionSrc, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
                                                   cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == "Centered_4th") {
+        } else if (horiz_adv_type == AdvType::Centered_4th) {
             AdvectionSrcForScalarsVert_N<CENTERED4>(bx, ncomp, icomp,
                                                     use_terrain, advectionSrc, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
                                                     cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == "Upwind_5th") {
+        } else if (horiz_adv_type == AdvType::Upwind_5th) {
             AdvectionSrcForScalarsVert_N<UPWIND5>(bx, ncomp, icomp,
                                                   use_terrain, advectionSrc, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom, detJ,
                                                   cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == "Centered_6th") {
+        } else if (horiz_adv_type == AdvType::Centered_6th) {
             AdvectionSrcForScalarsVert_N<CENTERED6>(bx, ncomp, icomp,
                                                     use_terrain, advectionSrc, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
                                                     cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == "WENO3") {
+        } else if (horiz_adv_type == AdvType::WENO3) {
             AdvectionSrcForScalarsWrapper_N<WENO3,WENO3>(bx, ncomp, icomp,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (horiz_adv_type == "WENO5") {
+        } else if (horiz_adv_type == AdvType::WENO5) {
             AdvectionSrcForScalarsWrapper_N<WENO5,WENO5>(bx, ncomp, icomp,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (horiz_adv_type == "WENOZ3") {
+        } else if (horiz_adv_type == AdvType::WENO3Z) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z3,WENO_Z3>(bx, ncomp, icomp,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
                                                              cellSizeInv, mf_m);
-        } else if (horiz_adv_type == "WENOMZQ3") {
+        } else if (horiz_adv_type == AdvType::WENOMZQ3) {
             AdvectionSrcForScalarsWrapper_N<WENO_MZQ3,WENO_MZQ3>(bx, ncomp, icomp,
                                                                  use_terrain, advectionSrc, cell_prim,
                                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
                                                                  cellSizeInv, mf_m);
-        } else if (horiz_adv_type == "WENOZ5") {
+        } else if (horiz_adv_type == AdvType::WENO5Z) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z5,WENO_Z5>(bx, ncomp, icomp,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
@@ -344,6 +341,5 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
         } else {
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }
-#endif
     }
 }

@@ -164,7 +164,8 @@ enum struct ERF_BC {
 //     in amrex/Src/Base/AMReX_BC_TYPES.H.  We had extras at
 //     the end to use locally
 namespace ERFBCType {
-enum mathematicalBndryTypes : int { bogus        = -666,
+enum mathematicalBndryTypes : int {
+    bogus        = -666,
     reflect_odd  = -1,
     int_dir      =  0,
     reflect_even =  1,
@@ -185,4 +186,17 @@ namespace IntVar {
         NumVars
     };
 }
+
+enum AdvType : int {
+    Centered_2nd = 101,
+    Upwind_3rd   = 102,
+    Centered_4th = 103,
+    Upwind_5th   = 104,
+    Centered_6th = 105,
+    WENO3        = 106,
+    WENO3Z       = 107,
+    WENO5        = 108,
+    WENO5Z       = 109,
+    WENOMZQ3     = 110
+};
 #endif

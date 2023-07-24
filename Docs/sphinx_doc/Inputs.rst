@@ -565,6 +565,9 @@ The allowed advection types for the dry and moist scalars are
 "Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th", "Centered_6th" and in addition,
 "WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
 
+Note: if using WENO schemes, the horizontal and vertical advection types must be set to
+the same string.
+
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.
 

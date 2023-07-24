@@ -200,7 +200,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
  * @param[in] mf_m map factor on cell centers
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] vert_adv_type string that defines advection stencil
+ * @param[in] vert_adv_type int that defines advection stencil
  * @param[in] domhi_z maximum k value in the domain
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
@@ -221,7 +221,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       const std::string vert_adv_type,
+                       const int vert_adv_type,
                        const int domhi_z)
 {
     amrex::Real advectionSrc;
@@ -273,10 +273,10 @@ AdvectionSrcForZMom_T (int i, int j, int k,
         centFluxZZNext *=  w(i,j,k);
     } else {
         if (k == domhi_z) {
-            interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,"Centered_2nd");
+            interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,AdvType::Centered_2nd);
         } else if (k == domhi_z-1 || k == 1) {
-            if (vert_adv_type != "Centered_2nd" && vert_adv_type != "Upwind_3rd") {
-                interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,"Centered_4th");
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+                interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,AdvType::Centered_4th);
             } else {
                 interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,vert_adv_type);
             }
@@ -299,10 +299,10 @@ AdvectionSrcForZMom_T (int i, int j, int k,
         centFluxZZPrev *=  w(i,j,k);
     } else {
         if (k == 1) {
-            interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,"Centered_2nd");
+            interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,AdvType::Centered_2nd);
         } else if (k == 2 || k == domhi_z) {
-            if (vert_adv_type != "Centered_2nd" && vert_adv_type != "Upwind_3rd") {
-                interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,"Centered_4th");
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+                interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,AdvType::Centered_4th);
             } else {
                 interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,vert_adv_type);
             }
@@ -347,7 +347,7 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const std::string vert_adv_type,
+                            const int vert_adv_type,
                             const int domhi_z)
 {
     // Instantiate the appropriate structs
@@ -397,34 +397,33 @@ AdvectionSrcForMomVert_T(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const std::string vert_adv_type,
-                            const int domhi_z)
+                            const int vert_adv_type, const int domhi_z)
 {
-    if (vert_adv_type == "Centered_2nd") {
+    if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED2,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                       cellSizeInv, mf_m, mf_u, mf_v,
                                                                       vert_adv_type, domhi_z);
-    } else if (vert_adv_type == "Upwind_3rd") {
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND3,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
                                                                     vert_adv_type, domhi_z);
-    } else if (vert_adv_type == "Centered_4th") {
+    } else if (vert_adv_type == AdvType::Centered_4th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED4,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                       cellSizeInv, mf_m, mf_u, mf_v,
                                                                       vert_adv_type, domhi_z);
-    } else if (vert_adv_type == "Upwind_5th") {
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND5,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
                                                                     vert_adv_type, domhi_z);
-    } else if (vert_adv_type == "Centered_6th") {
+    } else if (vert_adv_type == AdvType::Centered_6th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED6,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
