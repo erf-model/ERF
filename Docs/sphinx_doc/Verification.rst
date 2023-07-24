@@ -113,7 +113,7 @@ The steady solution is shown below, as well as a log-log plot showing the error 
 Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
-effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
+effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which has an 
 `Exact Spiral`_
 
 .. _`Exact Spiral`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
