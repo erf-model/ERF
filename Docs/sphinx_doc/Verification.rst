@@ -133,7 +133,8 @@ has an `exact solution`_. The density is constant and the streamwise velocity is
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
 slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
 with the exact solution at two different horizontal locations are shown below. A small amount of physical diffusion 
-was added to keep the simulation stable in this case.
+was added to keep the simulation stable in this case. Hence the wall velocities in the plot below do not match 
+exactly to the inviscid solution. But away from the walls, excellent quantitative agreement is observed.
 
 .. _`exact solution`: https://farside.ph.utexas.edu/teaching/336L/Fluidhtml/node102.html
 
