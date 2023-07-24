@@ -114,9 +114,12 @@ Potential flow over a semi-cylinder
 ----------------------------------------
 The potential flow over a semi-cylinder problem tests the terrain feature in two dimensions and the
 effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which has an 
-`exact solution`_
+`exact spiral`_
 
-.. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
+.. _`exact spiral`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
+
+
+has an `Exact solution`_
 
 The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
