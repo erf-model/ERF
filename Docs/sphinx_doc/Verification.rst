@@ -132,8 +132,8 @@ effectiveness of sponge zones in preventing spurious reflections. This is a clas
 has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
 slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
-with the exact solution at two different horizontal locations are shown below. A small amount of diffusion 
-(dynamic viscosity `\mu=0.1 kg/ms`) was added to keep the simulation stable in this case.
+with the exact solution at two different horizontal locations are shown below. A small amount of physical diffusion 
+was added to keep the simulation stable in this case.
 
 .. _`exact solution`: https://farside.ph.utexas.edu/teaching/336L/Fluidhtml/node102.html
 
