@@ -19,7 +19,7 @@ The simulation is run for one period, i.e. until time :math:`t=0.2`
 
 The first study, shown below on the left, tests the horizontal centered/upwind advection stencils for
 second through sixth order. The study on the right tests the WENO 3rd and 5th order stencils,
-with and without the ``smoothing'' contributions in the stencil.  In all of these cases,
+with and without the ``smoothing`` contributions in the stencil.  In all of these cases,
 the time step was held fixed at :math:`\Delta t = 0.0000078125` to ensure that the spatial error dominates
 the temporal error.
 
@@ -117,10 +117,26 @@ effectiveness of sponge zones in preventing spurious reflections. This is a clas
 has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
 are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
 slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
-with the exact solution at two different horizontal and vertical locations are shown below.
+with the exact solution at two different horizontal and vertical locations are shown below. This simulation 
+did not use any diffusion.
 
 .. _`exact solution`: https://en.wikipedia.org/wiki/Potential_flow_around_a_circular_cylinder
 
 .. image:: figures/Terrain2d_Cylinder.png
+  :width: 600
+
+Potential flow over a hemisphere
+----------------------------------------
+The potential flow over a semi-cylinder problem tests the terrain feature in three dimensions and the
+effectiveness of sponge zones in preventing spurious reflections. This is a classic text book problem which
+has an `exact solution`_. The density is constant and the streamwise velocity is 10 m/s, and sponge zones
+are used on both the streamwise boundaries as well as the top boundary. The bottom wall is an inviscid,
+slip wall. The schematic of the computational domain and the comparison of the steady state velocity profiles
+with the exact solution at two different horizontal locations are shown below. Please note that a small amount of 
+diffusion (dynamic viscosity `mu=1`) was added in this case to keep the simulation stable. 
+
+.. _`exact solution`: https://farside.ph.utexas.edu/teaching/336L/Fluidhtml/node102.html
+
+.. image:: figures/Terrain3d_Hemisphere.png
   :width: 600
 

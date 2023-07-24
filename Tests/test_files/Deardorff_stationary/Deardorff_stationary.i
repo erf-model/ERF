@@ -48,7 +48,6 @@ erf.plot_int_1      = 10        # number of timesteps between plotfiles (DEBUG)
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rhoKE #pres_hse dens_hse
 
 # SOLVER CHOICES
-erf.spatial_order = 2
 erf.use_gravity = false
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
