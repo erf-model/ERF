@@ -742,29 +742,47 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells (const int& horiz_spatial_order,
-                       const int& vert_spatial_order,
-                       const bool& use_numerical_diff)
+    ComputeGhostCells (const SolverChoice& solverChoice)
     {
-      int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
-
-      int nGhostCells = 0;
-      if (use_numerical_diff) {
-          nGhostCells = 3;
-      } else {
-          switch (spatial_order) {
-          case 2: case 3: case 4:
-              nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
-              break;
-          case 5: case 6:
-              nGhostCells = 3;
-              break;
-          default:
-              amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
-          }
-      }
-
-      return nGhostCells;
+        if (solverChoice.use_NumDiff)
+        {
+            return 3;
+        } else {
+            if (
+                 (solverChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+              || (solverChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+#endif
+              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+              || (solverChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+            { return 3; }
+            else if (
+                 (solverChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+              || (solverChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+#endif
+              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+              || (solverChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+            { return 3; }
+            else if (
+                  (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
+               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
+#endif
+               || (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
+            { return 3; }
+            else
+            { return 2; }
+        }
     }
 
     AMREX_FORCE_INLINE

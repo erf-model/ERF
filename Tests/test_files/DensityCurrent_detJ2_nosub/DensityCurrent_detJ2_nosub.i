@@ -48,9 +48,6 @@ erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 erf.les_type         = "None"
 erf.molec_diff_type  = "ConstantAlpha"
 # diffusion = 75 m^2/s, rho_0 = 1e5/(287*300) = 1.1614401858

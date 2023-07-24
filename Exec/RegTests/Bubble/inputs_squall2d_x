@@ -37,7 +37,6 @@ erf.plot_int_1      = 10         # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse
 
 # SOLVER CHOICES
-erf.spatial_order = 2
 erf.use_gravity = true
 erf.use_coriolis = true
 erf.latitude = 40.0  # hard-coded in dyn_em/module_initialize_ideal.F
