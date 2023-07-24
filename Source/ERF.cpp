@@ -840,6 +840,15 @@ ERF::ReadParameters ()
             amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
         }
 
+        // No moving terrain with init real
+        if (init_type == "real") {
+            int terr_type(0);
+            pp.query("terrain_type",terr_type);
+            if (terr_type) {
+                amrex::Abort("Moving terrain is not supported with init real");
+            }
+        }
+
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
 
