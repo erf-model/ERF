@@ -193,10 +193,10 @@ enum AdvType : int {
     Centered_4th = 103,
     Upwind_5th   = 104,
     Centered_6th = 105,
-    WENO3        = 106,
-    WENO3Z       = 107,
-    WENO5        = 108,
-    WENO5Z       = 109,
-    WENOMZQ3     = 110
+    Weno_3        = 106,
+    Weno_3Z       = 107,
+    Weno_5        = 108,
+    Weno_5Z       = 109,
+    Weno_3MZQ     = 110
 };
 #endif

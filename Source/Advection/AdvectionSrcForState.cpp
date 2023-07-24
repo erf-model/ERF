@@ -313,27 +313,27 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                                                     use_terrain, advectionSrc, cell_prim,
                                                     avg_xmom, avg_ymom, avg_zmom, detJ,
                                                     cellSizeInv, mf_m, vert_adv_type);
-        } else if (horiz_adv_type == AdvType::WENO3) {
+        } else if (horiz_adv_type == AdvType::Weno_3) {
             AdvectionSrcForScalarsWrapper_N<WENO3,WENO3>(bx, ncomp, icomp,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (horiz_adv_type == AdvType::WENO5) {
+        } else if (horiz_adv_type == AdvType::Weno_5) {
             AdvectionSrcForScalarsWrapper_N<WENO5,WENO5>(bx, ncomp, icomp,
                                                          use_terrain, advectionSrc, cell_prim,
                                                          avg_xmom, avg_ymom, avg_zmom, detJ,
                                                          cellSizeInv, mf_m);
-        } else if (horiz_adv_type == AdvType::WENO3Z) {
+        } else if (horiz_adv_type == AdvType::Weno_3Z) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z3,WENO_Z3>(bx, ncomp, icomp,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
                                                              cellSizeInv, mf_m);
-        } else if (horiz_adv_type == AdvType::WENOMZQ3) {
+        } else if (horiz_adv_type == AdvType::Weno_3MZQ) {
             AdvectionSrcForScalarsWrapper_N<WENO_MZQ3,WENO_MZQ3>(bx, ncomp, icomp,
                                                                  use_terrain, advectionSrc, cell_prim,
                                                                  avg_xmom, avg_ymom, avg_zmom, detJ,
                                                                  cellSizeInv, mf_m);
-        } else if (horiz_adv_type == AdvType::WENO5Z) {
+        } else if (horiz_adv_type == AdvType::Weno_5Z) {
             AdvectionSrcForScalarsWrapper_N<WENO_Z5,WENO_Z5>(bx, ncomp, icomp,
                                                              use_terrain, advectionSrc, cell_prim,
                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
