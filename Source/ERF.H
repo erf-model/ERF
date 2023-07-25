@@ -740,6 +740,8 @@ private:
     //
     amrex::MultiFab fine_mask;
 
+    amrex::Real dz_min;
+
     static AMREX_FORCE_INLINE
     int
     ComputeGhostCells (const SolverChoice& solverChoice)

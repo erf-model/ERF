@@ -551,6 +551,12 @@ ERF::InitData ()
         MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,   1,lev_new[Vars::zvel].nGrowVect());
     }
 
+    // Compute the minimum dz in the domain (to be used for setting the timestep)
+    dz_min = geom[0].CellSize(2);
+    if ( solverChoice.use_terrain ) {
+        dz_min *= (*detJ_cc[0]).min(0);
+    }
+
     ComputeDt();
 
     // Fill ghost cells/faces
@@ -678,6 +684,7 @@ ERF::InitData ()
         }
 
     }
+
     BL_PROFILE_VAR_STOP(InitData);
 }
 
