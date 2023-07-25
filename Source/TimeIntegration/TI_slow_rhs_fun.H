@@ -205,7 +205,7 @@
         // Compute RHS for fine interior ghost
         if (level>0 && coupling_type=="OneWay" && cf_width>0 && nrk==0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
-                                            cf_width-1, cf_set_width,
+                                            cf_width-1, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);
