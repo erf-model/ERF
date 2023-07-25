@@ -225,7 +225,7 @@ struct SolverChoice {
             dycore_horiz_adv_type = adv_type_convert_string_to_int(dycore_horiz_adv_string);
             amrex::Print() << "Using dycore_horiz_adv_type: " << dycore_horiz_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default dycore_horiz_adv_type");
+            amrex::Print() << "Using default dycore_horiz_adv_type" << std::endl;;
         }
 
         if ( (dycore_vert_adv_string == "Centered_2nd") ||
@@ -237,7 +237,7 @@ struct SolverChoice {
             dycore_vert_adv_type = adv_type_convert_string_to_int(dycore_vert_adv_string);
             amrex::Print() << "Using dycore_vert_adv_type: " << dycore_vert_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default dycore_vert_adv_type");
+            amrex::Print() << "Using default dycore_vert_adv_type" << std::endl;;
         }
 
         if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
@@ -253,7 +253,7 @@ struct SolverChoice {
             dryscal_horiz_adv_type = adv_type_convert_string_to_int(dryscal_horiz_adv_string);
             amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default dryscal_horiz_adv_type");
+            amrex::Print() << "Using default dryscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (dryscal_vert_adv_string == "Centered_2nd") ||
@@ -269,7 +269,7 @@ struct SolverChoice {
             dryscal_vert_adv_type = adv_type_convert_string_to_int(dryscal_vert_adv_string);
             amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default dryscal_vert_adv_type");
+            amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
         }
 
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
@@ -286,7 +286,7 @@ struct SolverChoice {
             moistscal_horiz_adv_type = adv_type_convert_string_to_int(moistscal_horiz_adv_string);
             amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default moistscal_horiz_adv_type");
+            amrex::Print() << "Using default moistscal_horiz_adv_type" << std::endl;;
         }
 
         if ( (moistscal_vert_adv_string == "Centered_2nd") ||
@@ -302,7 +302,7 @@ struct SolverChoice {
             moistscal_vert_adv_type = adv_type_convert_string_to_int(moistscal_vert_adv_string);
             amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
         } else {
-            amrex::Warning("Using default moistscal_vert_adv_type");
+            amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
         }
 #endif
 
