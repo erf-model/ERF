@@ -26,7 +26,9 @@ AdvectionSrcForXMom_N (int i, int j, int k,
                        InterpType_V interp_u_v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u,
-                       const amrex::Array4<const amrex::Real>& mf_v)
+                       const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -99,7 +101,9 @@ AdvectionSrcForYMom_N (int i, int j, int k,
                        InterpType_V interp_v_v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u,
-                       const amrex::Array4<const amrex::Real>& mf_v)
+                       const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -178,7 +182,10 @@ AdvectionSrcForZMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv,
                        const AdvType vert_adv_type, const int domhi_z)
+
 {
 
     amrex::Real advectionSrc;
@@ -284,6 +291,8 @@ AdvectionSrcForMomWrapper_N(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_u_inv,
+                            const amrex::Array4<const amrex::Real>& mf_v_inv,
                             const AdvType vert_adv_type,
                             const int domhi_z)
 {
@@ -297,18 +306,18 @@ AdvectionSrcForMomWrapper_N(const amrex::Box& bxx, const amrex::Box& bxy, const 
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
-                                                    interp_u_h, interp_u_v, cellSizeInv, mf_u, mf_v);
+                                                    interp_u_h, interp_u_v, cellSizeInv, mf_u, mf_v, mf_u_inv, mf_v_inv);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w,
-                                                    interp_v_h, interp_v_v, cellSizeInv, mf_u, mf_v);
+                                                    interp_v_h, interp_v_v, cellSizeInv, mf_u, mf_v, mf_u_inv, mf_v_inv);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
-                                                    cellSizeInv, mf_m, mf_u, mf_v,
+                                                    cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                     vert_adv_type, domhi_z);
     });
 }
@@ -332,6 +341,8 @@ AdvectionSrcForMomVert_N(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
+                         const amrex::Array4<const amrex::Real>& mf_u_inv,
+                         const amrex::Array4<const amrex::Real>& mf_v_inv,
                          const AdvType vert_adv_type,
                          const int domhi_z)
 {
@@ -340,30 +351,35 @@ AdvectionSrcForMomVert_N(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND3,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Centered_4th) {
         AdvectionSrcForMomWrapper_N<InterpType_H,CENTERED4,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND5,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Centered_6th) {
         AdvectionSrcForMomWrapper_N<InterpType_H,CENTERED6,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");

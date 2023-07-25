@@ -61,9 +61,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
 // new updates for GPU opt July 2023
-    // compute mf_u and mf_v inverses
+    // compute mf_u and mf_v inverses beforehand
     // smallest 2D box containing bxx and bxy
-
     IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
     IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
     Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0);
@@ -71,6 +70,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     // now create mf_u_inv and mf_v_inv FABs/arrays
     FArrayBox mf_u_invFAB(box2d); FArrayBox mf_v_invFAB(box2d);
+    Elixir mf_u_inv_eli = mf_u_invFAB.elixir();
+    Elixir mf_v_inv_eli = mf_v_invFAB.elixir();
     const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
     const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
 
@@ -95,13 +96,6 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-/*
-                Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
-                Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
-                Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0);
-                Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_4   = 1. / mf_v(i-1,j  ,0);
-*/
-
                 Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i+1, j  , k) * mf_u_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k));
                 Real xflux_lo = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i-1, j  , k) * mf_u_inv(i-1,j,0)) * (u(i-1,j,k) + u(i,j,k));
 
@@ -120,13 +114,6 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-/*
-                Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0);
-                Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
-                Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0);
-                Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_4   = 1. / mf_u(i  ,j-1,0);
-*/
-
                 Real xflux_hi = 0.25 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j,0) + rho_u(i+1, j-1, k) * mf_u_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k));
                 Real xflux_lo = 0.25 * (rho_u(i  , j, k) * mf_u_inv(i  ,j,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0)) * (v(i-1,j,k) + v(i,j,k));
 
@@ -145,10 +132,6 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-/*
-                Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
-                Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
-*/
                 Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k));
                 Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0) * (w(i-1,j,k) + w(i,j,k));
 
@@ -174,30 +157,35 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m, mf_u, mf_v,
+                                                  mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_N<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m, mf_u, mf_v,
+                                                  mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_N<CENTERED4>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m, mf_u, mf_v,
+                                                  mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_N<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m, mf_u, mf_v,
+                                                  mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_N<CENTERED6>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m, mf_u, mf_v,
+                                                  mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
