@@ -2,7 +2,7 @@
  * RTE-RRTMGP radiation model interface to ERF
  * The orginal code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
- * For details of the radiation algorithm, please reference to the following paper, 
+ * For details of the radiation algorithm, please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
  *
  * NOTE: we use the C++ version of RTE-RRTMGP, which is reimplemented the original Fortran
@@ -10,7 +10,7 @@
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
  *
- * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes, 
+ * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes,
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 #ifndef ERF_RRTMGP_H
@@ -59,13 +59,13 @@ class Rrtmgp {
         double *allsky_bnd_flux_up_p, double *allsky_bnd_flux_dn_p, double *allsky_bnd_flux_net_p, double *allsky_bnd_flux_dn_dir_p,
         double *clrsky_flux_up_p    , double *clrsky_flux_dn_p    , double *clrsky_flux_net_p    , double *clrsky_flux_dn_dir_p,
         double *clrsky_bnd_flux_up_p, double *clrsky_bnd_flux_dn_p, double *clrsky_bnd_flux_net_p, double *clrsky_bnd_flux_dn_dir_p,
-        double tsi_scaling); 
+        double tsi_scaling);
 
     // run rrtmgp long wave model
     void run_longwave_rrtmgp (
         int ngas, int ncol, int nlay,
         double *gas_vmr_p           ,
-        double *pmid_p              , double *tmid_p              , double *pint_p               , 
+        double *pmid_p              , double *tmid_p              , double *pint_p               ,
         double *tint_p              , double *emis_sfc_p          ,
         double *cld_tau_gpt_p       , double *aer_tau_bnd_p       ,
         double *allsky_flux_up_p    , double *allsky_flux_dn_p    , double *allsky_flux_net_p    ,
@@ -116,7 +116,7 @@ class Rrtmgp {
    template<typename DType>
    void multifab_to_array();
 
-   template<typename DType>   
+   template<typename DType>
    void array_to_multifab();
 
    // number of gas for radiation model

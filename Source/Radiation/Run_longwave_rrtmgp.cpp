@@ -9,14 +9,14 @@
 
 void Rrtmgp::run_longwave_rrtmgp (
         int ngas, int ncol, int nlay,
-        double *gas_vmr_p           , 
+        double *gas_vmr_p           ,
         double *pmid_p              , double *tmid_p              , double *pint_p               , double *tint_p,
         double *emis_sfc_p          ,
         double *cld_tau_gpt_p       , double *aer_tau_bnd_p       ,
         double *allsky_flux_up_p    , double *allsky_flux_dn_p    , double *allsky_flux_net_p    ,
         double *allsky_bnd_flux_up_p, double *allsky_bnd_flux_dn_p, double *allsky_bnd_flux_net_p,
         double *clrsky_flux_up_p    , double *clrsky_flux_dn_p    , double *clrsky_flux_net_p    ,
-        double *clrsky_bnd_flux_up_p, double *clrsky_bnd_flux_dn_p, double *clrsky_bnd_flux_net_p) 
+        double *clrsky_bnd_flux_up_p, double *clrsky_bnd_flux_dn_p, double *clrsky_bnd_flux_net_p)
 {
     // Wrap pointers in YAKL arrays
     int nlwbands = k_dist_lw.get_nband();
