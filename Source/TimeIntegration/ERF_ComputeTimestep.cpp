@@ -54,6 +54,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   amrex::Real estdt_lowM = 1.e20;
 
   auto const dxinv = geom[level].InvCellSizeArray();
+  auto const dzinv = 1.0 / dz_min;
 
   MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -88,7 +89,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                if (l_no_substepping) {
                    new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
                                             ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                            ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
+                                            ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
 
                // If we are     doing the acoustic substepping, then the z-direction does not contribute
                //    to the computation of the time step
