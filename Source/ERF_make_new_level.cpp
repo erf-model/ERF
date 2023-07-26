@@ -451,6 +451,18 @@ ERF::update_terrain_arrays (int lev, Real time)
             init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
             init_terrain_grid(geom[lev],*z_phys_nd[lev]);
         }
+        if (lev>0 && (init_type == "real" || init_type == "metgrid")) {
+            PhysBCFunctNoOp empty_bc;
+            Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
+            Vector<Real> ftime    = {t_old[lev], t_new[lev]};
+            Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
+            Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
+
+            amrex::FillPatchTwoLevels(*z_phys_nd[lev], time, cmf, ctime, fmf, ftime,
+                                      0, 0, 1, geom[lev-1], geom[lev],
+                                      empty_bc, 0, empty_bc, 0, refRatio(lev-1),
+                                      &node_bilinear_interp, domain_bcs_type, 0);
+        }
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
