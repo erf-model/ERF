@@ -141,6 +141,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
+    Vector<int> ivar_map = {IntVar::xmom, IntVar::ymom, IntVar::cons, IntVar::cons};
 
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
@@ -293,9 +294,9 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::V; ivar++)
     {
-        int var_idx = var_map[ivar];
-        Box domain  = geom.Domain();
-        domain.convert(S_data[var_idx].boxArray().ixType());
+        int ivar_idx = ivar_map[ivar];
+        Box domain   = geom.Domain();
+        domain.convert(S_data[ivar_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
         // NOTE: 1 ghost cell needed for Laplacian
@@ -430,18 +431,21 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     //==========================================================
     for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
     {
-        int var_idx =  var_map[ivar];
-        int icomp   = comp_map[ivar];
+        int ivar_idx = ivar_map[ivar];
+        int icomp    = comp_map[ivar];
 
         Box domain = geom.Domain();
-        domain.convert(S_data[var_idx].boxArray().ixType());
+        domain.convert(S_data[ivar_idx].boxArray().ixType());
         const auto& dom_hi = ubound(domain);
         const auto& dom_lo = lbound(domain);
+
+        // For Laplacian stencil
+        S_rhs[ivar_idx].FillBoundary(geom.periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[var_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(S_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
             Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
@@ -484,158 +488,6 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
     } // ivar
 }
 
-
-/**
- * Compute the RHS in the relaxation zone for moisture
- *
- * @param[in] bdy_time_interval time interval between boundary condition time stamps
- * @param[in] time    current time
- * @param[in] delta_t timestep
- * @param[in] width   number of cells in (relaxation+specified) zone
- * @param[in] set_width number of cells in (specified) zone
- * @param[in] geom     container for geometric information
- * @param[out] S_rhs   RHS to be computed here
- * @param[in] S_data   current value of the solution
- * @param[in] bdy_data_xlo boundary data on interior of low x-face
- * @param[in] bdy_data_xhi boundary data on interior of high x-face
- * @param[in] bdy_data_ylo boundary data on interior of low y-face
- * @param[in] bdy_data_yhi boundary data on interior of high y-face
- * @param[in] start_bdy_time time of the first boundary data read in
- */
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-void
-wrfbdy_compute_moist_interior_ghost_RHS(Box tbx,
-                                        const Real& bdy_time_interval,
-                                        const Real& start_bdy_time,
-                                        const Real& time,
-                                        const Real& delta_t,
-                                        const int&  width,
-                                        const int&  set_width,
-                                        const Geometry& geom,
-                                        const Array4<Real>& rhs_arr,
-                                        const Array4<Real>& data_arr,
-                                        Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                                        Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                                        Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                        Vector<Vector<FArrayBox>>& bdy_data_yhi)
-{
-    BL_PROFILE_REGION("wrfbdy_compute_moist_interior_ghost_RHS()");
-
-    // Relaxation constants
-    Real F1 = 1./(10.*delta_t);
-    Real F2 = 1./(50.*delta_t);
-
-    // Time interpolation
-    Real dT = bdy_time_interval;
-    Real time_since_start = (time - start_bdy_time) / 1.e10;
-    int n_time = static_cast<int>( time_since_start / dT);
-    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
-    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    amrex::Real oma   = 1.0 - alpha;
-
-    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
-
-    int ivar = WRFBdyVars::QV;
-    int icomp;
-#if defined(ERF_USE_MOISTURE)
-    icomp = RhoQt_comp;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    icomp = RhoQv_comp;
-#endif
-
-    // Size the FABs
-    //==========================================================
-    Box domain  = geom.Domain();
-    const auto& dom_hi = ubound(domain);
-    const auto& dom_lo = lbound(domain);
-    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-    compute_interior_ghost_bxs_xy(domain, domain, width, 0,
-                                  bx_xlo, bx_xhi,
-                                  bx_ylo, bx_yhi);
-    Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
-    Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
-    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
-    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
-
-    // Populate FABs from boundary interpolation
-    //==========================================================
-    {
-    Array4<Real> arr_xlo = Q_xlo.array();  Array4<Real> arr_xhi = Q_xhi.array();
-    Array4<Real> arr_ylo = Q_ylo.array();  Array4<Real> arr_yhi = Q_yhi.array();
-
-    // Boundary data at fixed time intervals
-    const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-    const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-    const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-    const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-    const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-    const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-    const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-    const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
-
-    // Populate with interpolation (protect from ghost cells)
-    amrex::ParallelFor(bx_xlo, bx_xhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_lo.x+width-1);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
-        arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
-                       + alpha * bdatxlo_np1(ii,jj,k,0);
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        int ii = std::max(i , dom_hi.x-width+1);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_hi.y);
-        arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
-                       + alpha * bdatxhi_np1(ii,jj,k,0);
-    });
-
-    amrex::ParallelFor(bx_ylo, bx_yhi,
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_lo.y);
-            jj = std::min(jj, dom_lo.y+width-1);
-        arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
-                       + alpha * bdatylo_np1(ii,jj,k,0);
-    },
-    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        int ii = std::max(i , dom_lo.x);
-            ii = std::min(ii, dom_hi.x);
-        int jj = std::max(j , dom_hi.y-width+1);
-            jj = std::min(jj, dom_hi.y);
-        arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
-                       + alpha * bdatyhi_np1(ii,jj,k,0);
-    });
-    }
-
-    // Zero RHS in set region
-    //==========================================================
-    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                  bx_xlo, bx_xhi,
-                                  bx_ylo, bx_yhi);
-
-    zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-
-
-    // Compute RHS in relaxation region
-    //==========================================================
-    Array4<Real> arr_xlo  = Q_xlo.array(); Array4<Real> arr_xhi = Q_xhi.array();
-    Array4<Real> arr_ylo  = Q_ylo.array(); Array4<Real> arr_yhi = Q_yhi.array();
-
-    compute_Laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
-                                 bx_xlo, bx_xhi, bx_ylo, bx_yhi,
-                                 arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                 data_arr, rhs_arr);
-}
-#endif
-
 /**
  * Compute the RHS in the fine relaxation zone
  *
@@ -657,6 +509,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                                 const Real& delta_t,
                                 const int& width,
                                 const int& set_width,
+                                const Geometry& geom,
                                 ERFFillPatcher* FPr_c,
                                 ERFFillPatcher* FPr_u,
                                 ERFFillPatcher* FPr_v,
@@ -676,11 +529,11 @@ fine_compute_interior_ghost_RHS(const Real& time,
     Vector<MultiFab> fmf_p_v;
 
     // Loop over the variables
-    for (int var_idx = 0; var_idx < IntVar::NumVars; ++var_idx)
+    for (int ivar_idx = 0; ivar_idx < IntVar::NumVars; ++ivar_idx)
     {
         // Fine mfs
-        MultiFab& fmf = S_data_f[var_idx];
-        MultiFab& rhs = S_rhs_f [var_idx];
+        MultiFab& fmf = S_data_f[ivar_idx];
+        MultiFab& rhs = S_rhs_f [ivar_idx];
 
         // NOTE: These temporary MFs and copy operations are horrible
         //       for memory usage and efficiency. However, we need to
@@ -694,14 +547,14 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
         // Temp MF on box (distribution map differs w/ fine patch)
         int num_var = 1;
-        if (var_idx == IntVar::cons) num_var = 2;
+        if (ivar_idx == IntVar::cons) num_var = 2;
         fmf_p_v.emplace_back(fmf.boxArray(), fmf.DistributionMap(), num_var, fmf.nGrowVect());
-        MultiFab& fmf_p = fmf_p_v[var_idx];
+        MultiFab& fmf_p = fmf_p_v[ivar_idx];
         amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
 
         // Fill fine patch on interior halo region
         //==========================================================
-        if (var_idx == IntVar::cons)
+        if (ivar_idx == IntVar::cons)
         {
             FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
 
@@ -726,7 +579,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 } // g_ind
             } // mfi
         }
-        else if (var_idx == IntVar::xmom)
+        else if (ivar_idx == IntVar::xmom)
         {
             FPr_u->fill(fmf_p, time, void_bc, domain_bcs_type);
 
@@ -777,7 +630,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 } // g_ind
             } // mfi
         }
-        else if (var_idx == IntVar::ymom)
+        else if (ivar_idx == IntVar::ymom)
         {
             FPr_v->fill(fmf_p, time, void_bc, domain_bcs_type);
 
@@ -826,7 +679,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                 } // g_ind
             } // mfi
         }
-        else if (var_idx == IntVar::zmom)
+        else if (ivar_idx == IntVar::zmom)
         {
             FPr_w->fill(fmf_p, time, void_bc, domain_bcs_type);
 
@@ -878,6 +731,8 @@ fine_compute_interior_ghost_RHS(const Real& time,
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
         }
 
+        // For Laplacian stencil
+        rhs.FillBoundary(geom.periodicity());
 
         // Compute RHS in relaxation region
         //==========================================================
@@ -909,7 +764,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                                              data_arr, rhs_arr);
             } // g_ind
         } // mfi
-    } // var_idx
+    } // ivar_idx
 }
 
 /**

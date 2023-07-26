@@ -169,11 +169,14 @@ the RHS (:math:`F`) is given by the following:
 
 where :math:`G` is the RHS of the NS equations, :math:`\psi^{\prime}` is the predicted update without
 relaxation, :math:`\psi^{FP}` is the fine patch data obtained from space-time interpolation of the
-coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary. Finally, we
-note that time dependent Dirichlet data, provided via an external file, may be enforced on the
-lateral boundary conditions of the domain (coarsest mesh). For such cases, the relaxation region width
-at the domain edges may be specified with ``erf.wrfbdy_width = <Int>`` (yellow + blue) while the
-interior Dirichlet region may be specified with ``erf.wrfbdy_set_width = <Int>`` (yellow).
+coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary. The set and
+relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
+on the fine mesh. Finally, we note that time dependent Dirichlet data, provided via an external boundary file,
+may be enforced on the lateral boundary conditions of the domain (coarsest mesh). For such cases,
+the relaxation region width at the domain edges may be specified with ``erf.wrfbdy_width = <Int>``
+(yellow + blue) while the interior Dirichlet region may be specified with ``erf.wrfbdy_set_width = <Int>``
+(yellow). With the boundary file approach, all dycore variables are set and relaxed but
+moisture is only set in the yellow region if it is present within the boundary file.
 
 
 By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),

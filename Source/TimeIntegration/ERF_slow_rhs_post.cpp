@@ -70,8 +70,7 @@ void erf_slow_rhs_post (int /*level*/,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                       ,const bool& moist_relax,
-                        const bool& moist_zero,
+                       ,const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
@@ -355,13 +354,8 @@ void erf_slow_rhs_post (int /*level*/,
             }
         }
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-        // Populate RHS for moisture relaxation
-        if (moist_relax) {
-            wrfbdy_compute_moist_interior_ghost_RHS(tbx, bdy_time_interval, start_bdy_time, new_stage_time, dt,
-                                                    width, set_width, geom,
-                                                    cell_rhs, old_cons, bdy_data_xlo, bdy_data_xhi,
-                                                    bdy_data_ylo, bdy_data_yhi);
-        } else if (moist_zero) {
+        // Zero moist RHS in set region
+        if (moist_zero) {
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
             compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
