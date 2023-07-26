@@ -148,7 +148,8 @@ ERF::init_from_wrfinput(int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     // INITIAL DATA common for "ideal" as well as "real" simulation
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    // Don't tile this since we are operating on full FABs in this routine
+    for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
     {
         // Define fabs for holding the initial data
         FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
