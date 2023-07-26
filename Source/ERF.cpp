@@ -689,7 +689,7 @@ ERF::InitData ()
 }
 
 void
-ERF::restart()
+ERF::restart ()
 {
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -715,7 +715,7 @@ ERF::restart()
 }
 
 void
-ERF::init_only(int lev, Real time)
+ERF::init_only (int lev, Real time)
 {
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
@@ -845,6 +845,15 @@ ERF::ReadParameters ()
             init_type != "input_sounding")
         {
             amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
+        }
+
+        // No moving terrain with init real
+        if (init_type == "real") {
+            int terr_type(0);
+            pp.query("terrain_type",terr_type);
+            if (terr_type) {
+                amrex::Abort("Moving terrain is not supported with init real");
+            }
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
