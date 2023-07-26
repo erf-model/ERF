@@ -689,7 +689,7 @@ ERF::InitData ()
 }
 
 void
-ERF::restart()
+ERF::restart ()
 {
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -715,7 +715,7 @@ ERF::restart()
 }
 
 void
-ERF::init_only(int lev, Real time)
+ERF::init_only (int lev, Real time)
 {
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;

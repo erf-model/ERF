@@ -90,8 +90,7 @@ void erf_slow_rhs_post (int level,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                      ,const bool& moist_relax,
-                       const bool& moist_zero,
+                      ,const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,
                        const amrex::Real& start_bdy_time,
                        const amrex::Real& new_stage_time,
