@@ -63,13 +63,13 @@ constexpr amrex::Real nzerog       = 4.e6;   // Intersept coeff. for graupel
 constexpr amrex::Real qp_threshold = 1.e-8;  // minimal rain/snow water content
 
 constexpr amrex::Real boltz  = 1.38065e-23;
-constexpr amrex::Real avogad = 6.02214e26;
+constexpr amrex::Real avogadro = 6.02214e26;
 constexpr amrex::Real mwdair = 28.966;
 constexpr amrex::Real mwwv   = 18.016;
 constexpr amrex::Real lcond  = 2.501e6;
 constexpr amrex::Real lfus   = 2.11727e3;
 constexpr amrex::Real lsub   = lcond+lfus;
-constexpr amrex::Real rgas   = boltz*avogad/mwdair;
+constexpr amrex::Real rgas   = boltz*avogadro/mwdair;
 constexpr amrex::Real rv     = rgas/mwwv;
 
 constexpr amrex::Real diffelq = 2.21e-05;     // Diffusivity of water vapor, m2/s
