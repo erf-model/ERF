@@ -1,0 +1,7 @@
+
+CEXE_headers += Rrtmgp.H
+CEXE_sources += Finalize_rrtmgp.cpp
+CEXE_sources += Init_rrtmgp.cpp 
+CEXE_sources += Run_longwave_rrtmgp.cpp 
+CEXE_sources += Run_shortwave_rrtmgp.cpp 
+
