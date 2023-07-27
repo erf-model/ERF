@@ -245,10 +245,11 @@ struct SolverChoice {
              (dryscal_horiz_adv_string == "Centered_4th") ||
              (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
              (dryscal_horiz_adv_string == "Centered_6th") ||
-             (dryscal_horiz_adv_string == "Weno_3"       ) ||
-             (dryscal_horiz_adv_string == "Weno_3Z"      ) ||
-             (dryscal_horiz_adv_string == "Weno_3MZQ"    ) ||
-             (dryscal_horiz_adv_string == "Weno_5Z"      ) )
+             (dryscal_horiz_adv_string == "WENO3"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ3"      ) ||
+             (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
+             (dryscal_horiz_adv_string == "WENO5"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ5"      ) )
         {
             dryscal_horiz_adv_type = adv_type_convert_string_to_int(dryscal_horiz_adv_string);
             amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
@@ -261,10 +262,11 @@ struct SolverChoice {
              (dryscal_vert_adv_string == "Centered_4th") ||
              (dryscal_vert_adv_string == "Upwind_5th"  ) ||
              (dryscal_vert_adv_string == "Centered_6th") ||
-             (dryscal_vert_adv_string == "Weno_3"       ) ||
-             (dryscal_vert_adv_string == "Weno_3Z"      ) ||
-             (dryscal_vert_adv_string == "Weno_3MZQ"    ) ||
-             (dryscal_vert_adv_string == "Weno_5Z"      ) )
+             (dryscal_vert_adv_string == "WENO3"       ) ||
+             (dryscal_vert_adv_string == "WENOZ3"      ) ||
+             (dryscal_vert_adv_string == "WENOMZQ3     ) ||
+             (dryscal_vert_adv_string == "WENO5"       ) ||
+             (dryscal_vert_adv_string == "WENOZ5"      ) )
         {
             dryscal_vert_adv_type = adv_type_convert_string_to_int(dryscal_vert_adv_string);
             amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
@@ -278,10 +280,11 @@ struct SolverChoice {
              (moistscal_horiz_adv_string == "Centered_4th") ||
              (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
              (moistscal_horiz_adv_string == "Centered_6th") ||
-             (moistscal_horiz_adv_string == "Weno_3"       ) ||
-             (moistscal_horiz_adv_string == "Weno_3Z"      ) ||
-             (moistscal_horiz_adv_string == "Weno_3MZQ"    ) ||
-             (moistscal_horiz_adv_string == "Weno_5Z"      ) )
+             (moistscal_horiz_adv_string == "WENO3"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ3"      ) ||
+             (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
+             (moistscal_horiz_adv_string == "WENO5"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ5"      ) )
         {
             moistscal_horiz_adv_type = adv_type_convert_string_to_int(moistscal_horiz_adv_string);
             amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
@@ -294,10 +297,11 @@ struct SolverChoice {
              (moistscal_vert_adv_string == "Centered_4th") ||
              (moistscal_vert_adv_string == "Upwind_5th"  ) ||
              (moistscal_vert_adv_string == "Centered_6th") ||
-             (moistscal_vert_adv_string == "Weno_3"       ) ||
-             (moistscal_vert_adv_string == "Weno_3Z"      ) ||
-             (moistscal_vert_adv_string == "Weno_3MZQ"    ) ||
-             (moistscal_vert_adv_string == "Weno_5Z"      ) )
+             (moistscal_vert_adv_string == "WENO3"       ) ||
+             (moistscal_vert_adv_string == "WENOZ3"      ) ||
+             (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
+             (moistscal_vert_adv_string == "WENO5"       ) ||
+             (moistscal_vert_adv_string == "WENOZ5"      ) )
         {
             moistscal_vert_adv_type = adv_type_convert_string_to_int(moistscal_vert_adv_string);
             amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
@@ -494,15 +498,15 @@ struct SolverChoice {
         } else if (adv_int == AdvType::Centered_6th) {
             return "Centered_6th";
         } else if (adv_int == AdvType::Weno_3) {
-            return "Weno_3";
+            return "WENO3";
         } else if (adv_int == AdvType::Weno_3Z) {
-            return "Weno_3Z";
+            return "WENOZ3";
         } else if (adv_int == AdvType::Weno_5) {
-            return "Weno_5";
+            return "WENO5";
         } else if (adv_int == AdvType::Weno_5Z) {
-            return "Weno_5Z";
+            return "WENOZ5";
         } else if (adv_int == AdvType::Weno_3MZQ) {
-            return "Weno_3MZQ";
+            return "WENOMZQ3";
         }
     }
 
@@ -519,15 +523,15 @@ struct SolverChoice {
             return AdvType::Upwind_5th;
         } else if (adv_string == "Centered_6th") {
             return AdvType::Centered_6th;
-        } else if (adv_string == "Weno_3") {
+        } else if (adv_string == "WENO3") {
             return AdvType::Weno_3;
-        } else if (adv_string == "Weno_3Z") {
+        } else if (adv_string == "WENOZ3") {
             return AdvType::Weno_3Z;
-        } else if (adv_string == "Weno_5") {
+        } else if (adv_string == "WENO5") {
             return AdvType::Weno_5;
-        } else if (adv_string == "Weno_5Z") {
+        } else if (adv_string == "WENOZ5") {
             return AdvType::Weno_5Z;
-        } else if (adv_string == "Weno_3MZQ") {
+        } else if (adv_string == "WENOMZQ3") {
             return AdvType::Weno_3MZQ;
         } else {
             return -1;
