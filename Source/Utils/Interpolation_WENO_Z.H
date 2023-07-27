@@ -308,21 +308,25 @@ struct WENO_MZQ3
         // Smoothing factors
         amrex::Real b1 = (s - sm1) * (s - sm1);
         amrex::Real b2 = (sp1 - s) * (sp1 - s);
+        amrex::Real b3 = ( (13.0 / 12.0) * ((sm1 - 2.0*s + sp1)*(sm1 - 2.0*s + sp1)) ) + ( ((sp1 - sm1)*(sp1 - sm1)) / 4.0 );
 
         // Weight factors
-        amrex::Real t5 = std::abs(b2 - b1);
-        amrex::Real w1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
-        amrex::Real w2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
-
-        // Weight factor norm
-        amrex::Real wsum = w1 + w2;
+        amrex::Real t5 = ( std::abs(b3 - b1) + std::abs(b3 - b2) ) / 32.0;
+        amrex::Real a1 = g1 * ( 1.0 + (t5*t5) / ((eps + b1) * (eps + b1)) );
+        amrex::Real a2 = g2 * ( 1.0 + (t5*t5) / ((eps + b2) * (eps + b2)) );
+        amrex::Real a3 = g3 * ( 1.0 + (t5*t5) / ((eps + b3) * (eps + b3)) );
+        amrex::Real asum = a1 + a2 + a3;
+        amrex::Real w1 = a1 / asum;
+        amrex::Real w2 = a2 / asum;
+        amrex::Real w3 = a3 / asum;
 
         // Taylor expansions
-        amrex::Real v1 = -sm1 + 3.0 * s;
-        amrex::Real v2 =  s   + sp1;
+        amrex::Real v1 = (-sm1 + 3.0 * s) / 2.0;
+        amrex::Real v2 = (  s  +  sp1) / 2.0;
+        amrex::Real v3 = (-sm1 + 5.0 * s + 2.0 * sp1) / 6.0;
 
         // Interpolated value
-        return ( (w1 * v1 + w2 * v2) / (2.0 * wsum) );
+        return ( (w3 / g3) * (v3 - g1 * v1 - g2 * v2) + w1 * v1 + w2 * v2 );
     }
 
 private:
@@ -330,7 +334,8 @@ private:
     const amrex::Real eps=1.0e-6;
     const amrex::Real tol=1.0e-12;
     static constexpr amrex::Real g1=(1.0/3.0);
-    static constexpr amrex::Real g2=(2.0/3.0);
+    static constexpr amrex::Real g2=(1.0/3.0);
+    static constexpr amrex::Real g3=(1.0/3.0);
 };
 
 /**
