@@ -264,7 +264,7 @@ struct SolverChoice {
              (dryscal_vert_adv_string == "Centered_6th") ||
              (dryscal_vert_adv_string == "WENO3"       ) ||
              (dryscal_vert_adv_string == "WENOZ3"      ) ||
-             (dryscal_vert_adv_string == "WENOMZQ3     ) ||
+             (dryscal_vert_adv_string == "WENOMZQ3"     ) ||
              (dryscal_vert_adv_string == "WENO5"       ) ||
              (dryscal_vert_adv_string == "WENOZ5"      ) )
         {
