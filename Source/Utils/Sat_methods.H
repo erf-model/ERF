@@ -38,21 +38,21 @@ class SatMethods {
   public:
     // Get saturation specific humidity given pressure and SVP.
     // Specific humidity is limited to range 0-1.
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE    
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_to_qsat(const amrex::Real& es, const amrex::Real& p) {
       // If pressure is less than SVP, set qs to maximum of 1.
-      if ( (p - es) <= 0. ) 
+      if ( (p - es) <= 0. )
         return 1.0;
       else
         return epsilo*es / (p - omeps*es);
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void wv_sat_qsat_water(const amrex::Real& t, const amrex::Real& p, 
+    static void wv_sat_qsat_water(const amrex::Real& t, const amrex::Real& p,
                                   amrex::Real es, amrex::Real qs, const int idx = 1) {
-      // Purpose:                                                         
-      //   Calculate SVP over water at a given temperature, and then     
-      //   calculate and return saturation specific humidity.     
+      // Purpose:
+      //   Calculate SVP over water at a given temperature, and then
+      //   calculate and return saturation specific humidity.
 
       es = wv_sat_svp_water(t, idx);
 
@@ -63,9 +63,9 @@ class SatMethods {
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void wv_sat_qsat_ice(const amrex::Real& t, const amrex::Real& p, 
+    static void wv_sat_qsat_ice(const amrex::Real& t, const amrex::Real& p,
                          amrex::Real es, amrex::Real qs, const int idx = 1) {
-      // Purpose:                                                      
+      // Purpose:
       //   Calculate SVP over ice at a given temperature, and then
       //   calculate and return saturation specific humidity.
 
@@ -78,9 +78,9 @@ class SatMethods {
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void wv_sat_qsat_trans(const amrex::Real& t, const amrex::Real& p, 
+    static void wv_sat_qsat_trans(const amrex::Real& t, const amrex::Real& p,
                            amrex::Real es, amrex::Real qs, const int idx = 1) {
-      // Purpose:   
+      // Purpose:
       //   Calculate SVP over ice at a given temperature, and then
       //   calculate and return saturation specific humidity.
 
@@ -93,13 +93,13 @@ class SatMethods {
     }
 
     // SVP INTERFACE FUNCTIONS
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE    
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real wv_sat_svp_water(const amrex::Real& t, const int idx = 1) {
        amrex::Real es;
        switch(idx)
        {
           case GoffGratch:
-             es = GoffGratch_svp_water(t); break; 
+             es = GoffGratch_svp_water(t); break;
           case MurphyKoop:
              es = MurphyKoop_svp_water(t); break;
           case OldGoffGratch:
@@ -134,7 +134,7 @@ class SatMethods {
       amrex::Real es;
 
       // Water
-      if (t >= (tmelt - ttrice)) 
+      if (t >= (tmelt - ttrice))
          es = wv_sat_svp_water(t,idx);
       else
          es = 0.0;
@@ -154,38 +154,38 @@ class SatMethods {
 
 
     // Goff & Gratch (1946)
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE    
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_water(const amrex::Real& t) {
       // uncertain below -70 C
-      return pow(10., (-7.90298*(tboil/t-1.)+ 
-             5.02808*std::log10(tboil/t)- 
-             1.3816e-7*(pow(10., (11.344*(1.-t/tboil)))-1.)+ 
-             8.1328e-3*(pow(10., (-3.49149*(tboil/t-1.)))-1.)+ 
+      return pow(10., (-7.90298*(tboil/t-1.)+
+             5.02808*std::log10(tboil/t)-
+             1.3816e-7*(pow(10., (11.344*(1.-t/tboil)))-1.)+
+             8.1328e-3*(pow(10., (-3.49149*(tboil/t-1.)))-1.)+
              std::log10(1013.246)))*100.;
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real GoffGratch_svp_ice(const amrex::Real& t) {
       // good down to -100 C
-      return pow(10., (-9.09718*(h2otrip/t-1.)-3.56654* 
-             log10(h2otrip/t)+0.876793*(1.-t/h2otrip)+ 
+      return pow(10., (-9.09718*(h2otrip/t-1.)-3.56654*
+             log10(h2otrip/t)+0.876793*(1.-t/h2otrip)+
              log10(6.1071)))*100.;
     }
 
     // Murphy & Koop (2005)
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE    
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_water(const amrex::Real& t) {
       // (good for 123 < T < 332 K)
-      return exp(54.842763 - (6763.22 / t) - (4.210 * log(t)) + 
-             (0.000367 * t) + (tanh(0.0415 * (t - 218.8)) * 
-             (53.878 - (1331.22 / t) - (9.44523 * log(t)) + 
+      return exp(54.842763 - (6763.22 / t) - (4.210 * log(t)) +
+             (0.000367 * t) + (tanh(0.0415 * (t - 218.8)) *
+             (53.878 - (1331.22 / t) - (9.44523 * log(t)) +
              0.014025 * t)));
     }
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real MurphyKoop_svp_ice(const amrex::Real& t) {
       // (good down to 110 K)
-      return exp(9.550426 - (5723.265 / t) + (3.53068 * log(t)) 
+      return exp(9.550426 - (5723.265 / t) + (3.53068 * log(t))
              - (0.00728332 * t));
     }
 
@@ -216,7 +216,7 @@ class SatMethods {
        auto f  = f1 + f2 + f3 + f4 + f5;
        return (pow(10.0, f))*100.0;
     }
-  
+
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real OldGoffGratch_svp_ice(const amrex::Real& t) {
       auto term1 = 2.01889049/(tmelt/t);
@@ -224,7 +224,7 @@ class SatMethods {
       auto term3 = 20.947031*(tmelt/t);
       return 575.185606e10*exp(-(term1 + term2 + term3));
     }
-  
+
     // Bolton (1980)
     // zm_conv deep convection scheme contained this SVP calculation.
     // It appears to be from D. Bolton, 1980, Monthly Weather Review.
@@ -233,7 +233,7 @@ class SatMethods {
 
     // The original formula used degrees C, but this function
     // takes Kelvin and internally converts.
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE    
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real Bolton_svp_water(const amrex::Real& t) {
       constexpr auto c1 = 611.2;
       constexpr auto c2 = 17.67;
