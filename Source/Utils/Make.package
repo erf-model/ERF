@@ -13,6 +13,8 @@ CEXE_headers += Interpolation.H
 CEXE_headers += Interpolation_1D.H
 CEXE_sources += TerrainMetrics.cpp
 
+CEXE_headers += Sat_methods.H
+CEXE_headers += Water_vapor_saturation.H
 CEXE_headers += DirectionSelector.H
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)

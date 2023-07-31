@@ -512,11 +512,11 @@ List of Parameters
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.moistscal_horiz_adv_type** | Horizontal         | see below           | WENO3        |
 |                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
+|                                  | for moist scalars  |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.moistscal_vert_adv_type**  | Vertical           | see below           | WENO3        |
 |                                  | advection type     |                     |              |
-|                                  | for dry scalars    |                     |              |
+|                                  | for moist scalars  |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
 The allowed advection types for the dycore variables are
