@@ -15,7 +15,7 @@ Here we present spatial and temporal convergence studies for simple scalar advec
 The initial data has constant density and pressure, constant velocity :math:`u=10` in the x-direction,
 and a scalar initialized with profile :math:`cos(\pi x)` in a domain that is 2 units wide and
 periodic in the lateral directions with slip walls on top and bottom.
-The simulation is run for one period, i.e. until time :math:`t=0.2`
+The simulation is run for 10 periods, i.e. until time :math:`t=2.0`
 
 The first study, shown below on the left, tests the horizontal centered/upwind advection stencils for
 second through sixth order. The study on the right tests the WENO 3rd and 5th order stencils,

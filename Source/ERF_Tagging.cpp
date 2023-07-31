@@ -86,13 +86,14 @@ ERF::refinement_criteria_setup()
                     amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
-                    const auto *dx = geom[lev_for_box].CellSize();
-                    int ilo = static_cast<int>(box_lo[0]/dx[0]);
-                    int jlo = static_cast<int>(box_lo[1]/dx[1]);
-                    int klo = static_cast<int>(box_lo[2]/dx[2]);
-                    int ihi = static_cast<int>(box_hi[0]/dx[0]-1);
-                    int jhi = static_cast<int>(box_hi[1]/dx[1]-1);
-                    int khi = static_cast<int>(box_hi[2]/dx[2]-1);
+                    const auto* dx  = geom[lev_for_box].CellSize();
+                    const Real* plo = geom[lev_for_box].ProbLo();
+                    int ilo = static_cast<int>((box_lo[0] - plo[0])/dx[0]);
+                    int jlo = static_cast<int>((box_lo[1] - plo[1])/dx[1]);
+                    int klo = static_cast<int>((box_lo[2] - plo[2])/dx[2]);
+                    int ihi = static_cast<int>((box_hi[0] - plo[0])/dx[0]-1);
+                    int jhi = static_cast<int>((box_hi[1] - plo[1])/dx[1]-1);
+                    int khi = static_cast<int>((box_hi[2] - plo[2])/dx[2]-1);
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
                     if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
