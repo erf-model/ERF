@@ -316,7 +316,7 @@ fine_compute_interior_ghost_RHS (const amrex::Real& time,
  */
 void update_interior_ghost (const amrex::Real& delta_t,
                             const int& width,
-                            const amrex::Geometry& geom,
+                            amrex::Vector<amrex::Box>& boxes_at_level,
                             amrex::Vector<amrex::MultiFab>& S_rhs,
                             const amrex::Vector<amrex::MultiFab>& S_old,
                             amrex::Vector<amrex::MultiFab>& S_data);
