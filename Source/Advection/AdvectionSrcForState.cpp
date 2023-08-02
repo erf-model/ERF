@@ -49,8 +49,8 @@ AdvectionSrcForRhoAndTheta (const Box& bx, const Box& valid_bx,
                             const Array4<const Real>& mf_m,
                             const Array4<const Real>& mf_u,
                             const Array4<const Real>& mf_v,
-                            const int horiz_adv_type,
-                            const int vert_adv_type,
+                            const AdvType horiz_adv_type,
+                            const AdvType vert_adv_type,
                             const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
@@ -256,8 +256,8 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& mf_m,
-                        const int horiz_adv_type,
-                        const int vert_adv_type,
+                        const AdvType horiz_adv_type,
+                        const AdvType vert_adv_type,
                         const int use_terrain)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);

@@ -178,7 +178,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       const int vert_adv_type, const int domhi_z)
+                       const AdvType vert_adv_type, const int domhi_z)
 {
 
     amrex::Real advectionSrc;
@@ -284,7 +284,7 @@ AdvectionSrcForMomWrapper_N(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const int vert_adv_type,
+                            const AdvType vert_adv_type,
                             const int domhi_z)
 {
     // Instantiate the appropriate structs
@@ -332,7 +332,7 @@ AdvectionSrcForMomVert_N(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const int vert_adv_type,
+                         const AdvType vert_adv_type,
                          const int domhi_z)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
