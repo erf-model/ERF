@@ -108,7 +108,7 @@ AdvectionSrcForRhoThetaVert_T(const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& mf_m,
                               const amrex::Array4<const amrex::Real>& mf_u,
                               const amrex::Array4<const amrex::Real>& mf_v,
-                              const int vert_adv_type)
+                              const AdvType vert_adv_type)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForRhoThetaWrapper_T<InterpType_H,CENTERED2>(bx, vbx_hi, fac, advectionSrc,
