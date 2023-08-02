@@ -557,27 +557,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
         if (ivar_idx == IntVar::cons)
         {
             FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(rhs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                Box tbx = mfi.tilebox();
-                const Array4<Real>& rhs_arr  = rhs.array(mfi);
-                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
-                {
-                    Box domain  = boxes_at_level[g_ind];
-                    domain.convert(fmf.boxArray().ixType());
-
-                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi);
-
-                    zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-                } // g_ind
-            } // mfi
         }
         else if (ivar_idx == IntVar::xmom)
         {
@@ -599,12 +578,9 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     domain.convert(fmf.boxArray().ixType());
 
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,
                                                   bx_ylo, bx_yhi);
-
-                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-
 
                     amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -650,11 +626,9 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     domain.convert(fmf.boxArray().ixType());
 
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,
                                                   bx_ylo, bx_yhi);
-
-                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
 
                     amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -699,11 +673,9 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     domain.convert(fmf.boxArray().ixType());
 
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,
                                                   bx_ylo, bx_yhi);
-
-                    zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
 
                     amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -730,6 +702,30 @@ fine_compute_interior_ghost_RHS(const Real& time,
         } else {
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
         }
+
+
+        // Zero RHS in set region
+        //==========================================================
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(rhs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            Box tbx = mfi.tilebox();
+            const Array4<Real>& rhs_arr  = rhs.array(mfi);
+            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+            {
+                Box domain  = boxes_at_level[g_ind];
+                domain.convert(fmf.boxArray().ixType());
+
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+
+                zero_RHS_in_set_region(0, num_var, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
+            } // g_ind
+        } // mfi
 
         // For Laplacian stencil
         rhs.FillBoundary(geom.periodicity());
@@ -781,19 +777,18 @@ fine_compute_interior_ghost_RHS(const Real& time,
 void
 update_interior_ghost(const Real& delta_t,
                       const int&  width,
-                      const Geometry& geom,
+                      Vector<Box>& boxes_at_level,
                       Vector<MultiFab>& S_rhs,
                       const Vector<MultiFab>& S_old,
                       Vector<MultiFab>& S_data)
 {
     BL_PROFILE_REGION("update_interior_ghost()");
 
-    Box domain = geom.Domain();
     Vector<int> ncomp_map = {2, 1, 1, 1};
     for (int ivar(IntVar::cons); ivar < IntVar::NumVars; ivar++)
     {
         int ncomp = ncomp_map[ivar];
-        domain.convert(S_data[ivar].boxArray().ixType());
+        IndexType m_ixt = S_data[ivar].boxArray().ixType();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -801,34 +796,39 @@ update_interior_ghost(const Real& delta_t,
         for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
-            Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                          tbx_xlo, tbx_xhi,
-                                          tbx_ylo, tbx_yhi);
-
             Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
             Array4<const Real> old_arr = S_old[ivar].array(mfi);
             Array4<Real> new_arr       = S_data[ivar].array(mfi);
 
-            amrex::ParallelFor(tbx_xlo, ncomp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
             {
-                new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-            },
-            tbx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-            });
+                Box domain = boxes_at_level[g_ind];
+                domain.convert(m_ixt);
+                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                              tbx_xlo, tbx_xhi,
+                                              tbx_ylo, tbx_yhi);
 
-            amrex::ParallelFor(tbx_ylo, ncomp,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-            },
-            tbx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-            });
+                amrex::ParallelFor(tbx_xlo, ncomp,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                },
+                tbx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                });
+
+                amrex::ParallelFor(tbx_ylo, ncomp,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                },
+                tbx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                {
+                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                });
+            } // boxes_at_level
         } // mfi
     } // ivar
 }
