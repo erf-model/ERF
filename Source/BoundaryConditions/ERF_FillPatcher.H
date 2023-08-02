@@ -85,7 +85,7 @@ ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
     amrex::MultiFab::LinComb(crse_data_time_interp,
                              fac_old, *(m_cf_crse_data[0]), 0,
                              fac_new, *(m_cf_crse_data[1]), 0,
-                             0, m_ncomp, 0);
+                             0, m_ncomp, amrex::IntVect{0});
 
     // Ensure fine domain box is correct index type
     amrex::Box fdest_dom = amrex::convert(m_fgeom.Domain(),m_cf_fine_data->boxArray().ixType());
@@ -98,9 +98,9 @@ ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
     if (fill_subset) {
         //amrex::MultiFab::Copy(m_cf_fine_subset_data, m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0});
         m_cf_fine_subset_data->ParallelCopy(*m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
-        mf.ParallelCopy(*m_cf_fine_subset_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
+        mf.ParallelCopy(*m_cf_fine_subset_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
     } else {
-        mf.ParallelCopy(*m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, mf.nGrowVect());
+        mf.ParallelCopy(*m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
     }
 }
 #endif

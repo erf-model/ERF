@@ -6,10 +6,10 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     =  0   0.  0. 
+geometry.prob_lo     =  0      0.  0. 
 geometry.prob_hi     =  30.0   1. 10.0
 
-amr.n_cell           = 256  4 128   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 256  12 128   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 geometry.is_periodic = 0 1 0
 
@@ -51,14 +51,23 @@ amr.v              = 1        # verbosity in Amr.cpp
 # REFINEMENT / REGRIDDING
 amr.max_level       = 1       # maximum level number allowed
 
+<<<<<<< HEAD
 amr.ref_ratio_vect = 2 2 1 2 2 1
+=======
+amr.ref_ratio_vect = 2 2 1
+>>>>>>> upstream/development
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
 erf.box1.in_box_lo =  13.15 0.0
 erf.box1.in_box_hi = 16.65 1.0
 erf.coupling_type  = "OneWay"
+<<<<<<< HEAD
 erf.cf_width = 0
 erf.cf_set_width = 0
+=======
+erf.cf_width = 4
+erf.cf_set_width = 1
+>>>>>>> upstream/development
 
 
 # CHECKPOINT FILES
