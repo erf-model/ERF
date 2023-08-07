@@ -124,12 +124,6 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
         cbl.push_back(interp->CoarseBox(b, m_ratio));
     }
 
-    // Fine ghost cells
-    IntVect ngf(0);
-    for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-        ngf[idim] = m_ratio[idim];
-    }
-
     // Box arrays for fine and coarse
     BoxArray cf_fba(std::move(bl));
     BoxArray cf_cba(std::move(cbl));
@@ -139,7 +133,7 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
 
 
     // Fine patch to hold the time-interpolated state
-    m_cf_fine_data = new MultiFab (cf_fba, cf_dm, m_ncomp, ngf);
+    m_cf_fine_data = new MultiFab (cf_fba, cf_dm, m_ncomp, 0);
 
     // Fine subset patch to hold the time-interpolated state
     m_cf_fine_subset_data = new MultiFab (cf_fba_s, cf_dm, m_ncomp, 0);
