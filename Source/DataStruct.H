@@ -572,7 +572,7 @@ struct SolverChoice {
     bool    use_yhi_sponge_damping     = false;
     bool    use_zlo_sponge_damping     = false;
     bool    use_zhi_sponge_damping     = false;
-    bool     specify_terrain_velocity   = false;
+    bool    specify_terrain_velocity   = false;
     amrex::Real sponge_strength;
     amrex::Real xlo_sponge_end, xhi_sponge_start;
     amrex::Real ylo_sponge_end, yhi_sponge_start;
