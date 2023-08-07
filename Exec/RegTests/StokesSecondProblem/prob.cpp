@@ -29,7 +29,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
-  
+
 }
 
 void
@@ -137,7 +137,7 @@ init_custom_terrain (const Geometry& geom,
                            MultiFab& z_phys_nd,
                      const Real& /*time*/)
 {
-  
+
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
     // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
@@ -159,7 +159,7 @@ init_custom_terrain (const Geometry& geom,
 
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
 
-		z_arr(i,j,k0) = 0.0;
+        z_arr(i,j,k0) = 0.0;
 
         });
     }
@@ -167,7 +167,7 @@ init_custom_terrain (const Geometry& geom,
 
 Real specify_terrain_velocity(const Real time)
 {
-	Real U = 10.0;
-	Real omega = 2.0*M_PI*1000.0;
-	return U*cos(omega*time);
+    Real U = 10.0;
+    Real omega = 2.0*M_PI*1000.0;
+    return U*cos(omega*time);
 }
