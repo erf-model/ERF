@@ -1,4 +1,3 @@
-#include "prob.H"
 #include "prob_common.H"
 
 #include "EOS.H"
@@ -9,8 +8,6 @@
 #include "TileNoZ.H"
 
 using namespace amrex;
-
-ProbParm parms;
 
 AMREX_GPU_DEVICE
 static
@@ -65,7 +62,7 @@ init_custom_prob(
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // Geometry (note we must include these here to get the data on device)
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0;
@@ -84,7 +81,7 @@ init_custom_prob(
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       x_vel(i, j, k) = 0.0;
   });
@@ -113,7 +110,7 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Vector<Real>& /*thetabar*/,
                   amrex::Geometry      const& /*geom*/)
 {
-   amrex::Error("Should never get here for WitchOfAgnesi problem");
+   amrex::Error("Should never get here for Stokes second problem");
 }
 
 void
@@ -121,15 +118,6 @@ amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
 {
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
 }
 
 void
