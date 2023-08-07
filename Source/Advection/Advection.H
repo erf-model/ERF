@@ -27,7 +27,7 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& mf_m,
                                  const amrex::Array4<const amrex::Real>& mf_u,
                                  const amrex::Array4<const amrex::Real>& mf_v,
-                                 const int horiz_adv_type, const int vert_adv_type,
+                                 const AdvType horiz_adv_type, const AdvType vert_adv_type,
                                  const int use_terrain);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
@@ -41,7 +41,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const int horiz_adv_type, const int vert_adv_type,
+                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const int use_terrain);
 
 /** Compute advection tendencies for all components of momentum */
@@ -57,7 +57,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const int horiz_adv_type, const int vert_adv_type,
+                         const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const int use_terrain, const int domhi_z);
 
 #endif

@@ -222,7 +222,7 @@ struct SolverChoice {
              (dycore_horiz_adv_string == "Upwind_5th"  ) ||
              (dycore_horiz_adv_string == "Centered_6th") )
         {
-            dycore_horiz_adv_type = adv_type_convert_string_to_int(dycore_horiz_adv_string);
+            dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
             amrex::Print() << "Using dycore_horiz_adv_type: " << dycore_horiz_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default dycore_horiz_adv_type" << std::endl;;
@@ -234,7 +234,7 @@ struct SolverChoice {
              (dycore_vert_adv_string == "Upwind_5th"  ) ||
              (dycore_vert_adv_string == "Centered_6th") )
         {
-            dycore_vert_adv_type = adv_type_convert_string_to_int(dycore_vert_adv_string);
+            dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
             amrex::Print() << "Using dycore_vert_adv_type: " << dycore_vert_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default dycore_vert_adv_type" << std::endl;;
@@ -251,7 +251,7 @@ struct SolverChoice {
              (dryscal_horiz_adv_string == "WENO5"       ) ||
              (dryscal_horiz_adv_string == "WENOZ5"      ) )
         {
-            dryscal_horiz_adv_type = adv_type_convert_string_to_int(dryscal_horiz_adv_string);
+            dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
             amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default dryscal_horiz_adv_type" << std::endl;;
@@ -268,7 +268,7 @@ struct SolverChoice {
              (dryscal_vert_adv_string == "WENO5"       ) ||
              (dryscal_vert_adv_string == "WENOZ5"      ) )
         {
-            dryscal_vert_adv_type = adv_type_convert_string_to_int(dryscal_vert_adv_string);
+            dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
             amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
@@ -286,7 +286,7 @@ struct SolverChoice {
              (moistscal_horiz_adv_string == "WENO5"       ) ||
              (moistscal_horiz_adv_string == "WENOZ5"      ) )
         {
-            moistscal_horiz_adv_type = adv_type_convert_string_to_int(moistscal_horiz_adv_string);
+            moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
             amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default moistscal_horiz_adv_type" << std::endl;;
@@ -303,7 +303,7 @@ struct SolverChoice {
              (moistscal_vert_adv_string == "WENO5"       ) ||
              (moistscal_vert_adv_string == "WENOZ5"      ) )
         {
-            moistscal_vert_adv_type = adv_type_convert_string_to_int(moistscal_vert_adv_string);
+            moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
             amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
         } else {
             amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
@@ -487,7 +487,7 @@ struct SolverChoice {
     }
 
     std::string
-    adv_type_convert_int_to_string (int adv_int)
+    adv_type_convert_int_to_string (AdvType adv_int)
     {
         if (adv_int == AdvType::Centered_2nd) {
             return "Centered_2nd";
@@ -513,7 +513,7 @@ struct SolverChoice {
     }
 
 
-    int adv_type_convert_string_to_int (std::string adv_string)
+    AdvType adv_type_convert_string_to_advtype (std::string adv_string)
     {
         if (adv_string == "Centered_2nd") {
             return AdvType::Centered_2nd;
@@ -536,7 +536,7 @@ struct SolverChoice {
         } else if (adv_string == "WENOMZQ3") {
             return AdvType::Weno_3MZQ;
         } else {
-            return -1;
+            return AdvType::Unknown;
         }
     }
 
@@ -654,13 +654,13 @@ struct SolverChoice {
 
     // Spatial discretization
     // Order and type of spatial discretizations used in advection
-    int dycore_horiz_adv_type    = AdvType::Centered_2nd;
-    int dycore_vert_adv_type     = AdvType::Centered_2nd;
-    int dryscal_horiz_adv_type   = AdvType::Centered_2nd;
-    int dryscal_vert_adv_type    = AdvType::Centered_2nd;
+    AdvType dycore_horiz_adv_type    = AdvType::Centered_2nd;
+    AdvType dycore_vert_adv_type     = AdvType::Centered_2nd;
+    AdvType dryscal_horiz_adv_type   = AdvType::Centered_2nd;
+    AdvType dryscal_vert_adv_type    = AdvType::Centered_2nd;
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-    int moistscal_horiz_adv_type = AdvType::Weno_3;
-    int moistscal_vert_adv_type  = AdvType::Weno_3;
+    AdvType moistscal_horiz_adv_type = AdvType::Weno_3;
+    AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
 #endif
 
     // Numerical diffusion
