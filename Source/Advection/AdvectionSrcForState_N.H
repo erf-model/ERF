@@ -91,7 +91,7 @@ AdvectionSrcForRhoThetaVert_N(const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& mf_m,
                               const amrex::Array4<const amrex::Real>& mf_u,
                               const amrex::Array4<const amrex::Real>& mf_v,
-                              const int vert_adv_type)
+                              const AdvType vert_adv_type)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED2>(bx, vbx_hi, fac, advectionSrc,
@@ -187,7 +187,7 @@ AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const int vert_adv_type)
+                             const AdvType vert_adv_type)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED2>(bx, ncomp, icomp,

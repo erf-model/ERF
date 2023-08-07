@@ -49,8 +49,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
-                    const int horiz_adv_type,
-                    const int vert_adv_type,
+                    const AdvType horiz_adv_type,
+                    const AdvType vert_adv_type,
                     const int use_terrain,
                     const int domhi_z)
 {

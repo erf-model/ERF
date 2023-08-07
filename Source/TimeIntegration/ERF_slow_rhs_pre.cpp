@@ -114,10 +114,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
-    const int  l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
-    const int  l_vert_adv_type  = solverChoice.dycore_vert_adv_type;
-    const bool l_use_terrain    = solverChoice.use_terrain;
-    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    const AdvType l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
+    const AdvType l_vert_adv_type  = solverChoice.dycore_vert_adv_type;
+    const bool    l_use_terrain    = solverChoice.use_terrain;
+    const bool    l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;

@@ -187,7 +187,7 @@ namespace IntVar {
     };
 }
 
-enum AdvType : int {
+enum struct AdvType : int {
     Centered_2nd = 101,
     Upwind_3rd   = 102,
     Centered_4th = 103,
@@ -197,6 +197,7 @@ enum AdvType : int {
     Weno_3Z       = 107,
     Weno_5        = 108,
     Weno_5Z       = 109,
-    Weno_3MZQ     = 110
+    Weno_3MZQ     = 110,
+    Unknown       = 111
 };
 #endif
