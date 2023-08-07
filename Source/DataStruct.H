@@ -341,6 +341,8 @@ struct SolverChoice {
         pp.query("sponge_y_velocity" , sponge_y_velocity);
         pp.query("sponge_z_velocity" , sponge_z_velocity);
 
+		pp.query("specify_terrain_velocity" , specify_terrain_velocity);
+
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
@@ -570,6 +572,7 @@ struct SolverChoice {
     bool    use_yhi_sponge_damping     = false;
     bool    use_zlo_sponge_damping     = false;
     bool    use_zhi_sponge_damping     = false;
+	bool 	specify_terrain_velocity   = false;
     amrex::Real sponge_strength;
     amrex::Real xlo_sponge_end, xhi_sponge_start;
     amrex::Real ylo_sponge_end, yhi_sponge_start;
