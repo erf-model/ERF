@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 300
+max_step = 1000
 
 amrex.fpe_trap_invalid = 1
 
@@ -26,8 +26,8 @@ zhi.type = "Outflow"
 
 # TIME STEP CONTROL
 erf.no_substepping     = 1
-#erf.fixed_dt           = 1E-5
-erf.cfl = 0.1 
+erf.fixed_dt           = 1E-6
+#erf.cfl = 0.1 
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass

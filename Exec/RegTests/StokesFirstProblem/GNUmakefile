@@ -28,5 +28,5 @@ USE_ASSERTION = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/StokesSecondProblem
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/StokesFirstProblem
 include $(ERF_HOME)/Exec/Make.ERF
