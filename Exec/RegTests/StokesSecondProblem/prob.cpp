@@ -153,7 +153,7 @@ init_custom_terrain (const Geometry& geom,
     }
 }
 
-Real specify_terrain_velocity(const Real time)
+Real compute_terrain_velocity(const Real time)
 {
     Real U = 10.0;
     Real omega = 2.0*M_PI*1000.0;

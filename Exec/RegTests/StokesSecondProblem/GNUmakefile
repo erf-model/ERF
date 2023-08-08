@@ -23,6 +23,7 @@ DEBUG = FALSE
 
 TEST = TRUE
 USE_ASSERTION = TRUE
+USE_TERRAIN_VELOCITY = TRUE
 
 # GNU Make
 Bpack := ./Make.package

@@ -2,6 +2,7 @@
 #include <ERF_PhysBCFunct.H>
 
 #include "prob_common.H"
+#include "DataStruct.H"
 
 using namespace amrex;
 
@@ -189,12 +190,11 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int kflip = dom_lo.z - 1 - k;
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                    if(!specify_terrain_velocity){
+                    #ifdef ERF_USE_TERRAIN_VELOCITY
+                        dest_arr(i,j,k) = compute_terrain_velocity(time); 
+                    #else
                         dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-                    }
-                    else{
-                        dest_arr(i,j,k) = specify_terrain_velocity(time);
-                    }
+					#endif
                 } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
