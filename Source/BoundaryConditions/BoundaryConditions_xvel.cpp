@@ -2,7 +2,6 @@
 #include <ERF_PhysBCFunct.H>
 
 #include "prob_common.H"
-#include "DataStruct.H"
 
 using namespace amrex;
 
