@@ -129,7 +129,7 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     IntVect ngvect_vels = {0,0,0};
 
     if (init_type != "real") {
-        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons,time);
+        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
     }
 
     mf.FillBoundary(geom[lev].periodicity());

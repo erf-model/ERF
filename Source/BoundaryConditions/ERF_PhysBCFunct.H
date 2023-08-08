@@ -56,7 +56,7 @@ public:
     */
     void operator() (const amrex::Vector<amrex::MultiFab*>& mfs, int icomp, int ncomp,
                      amrex::IntVect const& nghost_cons, amrex::IntVect const& nghost_vels,
-                     std::string& init_type, bool cons_only, int bccomp_cons, const amrex::Real time);
+                     std::string& init_type, bool cons_only, int bccomp_cons, const amrex::Real time = 0.0);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
