@@ -18,7 +18,6 @@
 #include <DataStruct.H>
 #include <EddyViscosity.H>
 #include <TerrainMetrics.H>
-#include <DataStruct.H>
 
 class ERFPhysBCFunct
 {
