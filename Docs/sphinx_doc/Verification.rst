@@ -140,3 +140,16 @@ exactly to the inviscid solution. But away from the walls, excellent quantitativ
 
 .. image:: figures/Terrain3d_Hemisphere.png
   :width: 600
+
+Stokes second problem - viscous flow over an oscillating flat plate
+--------------------------------------------------------------------------
+The Stokes second problem - viscous flow over an oscillating flat plate in quiescent initial conditions
+tests the viscous terms in the governing equations with terrain and the feature for specifying a custom terrain velocity.
+This is a classic text book problem which has an `exact_solution_2`. The bottom wall is specified as a flat terrain and all
+other boundaries are outflow. The comparison of the numerical solution and the exact at a given time is shown in the figure
+below.
+
+.. _`exact solution_2`: https://en.wikipedia.org/wiki/Stokes_problem
+
+.. image:: figures/StokesSecondProblem.png
+   : width 600
