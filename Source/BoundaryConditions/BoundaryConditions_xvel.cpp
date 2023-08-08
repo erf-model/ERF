@@ -190,10 +190,10 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                 int kflip = dom_lo.z - 1 - k;
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
                     #ifdef ERF_USE_TERRAIN_VELOCITY
-                        dest_arr(i,j,k) = compute_terrain_velocity(time); 
+                        dest_arr(i,j,k) = compute_terrain_velocity(time);
                     #else
                         dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-					#endif
+                    #endif
                 } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
