@@ -145,7 +145,7 @@ Stokes second problem - viscous flow over an oscillating flat plate
 --------------------------------------------------------------------------
 The Stokes second problem - viscous flow over an oscillating flat plate in quiescent initial conditions 
 tests the viscous terms in the governing equations with terrain and the feature for specifying a custom terrain velocity. 
-This is a classic text book problem which has an `exact_solution_2`. The bottom wall is specified as a flat terrain and all 
+This is a classic text book problem which has an `exact_solution_2`_. The bottom wall is specified as a flat terrain and all 
 other boundaries are outflow. The comparison of the numerical solution and the exact at a given time is shown in the figure 
 below.
 
