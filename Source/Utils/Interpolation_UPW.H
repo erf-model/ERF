@@ -678,7 +678,7 @@ struct UPWINDALL
                       const int& qty_index,
                       amrex::Real& val_lo,
                       amrex::Real upw_lo,
-                      const int adv_type) const
+                      const AdvType adv_type) const
     {
         if (adv_type == AdvType::Centered_2nd) {
             val_lo = 0.5 * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k-1,qty_index) );
@@ -709,7 +709,7 @@ struct UPWINDALL
                       const int& qty_index,
                       amrex::Real& val_hi,
                       amrex::Real upw_hi,
-                      const int adv_type) const
+                      const AdvType adv_type) const
     {
         if (adv_type == AdvType::Centered_2nd) {
             val_hi = 0.5 * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k+1,qty_index) );
@@ -741,7 +741,7 @@ struct UPWINDALL
              const amrex::Real& sm2,
              const amrex::Real& sm3,
              const amrex::Real& upw,
-             const int adv_type) const
+             const AdvType adv_type) const
     {
         // Averages and diffs
         amrex::Real a1 = (s   + sm1);
