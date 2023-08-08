@@ -149,7 +149,7 @@ This is a classic text book problem which has an `analytical solution`_. The bot
 other boundaries are outflow. The comparison of the numerical solution and the exact at a given time is shown in the figure 
 below.
 
-.. _`anayltical solution`: https://en.wikipedia.org/wiki/Stokes_problem
+.. _`analytical solution`: https://en.wikipedia.org/wiki/Stokes_problem
 
 .. image:: figures/StokesSecondProblem.png
    :width: 600 
