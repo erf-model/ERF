@@ -62,7 +62,7 @@ class PhysProp {
       real dispersion_aer;   // geometric standard deviation of aerosol size distribution
       real num_to_mass_aer;  // ratio of number concentration to mass concentration (#/kg)
                                    // *** Is this actually (kg/#) ???
-      //mode parameters 
+      //mode parameters
       int  ncoef;       // number of Chebyshev coefficients
       int  prefr;       // dimension in table of real refractive indices
       int  prefi;       // dimension in table of imag refractive indices
@@ -83,9 +83,9 @@ class PhysProp {
     // the properties.  Searching the uniquefilenames array provides the index into the physprop
     // array.
     std::vector<std::string> uniquefilenames;
- 
-    void physprop_accum_unique_files(const std::string& filename, 
-                                     const std::string& type)  
+
+    void physprop_accum_unique_files(const std::string& filename,
+                                     const std::string& type)
     {
       // Count number of aerosols in input radname array.  Aerosols are identified
       // as strings with a ".nc" suffix.
@@ -95,7 +95,7 @@ class PhysProp {
       if (type == "A" || type == "M") {
         // check if this filename has been used by another aerosol.  If not
         // then add it to the list of unique names.
-        if (physprop_get_id(filename) < 0) 
+        if (physprop_get_id(filename) < 0)
            uniquefilenames.push_back(filename);
       }
     }
@@ -104,7 +104,7 @@ class PhysProp {
     // ***N.B.*** The calls to physprop_accum_unique_files must be made before calling
     //            this init routine.  physprop_accum_unique_files is responsible for building
     //            the list of files to be read here.
-    void physprop_init() 
+    void physprop_init()
     {
       int numphysprops = uniquefilenames.size();
       physprop.reserve(numphysprops);
@@ -117,7 +117,7 @@ class PhysProp {
 
     // Look for filename in the global list of unique filenames (module data uniquefilenames).
     // If found, return it's index in the list.  Otherwise return -1.
-    int physprop_get_id(std::string filename) 
+    int physprop_get_id(std::string filename)
     {
        auto physprop_get_id = -1;
        auto numphysprops = uniquefilenames.size();
@@ -130,7 +130,7 @@ class PhysProp {
       return physprop_get_id;
    }
 
-   void get_sourcefile(int id, std::string sourcefile) 
+   void get_sourcefile(int id, std::string sourcefile)
    {
      if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
      sourcefile = physprop[id].sourcefile;
@@ -394,18 +394,18 @@ class PhysProp {
      rhdeliques = physprop[id].rhdeliques;
    }
 
-   // Determine the opticstype, then call the 
+   // Determine the opticstype, then call the
    // appropriate routine to read the data.
-   void aerosol_optics_init(physprop_t& phys_prop) 
+   void aerosol_optics_init(physprop_t& phys_prop)
    {
       using charHost1d = FArray<char,1,yakl::memHost>;
       yakl::SimpleNetCDF prop;
       prop.open(phys_prop.sourcefile, yakl::NETCDF_MODE_READ);
-  
-      charHost1d temp; 
+
+      charHost1d temp;
       prop.read(temp, "opticsmethod");
       phys_prop.opticsmethod = "";
-      for (auto ichar = 0 ; ichar <= temp.extent(0); ichar++) 
+      for (auto ichar = 0 ; ichar <= temp.extent(0); ichar++)
          if (!isspace(temp(ichar))) phys_prop.opticsmethod += temp(ichar);
 
       if(strcmp(phys_prop.opticsmethod.c_str(),"zero") == 0) {
@@ -429,7 +429,7 @@ class PhysProp {
       }
     }
 
-    void hygro_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+    void hygro_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
       real1d frh;
       real2d fsw_ext;
@@ -447,9 +447,9 @@ class PhysProp {
       prop.read( flw_abs, "abs_lw");
       prop.read( frh,         "rh");
 
-      real1d fswe("fswe",nrh), 
-             fsws("fsws",nrh), 
-             fswa("fswa",nrh); 
+      real1d fswe("fswe",nrh),
+             fsws("fsws",nrh),
+             fswa("fswa",nrh);
 
      // interpolate onto cam's rh mesh
      for(auto kbnd = 0; kbnd < nswbands; ++kbnd) {
@@ -462,11 +462,11 @@ class PhysProp {
         // interpolation
         for(auto krh = 0; krh < nrh; ++krh) {
            auto rh = 1.0 / nrh * (krh - 1);
-           phys_prop.sw_hygro_ext(krh, kbnd) = 
+           phys_prop.sw_hygro_ext(krh, kbnd) =
               exp_interpol( frh, fswe, rh ) * fsw_ext(1, kbnd);
-           phys_prop.sw_hygro_ssa(krh,kbnd) = 
+           phys_prop.sw_hygro_ssa(krh,kbnd) =
               lin_interpol( frh, fsws, rh ) * fsw_ssa(1, kbnd);
-           phys_prop.sw_hygro_asm(krh,kbnd) = 
+           phys_prop.sw_hygro_asm(krh,kbnd) =
               lin_interpol( frh, fswa, rh ) * fsw_asm(1, kbnd);
         }
      }
@@ -479,7 +479,7 @@ class PhysProp {
    }
 
    // Read optics data of type 'nonhygro'
-   void zero_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+   void zero_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
    {
       auto nlwbands  = prop.getDimSize( "lw_band" );
       auto nswbands  = prop.getDimSize( "sw_band" );
@@ -496,7 +496,7 @@ class PhysProp {
       yakl::memset(phys_prop.lw_abs, 0.);
    }
 
-   void insoluble_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+   void insoluble_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
    {
      auto nbnd      = prop.getDimSize( "lw_band" );
      auto nswbands  = prop.getDimSize( "sw_band" );
@@ -514,7 +514,7 @@ class PhysProp {
    }
 
    // Read optics data of type 'volcanic_radius'
-   void volcanic_radius_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+   void volcanic_radius_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
    {
      auto n_mu_samples = prop.getDimSize( "mu_samples" );
      auto nbnd         = prop.getDimSize( "lw_band" );
@@ -528,10 +528,10 @@ class PhysProp {
 
      // read bulk aero props
      bulk_props_init(phys_prop, prop);
-  } 
+  }
 
   // Read optics data of type 'volcanic'
-  void volcanic_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+  void volcanic_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
   {
     auto nbnd     = prop.getDimSize( "lw_band" );
     auto nswbands = prop.getDimSize( "sw_band" );
@@ -546,7 +546,7 @@ class PhysProp {
   }
 
   // Read optics data of type 'hygroscopic' and interpolate it to CAM's rh mesh.
-  void hygroscopic_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+  void hygroscopic_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
   {
     // temp data from hygroscopic file before interpolation onto cam-rh-mesh
     int nfilerh; // number of rh values in file
@@ -561,7 +561,7 @@ class PhysProp {
     auto nrh      = RadConstants::nrh;
     auto nlwbands = prop.getDimSize( "lw_band" );
     auto nswbands = prop.getDimSize( "sw_band" );
-    
+
     prop.read( fsw_ext, "ext_sw");
     prop.read( fsw_ssa, "ssa_sw");
     prop.read( fsw_asm, "asm_sw");
@@ -583,11 +583,11 @@ class PhysProp {
 
        for(auto krh = 0; krh < nrh; ++krh) {
           rh = 1.0 / nrh * (krh - 1);
-          phys_prop.sw_hygro_ext(krh,kbnd) = 
+          phys_prop.sw_hygro_ext(krh,kbnd) =
              exp_interpol( frh, fswe, rh ) * fsw_ext(1, kbnd);
-          phys_prop.sw_hygro_ssa(krh,kbnd) = 
+          phys_prop.sw_hygro_ssa(krh,kbnd) =
              lin_interpol( frh, fswe, rh ) * fsw_ssa(1, kbnd);
-          phys_prop.sw_hygro_asm(krh,kbnd) = 
+          phys_prop.sw_hygro_asm(krh,kbnd) =
              lin_interpol( frh, fswa, rh ) * fsw_asm(1, kbnd);
        }
     }
@@ -599,7 +599,7 @@ class PhysProp {
 
       for(auto krh = 0; krh < nrh; ++krh) {
          rh = 1.0 / nrh * (krh - 1);
-         phys_prop.lw_hygro_abs(krh,kbnd) = 
+         phys_prop.lw_hygro_abs(krh,kbnd) =
             exp_interpol( frh, flwa, rh ) * flw_abs(1, kbnd);
       }
     }
@@ -612,7 +612,7 @@ class PhysProp {
   }
 
   // Read optics data of type 'nonhygro'
-  void nonhygro_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+  void nonhygro_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
   {
     auto nbnd         = prop.getDimSize( "lw_band" );
     auto nswbands     = prop.getDimSize( "sw_band" );
@@ -630,7 +630,7 @@ class PhysProp {
  }
 
  // Read refractive indices of aerosol
- void refindex_aer_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop) 
+ void refindex_aer_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
  {
    prop.read(phys_prop.refindex_real_aer_sw, "refindex_real_aer_sw");
    prop.read(phys_prop.refindex_im_aer_sw, "refindex_im_aer_sw");
@@ -640,7 +640,7 @@ class PhysProp {
  }
 
  // Read optics data for modal aerosols
- void modal_optics_init(physprop_t& props, yakl::SimpleNetCDF& prop) 
+ void modal_optics_init(physprop_t& props, yakl::SimpleNetCDF& prop)
  {
      auto ncoef        = prop.getDimSize( "coef_number" );
      auto nbnd         = prop.getDimSize( "lw_band" );
@@ -652,7 +652,7 @@ class PhysProp {
      prop.read(props.abspsw,      "abspsw" );
      prop.read(props.asmpsw,      "asmpsw" );
 
-     prop.read(props.absplw,      "absplw" ); 
+     prop.read(props.absplw,      "absplw" );
      prop.read(props.refrtabsw,   "refindex_real_sw" );
      prop.read(props.refitabsw,   "refindex_im_sw" );
 
@@ -669,7 +669,7 @@ class PhysProp {
      prop.read(props.rhdeliques,  "rhdeliques" );
  }
 
- void bulk_props_init(physprop_t& physprop, yakl::SimpleNetCDF& prop) 
+ void bulk_props_init(physprop_t& physprop, yakl::SimpleNetCDF& prop)
  {
      using charHost1d = FArray<char,1,yakl::memHost>;
      charHost1d temp;
@@ -692,7 +692,7 @@ class PhysProp {
  //where a = ( ln f(x1) - ln f(x0) ) / (x1 - x0)
  //x0 <= x <= x1
  //assumes x is monotonically increasing
- real exp_interpol(const real1d& x, const real1d& f, const real& y) 
+ real exp_interpol(const real1d& x, const real1d& f, const real& y)
  {
    auto n = x.extent(0);
    int k;
@@ -711,7 +711,7 @@ class PhysProp {
        k = k + 1;
      }
    }
- 
+
    // interpolate
    auto a = (  log( f(k+1) / f(k) )  ) / ( x(k+1) - x(k) );
    return f(k) * exp( a * (y - x(k)) );
@@ -724,7 +724,7 @@ class PhysProp {
  // x0 <= x <= x1
  // assumes x is monotonically increasing
  //
- real lin_interpol(const real1d& x, const real1d& f, const real& y) 
+ real lin_interpol(const real1d& x, const real1d& f, const real& y)
  {
    auto n = x.extent(0);
    int k;
@@ -732,10 +732,10 @@ class PhysProp {
    // set k = 1 if y <= x(1)  and  k = n-1 if y > x(n)
    if (y <= x(1)) {
      k = 1;
-   } 
+   }
    else if (y >= x(n)) {
      k = n - 1;
-   } 
+   }
    else {
      k = 1;
      while (y > x(k+1) && k < n) {
@@ -752,7 +752,7 @@ class PhysProp {
  //   write out aerosol optical properties
  //   for a set of test rh values
  //   to test hygroscopic growth interpolation
- void aer_optics_log_rh(std::string name, const real1d& ext, const real1d& ssa, const real1d& asmin) 
+ void aer_optics_log_rh(std::string name, const real1d& ext, const real1d& ssa, const real1d& asmin)
  {
    //real(r8), intent(in) :: ext(nrh)
    //real(r8), intent(in) :: ssa(nrh)
