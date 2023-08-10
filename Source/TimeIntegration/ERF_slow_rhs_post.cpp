@@ -45,7 +45,7 @@ using namespace amrex;
  */
 
 void erf_slow_rhs_post (int /*level*/,
-			int nrk,
+                        int nrk,
                         Real dt,
                         Vector<MultiFab>& S_rhs,
                         Vector<MultiFab>& S_old,
@@ -253,48 +253,48 @@ void erf_slow_rhs_post (int /*level*/,
         start_comp = RhoScalar_comp;
         num_comp = 1;
 
-        if (!solverChoice.use_efficient_advection){
-		AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+        if (!solverChoice.kse_efficient_advection){
+                AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                solverChoice.dryscal_horiz_adv_type,
                                solverChoice.dryscal_vert_adv_type,
                                l_use_terrain);
-	} else{
-		AdvType adv_type_rk0 = AdvType::Centered_2nd;
-		AdvType adv_type_rk1;
-		AdvType temp_adv_type;
+        } else{
+                AdvType adv_type_rk0 = AdvType::Centered_2nd;
+                AdvType adv_type_rk1;
+                AdvType temp_adv_type;
 
-		if ( (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_2nd) ||
+                if ( (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_2nd) ||
 		     (solverChoice.dryscal_horiz_adv_type == AdvType::Upwind_3rd)   ||
-		     (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_4th) ||
-		     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3)       ||
-		     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3Z)      ||
-		     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3MZQ)    )
-		{
-		   	adv_type_rk1 = AdvType::Centered_2nd;
-		} else if ( (solverChoice.dryscal_horiz_adv_type == AdvType::Upwind_5th) ||
-			    (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_5)     ||
-			    (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_5Z)    )
-		{
-		   	adv_type_rk1 = AdvType::Upwind_3rd;
-		} else{
-		   	adv_type_rk1 = AdvType::Centered_4th;
-		}
+                     (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_4th) ||
+                     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3)       ||
+                     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3Z)      ||
+                     (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3MZQ)    )
+                {
+                  adv_type_rk1 = AdvType::Centered_2nd;
+                } else if ( (solverChoice.dryscal_horiz_adv_type == AdvType::Upwind_5th) ||
+                            (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_5)     ||
+                            (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_5Z)    )
+                {
+                  adv_type_rk1 = AdvType::Upwind_3rd;
+                } else{
+                  adv_type_rk1 = AdvType::Centered_4th;
+                }
 
-		if (nrk == 0){
-			temp_adv_type = adv_type_rk0;
-		} else if (nrk == 1){
-			temp_adv_type = adv_type_rk1;
-		} else{
-			temp_adv_type = solverChoice.dryscal_vert_adv_type;
-		}
+                if (nrk == 0){
+                  temp_adv_type = adv_type_rk0;
+                } else if (nrk == 1){
+                  temp_adv_type = adv_type_rk1;
+                } else{
+                  temp_adv_type = solverChoice.dryscal_vert_adv_type;
+                }
 
-		AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                temp_adv_type,
                                temp_adv_type,
                                l_use_terrain);
-		}
+                }
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;

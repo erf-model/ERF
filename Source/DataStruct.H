@@ -203,7 +203,7 @@ struct SolverChoice {
         }
 
         // Order and type of spatial discretizations used in advection
-	pp.query("use_efficient_advection", use_efficient_advection);
+        pp.query("use_efficient_advection", use_efficient_advection);
         std::string dycore_horiz_adv_string    = "" ; std::string dycore_vert_adv_string   = "";
         std::string dryscal_horiz_adv_string   = "" ; std::string dryscal_vert_adv_string  = "";
         pp.query("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
@@ -217,7 +217,7 @@ struct SolverChoice {
         pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
 #endif
 
-	if (use_efficient_advection){
+        if (use_efficient_advection){
 	    amrex::Print() << "Using efficient advection scheme" << std::endl;;
 	}
 
