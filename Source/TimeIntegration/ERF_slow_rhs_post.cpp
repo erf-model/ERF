@@ -253,7 +253,7 @@ void erf_slow_rhs_post (int /*level*/,
         start_comp = RhoScalar_comp;
         num_comp = 1;
 
-        if (!solverChoice.kse_efficient_advection){
+        if (!solverChoice.use_efficient_advection){
                 AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                solverChoice.dryscal_horiz_adv_type,
