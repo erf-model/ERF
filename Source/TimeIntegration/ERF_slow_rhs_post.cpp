@@ -294,7 +294,7 @@ void erf_slow_rhs_post (int /*level*/,
                                temp_adv_type,
                                temp_adv_type,
                                l_use_terrain);
-	}
+		}
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;
