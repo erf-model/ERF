@@ -123,7 +123,7 @@ init_custom_prob(
         const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0_z) / r0_z));
     } else if (parms.prob_type == 14) {
-	state(i, j, k, RhoScalar_comp) = std::cos(PI*x);
+        state(i, j, k, RhoScalar_comp) = std::cos(PI*x);
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
