@@ -64,6 +64,7 @@ void erf_slow_rhs_pre (int level, int nrk,
  *
  */
 void erf_slow_rhs_post (int level,
+		       int nrk,
                        amrex::Real dt,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,
