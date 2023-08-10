@@ -218,8 +218,8 @@ struct SolverChoice {
 #endif
 
         if (use_efficient_advection){
-	    amrex::Print() << "Using efficient advection scheme" << std::endl;;
-	}
+           amrex::Print() << "Using efficient advection scheme" << std::endl;;
+        }
 
         if ( (dycore_horiz_adv_string == "Centered_2nd") ||
              (dycore_horiz_adv_string == "Upwind_3rd"  ) ||

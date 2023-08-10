@@ -265,7 +265,7 @@ void erf_slow_rhs_post (int /*level*/,
                 AdvType temp_adv_type;
 
                 if ( (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_2nd) ||
-		     (solverChoice.dryscal_horiz_adv_type == AdvType::Upwind_3rd)   ||
+                     (solverChoice.dryscal_horiz_adv_type == AdvType::Upwind_3rd)   ||
                      (solverChoice.dryscal_horiz_adv_type == AdvType::Centered_4th) ||
                      (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3)       ||
                      (solverChoice.dryscal_horiz_adv_type == AdvType::Weno_3Z)      ||
