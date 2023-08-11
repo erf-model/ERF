@@ -264,12 +264,12 @@ void erf_slow_rhs_post (int /*level*/,
         } else{
              horiz_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_horiz_adv_type);
              vert_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_vert_adv_type);
-	     AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                     cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                     horiz_adv_type,
                                     vert_adv_type,
                                     l_use_terrain);
-	}
+              }
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;
