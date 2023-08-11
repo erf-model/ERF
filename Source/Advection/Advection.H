@@ -83,8 +83,8 @@ EfficientAdvType(int nrk, AdvType adv_type)
               adv_type_rk1 = AdvType::Upwind_3rd;
            } else{
               adv_type_rk1 = AdvType::Centered_4th;
-           }
-        
+	   }
+
         if (nrk == 0){
               eff_adv_type = AdvType::Centered_2nd;
            } else if (nrk == 1){
