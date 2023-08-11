@@ -122,6 +122,10 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
+| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+|                           | on the grids?   |                 |             |
+|                           |                 |                 |             |
++---------------------------+-----------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
