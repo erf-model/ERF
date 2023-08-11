@@ -974,6 +974,11 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(cf_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+
+        // AmrMesh iterate on grids?
+        bool iterate(true);
+        pp_amr.query("iterate_grids",iterate);
+        if (!iterate) SetIterateToFalse();
     }
 
 #ifdef ERF_USE_MULTIBLOCK
