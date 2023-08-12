@@ -65,32 +65,37 @@ AMREX_FORCE_INLINE
 AdvType
 EfficientAdvType(int nrk, AdvType adv_type)
 {
-     AdvType adv_type_rk1;
      AdvType eff_adv_type;
 
-     if ( (adv_type == AdvType::Centered_2nd) ||
-          (adv_type == AdvType::Upwind_3rd)   ||
-          (adv_type == AdvType::Centered_4th) ||
-          (adv_type == AdvType::Weno_3)       ||
-          (adv_type == AdvType::Weno_3Z)      ||
-          (adv_type == AdvType::Weno_3MZQ)    )
-     {
-                adv_type_rk1 = AdvType::Centered_2nd;
-     } else if ( (adv_type == AdvType::Upwind_5th) ||
-                 (adv_type == AdvType::Weno_5)     ||
-                 (adv_type == AdvType::Weno_5Z)    )
-     {
-        adv_type_rk1 = AdvType::Upwind_3rd;
-     } else{
-        adv_type_rk1 = AdvType::Centered_4th;
-     }
+     if (nrk == 0) {
 
-     if (nrk == 0){
-        eff_adv_type = AdvType::Centered_2nd;
-     } else if (nrk == 1){
-        eff_adv_type = adv_type_rk1;
-     } else{
-        eff_adv_type = adv_type;
+         eff_adv_type = AdvType::Centered_2nd;
+
+     } else if (nrk == 1) {
+
+         if ( (adv_type == AdvType::Centered_2nd) ||
+              (adv_type == AdvType::Upwind_3rd)   ||
+              (adv_type == AdvType::Centered_4th) ||
+              (adv_type == AdvType::Weno_3)       ||
+              (adv_type == AdvType::Weno_3Z)      ||
+              (adv_type == AdvType::Weno_3MZQ)    )
+         {
+             eff_adv_type = AdvType::Centered_2nd;
+
+         } else if ( (adv_type == AdvType::Upwind_5th) ||
+                     (adv_type == AdvType::Weno_5)     ||
+                     (adv_type == AdvType::Weno_5Z)    )
+         {
+             eff_adv_type = AdvType::Upwind_3rd;
+
+         } else { // (adv_type == AdvType::Centered_6th)
+
+             eff_adv_type = AdvType::Centered_4th;
+         }
+
+     } else {
+
+         eff_adv_type = adv_type;
      }
 
      return(eff_adv_type);

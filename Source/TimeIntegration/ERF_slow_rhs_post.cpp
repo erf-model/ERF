@@ -228,6 +228,14 @@ void erf_slow_rhs_post (int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+        AdvType horiz_adv_type = solverChoice.dryscal_horiz_adv_type;
+        AdvType  vert_adv_type = solverChoice.dryscal_vert_adv_type;
+
+        if (solverChoice.use_efficient_advection){
+             horiz_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_horiz_adv_type);
+              vert_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_vert_adv_type);
+        }
+
         int start_comp;
         int   num_comp;
         if (l_use_deardorff) {
@@ -235,8 +243,7 @@ void erf_slow_rhs_post (int /*level*/,
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   solverChoice.dryscal_horiz_adv_type,
-                                   solverChoice.dryscal_vert_adv_type,
+                                   horiz_adv_type, vert_adv_type,
                                    l_use_terrain);
         }
         if (l_use_QKE) {
@@ -244,43 +251,50 @@ void erf_slow_rhs_post (int /*level*/,
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   solverChoice.dryscal_horiz_adv_type,
-                                   solverChoice.dryscal_vert_adv_type,
+                                   horiz_adv_type, vert_adv_type,
                                    l_use_terrain);
         }
 
         // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
         num_comp = 1;
-        AdvType horiz_adv_type = solverChoice.dryscal_horiz_adv_type;
-        AdvType vert_adv_type = solverChoice.dryscal_vert_adv_type;
-
-        if (solverChoice.use_efficient_advection){
-             horiz_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_horiz_adv_type);
-             vert_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_vert_adv_type);
-        }
 
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                              horiz_adv_type,
-                              vert_adv_type,
+                              horiz_adv_type, vert_adv_type,
                               l_use_terrain);
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;
           num_comp = 2;
+
+        AdvType moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
+        AdvType  moist_vert_adv_type = solverChoice.moistscal_vert_adv_type;
+
+        if (solverChoice.use_efficient_advection){
+             moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
+             moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
+        }
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               solverChoice.moistscal_horiz_adv_type,
-                               solverChoice.moistscal_vert_adv_type,
+                               moist_horiz_adv_type, moist_vert_adv_type,
                                l_use_terrain);
+
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         start_comp = RhoQv_comp;
           num_comp = 2;
+
+        AdvType moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
+        AdvType  moist_vert_adv_type = solverChoice.moistscal_vert_adv_type;
+
+        if (solverChoice.use_efficient_advection){
+             moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
+             moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
+        }
+
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               solverChoice.moistscal_horiz_adv_type,
-                               solverChoice.moistscal_vert_adv_type,
+                               moist_horiz_adv_type, moist_vert_adv_type,
                                l_use_terrain);
 #endif
 
