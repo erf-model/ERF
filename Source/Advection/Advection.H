@@ -60,7 +60,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const int use_terrain, const int domhi_z);
 
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 AdvType
 EfficientAdvType(int nrk, AdvType adv_type)
