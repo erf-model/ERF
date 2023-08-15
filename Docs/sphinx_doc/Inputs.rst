@@ -545,7 +545,7 @@ the scalar advection routine, the approximate computational savings for the scal
 schemes are as follows when using efficient advection option: roughly 30% for Centered_4th
 and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
 Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
- 
+
 
 
 Diffusive Physics
