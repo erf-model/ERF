@@ -538,13 +538,13 @@ The allowed advection types for the dry and moist scalars are
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
 
-The efficient advection schemes for dry and moist scalars exploits the substages of the
+The efficient advection schemes for dry and moist scalars exploit the substages of the
 time advancing RK3 scheme by using lower order schemes in the first two substages and the
 solver's choice of scheme in the final stage. Based on runtimes in the scalar advection
 routine, the approximate computational savings for the scalar advection schemes are as
 follows when using efficient advection option: 58% for Upwind_3rd, 30% for Centered_4th,
 35% for Upwind_5th, 28% for Centered_6th, 59% for WENO3, 60% for WENOZ3, 63% for WENOMZQ3,
-45% for WENO5, and 47% for WENOZ5. 
+45% for WENO5, and 47% for WENOZ5.
 
 
 Diffusive Physics
