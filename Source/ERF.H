@@ -293,6 +293,7 @@ public:
 #endif
 
     std::unique_ptr<amrex::TracerParticleContainer> tracer_particles;
+    static amrex::Vector<std::string> tracer_particle_varnames;
 
 private:
 
@@ -653,6 +654,9 @@ private:
     static SolverChoice solverChoice;
 
     static int verbose;
+
+    // flag to turn tracer particle generation on/off
+    static bool use_tracer_particles;
 
     // mesh refinement
     static std::string coupling_type;
