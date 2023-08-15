@@ -538,7 +538,7 @@ The allowed advection types for the dry and moist scalars are
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
 
-The efficient advection schemes for dry and moist scalars exploits the substages of the 
+The efficient advection schemes for dry and moist scalars exploits the substages of the
 time advancing RK3 scheme by using lower order schemes in the first two substages and the
 solver's choice of scheme in the final stage. Based on runtimes in the scalar advection
 routine, the approximate computational savings for the scalar advection schemes are as
