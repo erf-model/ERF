@@ -26,6 +26,8 @@ DEBUG = FALSE
 
 USE_NETCDF  = FALSE
 
+USE_PARTICLES = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
