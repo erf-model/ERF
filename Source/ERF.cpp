@@ -37,10 +37,6 @@ amrex::Real ERF::init_shrink   =  1.0;
 amrex::Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 
-
-bool ERF::use_tracer_particles = false;
-amrex::Vector<std::string> ERF::tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
-
 // Type of mesh refinement algorithm
 std::string ERF::coupling_type = "OneWay";
 
@@ -453,25 +449,6 @@ ERF::InitData ()
             AverageDown();
         }
 
-        // Initialize tracer particles if required
-        if (use_tracer_particles) {
-            tracer_particles = std::make_unique<amrex::TracerParticleContainer>(Geom(0), dmap[0], grids[0]);
-
-            amrex::ParticleInitType<TracerPC::NStructReal, 0, 0, 0> pdata {};
-            amrex::Real x_offset = 0;
-            amrex::Real y_offset = 0;
-            amrex::Real z_offset = 0;
-
-            // Do not offset in extra dimensions
-            AMREX_D_TERM( x_offset = 0.5; ,
-                          y_offset = 0.5; ,
-                          z_offset = 0.5; )
-
-            tracer_particles->InitOnePerCell(x_offset, y_offset, z_offset, pdata);
-
-            Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
-        }
-
     } else { // Restart from a checkpoint
 
         restart();
@@ -858,9 +835,6 @@ ERF::ReadParameters ()
         pp.query("fixed_dt", fixed_dt);
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
-
-        // Tracer particle toggle
-        pp.query("use_tracer_particles", use_tracer_particles);
 
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )

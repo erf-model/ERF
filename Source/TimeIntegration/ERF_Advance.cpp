@@ -131,10 +131,4 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Update the microphysics
     advance_microphysics(lev, S_new, dt_lev);
 #endif
-
-    // Update tracer particles on level 0
-    if (lev == 0 && use_tracer_particles) {
-        MultiFab* Umac = &vars_new[lev][Vars::xvel];
-        tracer_particles->AdvectWithUmac(Umac, lev, dt_lev);
-    }
 }
