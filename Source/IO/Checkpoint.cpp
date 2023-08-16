@@ -169,9 +169,11 @@ ERF::WriteCheckpointFile () const
        VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
    }
 
+#ifdef ERF_USE_PARTICLES
    if (use_tracer_particles) {
        tracer_particles->Checkpoint(checkpointname, "tracers", true, tracer_particle_varnames);
    }
+#endif
 
 #ifdef ERF_USE_NETCDF
    // Write bdy_data files
@@ -370,11 +372,13 @@ ERF::ReadCheckpointFile ()
         MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ngvect_mf);
     }
 
+#ifdef ERF_USE_PARTICLES
    if (use_tracer_particles) {
        tracer_particles = std::make_unique<amrex::TracerParticleContainer>(Geom(0), dmap[0], grids[0]);
        std::string tracer_file("tracers");
        tracer_particles->Restart(restart_chkfile, tracer_file);
    }
+#endif
 
 #ifdef ERF_USE_NETCDF
     // Read bdy_data files
