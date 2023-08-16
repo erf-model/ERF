@@ -26,7 +26,9 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
+#ifdef ERF_USE_PARTICLES
 #include <AMReX_TracerParticles.H>
+#endif
 
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
@@ -58,7 +60,9 @@
 class MultiBlockContainer;
 #endif
 
+#ifdef ERF_USE_PARTICLES
 typedef amrex::ParticleContainer<AMREX_SPACEDIM, 0, 0, 0> TracerPC;
+#endif
 
 /**
  * Enum of possible coarse/fine interpolation options
@@ -292,8 +296,10 @@ public:
                            amrex::Real time);
 #endif
 
+#ifdef ERF_USE_PARTICLES
     std::unique_ptr<amrex::TracerParticleContainer> tracer_particles;
     static amrex::Vector<std::string> tracer_particle_varnames;
+#endif
 
 private:
 
