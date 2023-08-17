@@ -32,6 +32,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    :hidden:
 
    coc
+   Doxygen
 
 .. toctree::
    :caption: USER GUIDE
@@ -90,6 +91,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
    :hidden:
 
+   Verification.rst
    Performance.rst
    RegressionTests.rst
 

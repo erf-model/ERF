@@ -2,21 +2,22 @@
 #define Initialization_1D_H
 #include <AMReX_REAL.H>
 
+/**
+ * Interpolates 1D array beta at the location alpha_interp in the array alpha
+ * requiring 1D arrays alpha and beta to be the same size alpha_size.
+ * This routine assumes the alpha data are monotonic from lowest to highest.
+ */
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
                            const amrex::Real alpha_interp, const int alpha_size)
 {
     using namespace amrex;
 
-    /*
-    Interpolates 1D array beta at the location alpha_interp in the array alpha
-    requiring 1D arrays alpha and beta to be the same size alpha_size.
-    */
-
     amrex::Real beta_interp;
 
-    //in case the interpolation point alraedy exists in the array
-    //just return it
+    // If the interpolation point already exists in the array,
+    // just return it
     for (int i = 0; i < alpha_size; ++i) {
         if (alpha[i] == alpha_interp) {
             beta_interp = beta[i];
@@ -24,13 +25,11 @@ amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
         }
     }
 
-    // we didn't find an exact match for alpha_interp in alpha,
+    // We didn't find an exact match for alpha_interp in alpha,
     // so we need linear interpolation/extrapolation
-    const amrex::Real* alpha_begin = &alpha[0];
-    const amrex::Real* alpha_end   = &alpha[alpha_size];
-    amrex::Real max = *std::max_element(alpha_begin, alpha_end);
-    amrex::Real min = *std::min_element(alpha_begin, alpha_end);
-    if (alpha_interp >= min && alpha_interp <= max) //interpolate
+    amrex::Real alpha_min = alpha[0];
+    amrex::Real alpha_max = alpha[alpha_size-1];
+    if (alpha_interp >= alpha_min && alpha_interp <= alpha_max) //interpolate
     {
         for (int i = 0; i < alpha_size; ++i)
         {
@@ -48,16 +47,17 @@ amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
     }
     else //extrapolate
     {
-        //y = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0)
-        int i;
-        if (alpha_interp >= *alpha_end)
+        // y = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0)
+        int i = 0;
+        if (alpha_interp > alpha_max)
         {
-            i = static_cast<int>(alpha_end - alpha_begin - 1);
+            i = alpha_size-2;
         }
-        else
+        else if (alpha_interp >= alpha_min)
         {
-            i = 0;
+            amrex::Abort("interpolate_1d: we shouldn't be here!");
         }
+
         amrex::Real y0 = beta[i];
         amrex::Real y1 = beta[i + 1];
         amrex::Real x = alpha_interp;

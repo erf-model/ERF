@@ -24,9 +24,9 @@ where :math:`\mathbf{S}` is the solution vector, we solve
 
   \mathbf{S}^{*}   &=& \mathbf{S}^n + \frac{1}{3} \Delta t f(\mathbf{S}^n)
 
-  \mathbf{S}^{**}  &=& \mathbf{S}^n + \frac{1}{2} \Delta t f(\mathbf{S}^{*}) )
+  \mathbf{S}^{**}  &=& \mathbf{S}^n + \frac{1}{2} \Delta t f(\mathbf{S}^{*})
 
-  \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{**}) )
+  \mathbf{S}^{n+1} &=& \mathbf{S}^n +             \Delta t f(\mathbf{S}^{**})
 
 .. _AcousticSubstep:
 

@@ -1,0 +1,79 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 50
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =     0.    0.     0. 
+geometry.prob_hi     = 10000.  100.  3200.
+
+amr.n_cell           = 256  8   32   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+xlo.velocity = 1. 0. 0.
+xlo.density  = 1.16
+xlo.theta    = 300.
+xlo.scalar   = 0.
+    
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.no_substepping     = 1
+erf.fixed_dt           = 1E-5     
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 100     # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 1       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+erf.les_type = "None"
+
+# MULTILEVEL
+amr.max_level = 0
+amr.ref_ratio_vect = 2 2 1
+
+erf.refinement_indicators = box1
+erf.box1.max_level = 1
+erf.box1.in_box_lo =  2. 0.25
+erf.box1.in_box_hi =  8. 0.75
+
+erf.terrain_z_levels = 0. 200. 300. 400. 450. 500. 600. 700. 800. 900. 1000. 1100. 1200. 1300. 1400. 1500. 1600. 1700. 1800. 1900. 2000. 2100. 2200. 2300. 2400. 2500. 2600. 2700. 2800. 2900. 3000. 3100. 3200. 3300. 3400. 3500. 3600. 3700. 3800. 3900. 4000. 4100. 4200. 4300. 4400. 4500. 4600. 4700. 4800. 4900. 5000. 5100. 5200. 5300. 5400. 5500. 5600. 5700. 5800. 5900. 6000. 6100. 6200. 6300. 6400.
+
+# TERRRAIN GRID TYPE
+erf.terrain_smoothing = 1
+
+# Diffusion coefficient from Straka, K = 75 m^2/s
+erf.molec_diff_type = "ConstantAlpha"
+erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 0.0 # [m^2/s]
+
+#erf.abl_driver_type = "PressureGradient"
+#erf.abl_pressure_grad = -0.2 0. 0.
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0   = 300.0
+prob.U_0   = 0.0
+prob.rho_0 = 1.16

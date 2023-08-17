@@ -18,8 +18,10 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    int n_time = static_cast<int>(time / dT);
-    amrex::Real alpha = (time - n_time * dT) / dT;
+    Real time_since_start = (time - start_bdy_time) / 1.e10;
+    int n_time = static_cast<int>( time_since_start / dT);
+    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
@@ -93,8 +95,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
-
-                    // Call w/o interior ghost cells
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,
@@ -149,7 +149,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
-
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,

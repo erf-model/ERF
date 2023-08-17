@@ -1,0 +1,88 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 100000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     =  0   0.  0. 
+geometry.prob_hi     =  1.0   1. 1.0
+
+amr.n_cell           = 8  4 128   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+xlo.velocity = 1. 0. 0.
+xlo.density  = 1.16
+xlo.theta    = 300.
+xlo.scalar   = 0.
+    
+zlo.type = "NoSlipWall"
+zlo.velocity = 10.0 0.0 0.0
+zhi.type = "Outflow"
+
+# TIME STEP CONTROL
+erf.no_substepping     = 1
+erf.fixed_dt           = 1e-8
+#erf.cfl = 0.1 
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 1000  # number of timesteps between checkpoint
+#erf.restart			= chk06000
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 1000       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+erf.les_type = "None"
+
+# MULTILEVEL
+amr.max_level = 0
+amr.ref_ratio_vect = 2 2 1
+
+erf.refinement_indicators = box1
+erf.box1.max_level = 1
+erf.box1.in_box_lo =  2. 0.25
+erf.box1.in_box_hi =  8. 0.75
+
+# TERRRAIN GRID TYPE
+erf.use_terrain = true
+erf.terrain_smoothing = 0
+
+erf.terrain_z_levels = 0 0.000237889 0.000487134 0.000748273 0.00102187 0.00130852 0.00160884 0.00192347 0.0022531 0.00259843 0.00296021 0.0033392 0.00373623 0.00415215 0.00458784 0.00504424 0.00552231 0.00602309 0.00654763 0.00709704 0.0076725 0.00827522 0.00890647 0.0095676 0.01026 0.0109851 0.0117444 0.0125395 0.0133722 0.014244 0.0151568 0.0161126 0.0171133 0.0181609 0.0192575 0.0204056 0.0216073 0.022865 0.0241815 0.0255592 0.0270011 0.0285098 0.0300885 0.0317403 0.0334683 0.0352761 0.037167 0.0391448 0.0412133 0.0433764 0.0456381 0.0480028 0.0504749 0.053059 0.0557597 0.058582 0.061531 0.064612 0.0678303 0.0711917 0.0747019 0.0783668 0.0821928 0.0861861 0.0903533 0.0947011 0.0992364 0.103966 0.108898 0.114039 0.119397 0.12498 0.130795 0.136851 0.143155 0.149717 0.156544 0.163645 0.171028 0.178703 0.186677 0.194959 0.203559 0.212483 0.221742 0.231343 0.241294 0.251604 0.26228 0.27333 0.284761 0.296579 0.308792 0.321404 0.334422 0.347851 0.361694 0.375956 0.390639 0.405745 0.421276 0.437231 0.453611 0.470414 0.487636 0.505275 0.523326 0.541783 0.560638 0.579884 0.599511 0.619507 0.639862 0.660561 0.68159 0.702935 0.724576 0.746498 0.76868 0.791103 0.813746 0.836586 0.8596 0.882766 0.906059 0.929454 0.952927 0.97645 1
+
+# USE WENO FOR ADVECTION
+#erf.all_use_WENO = true
+#erf.spatial_order_WENO = 5
+
+# Diffusion coefficient from Straka, K = 75 m^2/s
+erf.molec_diff_type = "ConstantAlpha"
+erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 2.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 0.0 # [m^2/s]
+
+#erf.abl_driver_type = "PressureGradient"
+#erf.abl_pressure_grad = -0.2 0. 0.
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0   = 300.0
+prob.U_0   = 0.0
+prob.rho_0 = 1.16

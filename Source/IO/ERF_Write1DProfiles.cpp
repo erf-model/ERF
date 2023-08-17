@@ -194,6 +194,10 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
 
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
 
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qv(qmoist[lev], make_alias, 0, 1);
+#endif
+
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -203,7 +207,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
 #if defined(ERF_USE_MOISTURE)
-        const Array4<Real>&   qv_arr = qv[lev].array(mfi);
+        const Array4<Real>&   qv_arr = qv.array(mfi);
 #endif
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
@@ -269,7 +273,8 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_pw   = sumToLine(mf_out,20,1,domain,zdir);
 
     // Divide by the total number of cells we are averaging over
-    for (int k = 0; k < h_avg_u.size(); ++k) {
+    int h_avg_u_size = static_cast<int>(h_avg_u.size());
+    for (int k = 0; k < h_avg_u_size; ++k) {
         h_avg_rho[k] /= area_z;  h_avg_ksgs[k] /= area_z;
         h_avg_th[k]  /= area_z;  h_avg_thth[k] /= area_z;
         h_avg_uu[k]  /= area_z;  h_avg_uv[k]   /= area_z;  h_avg_uw[k]  /= area_z;

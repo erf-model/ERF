@@ -34,16 +34,27 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
 
 
 /**
- * Project the initial velocity field to enforce incompressibility
+ * Project the single-level velocity field to enforce incompressibility
  */
-
-void
-ERF::project_initial_velocities()
+void ERF::project_velocities(Vector<MultiFab>& vmf)
 {
-    BL_PROFILE("ERF::project_initial_velocities()");
+    Vector<Vector<MultiFab>> tmpmf(1);
+    for (auto& mf : vmf) {
+        tmpmf[0].emplace_back(mf, amrex::make_alias, 0, mf.nComp());
+    }
+    project_velocities(tmpmf);
+}
+
+/**
+ * Project the multi-level velocity field to enforce incompressibility
+ */
+void
+ERF::project_velocities(Vector<Vector<MultiFab>>& vars)
+{
+    BL_PROFILE("ERF::project_velocities()");
 
     const Real tol_rel = 1.e-10;
-    const Real tol_abs = 0.0;
+    const Real tol_abs = 1.e-10;
 
     const int nlevs = geom.size();
 
@@ -86,9 +97,9 @@ ERF::project_initial_velocities()
     Array<MultiFab const*, AMREX_SPACEDIM> u;
     for (int ilev = 0; ilev < nlevs; ++ilev)
     {
-        u[0] = &(vars_new[ilev][Vars::xvel]);
-        u[1] = &(vars_new[ilev][Vars::yvel]);
-        u[2] = &(vars_new[ilev][Vars::zvel]);
+        u[0] = &(vars[ilev][Vars::xvel]);
+        u[1] = &(vars[ilev][Vars::yvel]);
+        u[2] = &(vars[ilev][Vars::zvel]);
         computeDivergence(rhs[ilev], u, geom[ilev]);
     }
 
@@ -113,9 +124,9 @@ ERF::project_initial_velocities()
     // Subtract grad(phi) from the velocity components
     Real beta = 1.0;
     for (int ilev = 0; ilev < nlevs; ++ilev) {
-        MultiFab::Saxpy(vars_new[ilev][Vars::xvel], beta, fluxes[ilev][0], 0,0,1,0);
-        MultiFab::Saxpy(vars_new[ilev][Vars::yvel], beta, fluxes[ilev][1], 0,0,1,0);
-        MultiFab::Saxpy(vars_new[ilev][Vars::zvel], beta, fluxes[ilev][2], 0,0,1,0);
+        MultiFab::Saxpy(vars[ilev][Vars::xvel], beta, fluxes[ilev][0], 0,0,1,0);
+        MultiFab::Saxpy(vars[ilev][Vars::yvel], beta, fluxes[ilev][1], 0,0,1,0);
+        MultiFab::Saxpy(vars[ilev][Vars::zvel], beta, fluxes[ilev][2], 0,0,1,0);
     }
 
     // Average down the velocity from finest to coarsest to ensure consistency across levels
@@ -125,12 +136,12 @@ ERF::project_initial_velocities()
     for (int ilev = finest_level; ilev > 0; --ilev)
     {
         IntVect rr  = geom[ilev].Domain().size() / geom[ilev-1].Domain().size();
-        u_fine[0] = &(vars_new[ilev  ][Vars::xvel]);
-        u_fine[1] = &(vars_new[ilev  ][Vars::yvel]);
-        u_fine[2] = &(vars_new[ilev  ][Vars::zvel]);
-        u_crse[0] = &(vars_new[ilev-1][Vars::xvel]);
-        u_crse[1] = &(vars_new[ilev-1][Vars::yvel]);
-        u_crse[2] = &(vars_new[ilev-1][Vars::zvel]);
+        u_fine[0] = &(vars[ilev  ][Vars::xvel]);
+        u_fine[1] = &(vars[ilev  ][Vars::yvel]);
+        u_fine[2] = &(vars[ilev  ][Vars::zvel]);
+        u_crse[0] = &(vars[ilev-1][Vars::xvel]);
+        u_crse[1] = &(vars[ilev-1][Vars::yvel]);
+        u_crse[2] = &(vars[ilev-1][Vars::zvel]);
         average_down_faces(u_fine, u_crse, rr, geom[ilev-1]);
     }
 
@@ -138,9 +149,9 @@ ERF::project_initial_velocities()
     // Confirm that the velocity is now divergence free
     for (int ilev = 0; ilev < nlevs; ++ilev)
     {
-        u[0] = &(vars_new[ilev][Vars::xvel]);
-        u[1] = &(vars_new[ilev][Vars::yvel]);
-        u[2] = &(vars_new[ilev][Vars::zvel]);
+        u[0] = &(vars[ilev][Vars::xvel]);
+        u[1] = &(vars[ilev][Vars::yvel]);
+        u[2] = &(vars[ilev][Vars::zvel]);
         computeDivergence(rhs[ilev], u, geom[ilev]);
         Print() << "Max norm of divergence after solve at level " << ilev << " : " << rhs[ilev].norm0() << std::endl;
     }

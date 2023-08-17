@@ -5,7 +5,7 @@
 #include <ERF_Constants.H>
 #include <Advection.H>
 #include <Diffusion.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <TileNoZ.H>
 #include <EOS.H>
 #include <ERF.H>
@@ -41,9 +41,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
-                    const MultiFab& qvapor,
-                    const MultiFab& qcloud,
-                    const MultiFab& qice,
+                    const MultiFab& qmoist,
                     Gpu::DeviceVector<Real> qv_d,
                     Gpu::DeviceVector<Real> qc_d,
                     Gpu::DeviceVector<Real> qi_d,
@@ -59,6 +57,12 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
     const int klo = 0;
     const int khi = geom.Domain().bigEnd()[2] + 1;
+
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qvapor(qmoist, make_alias, 0, 1);
+    MultiFab qcloud(qmoist, make_alias, 1, 1);
+    MultiFab qice  (qmoist, make_alias, 2, 1);
+#endif
 
     // ******************************************************************************************
     // Dry versions of buoyancy expressions (type 1 and type 2/3 -- types 2 and 3 are equivalent)

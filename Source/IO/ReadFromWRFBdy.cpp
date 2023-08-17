@@ -56,7 +56,7 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int& width)
+                 int& width, Real& start_bdy_time)
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -101,8 +101,10 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
             else if (nt >= 1)
                 AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
         }
+        start_bdy_time = epochTimes[0];
     }
 
+    ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
     ParallelDescriptor::Bcast(&ntimes,1,ioproc);
     ParallelDescriptor::Bcast(&timeInterval,1,ioproc);
 
@@ -715,6 +717,18 @@ convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy
                 amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on hi y face: " << diff.norm(0) << std::endl;
         }
 #endif
+
+        // Define Qv
+        const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
+        amrex::ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+
+            Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
+            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+
+            Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
+
+            bdy_qv_arr(i,j,k) = new_bdy_QV * bdy_r_arr(i,j,k);
+        });
     } // ntimes
 }
 #endif // ERF_USE_NETCDF

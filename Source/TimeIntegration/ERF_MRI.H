@@ -4,7 +4,7 @@
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
-#include <TimeIntegration.H>
+#include <TI_headers.H>
 #include <functional>
 
 template<class T>
@@ -16,7 +16,8 @@ private:
     */
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
     std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
-    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real     )> slow_rhs_post;
+    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
+    std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
     std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
                                                            const amrex::Real, const amrex::Real)> fast_rhs;
 
@@ -34,6 +35,11 @@ private:
     * \brief Should we not do acoustic substepping
     */
     int no_substepping;
+
+   /**
+    * \brief Should we use the incompressible integrator
+    */
+    int incompressible;
 
    /**
     * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
@@ -56,7 +62,7 @@ private:
 
     void initialize_data (const T& S_data)
     {
-        // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch and F_pert
+        // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch
         //       have only 2 components, not Cons::NumVars components
         const bool include_ghost = true;
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
@@ -99,6 +105,11 @@ public:
     // Delete the copy assignment operator
     MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
 
+    void setIncompressible(int _incompressible)
+    {
+        incompressible = _incompressible;
+    }
+
     void setNoSubstepping(int _no_substepping)
     {
         no_substepping = _no_substepping;
@@ -109,16 +120,15 @@ public:
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
-    void set_rhs (std::function<void(T&, const T&, const amrex::Real, const amrex::Real, int)> F)
-    {
-        rhs = F;
-    }
-
     void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_pre = F;
     }
-    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real)> F)
+    void set_slow_rhs_inc (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    {
+        slow_rhs_inc = F;
+    }
+    void set_slow_rhs_post (std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_post = F;
     }
@@ -194,57 +204,21 @@ public:
         // S_old  = S^n
         // S_sum  = S(t)
         // F_slow = F(S_stage)
-        // F_pert = G(S(t)-S_stage, S_stage)
 
         int n_data = IntVar::NumVars;
 
         /**********************************************/
         /* RK3 Integration with Acoustic Sub-stepping */
         /**********************************************/
-
-        // Start with S_new (aka S_stage) holding S_old
-    #ifdef _OPENMP
-    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
+        Vector<int> num_vars = {Cons::NumVars, 1, 1, 1};
+        for (int i(0); i<n_data; ++i)
         {
-            for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box gbx = mfi.tilebox().grow(S_old[IntVar::cons].nGrowVect());
-                const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
+            // Copy old -> new
+            MultiFab::Copy(S_new[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
 
-                Vector<Array4<Real> > sold_h(n_data);
-                Vector<Array4<Real> > snew_h(n_data);
-
-                for (int i = 0; i < n_data; ++i) {
-                    sold_h[i] = S_old[i].array(mfi);
-                    snew_h[i] = S_new[i].array(mfi);
-                }
-
-                Gpu::AsyncVector<Array4<Real> > sold_d(n_data);
-                Gpu::AsyncVector<Array4<Real> > snew_d(n_data);
-
-                Gpu::copy(Gpu::hostToDevice, sold_h.begin(), sold_h.end(), sold_d.begin());
-                Gpu::copy(Gpu::hostToDevice, snew_h.begin(), snew_h.end(), snew_d.begin());
-
-                Array4<Real>* sold = sold_d.dataPtr();
-                Array4<Real>* snew = snew_d.dataPtr();
-
-                ParallelFor(gbx, static_cast<int>(Cons::NumVars),
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    snew[IntVar::cons](i,j,k,n) = sold[IntVar::cons](i,j,k,n);
-                });
-
-                ParallelFor(gtbx, gtby, gtbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::xmom](i,j,k) = sold[IntVar::xmom](i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::ymom](i,j,k) = sold[IntVar::ymom](i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    snew[IntVar::zmom](i,j,k) = sold[IntVar::zmom](i,j,k);
-                });
+            // Copy old momentum -> scratch momentum
+            if (i>=1) {
+                MultiFab::Copy((*S_scratch)[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
             }
         }
 
@@ -254,48 +228,16 @@ public:
         // How many timesteps taken by the fast integrator
         int nsubsteps;
 
-        // We copy (rho theta) and the velocities here -- the velocities
-        //    will be over-written in slow_rhs on all valid faces but we
-        //    use this copy to fill in the ghost locations which will
-        //    be needed for metric terms
-    #ifdef _OPENMP
-    #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-    #endif
-        {
-            for ( MFIter mfi(S_old[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box gtbx = mfi.nodaltilebox(0).grow(S_old[IntVar::xmom].nGrowVect());
-                const Box gtby = mfi.nodaltilebox(1).grow(S_old[IntVar::ymom].nGrowVect());
-                const Box gtbz = mfi.nodaltilebox(2).grow(S_old[IntVar::zmom].nGrowVect());
-
-                const Array4<Real>& scrh_xmom = (*S_scratch)[IntVar::xmom].array(mfi);
-                const Array4<Real>& scrh_ymom = (*S_scratch)[IntVar::ymom].array(mfi);
-                const Array4<Real>& scrh_zmom = (*S_scratch)[IntVar::zmom].array(mfi);
-
-                const Array4<Real>& sold_xmom = S_old[IntVar::xmom].array(mfi);
-                const Array4<Real>& sold_ymom = S_old[IntVar::ymom].array(mfi);
-                const Array4<Real>& sold_zmom = S_old[IntVar::zmom].array(mfi);
-
-                ParallelFor(gtbx, gtby, gtbz,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_xmom(i,j,k) = sold_xmom(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_ymom(i,j,k) = sold_ymom(i,j,k);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    scrh_zmom(i,j,k) = sold_zmom(i,j,k);
-                });
-            }
-        }
-
         // This is the final time of the full timestep (also the 3rd RK stage)
         // Real new_time = time + timestep;
 
         amrex::Real time_stage = time;
         amrex::Real old_time_stage;
 
-        for (int nrk = 0; nrk < 3; nrk++)
-        {
+        if (!incompressible) {
+          // RK3 for compressible integrator
+          for (int nrk = 0; nrk < 3; nrk++)
+          {
             // amrex::Print() << "Starting RK3: Step " << nrk+1 << std::endl;
 
             // Capture the time we got to in the previous RK step
@@ -355,12 +297,43 @@ public:
             //       but we are using the "new" versions (in S_sum) of the velocities
             //      (because we did    update the fast variables in the substepping)
             // ****************************************************
-            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage);
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
             post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
-        } // nrk
+          } // nrk
+
+        } else {
+          // RK2 for incompressible integrator
+          for (int nrk = 0; nrk < 2; nrk++)
+          {
+            // Capture the time we got to in the previous RK step
+            old_time_stage = time_stage;
+
+            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time; }
+            if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
+
+            // All pre_update does is call cons_to_prim, and we have done this with the old
+            //     data already before starting the RK steps
+            if (nrk > 0) {
+                pre_update(S_new, S_new[IntVar::cons].nGrow());
+            }
+
+            // S_scratch also holds the average momenta over the fast iterations --
+            //    to be used to update the slow variables -- we will initialize with
+            //    the momenta used in the first call to the slow_rhs, then update
+            //    inside fast_rhs, then use these values in the later call to slow_rhs
+
+            slow_rhs_inc(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
+
+            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+
+            slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
+
+            post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+          } // nrk
+        }
 
         // Return timestep
         return timestep;

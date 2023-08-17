@@ -1,0 +1,10 @@
+This problem setup is for the classic Ekman Spiral test. The Ekman spiral problem 
+tests Coriolis and geostrophic forcing as well as the computation of the stress term 
+internally and at no-slip walls.
+
+A description of the problem, including the exact solution, can be found at 
+https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral .
+
+The version of the Ekman spiral test in this directory initializes the solution
+from the input_sounding_file,  thus this is also a test of ERF's ability to 
+initialize from input soundings.

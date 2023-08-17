@@ -95,15 +95,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
+    if (ncomp_mf == 0)
+        return;
+
     // We fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled
     for (int lev = 0; lev <= finest_level; ++lev) {
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
     }
-
-    if (ncomp_mf == 0)
-        return;
 
     Vector<MultiFab> mf(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -114,7 +114,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (solverChoice.use_terrain) {
         for (int lev = 0; lev <= finest_level; ++lev) {
             BoxArray nodal_grids(grids[lev]); nodal_grids.surroundingNodes();
-            mf_nd[lev].define(nodal_grids, dmap[lev], ncomp_mf, 0);
+            mf_nd[lev].define(nodal_grids, dmap[lev], 3, 0);
             mf_nd[lev].setVal(0.);
         }
     }
@@ -548,52 +548,46 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("qt",          derived::erf_derQt);
         calculate_derived("qp",          derived::erf_derQp);
 
-        MultiFab qv_fab(qv[lev], make_alias, 0, 1);
-        MultiFab qc_fab(qc[lev], make_alias, 0, 1);
-        MultiFab qi_fab(qi[lev], make_alias, 0, 1);
-        MultiFab qrain_fab(qrain[lev], make_alias, 0, 1);
-        MultiFab qsnow_fab(qsnow[lev], make_alias, 0, 1);
-        MultiFab qgraup_fab(qgraup[lev], make_alias, 0, 1);
+        MultiFab qv_mf(qmoist[lev], make_alias, 0, 1);
+        MultiFab qc_mf(qmoist[lev], make_alias, 1, 1);
+        MultiFab qi_mf(qmoist[lev], make_alias, 2, 1);
+        MultiFab qr_mf(qmoist[lev], make_alias, 3, 1);
+        MultiFab qs_mf(qmoist[lev], make_alias, 4, 1);
+        MultiFab qg_mf(qmoist[lev], make_alias, 5, 1);
 
         if (containerHasElement(plot_var_names, "qv"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qv_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qc"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qc_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qc_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qi"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qi_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qi_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qrain"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qrain_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qsnow"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qsnow_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qs_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 
         if (containerHasElement(plot_var_names, "qgraup"))
         {
-            // r_0 is first component of base_state
-            MultiFab::Copy(mf[lev],qgraup_fab,0,mf_comp,1,0);
+            MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
 #elif defined(ERF_USE_WARM_NO_PRECIP)
@@ -765,6 +759,20 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #endif
     }
 
+    // Fill terrain distortion MF
+    if (solverChoice.use_terrain) {
+        for (int lev(0); lev <= finest_level; ++lev) {
+            MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
+            Real dz = Geom()[lev].CellSizeArray()[2];
+            for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    mf_arr(i,j,k,2) -= k * dz;
+                });
+            }
+        }
+    }
 
     std::string plotfilename;
     if (which == 1)
@@ -777,17 +785,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (plotfile_type == "amrex") {
             amrex::Print() << "Writing plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
-                // We started with mf_nd holding 0 in every component; here we fill only the offset in z
-                int lev = 0;
-                MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
-                Real dz = Geom()[lev].CellSizeArray()[2];
-                for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
-                    Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                        mf_arr(i,j,k,2) -= k * dz;
-                    });
-                }
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
@@ -795,11 +792,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                    t_new[0], istep);
             } else {
                 WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                               GetVecOfConstPtrs(mf),
-                                               varnames,
-                                               Geom(), t_new[0], istep, refRatio());
+                                        GetVecOfConstPtrs(mf),
+                                        varnames,
+                                        Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
+
+#ifdef ERF_USE_PARTICLES
+            if (use_tracer_particles) {
+                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
+            }
+#endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
             amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
@@ -870,9 +873,26 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
             }
 
-            WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
-                                           g2, t_new[0], istep, rr);
+            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
+            if (solverChoice.use_terrain) {
+                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                   GetVecOfConstPtrs(mf),
+                                                   GetVecOfConstPtrs(mf_nd),
+                                                   varnames,
+                                                   t_new[0], istep);
+            } else {
+                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                        GetVecOfConstPtrs(mf2), varnames,
+                                        g2, t_new[0], istep, rr);
+            }
+
             writeJobInfo(plotfilename);
+
+#ifdef ERF_USE_PARTICLES
+            if (use_tracer_particles) {
+                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
+            }
+#endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {
@@ -964,7 +984,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
             } else {
                 data = mf[level];
             }
-            VisMF::Write(*data       , MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix));
+            VisMF::Write(*data        , MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix));
             VisMF::Write(*mf_nd[level], MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mf_nodal_prefix));
         }
     }

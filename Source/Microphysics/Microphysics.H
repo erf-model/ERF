@@ -89,21 +89,14 @@ class Microphysics {
 
   // init
   void Init(const amrex::MultiFab& cons_in,
-            const amrex::MultiFab& qc_in,
-                  amrex::MultiFab& qv_in,
-            const amrex::MultiFab& qi_in,
+            amrex::MultiFab& qmoist,
             const amrex::BoxArray& grids_to_evolve,
             const amrex::Geometry& geom,
             const amrex::Real& dt_advance);
 
-  // update erf variables
+  // update ERF variables
   void Update(amrex::MultiFab& cons_in,
-              amrex::MultiFab& qv_in,
-              amrex::MultiFab& qc_in,
-              amrex::MultiFab& qi_in,
-              amrex::MultiFab& qrain_in,
-              amrex::MultiFab& qsnow_in,
-              amrex::MultiFab& qgraup_in);
+              amrex::MultiFab& qmoist);
 
   // diagnose
   void Diagnose();

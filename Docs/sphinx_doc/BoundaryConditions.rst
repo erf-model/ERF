@@ -359,4 +359,27 @@ In the above case, ``use_normal_vector`` utilizes the a local surface-normal vec
 
 Due to the form of the above integral, it is advantageous to consider :math:`\tau` as a multiple of the simulation time step :math:`\Delta t`, which is specified by ``erf.most.time_window``. As ``erf.most.time_window`` is reduced to 0, the exponential filter function tends to a Dirac delta function (prior averages are irrelevant). Increasing ``erf.most.time_window`` extends the tail of the exponential and more heavily weights prior averages.
 
+Sponge zone boundary conditions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specifed by the user in the inputs file.
+
+.. math::
+
+   \frac{dQ}{dt} = \mathrm{RHS} - A\xi^n(Q-Q_\mathrm{target})
+
+where RHS are the other right-hand side terms. The parameters to be set by the user are - `A` is the sponge amplitude, `n` is the sponge strength and the `Q_\mathrm{target}` - the target solution in the sponge. `\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder``.
+
+::
+    erf.sponge_strength = 10000.0
+    erf.use_xlo_sponge_damping = true
+    erf.xlo_sponge_end = 4.0
+    erf.use_xhi_sponge_damping = true
+    erf.xhi_sponge_start = 26.0
+    erf.use_zhi_sponge_damping = true
+    erf.zhi_sponge_start = 8.0
+
+    erf.sponge_density = 1.2
+    erf.sponge_x_velocity = 10.0
+    erf.sponge_y_velocity = 0.0
+    erf.sponge_z_velocity = 0.0

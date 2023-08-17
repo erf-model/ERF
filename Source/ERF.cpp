@@ -37,18 +37,17 @@ amrex::Real ERF::init_shrink   =  1.0;
 amrex::Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 
+
+#ifdef ERF_USE_PARTICLES
+bool ERF::use_tracer_particles = false;
+amrex::Vector<std::string> ERF::tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
+#endif
+
 // Type of mesh refinement algorithm
 std::string ERF::coupling_type = "OneWay";
-int         ERF::do_reflux     = 0;
-int         ERF::do_avg_down   = 0;
 
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
-
-// Use the native ERF MRI integrator
-int         ERF::use_native_mri = 1;
-int         ERF::no_substepping = 0;
-int         ERF::force_stage1_single_substep = 1;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
@@ -159,18 +158,45 @@ ERF::ERF ()
     }
 
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
 
     flux_registers.resize(nlevs_max);
+
+    // Stresses
+    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
+    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
+    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
+    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_diss_lev.resize(nlevs_max);
+    eddyDiffs_lev.resize(nlevs_max);
+    SmnSmn_lev.resize(nlevs_max);
+
+    // Metric terms
+    z_phys_nd.resize(nlevs_max);
+    z_phys_cc.resize(nlevs_max);
+    detJ_cc.resize(nlevs_max);
+    z_phys_nd_new.resize(nlevs_max);
+    detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_src.resize(nlevs_max);
+    detJ_cc_src.resize(nlevs_max);
+    z_t_rk.resize(nlevs_max);
+
+    // Mapfactors
+    mapfac_m.resize(nlevs_max);
+    mapfac_u.resize(nlevs_max);
+    mapfac_v.resize(nlevs_max);
+
+    // Base state
+    base_state.resize(nlevs_max);
+    base_state_new.resize(nlevs_max);
+
+    // Theta prim for MOST
+    Theta_prim.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -179,7 +205,7 @@ ERF::ERF ()
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
@@ -284,7 +310,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
-    if (do_reflux)
+    if (coupling_type == "TwoWay")
     {
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
@@ -348,7 +374,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
       }
     }
-}
+} // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
 void
@@ -369,6 +395,10 @@ ERF::InitData ()
         amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
     }
 
+    if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
+        amrex::Abort("We do not allow terrain_type != 0 with use_terrain = false");
+    }
+
     last_plot_file_step_1 = -1;
     last_plot_file_step_2 = -1;
     last_check_file_step  = -1;
@@ -376,7 +406,7 @@ ERF::InitData ()
     if (restart_chkfile.empty()) {
         // start simulation from the beginning
 
-        const Real time = 0.0;
+        const Real time = start_time;
         InitFromScratch(time);
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -390,26 +420,6 @@ ERF::InitData ()
         if ( (init_type == "ideal" || init_type == "input_sounding") && solverChoice.use_terrain) {
             amrex::Abort("We do not currently support init_type = ideal or input_sounding with terrain");
         }
-
-        if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
-            amrex::Abort("We do not allow terrain_type != 0 with use_terrain = false");
-        }
-
-        if (solverChoice.use_terrain) {
-            if (init_type != "real" && init_type != "metgrid") {
-                for (int lev = 0; lev <= finest_level; lev++)
-                {
-                    init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-                    init_terrain_grid(geom[lev],*z_phys_nd[lev]);
-                    make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
-                    make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-                }
-            }
-        }
-
-        // Note that make_J and make_zcc area now called inside init_from_wrfinput
-        for (int lev = 0; lev <= finest_level; lev++)
-            init_only(lev, time);
 
         // We initialize rho_KE to be nonzero (and positive) so that we end up
         // with reasonable values for the eddy diffusivity and the MOST fluxes
@@ -441,25 +451,47 @@ ERF::InitData ()
             }
         }
 
-        AverageDown();
+        if (coupling_type == "TwoWay") {
+            AverageDown();
+        }
+
+#ifdef ERF_USE_PARTICLES
+        // Initialize tracer particles if required
+        if (use_tracer_particles) {
+            tracer_particles = std::make_unique<amrex::TracerParticleContainer>(Geom(0), dmap[0], grids[0]);
+
+            amrex::ParticleInitType<TracerPC::NStructReal, 0, 0, 0> pdata {};
+            amrex::Real x_offset = 0;
+            amrex::Real y_offset = 0;
+            amrex::Real z_offset = 0;
+
+            // Do not offset in extra dimensions
+            AMREX_D_TERM( x_offset = 0.5; ,
+                          y_offset = 0.5; ,
+                          z_offset = 0.5; )
+
+            tracer_particles->InitOnePerCell(x_offset, y_offset, z_offset, pdata);
+
+            Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
+        }
+#endif
 
     } else { // Restart from a checkpoint
 
         restart();
 
-        if (solverChoice.use_terrain) {
-            // This must come after the call to restart because that
-            //      is where we read in the mesh data
-            for (int lev = finest_level; lev >= 0; --lev) {
-                make_J  (geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
-                make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
-            }
+#ifdef ERF_USE_MOISTURE
+        // Need to fill ghost cells here since we will use this qmoist in advance
+        for (int lev = 0; lev <= finest_level; lev++) {
+            FillPatchMoistVars(lev, qmoist[lev]);
         }
+#endif
     }
 
     // Define after wrfbdy_width is known
-    for (int lev = 0; lev <= finest_level; lev++)
-        define_grids_to_evolve(lev);
+    for (int lev = 0; lev <= finest_level; lev++) {
+        define_grids_to_evolve(lev, grids[lev]);
+    }
 
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
@@ -474,7 +506,7 @@ ERF::InitData ()
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
-    if (do_reflux) {
+    if (coupling_type == "TwoWay") {
         flux_registers[0] = 0;
         for (int lev = 1; lev <= finest_level; lev++)
         {
@@ -498,36 +530,15 @@ ERF::InitData ()
     // Initialize microphysics here
     micro.define(solverChoice);
 
-    // Call Init which will call Diagnose to fill qv, qc, qi
+    // Call Init which will call Diagnose to fill qmoist
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        micro.Init(vars_new[lev][Vars::cons],
-                   qc[lev],
-                   qv[lev],
-                   qi[lev],
-                   grids_to_evolve[lev],
-                   Geom(lev),
-                   0.0 // dummy value, not needed just to diagnose
-                  );
-        micro.Update(vars_new[lev][Vars::cons],
-                     qv[lev],
-                     qc[lev],
-                     qi[lev],
-                     qrain[lev],
-                     qsnow[lev],
-                     qgraup[lev]);
-
-#if 0
-        for (MFIter mfi(qv[lev]); mfi.isValid(); ++mfi) {
-            const Box& box = mfi.growntilebox(IntVect(1,1,0));
-            // const Box& box = mfi.tilebox();
-            auto qv_arr = qv[lev].array(mfi);
-            ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-               amrex::Print() << "QV " << IntVect(i,j,k) << " " << std::endl;
-               amrex::Print() << "QV " << qv_arr(i,j,k) << " " << std::endl;
-            });
-         }
-#endif
+        // If not restarting we need to fill qmoist given qt and qp.
+        if (restart_chkfile.empty()) {
+            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+        }
     }
 #endif
 
@@ -546,34 +557,6 @@ ERF::InitData ()
         MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
         m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
         m_most->update_fluxes(lev);
-    }
-
-    if (restart_chkfile.empty() && check_int > 0)
-    {
-#ifdef ERF_USE_NETCDF
-        if (check_type == "netcdf") {
-           WriteNCCheckpointFile();
-        }
-#endif
-        if (check_type == "native") {
-           WriteCheckpointFile();
-        }
-        last_check_file_step = 0;
-    }
-
-    if ( (restart_chkfile.empty()) ||
-         (!restart_chkfile.empty() && plot_file_on_restart) )
-    {
-        if (plot_int_1 > 0)
-        {
-            WritePlotFile(1,plot_var_names_1);
-            last_plot_file_step_1 = istep[0];
-        }
-        if (plot_int_2 > 0)
-        {
-            WritePlotFile(2,plot_var_names_2);
-            last_plot_file_step_2 = istep[0];
-        }
     }
 
     if (solverChoice.use_rayleigh_damping)
@@ -605,11 +588,46 @@ ERF::InitData ()
         }
     }
 
+#ifdef ERF_USE_POISSON_SOLVE
+    if (restart_chkfile == "")
+    {
+        // Note -- this projection is only defined for no terrain
+        if (solverChoice.project_initial_velocity) {
+            AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
+            project_velocities(vars_new);
+        }
+    }
+#endif
+    // Copy from new into old just in case
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,   1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,   1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,   1,lev_new[Vars::zvel].nGrowVect());
+    }
+
+    // Compute the minimum dz in the domain (to be used for setting the timestep)
+    dz_min = geom[0].CellSize(2);
+    if ( solverChoice.use_terrain ) {
+        dz_min *= (*detJ_cc[0]).min(0);
+    }
+
     ComputeDt();
 
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // NOTE: we must set up the FillPatcher object before calling
+        //       FillPatch at a fine level
+        if (coupling_type=="OneWay" && cf_width>0 && lev>0) {
+                Construct_ERFFillPatchers(lev);
+                Register_ERFFillPatchers(lev);
+        }
+
         auto& lev_new = vars_new[lev];
 
         FillPatch(lev, t_new[lev],
@@ -626,29 +644,32 @@ ERF::InitData ()
         }
     }
 
-#ifdef ERF_USE_POISSON_SOLVE
-    if (restart_chkfile == "")
+    if (restart_chkfile.empty() && check_int > 0)
     {
-        // Note -- this projection is only defined for no terrain
-        if (solverChoice.project_initial_velocity) {
-            AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_initial_velocities();
+#ifdef ERF_USE_NETCDF
+        if (check_type == "netcdf") {
+           WriteNCCheckpointFile();
         }
-    }
 #endif
-    // Copy from new into old just in case
-    for (int lev = 0; lev <= finest_level; ++lev)
+        if (check_type == "native") {
+           WriteCheckpointFile();
+        }
+        last_check_file_step = 0;
+    }
+
+    if ( (restart_chkfile.empty()) ||
+         (!restart_chkfile.empty() && plot_file_on_restart) )
     {
-        auto& lev_new = vars_new[lev];
-        auto& lev_old = vars_old[lev];
-
-        int ngs   = lev_new[Vars::cons].nGrow();
-        int ngvel = lev_new[Vars::xvel].nGrow();
-
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,ngs);
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,1,ngvel);
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,1,IntVect(ngvel,ngvel,0));
+        if (plot_int_1 > 0)
+        {
+            WritePlotFile(1,plot_var_names_1);
+            last_plot_file_step_1 = istep[0];
+        }
+        if (plot_int_2 > 0)
+        {
+            WritePlotFile(2,plot_var_names_2);
+            last_plot_file_step_2 = istep[0];
+        }
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...
@@ -722,12 +743,23 @@ ERF::InitData ()
         }
 
     }
+
     BL_PROFILE_VAR_STOP(InitData);
 }
 
 void
-ERF::restart()
+ERF::restart ()
 {
+    for (int lev = 0; lev <= finest_level; ++lev)
+    {
+        auto& lev_new = vars_new[lev];
+        auto& lev_old = vars_old[lev];
+        lev_new[Vars::cons].setVal(0.); lev_old[Vars::cons].setVal(0.);
+        lev_new[Vars::xvel].setVal(0.); lev_old[Vars::xvel].setVal(0.);
+        lev_new[Vars::yvel].setVal(0.); lev_old[Vars::yvel].setVal(0.);
+        lev_new[Vars::zvel].setVal(0.); lev_old[Vars::zvel].setVal(0.);
+    }
+
 #ifdef ERF_USE_NETCDF
     if (restart_type == "netcdf") {
        ReadNCCheckpointFile();
@@ -741,432 +773,20 @@ ERF::restart()
     last_check_file_step = istep[0];
 }
 
-// Make a new level using provided BoxArray and DistributionMapping and
-// fill with interpolated coarse level data.
-// overrides the pure virtual function in AmrCore
 void
-ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
-                             const DistributionMapping& dm)
+ERF::init_only (int lev, Real time)
 {
-    const auto& crse_new = vars_new[lev-1];
-    auto& lev_new = vars_new[lev];
-    auto& lev_old = vars_old[lev];
-
-    // ********************************************************************************************
-    // These are the persistent containers for the old and new data
-    // ********************************************************************************************
-    lev_new[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
-    lev_old[Vars::cons].define(ba, dm, crse_new[Vars::cons].nComp(), crse_new[Vars::cons].nGrowVect());
-
-    lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-    lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-
-    lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-    lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-
-    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
-    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
-
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
-
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
-
-    define_grids_to_evolve(lev);
-
-    FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
-                                &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
-
-    initialize_integrator(lev, lev_new[Vars::cons], lev_new[Vars::xvel]);
-}
-
-// Remake an existing level using provided BoxArray and DistributionMapping and
-// fill with existing fine and coarse data.
-// overrides the pure virtual function in AmrCore
-void
-ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
-{
-    define_grids_to_evolve(lev);
-
-    Vector<MultiFab> temp_lev_new(Vars::NumTypes);
-    Vector<MultiFab> temp_lev_old(Vars::NumTypes);
-
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
-                                        solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
-                                        solverChoice.use_NumDiff);
-
-    temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
-    temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
-
-    temp_lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    temp_lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    temp_lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    temp_lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
-    temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
-
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-
-    // ********************************************************************************************
-    // This will fill the temporary MultiFabs with data from vars_new
-    // ********************************************************************************************
-    FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]});
-
-    // ********************************************************************************************
-    // Copy from new into old just in case
-    // ********************************************************************************************
-    MultiFab::Copy(temp_lev_old[Vars::cons],temp_lev_new[Vars::cons],0,0,NVAR,ngrow_state);
-    MultiFab::Copy(temp_lev_old[Vars::xvel],temp_lev_new[Vars::xvel],0,0,   1,ngrow_vels);
-    MultiFab::Copy(temp_lev_old[Vars::yvel],temp_lev_new[Vars::yvel],0,0,   1,ngrow_vels);
-    MultiFab::Copy(temp_lev_old[Vars::zvel],temp_lev_new[Vars::zvel],0,0,   1,IntVect(ngrow_vels,ngrow_vels,0));
-
-    // ********************************************************************************************
-    // Now swap the pointers
-    // ********************************************************************************************
-    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
-        std::swap(temp_lev_new[var_idx], vars_new[lev][var_idx]);
-        std::swap(temp_lev_old[var_idx], vars_old[lev][var_idx]);
-    }
-
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
-
-    initialize_integrator(lev, temp_lev_new[Vars::cons],temp_lev_new[Vars::xvel]);
-}
-
-// Delete level data
-// overrides the pure virtual function in AmrCore
-void
-ERF::ClearLevel (int lev)
-{
-    for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
-        vars_new[lev][var_idx].clear();
-        vars_old[lev][var_idx].clear();
-    }
-
-    rU_new[lev].clear();
-    rU_old[lev].clear();
-    rV_new[lev].clear();
-    rV_old[lev].clear();
-    rW_new[lev].clear();
-    rW_old[lev].clear();
-
-    // Clears the integrator memory
-    mri_integrator_mem[lev].reset();
-    physbcs[lev].reset();
-
-    grids_to_evolve[lev].clear();
-}
-
-// Make a new level from scratch using provided BoxArray and DistributionMapping.
-// This is called both for initialization and for restart
-// (overrides the pure virtual function in AmrCore)
-// main.cpp --> ERF::InitData --> InitFromScratch --> MakeNewGrids --> MakeNewLevelFromScratch
-//                                       restart  --> MakeNewGrids --> MakeNewLevelFromScratch
-void ERF::MakeNewLevelFromScratch (int lev, Real /*time*/, const BoxArray& ba,
-                                   const DistributionMapping& dm)
-{
-    // Set BoxArray grids and DistributionMapping dmap in AMReX_AmrMesh.H class
-    SetBoxArray(lev, ba);
-    SetDistributionMap(lev, dm);
-
-    // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
-                                        solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                        solverChoice.spatial_order_WENO, solverChoice.all_use_WENO,
-                                        solverChoice.use_NumDiff);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
-
-    lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
-    lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
-
-    lev_new[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    lev_old[Vars::xvel].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    lev_new[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    lev_old[Vars::yvel].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
-    lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
-
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-
-    //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-#if defined(ERF_USE_MOISTURE)
-    qv[lev].define(ba, dm, 1, ngrow_state);
-    qc[lev].define(ba, dm, 1, ngrow_state);
-    qi[lev].define(ba, dm, 1, ngrow_state);
-    qrain[lev].define(ba, dm, 1, ngrow_state);
-    qsnow[lev].define(ba, dm, 1, ngrow_state);
-    qgraup[lev].define(ba, dm, 1, ngrow_state);
-#endif
-
-    // ********************************************************************************************
-    // Diffusive terms
-    // ********************************************************************************************
-    bool l_use_terrain = solverChoice.use_terrain;
-    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.les_type        !=       LESType::None) ||
-                           (solverChoice.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
-                           (solverChoice.pbl_type != PBLType::None) );
-    bool l_use_ddorf   = (solverChoice.les_type == LESType::Deardorff);
-
-    BoxArray ba12 = convert(ba, IntVect(1,1,0));
-    BoxArray ba13 = convert(ba, IntVect(1,0,1));
-    BoxArray ba23 = convert(ba, IntVect(0,1,1));
-
-    Tau11_lev.resize(lev+1); Tau22_lev.resize(lev+1); Tau33_lev.resize(lev+1);
-    Tau12_lev.resize(lev+1); Tau21_lev.resize(lev+1);
-    Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
-    Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
-
-    SFS_hfx1_lev.resize(lev+1); SFS_hfx2_lev.resize(lev+1); SFS_hfx3_lev.resize(lev+1);
-    SFS_diss_lev.resize(lev+1);
-
-    eddyDiffs_lev.resize(lev+1);
-    SmnSmn_lev.resize(lev+1);
-
-    if (l_use_diff) {
-        Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau22_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau33_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        Tau12_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
-        Tau13_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
-        Tau23_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
-        if (l_use_terrain) {
-            Tau21_lev[lev] = std::make_unique<MultiFab>( ba12, dm, 1, IntVect(1,1,0) );
-            Tau31_lev[lev] = std::make_unique<MultiFab>( ba13, dm, 1, IntVect(1,1,0) );
-            Tau32_lev[lev] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,0) );
-        } else {
-            Tau21_lev[lev] = nullptr;
-            Tau31_lev[lev] = nullptr;
-            Tau32_lev[lev] = nullptr;
-        }
-        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-    } else {
-      Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
-      Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
-      Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
-      Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
-      SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
-      SFS_diss_lev[lev] = nullptr;
-    }
-
-    if (l_use_kturb) {
-      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
-      if(l_use_ddorf) {
-          SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
-      } else {
-          SmnSmn_lev[lev] = nullptr;
-      }
-    } else {
-      eddyDiffs_lev[lev] = nullptr;
-      SmnSmn_lev[lev]    = nullptr;
-    }
-
-    // ********************************************************************************************
-    // Metric terms
-    // ********************************************************************************************
-    z_phys_nd.resize(lev+1);
-    z_phys_cc.resize(lev+1);
-    detJ_cc.resize(lev+1);
-
-    z_phys_nd_new.resize(lev+1);
-    detJ_cc_new.resize(lev+1);
-
-    z_phys_nd_src.resize(lev+1);
-    detJ_cc_src.resize(lev+1);
-
-    z_t_rk.resize(lev+1);
-
-    // ********************************************************************************************
-    // Map factors
-    // ********************************************************************************************
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
-        b.setRange(2,0);
-    }
-    BoxArray ba2d(std::move(bl2d));
-
-    mapfac_m.resize(lev+1);
-    mapfac_u.resize(lev+1);
-    mapfac_v.resize(lev+1);
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if(solverChoice.test_mapfactor) {
-        mapfac_m[lev]->setVal(0.5);
-        mapfac_u[lev]->setVal(0.5);
-        mapfac_v[lev]->setVal(0.5);
-    }
-    else {
-        mapfac_m[lev]->setVal(1.);
-        mapfac_u[lev]->setVal(1.);
-        mapfac_v[lev]->setVal(1.);
-    }
-
-    // ********************************************************************************************
-    // Base state holds r_0, pres_0, pi_0 (in that order)
-    // ********************************************************************************************
-    base_state.resize(lev+1);
-    base_state[lev].define(ba,dm,3,1);
-    base_state[lev].setVal(0.);
-
-    if (solverChoice.use_terrain && solverChoice.terrain_type > 0) {
-        base_state_new.resize(lev+1);
-        base_state_new[lev].define(ba,dm,3,1);
-        base_state_new[lev].setVal(0.);
-    }
-
-    if (solverChoice.use_terrain) {
-        z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-          detJ_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-
-        if (solverChoice.terrain_type > 0) {
-            detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-            detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-            z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
-        }
-
-        BoxArray ba_nd(ba);
-        ba_nd.surroundingNodes();
-
-        // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice.horiz_spatial_order, solverChoice.vert_spatial_order,
-                                      solverChoice.spatial_order_WENO, (solverChoice.all_use_WENO || solverChoice.moist_use_WENO),
-                                      solverChoice.use_NumDiff)+2;
-        z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-        if (solverChoice.terrain_type > 0) {
-            z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-            z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-        }
-    } else {
-            z_phys_nd[lev] = nullptr;
-            z_phys_cc[lev] = nullptr;
-              detJ_cc[lev] = nullptr;
-
-        z_phys_nd_new[lev] = nullptr;
-          detJ_cc_new[lev] = nullptr;
-
-        z_phys_nd_src[lev] = nullptr;
-          detJ_cc_src[lev] = nullptr;
-
-               z_t_rk[lev] = nullptr;
-    }
-
-    // ********************************************************************************************
-    // Define Theta_prim storage if using MOST BC
-    // ********************************************************************************************
-    Theta_prim.resize(lev+1);
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-      Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
-    } else {
-      Theta_prim[lev] = nullptr;
-    }
-
-    // ********************************************************************************************
-    // Initialize the integrator class
-    // ********************************************************************************************
-    initialize_integrator(lev, lev_new[Vars::cons],lev_new[Vars::xvel]);
-}
-
-void
-ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
-{
-    const BoxArray& ba(cons_mf.boxArray());
-    const DistributionMapping& dm(cons_mf.DistributionMap());
-
-    // Initialize the integrator memory
-    int use_fluxes = (finest_level > 0);
-    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
-    int_state.push_back(MultiFab(cons_mf, amrex::make_alias, 0, Cons::NumVars)); // cons
-    int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, vel_mf.nGrow())); // xmom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, vel_mf.nGrow())); // ymom
-    int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
-    if (use_fluxes) {
-        int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, Cons::NumVars, 1)); // x-fluxes
-        int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, Cons::NumVars, 1)); // y-fluxes
-        int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, Cons::NumVars, 1)); // z-fluxes
-    }
-
-    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
-    mri_integrator_mem[lev]->setNoSubstepping(no_substepping);
-    mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(force_stage1_single_substep);
-
-    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
-                                                     z_phys_nd[lev], detJ_cc[lev]);
-}
-
-void
-ERF::init_only(int lev, Real time)
-{
-    t_new[lev] = time;
-    t_old[lev] = time - 1.e200;
-
-    auto& lev_new = vars_new[lev];
 
     // Loop over grids at this level to initialize our grid data
-    lev_new[Vars::cons].setVal(0.0);
-    lev_new[Vars::xvel].setVal(0.0);
-    lev_new[Vars::yvel].setVal(0.0);
-    lev_new[Vars::zvel].setVal(0.0);
-
-#if defined(ERF_USE_MOISTURE)
-    qv[lev].setVal(0.0);
-    qc[lev].setVal(0.0);
-    qi[lev].setVal(0.0);
-    qrain[lev].setVal(0.0);
-    qsnow[lev].setVal(0.0);
-    qgraup[lev].setVal(0.0);
-#endif
+    lev_new[Vars::cons].setVal(0.0); lev_old[Vars::cons].setVal(0.0);
+    lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
+    lev_new[Vars::yvel].setVal(0.0); lev_old[Vars::yvel].setVal(0.0);
+    lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
@@ -1178,6 +798,10 @@ ERF::init_only(int lev, Real time)
         init_from_metgrid(lev);
 #endif
     }
+
+#if defined(ERF_USE_MOISTURE)
+    qmoist[lev].setVal(0.);
+#endif
 
     // Add problem-specific flow features
     // If init_type is specified, then this is a perturbation to the background
@@ -1199,6 +823,8 @@ ERF::ReadParameters ()
         ParmParse pp;  // Traditionally, max_step and stop_time do not have prefix.
         pp.query("max_step", max_step);
         pp.query("stop_time", stop_time);
+
+        pp.query("start_time", start_time); // This is optional, it defaults to 0
     }
 
     ParmParse pp(pp_prefix);
@@ -1223,10 +849,6 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
 
-        // Use the native ERF MRI integrator
-        pp.query("use_native_mri", use_native_mri);
-        pp.query("no_substepping", no_substepping);
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1240,6 +862,11 @@ ERF::ReadParameters ()
         pp.query("fixed_dt", fixed_dt);
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
+
+#ifdef ERF_USE_PARTICLES
+        // Tracer particle toggle
+        pp.query("use_tracer_particles", use_tracer_particles);
+#endif
 
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
@@ -1267,22 +894,11 @@ ERF::ReadParameters ()
             }
         }
 
-        AMREX_ASSERT(cfl > 0. || fixed_dt > 0.);
+        AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
 
         // Mesh refinement
         pp.query("coupling_type",coupling_type);
-        if (coupling_type == "OneWay")
-        {
-            do_reflux = 0;
-            do_avg_down = 0;
-        }
-        else if (coupling_type == "TwoWay")
-        {
-            do_reflux = 1;
-            do_avg_down = 1;
-        } else {
-            amrex::Error("Unknown coupling type");
-        }
+        AMREX_ALWAYS_ASSERT( (coupling_type == "OneWay") || (coupling_type == "TwoWay") );
 
         // How to initialize
         pp.query("init_type",init_type);
@@ -1295,6 +911,15 @@ ERF::ReadParameters ()
             amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
         }
 
+        // No moving terrain with init real
+        if (init_type == "real") {
+            int terr_type(0);
+            pp.query("terrain_type",terr_type);
+            if (terr_type) {
+                amrex::Abort("Moving terrain is not supported with init real");
+            }
+        }
+
         // We use this to keep track of how many boxes we read in from WRF initialization
         num_files_at_level.resize(max_level+1,0);
 
@@ -1304,6 +929,8 @@ ERF::ReadParameters ()
 
         // We always have exactly one file at level 0
         num_boxes_at_level[0] = 1;
+        boxes_at_level[0].resize(1);
+        boxes_at_level[0][0] = geom[0].Domain();
 
 #ifdef ERF_USE_NETCDF
         nc_init_file.resize(max_level+1);
@@ -1365,6 +992,25 @@ ERF::ReadParameters ()
 
         // Specify whether ingest boundary planes of data
         pp.query("input_bndry_planes", input_bndry_planes);
+
+        // Query the set and total widths for wrfbdy interior ghost cells
+        pp.query("wrfbdy_width", wrfbdy_width);
+        pp.query("wrfbdy_set_width", wrfbdy_set_width);
+        AMREX_ALWAYS_ASSERT(wrfbdy_width >= 0);
+        AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
+
+        // Query the set and total widths for crse-fine interior ghost cells
+        pp.query("cf_width", cf_width);
+        pp.query("cf_set_width", cf_set_width);
+        AMREX_ALWAYS_ASSERT(cf_width >= 0);
+        AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+
+        // AmrMesh iterate on grids?
+        bool iterate(true);
+        pp_amr.query("iterate_grids",iterate);
+        if (!iterate) SetIterateToFalse();
     }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1381,17 +1027,23 @@ ERF::MakeHorizontalAverages ()
 {
     int lev = 0;
 
-    // First, average down all levels
-    AverageDown();
+    // First, average down all levels (if doing two-way coupling)
+    if (coupling_type == "TwoWay") {
+        AverageDown();
+    }
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
+
+#if defined(ERF_USE_MOISTURE)
+    MultiFab qv(qmoist[lev], make_alias, 0, 1);
+#endif
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
         auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
 #if defined(ERF_USE_MOISTURE)
-        auto   qv_arr = qv[lev].array(mfi);
+        auto   qv_arr = qv.array(mfi);
 #endif
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
@@ -1508,6 +1160,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 void
 ERF::AverageDown ()
 {
+    AMREX_ALWAYS_ASSERT(coupling_type == "TwoWay");
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
         AverageDownTo(lev);
@@ -1518,6 +1171,7 @@ ERF::AverageDown ()
 void
 ERF::AverageDownTo (int crse_lev) // NOLINT
 {
+    AMREX_ALWAYS_ASSERT(coupling_type == "TwoWay");
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
@@ -1530,35 +1184,108 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 }
 
 void
-ERF::define_grids_to_evolve (int lev) // NOLINT
+ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
 {
-   int width = wrfbdy_width - 1;
-   Box domain(geom[lev].Domain());
-   if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
-   {
-      Box shrunk_domain(domain);
-      shrunk_domain.grow(0,-width);
-      shrunk_domain.grow(1,-width);
-      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
-   } else if (lev == 1) {
-      Box shrunk_domain(boxes_at_level[lev][0]);
-      shrunk_domain.grow(0,-width);
-      shrunk_domain.grow(1,-width);
-      grids_to_evolve[lev] = amrex::intersect(grids[lev],shrunk_domain);
+
+    Box domain(geom[lev].Domain());
+    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
+    {
+        int width = wrfbdy_set_width;
+        Box shrunk_domain(domain);
+        shrunk_domain.grow(0,-width);
+        shrunk_domain.grow(1,-width);
+        BoxList bl;
+        int N = static_cast<int>(ba.size());
+        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
+        grids_to_evolve[lev].define(std::move(bl));
+    } else if (lev == 1 && regrid_int < 0) {
+        int width = cf_set_width;
+        Box shrunk_domain(boxes_at_level[lev][0]);
+        shrunk_domain.grow(0,-width);
+        shrunk_domain.grow(1,-width);
+        BoxList bl;
+        int N = static_cast<int>(ba.size());
+        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
+        grids_to_evolve[lev].define(std::move(bl));
 #if 0
-      if (num_boxes_at_level[lev] > 1) {
-          for (int i = 1; i < num_boxes_at_level[lev]; i++) {
-              Box shrunk_domain(boxes_at_level[lev][i]);
-              shrunk_domain.grow(0,-width);
-              shrunk_domain.grow(1,-width);
-              grids_to_evolve[lev] = amrex::intersect(grids_to_evolve[lev],shrunk_domain);
-          }
-      }
+        if (num_boxes_at_level[lev] > 1) {
+            for (int i = 1; i < num_boxes_at_level[lev]; i++) {
+                int width = cf_set_width;
+                Box shrunk_domain(boxes_at_level[lev][i]);
+                shrunk_domain.grow(0,-width);
+                shrunk_domain.grow(1,-width);
+                BoxList bl;
+                int N = static_cast<int>(ba.size());
+                for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
+                grids_to_evolve[lev].define(std::move(bl));
+            }
+        }
 #endif
-   } else {
-      // Just copy grids...
-      grids_to_evolve[lev] = grids[lev];
-   }
+    } else {
+        // Just copy grids...
+        grids_to_evolve[lev] = ba;
+    }
+}
+
+void
+ERF::Construct_ERFFillPatchers (int lev)
+{
+    auto& fine_new = vars_new[lev];
+    auto& crse_new = vars_new[lev-1];
+    auto& ba_fine  = fine_new[Vars::cons].boxArray();
+    auto& ba_crse  = crse_new[Vars::cons].boxArray();
+    auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
+    auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
+
+    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
+                       ba_crse, dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 2, &cell_cons_interp);
+    FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
+                       convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
+                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+}
+
+void
+ERF::Define_ERFFillPatchers (int lev)
+{
+    auto& fine_new = vars_new[lev];
+    auto& crse_new = vars_new[lev-1];
+    auto& ba_fine  = fine_new[Vars::cons].boxArray();
+    auto& ba_crse  = crse_new[Vars::cons].boxArray();
+    auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
+    auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
+
+    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
+                        ba_crse, dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 2, &cell_cons_interp);
+    FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_v[lev-1].Define(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+    FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
+                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
+                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+}
+
+void
+ERF::Register_ERFFillPatchers (int lev)
+{
+    auto& lev_new = vars_new[lev-1];
+    auto& lev_old = vars_old[lev-1];
+    FPr_c[lev-1].registerCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_u[lev-1].registerCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_v[lev-1].registerCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_w[lev-1].registerCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
 }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1626,13 +1353,16 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    rU_new.resize(nlevs_max);
+    rV_new.resize(nlevs_max);
+    rW_new.resize(nlevs_max);
+
+    rU_old.resize(nlevs_max);
+    rV_old.resize(nlevs_max);
+    rW_old.resize(nlevs_max);
+
 #if defined(ERF_USE_MOISTURE)
-    qv.resize(nlevs_max);
-    qc.resize(nlevs_max);
-    qi.resize(nlevs_max);
-    qrain.resize(nlevs_max);
-    qsnow.resize(nlevs_max);
-    qgraup.resize(nlevs_max);
+    qmoist.resize(nlevs_max);
 #endif
 
     mri_integrator_mem.resize(nlevs_max);
@@ -1650,6 +1380,38 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
 
     flux_registers.resize(nlevs_max);
 
+    // Stresses
+    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
+    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
+    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
+    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_diss_lev.resize(nlevs_max);
+    eddyDiffs_lev.resize(nlevs_max);
+    SmnSmn_lev.resize(nlevs_max);
+
+    // Metric terms
+    z_phys_nd.resize(nlevs_max);
+    z_phys_cc.resize(nlevs_max);
+    detJ_cc.resize(nlevs_max);
+    z_phys_nd_new.resize(nlevs_max);
+    detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_src.resize(nlevs_max);
+    detJ_cc_src.resize(nlevs_max);
+    z_t_rk.resize(nlevs_max);
+
+    // Mapfactors
+    mapfac_m.resize(nlevs_max);
+    mapfac_u.resize(nlevs_max);
+    mapfac_v.resize(nlevs_max);
+
+    // Base state
+    base_state.resize(nlevs_max);
+    base_state_new.resize(nlevs_max);
+
+    // Theta prim for MOST
+    Theta_prim.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -1657,7 +1419,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
@@ -1695,14 +1457,12 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
-
         // DEBUG
         // Multiblock: hook for erf2 to fill from erf1
         if(domain_p[0].bigEnd(0) < 500) {
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
                 m_mbc->FillPatchBlocks(var_idx,var_idx);
         }
-
 
         cur_time  += dt[0];
 

@@ -83,7 +83,7 @@ ERF::init_from_input_sounding(int lev)
         }
         else
         {
-            // HSE arrays will be filled later with call to initHSE()
+            // HSE arrays will be filled later with call to init_bx_scalars_from_input_sounding_hse
             init_bx_scalars_from_input_sounding(bx, cons_arr,
                                                 geom[lev].data(), input_sounding_data);
         }
