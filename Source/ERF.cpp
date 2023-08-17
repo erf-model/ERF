@@ -458,19 +458,9 @@ ERF::InitData ()
 #ifdef ERF_USE_PARTICLES
         // Initialize tracer particles if required
         if (use_tracer_particles) {
-            tracer_particles = std::make_unique<amrex::TracerParticleContainer>(Geom(0), dmap[0], grids[0]);
+            tracer_particles = std::make_unique<TerrainFittedPC>(Geom(0), dmap[0], grids[0]);
 
-            amrex::ParticleInitType<TracerPC::NStructReal, 0, 0, 0> pdata {};
-            amrex::Real x_offset = 0;
-            amrex::Real y_offset = 0;
-            amrex::Real z_offset = 0;
-
-            // Do not offset in extra dimensions
-            AMREX_D_TERM( x_offset = 0.5; ,
-                          y_offset = 0.5; ,
-                          z_offset = 0.5; )
-
-            tracer_particles->InitOnePerCell(x_offset, y_offset, z_offset, pdata);
+            tracer_particles->InitParticles(*z_phys_nd[0]);
 
             Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
         }
