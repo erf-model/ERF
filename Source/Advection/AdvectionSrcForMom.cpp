@@ -66,7 +66,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
     IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
     IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
     Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0);
-    box2d.grow({1,1,0});
+    box2d.grow({1,1,0}); // {3,3,0} ??
 
     // now create mf_u_inv and mf_v_inv FABs/arrays
     FArrayBox mf_u_invFAB(box2d); FArrayBox mf_v_invFAB(box2d);
