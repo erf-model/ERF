@@ -751,17 +751,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
-	auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
-	auto abl_geo_forcing      = solverChoice.abl_geo_forcing;
-	auto use_coriolis         = solverChoice.use_coriolis;
-	auto coriolis_factor      = solverChoice.coriolis_factor;
-	auto cosphi               = solverChoice.cosphi;
-	auto sinphi               = solverChoice.sinphi;
-	auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
+        auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
+        auto abl_geo_forcing      = solverChoice.abl_geo_forcing;
+        auto use_coriolis         = solverChoice.use_coriolis;
+        auto coriolis_factor      = solverChoice.coriolis_factor;
+        auto cosphi               = solverChoice.cosphi;
+        auto sinphi               = solverChoice.sinphi;
+        auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
 
         {
         BL_PROFILE("slow_rhs_pre_xmom");
-	auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
+        auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
@@ -872,7 +872,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         {
         BL_PROFILE("slow_rhs_pre_ymom");
-	auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
+        auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
@@ -989,7 +989,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         {
         BL_PROFILE("slow_rhs_pre_zmom");
-	auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
+        auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
