@@ -6,7 +6,7 @@ class EbertCurry {
   public:
   static constexpr real scalefactor = 1.;  //500._r8/917._r8
 
-  static void ec_ice_optics_sw(int ncol, int nlev, int nswbands, real2d& cldn, real2d& cicewp, real2d& rei, 
+  static void ec_ice_optics_sw(int ncol, int nlev, int nswbands, real2d& cldn, real2d& cicewp, real2d& rei,
                                real3d& ice_tau, real3d& ice_tau_w, real3d& ice_tau_w_g, real3d& ice_tau_w_f) {
 
     real1d wavmin("wavmin", nswbands);
@@ -33,7 +33,7 @@ class EbertCurry {
     real ebarii;           // E coefficient for current spectral band
     real fbarii;           // F coefficient for current spectral band
 
-    // Minimum cloud amount (as a fraction of the grid-box area) to 
+    // Minimum cloud amount (as a fraction of the grid-box area) to
     // distinguish from clear sky
     const real cldmin = 1.0e-80;
 
@@ -113,7 +113,7 @@ class EbertCurry {
      const real rei_min = 13.;
      const real rei_max = 130.;
 
-     for (auto k=0; k<nlev; ++k) { 
+     for (auto k=0; k<nlev; ++k) {
         for (auto i=0; i<ncol; ++i) {
            cwp(i,k) = 1000.0 *iciwpth(i,k) + 1000.0 *iclwpth(i,k);
            ficemr(i,k) = 1000.0*iciwpth(i,k)/(std::max(1.e-18,cwp(i,k)));

@@ -86,8 +86,8 @@ constexpr amrex::Real Rd_on_Rv = R_d/R_v;
 constexpr amrex::Real tmelt    = 273.15;  // melting temp.
 constexpr amrex::Real h2otrip  = 273.15;  // Triple point temperature of water (K)
 constexpr amrex::Real tboil    = 373.16;  // Boiling point of water at 1 atm (K)
-constexpr amrex::Real ttrice   = 20.00;   // transition range from es over H2O to es over ice 
+constexpr amrex::Real ttrice   = 20.00;   // transition range from es over H2O to es over ice
 constexpr amrex::Real epsilo   = Rd_on_Rv;
 constexpr amrex::Real omeps    = 1. - epsilo;
-constexpr amrex::Real rhoh2o   = 1.000e3;  // density of liquid water 
+constexpr amrex::Real rhoh2o   = 1.000e3;  // density of liquid water
 #endif

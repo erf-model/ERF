@@ -5,7 +5,7 @@
 // parameterize aerosol radiative properties in terms of
 // surface mode wet radius and wet refractive index
 // Ghan and Zaveri, JGR 2007.
-// 
+//
 #ifndef ERF_MAM4_AERO_H_
 #define ERF_MAM4_AERO_H_
 
@@ -22,7 +22,7 @@ class Mam4_aer {
     int  nspec;
     std::string modal_optics_file;   // full pathname for modal optics dataset
     std::string water_refindex_file; // full pathname for water refractive index dataset
-    
+
     // Dimension sizes in coefficient arrays used to parameterize aerosol radiative properties
     // in terms of refractive index and wet radius
     int ncoef = 5;
@@ -186,7 +186,7 @@ class Mam4_aer {
      }
    } // subroutine binterp
 
-   inline 
+   inline
    void modal_aero_calcsize_diag(int list_idx, real3d& dgnum_m)
    {
      real2d dgncur_a("dgncur",ncol,nlev); // (pcols,pver)
@@ -252,16 +252,16 @@ class Mam4_aer {
         dgnyy = dgnumlo;
 
         for (auto k = top_lev; k < nlev; ++k) {
-           for (auto i = 0; i < ncol; ++i) { 
+           for (auto i = 0; i < ncol; ++i) {
 
               drv_a = dryvol_a(i,k);
               num_a0 = mode_num(i,k);
               num_a = std::max(0.0, num_a0);
 
               if (drv_a > 0.0) {
-                 if (num_a <= drv_a*v2nmin) 
+                 if (num_a <= drv_a*v2nmin)
                     dgncur_a(i,k) = dgnxx;
-                 else if (num_a >= drv_a*v2nmax) 
+                 else if (num_a >= drv_a*v2nmax)
                     dgncur_a(i,k) = dgnyy;
                  else
                     dgncur_a(i,k) = std::pow((drv_a/(dumfac*num_a)), 1./3.);
@@ -269,7 +269,7 @@ class Mam4_aer {
            }
         }
      }
-   } 
+   }
 
    // initialization
    inline
@@ -282,12 +282,12 @@ class Mam4_aer {
       // Check that dimension sizes in the coefficient arrays used to
       // parameterize aerosol radiative properties are consistent between this
       // module and the mode physprop files.
-       
+
       for(auto ilist = 0; ilist < n_diag; ++ilist) {
         mam_consti.get_nmodes(ilist, nmodes);
         for(auto m = 0; m < nmodes; ++m) {
            //  mam_consti.rad_cnst_get_mode_props(ilist, m, ncoef, prefr, prefi);
-           if (m_ncoef != ncoef || m_prefr != prefr || m_prefi != prefi) 
+           if (m_ncoef != ncoef || m_prefr != prefr || m_prefi != prefi)
                amrex::Print() << "ERROR - file and module values do not match: "
                               << " ncoef: " << ncoef << m_ncoef
                               << " prefr: " << prefr << m_prefr
@@ -306,9 +306,9 @@ class Mam4_aer {
 
 
    // calculates aerosol sw radiative properties
-   void  modal_aero_sw(int list_idx, real dt, int nnite, 
-                       const int1d& idxnite, const bool& is_cmip6_volc, 
-                       const real2d& ext_cmip6_sw, const int1d& trop_level, 
+   void  modal_aero_sw(int list_idx, real dt, int nnite,
+                       const int1d& idxnite, const bool& is_cmip6_volc,
+                       const real2d& ext_cmip6_sw, const int1d& trop_level,
                        real3d& tauxar, real3d& wa, real3d& ga, real3d& fa, real2d& clear_rh) {
      int ilev_tropp;
 
@@ -336,7 +336,7 @@ class Mam4_aer {
      real1d refi("refi", ncol);        // imaginary part of refractive index
      //complex(r8) :: crefin(ncol)     // complex refractive index
      real1d crefin_real("crefin_real",ncol);
-     real1d crefin_im("crefin_im",ncol); 
+     real1d crefin_im("crefin_im",ncol);
 
      real2d refitabsw("refitabsw",prefi,nswbands);
      real2d refrtabsw("refrtabsw",prefr,nswbands);
@@ -390,11 +390,11 @@ class Mam4_aer {
         }
         // diagnostic aerosol size calculations
         modal_aero_calcsize_diag(list_idx, dgnumdry_m);
-     } 
+     }
 
      // clear_rh provides alternate estimate non-cloudy relative humidity
 //   modal_aero_wateruptake_dr(state, pbuf, list_idx, dgnumdry_m, dgnumwet_m, qaerwat_m, clear_rh);
-   
+
      // loop over all aerosol modes
      mam_consti.get_nmodes(list_idx, nmodes);
 
@@ -425,7 +425,7 @@ class Mam4_aer {
               // aerosol species loop
               for(auto l = 1; l < nspec; ++l) {
 //               mam_consti.rad_cnst_get_aer_mmr(list_idx, m, l, "a", specmmr);
-                 mam_consti.get_mam_props(list_idx, m, l, specdens, spectype, hygro_aer, 
+                 mam_consti.get_mam_props(list_idx, m, l, specdens, spectype, hygro_aer,
                                           specrefindex_real, specrefindex_im);
 
                  for(auto i = 0; i < ncol; ++i) {
@@ -473,13 +473,13 @@ class Mam4_aer {
                refrtabswr(irefr)          = refrtabsw(irefr,isw);
             });
 
-            binterp(extpswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr, 
+            binterp(extpswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr,
                     itab, jtab, ttab, utab, cext);
 
-            binterp(abspswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr, 
+            binterp(abspswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr,
                     itab, jtab, ttab, utab, cabs);
 
-            binterp(asmpswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr, 
+            binterp(asmpswr, ncol, ncoef, prefr, prefi, refr, refi, refrtabswr, refitabswr,
                     itab, jtab, ttab, utab, casm);
 
               // parameterized optical properties
@@ -487,9 +487,9 @@ class Mam4_aer {
 
                  if (logradsurf(i,k) <= xrmax) {
                     pext(i) = 0.5*cext(i,1);
-                    for(auto nc = 2; nc < ncoef; ++nc) 
+                    for(auto nc = 2; nc < ncoef; ++nc)
                        pext(i) = pext(i) + cheb(nc,i,k)*cext(i,nc);
-                  
+
                     pext(i) = std::exp(pext(i));
                  }
                  else {
@@ -520,7 +520,7 @@ class Mam4_aer {
 
                     if (dopaer(i) <= -1.e-10) {
                        amrex::Print() << "ERROR: Negative aerosol optical depth in this layer.\n";
-                    } 
+                    }
                     else {
                        amrex::Print() << "WARNING: Aerosol optical depth is unreasonably high in this layer.\n";
                     }
@@ -536,7 +536,7 @@ class Mam4_aer {
                        amrex::Print() << "*** halting after nerr_dopaer\n";
                        exit(0);
                     }
-               } 
+               }
 
               for(auto i=1; i < ncol; ++i) {
                  tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
@@ -573,7 +573,7 @@ class Mam4_aer {
      real1d watervol("watervol",ncol);  // volume concentration of water in each mode (m3/kg)
      real1d refr("refr",ncol);          // real part of refractive index
      real1d refi("refi",ncol);          // imaginary part of refractive index
-     real1d crefinr("crefinr", ncol); 
+     real1d crefinr("crefinr", ncol);
      real1d crefini("crefini", ncol);
 
      real2d refrtablw("refrtablw",prefr,nlwbands);   // table of real refractive indices for aerosols
@@ -595,7 +595,7 @@ class Mam4_aer {
      real volf;             // volume fraction of insoluble aerosol
 
      // initialize output variables
-     yakl::memset(tauxar, 0.); 
+     yakl::memset(tauxar, 0.);
 
      // dry mass in each cell
      //mass(:ncol,:) = state%pdeldry(:ncol,:)*rga
@@ -603,21 +603,21 @@ class Mam4_aer {
      // Calculate aerosol size distribution parameters and aerosol water uptake
      if (clim_modal_aero && ! prog_modal_aero) {   // For prescribed aerosol codes
         //radiation diagnostics are not supported for prescribed aerosols cases
-        if(list_idx != 0) 
-          amrex::Print() << "Radiation diagnostic calls are not supported for prescribed aerosols\n"; 
+        if(list_idx != 0)
+          amrex::Print() << "Radiation diagnostic calls are not supported for prescribed aerosols\n";
 
          // diagnostic aerosol size calculations
 //         modal_aero_calcsize_diag(list_idx, dgnumdry_m);
      } else {
       // For prognostic aerosols
-//      mam_consti.modal_aero_calcsize_sub(state, dt, pbuf, list_idx_in=list_idx, update_mmr_in = .false., 
+//      mam_consti.modal_aero_calcsize_sub(state, dt, pbuf, list_idx_in=list_idx, update_mmr_in = .false.,
 //           dgnumdry_m=dgnumdry_m);
      }
 
 
    // clear_rh provides alternate estimate non-cloudy relative humidity
 //   modal_aero_wateruptake_dr(list_idx, dgnumdry_m, dgnumwet_m, qaerwat_m, clear_rh_in=clear_rh);
-   
+
      for(auto m = 0; m < nmodes; ++m) {
        // dgnumwet = dgnumwet_m(:,:,m);
        // qaerwat  = qaerwat_m(:,:,m);
@@ -707,7 +707,7 @@ class Mam4_aer {
                refrtablwr(irefr)          = refrtablw(irefr,ilw);
             });
 
-            binterp(absplwr, ncol, ncoef, prefr, prefi, refr, refi, refrtablwr, refitablwr, 
+            binterp(absplwr, ncol, ncoef, prefr, prefi, refr, refi, refrtablwr, refitablwr,
                     itab, jtab, ttab, utab, cabs);
 
             // parameterized optical properties
@@ -723,11 +723,11 @@ class Mam4_aer {
 
             for(auto i = 0; i < ncol; ++i) {
                if ((dopaer(i) <= -1.e-10) || (dopaer(i) >= 20.)) {
-                  if (dopaer(i) <= -1.e-10) 
+                  if (dopaer(i) <= -1.e-10)
                     amrex::Print() <<  "ERROR: Negative aerosol optical depth in this layer.";
-                  else 
+                  else
                     amrex::Print() << "WARNING: Aerosol optical depth is unreasonably high in this layer.";
-                  
+
                   for(auto l = 1; l < nspec; ++l) {
 //                   rad_cnst_get_aer_mmr(list_idx, m, l, 'a', state, pbuf, specmmr);
                     mam_consti.get_mam_props_lw(list_idx, m, l, specdens,specrefrindex, specrefiindex);
@@ -739,12 +739,12 @@ class Mam4_aer {
                      amrex::Print() <<  "*** halting after nerr_dopaer = " << nerr_dopaer;
                      return;
                   }
-              } 
+              }
             }
             for(auto i = 1; i < ncol; ++i) tauxar(i,k,ilw) = tauxar(i,k,ilw) + dopaer(i);
          } // k = top_lev, nlev
        }  // nlwbands
      } // m = 1, nmodes
   } // modal_aero_lw
-}; 
+};
 #endif // ERF_MAM4_AERO_H_

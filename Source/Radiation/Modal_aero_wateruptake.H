@@ -27,7 +27,7 @@ class ModalAeroWateruptake {
    // via optional arguments.  If the list_idx arg is present then
    // all the optional args must be present.
 
-   static void modal_aero_wateruptake_dr(int list_idx_in, real3d& dgnumdry_m, real3d& dgnumwet_m, 
+   static void modal_aero_wateruptake_dr(int list_idx_in, real3d& dgnumdry_m, real3d& dgnumwet_m,
                                          real3d& qaerwat_m, real3d& wetdens_m, real2d& clear_rh_in)
    // Optional inputs for diagnostic mode
    //integer,  optional,          intent(in)    :: list_idx_in
@@ -95,7 +95,7 @@ class ModalAeroWateruptake {
   //                   history_verbose_out = history_verbose)
 
    list_idx = 0
-   if (list_idx_in) 
+   if (list_idx_in)
       list_idx = list_idx_in;
 
    yakl::memset(naer, huge_real);
@@ -144,7 +144,7 @@ class ModalAeroWateruptake {
       yakl::memset(dryvolmr, 0.);
 
       // get mode properties
-      rad_cnst_get_mode_props(list_idx, m, sigmag=sigmag, 
+      rad_cnst_get_mode_props(list_idx, m, sigmag=sigmag,
          rhcrystal=rhcrystal(m), rhdeliques=rhdeliques(m));
 
       // get mode info
@@ -267,9 +267,9 @@ class ModalAeroWateruptake {
 
    // compute aerosol wet radius and aerosol water
 
-   modal_aero_wateruptake_sub( 
-      ncol, nmodes, rhcrystal, rhdeliques, dryrad, 
-      hygro, rh, dryvol, wetrad, wetvol,           
+   modal_aero_wateruptake_sub(
+      ncol, nmodes, rhcrystal, rhdeliques, dryrad,
+      hygro, rh, dryvol, wetrad, wetvol,
       wtrvol);
 
    for(auto m = 0; m < nmodes; ++m) {
@@ -284,7 +284,7 @@ class ModalAeroWateruptake {
             if(compute_wetdens) {
                if (wetvol(i,k,m) > 1.0e-30) {
                   wetdens(i,k,m) = (drymass(i,k,m) + rhoh2o*wtrvol(i,k,m))/wetvol(i,k,m);
-               } 
+               }
                else {
                   wetdens(i,k,m) = specdens_1(m);
                }
@@ -319,9 +319,9 @@ class ModalAeroWateruptake {
 
 // Purpose: Compute aerosol wet radius
 
-void modal_aero_wateruptake_sub( 
-   ncol, nmodes, real1d& rhcrystal, reaal1d& rhdeliques, real3d& dryrad, 
-   real3d& hygro, real2d& rh, real3d& dryvol, real3d& wetrad, real3d& wetvol,           
+void modal_aero_wateruptake_sub(
+   ncol, nmodes, real1d& rhcrystal, reaal1d& rhdeliques, real3d& dryrad,
+   real3d& hygro, real2d& rh, real3d& dryvol, real3d& wetrad, real3d& wetvol,
    real3d& wtrvol) {
 #if 0
    ! Arguments
@@ -385,7 +385,7 @@ void modal_aero_wateruptake_sub(
 // given in pruppacher and klett (eqn 6-35)
 
 // for multiple aerosol types, assumes an internal mixture of aerosols
- void modal_aero_kohler(real1d& rdry_in, real1d& hygro, real1d& s, 
+ void modal_aero_kohler(real1d& rdry_in, real1d& hygro, real1d& s,
                         real1d& rwet_out, int im) {
 #if 0
 ! arguments
@@ -483,7 +483,7 @@ void modal_aero_wateruptake_sub(
            p=abs(p31(i))/(rdry(i)*rdry(i));
            if(p < eps) {
               r(i)=rdry(i)*(1._r8+p*third);
-           } 
+           }
            else {
               makoh_cubic(cx3,p32,p31,p30,im);
              //find smallest real(r8) solution
@@ -495,7 +495,7 @@ void modal_aero_wateruptake_sub(
                  if(abs(xi) > abs(xr)*eps) continue;
                  if(xr > r(i)) continue;
                  if(xr < rdry(i)*(1.-eps)) continue;
-                 if(xr != xr) continue; 
+                 if(xr != xr) continue;
                  r(i)=xr;
                  nsol=n;
               }
@@ -549,7 +549,7 @@ void modal_aero_wateruptake_sub(
          cx(1,i)=(-p0(i))**third;
          cx(2,i)=cx(1,i);
          cx(3,i)=cx(1,i);
-      } 
+      }
       else {
          q(i)=p1(i)/3.;
          r(i)=p0(i)/2.;

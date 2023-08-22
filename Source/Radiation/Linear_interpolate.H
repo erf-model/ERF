@@ -82,7 +82,7 @@ class LinInterp
          // For values which extend beyond boundaries, set weights
          // such that values will be 0.
          //
-         if(increasing) { 
+         if(increasing) {
             yakl::c::parallel_for(yakl::c::Bounds<1>(nout), YAKL_LAMBDA (int j) {
                if (yout(j) < yin(1)) {
                   interp_wgts.jjm(j) = 1;
@@ -97,7 +97,7 @@ class LinInterp
                   interp_wgts.wgtn(j) = 0.;
                }
             });
-         } 
+         }
          else {
             yakl::c::parallel_for(yakl::c::Bounds<1>(nout), YAKL_LAMBDA (int j) {
                if (yout(j) > yin(1)) {
@@ -115,7 +115,7 @@ class LinInterp
            });
          }
         case extrap_method_bndry:
-         // 
+         //
          // For values which extend beyond boundaries, set weights
          // such that values will just be copied.
          //
@@ -159,7 +159,7 @@ class LinInterp
          dyinwrap = yin(1) + (cmax-cmin) - yin(nin);
          avgdyin = abs(yin(nin)-yin(1))/(nin-1.);
          auto ratio = dyinwrap/avgdyin;
-         if (ratio < 0.9 || ratio > 1.1) 
+         if (ratio < 0.9 || ratio > 1.1)
             printf("ratio is too large\n");
 
          if(increasing) {
@@ -177,7 +177,7 @@ class LinInterp
                   interp_wgts.wgtn(j) = (yout(j)-yin(nin))/dyinwrap;
                }
             });
-          } 
+          }
           else {
              yakl::c::parallel_for(yakl::c::Bounds<1>(nout), YAKL_LAMBDA (int j) {
                if (yout(j) > yin(1)) {
@@ -238,28 +238,28 @@ class LinInterp
    // Purpose: Do a linear interpolation from input mesh to output
    //          mesh with weights as set in lininterp_init.
    YAKL_INLINE
-   static void interp1d(const real1d& arrin, 
-                        const int& n1, 
-                        real1d arrout, 
-                        const int& m1, 
+   static void interp1d(const real1d& arrin,
+                        const int& n1,
+                        real1d arrout,
+                        const int& m1,
                         const InterpType& interp_wgts) {
      //
      // Do the interpolation
      //
      yakl::c::parallel_for(yakl::c::Bounds<1>(m1), YAKL_LAMBDA (int j) {
-        arrout(j) = arrin(interp_wgts.jjm(j))*interp_wgts.wgts(j) + 
+        arrout(j) = arrin(interp_wgts.jjm(j))*interp_wgts.wgts(j) +
                     arrin(interp_wgts.jjp(j))*interp_wgts.wgtn(j);
      });
    }
 
    YAKL_INLINE
-   static void interp2d2d(const real2d& arrin, 
-                          const int& n1, 
-                          const int& n2, 
-                          real2d arrout, 
-                          const int& m1, 
-                          const int& m2, 
-                          const InterpType& wgt1, 
+   static void interp2d2d(const real2d& arrin,
+                          const int& n1,
+                          const int& n2,
+                          real2d arrout,
+                          const int& m1,
+                          const int& m2,
+                          const InterpType& wgt1,
                           const InterpType& wgt2) {
 
      real2d arrtmp("arrtmp",n1,m2);
@@ -274,12 +274,12 @@ class LinInterp
    }
 
    YAKL_INLINE
-   static void interp2d1d(const real2d& arrin, 
-                          const int& n1, 
-                          const int& n2, 
-                          real1d arrout, 
-                          const int& m1, 
-                          const InterpType& wgt1, 
+   static void interp2d1d(const real2d& arrin,
+                          const int& n1,
+                          const int& n2,
+                          real1d arrout,
+                          const int& m1,
+                          const InterpType& wgt1,
                           const InterpType& wgt2) {
 
      yakl::c::parallel_for(yakl::c::Bounds<1>(m1), YAKL_LAMBDA (int i) {
@@ -289,18 +289,18 @@ class LinInterp
    }
 
    YAKL_INLINE
-   static void interp3d2d(const real3d& arrin, 
-                          const int& n1, 
-                          const int& n2, 
-                          const int& n3, 
-                          real2d arrout, 
-                          const int& m1, 
-                          const int& len1, 
-                          const InterpType& wgt1, 
+   static void interp3d2d(const real3d& arrin,
+                          const int& n1,
+                          const int& n2,
+                          const int& n3,
+                          real2d arrout,
+                          const int& m1,
+                          const int& len1,
+                          const InterpType& wgt1,
                           const InterpType& wgt2) {
 
      yakl::c::parallel_for(yakl::c::Bounds<2>(m1, n3), YAKL_LAMBDA (int i, int k) {
-        arrout(i,k) = arrin(wgt1.jjm(i),wgt2.jjm(i),k)*wgt1.wgts(i)*wgt2.wgts(i)+arrin(wgt1.jjp(i),wgt2.jjm(i),k)*wgt1.wgtn(i)*wgt2.wgts(i) + 
+        arrout(i,k) = arrin(wgt1.jjm(i),wgt2.jjm(i),k)*wgt1.wgts(i)*wgt2.wgts(i)+arrin(wgt1.jjp(i),wgt2.jjm(i),k)*wgt1.wgtn(i)*wgt2.wgts(i) +
                       arrin(wgt1.jjm(i),wgt2.jjp(i),k)*wgt1.wgts(i)*wgt2.wgtn(i)+arrin(wgt1.jjp(i),wgt2.jjp(i),k)*wgt1.wgtn(i)*wgt2.wgtn(i);
     });
   }

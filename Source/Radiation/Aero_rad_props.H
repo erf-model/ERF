@@ -34,34 +34,34 @@ class AerRadProps {
                          real3d& tau_w_f,
                          real2d& clear_rh);
 
-   void aer_rad_props_lw(const bool& is_cmip6_volc, 
-                         const int& list_idx, 
+   void aer_rad_props_lw(const bool& is_cmip6_volc,
+                         const int& list_idx,
                          const real& dt,
                          const real2d& zi,
-                         real3d& odap_aer, 
+                         real3d& odap_aer,
                          real2d& clear_rh);
 
 
-   void get_hygro_rad_props(const int& ncol, 
-                            const int2d& krh, 
-                            const real2d& wrh, 
-                            const real2d& mass, 
-                            const real2d& ext, 
-                            const real2d& ssa, 
-                            const real2d& assm, 
-                            real3d& tau, 
-                            real3d& tau_w, 
-                            real3d& tau_w_g, 
+   void get_hygro_rad_props(const int& ncol,
+                            const int2d& krh,
+                            const real2d& wrh,
+                            const real2d& mass,
+                            const real2d& ext,
+                            const real2d& ssa,
+                            const real2d& assm,
+                            real3d& tau,
+                            real3d& tau_w,
+                            real3d& tau_w_g,
                             real3d& tau_w_f);
 
-  void get_nonhygro_rad_props(const int& ncol, 
-                              const real2d& mass, 
-                              const real1d& ext, 
-                              const real1d& ssa, 
+  void get_nonhygro_rad_props(const int& ncol,
+                              const real2d& mass,
+                              const real1d& ext,
+                              const real1d& ssa,
                               const real1d& assm,
-                              real3d& tau, 
-                              real3d& tau_w, 
-                              real3d& tau_w_g, 
+                              real3d& tau,
+                              real3d& tau_w,
+                              real3d& tau_w_g,
                               real3d& tau_w_f);
 
  void get_volcanic_radius_rad_props(const int& ncol,
@@ -85,21 +85,21 @@ class AerRadProps {
                         real3d& tau_w_g,
                         real3d& tau_w_f);
 
- void get_volcanic_rad_props(const int& ncol, 
-                             const real2d& mass, 
-                             const real1d& ext, 
-                             const real1d& scat, 
+ void get_volcanic_rad_props(const int& ncol,
+                             const real2d& mass,
+                             const real1d& ext,
+                             const real1d& scat,
                              const real1d& ascat,
-                             real3d& tau, 
-                             real3d& tau_w, 
-                             real3d& tau_w_g, 
+                             real3d& tau,
+                             real3d& tau_w,
+                             real3d& tau_w_g,
                              real3d& tau_w_f);
 
- void aer_vis_diag_out(const int& ncol, 
-                       const int& nnite, 
-                       const int1d& idxnite, 
-                       const int& iaer, 
-                       const real2d& tau, 
+ void aer_vis_diag_out(const int& ncol,
+                       const int& nnite,
+                       const int1d& idxnite,
+                       const int& iaer,
+                       const real2d& tau,
                        const int& diag_idx);
 
  private:
@@ -112,7 +112,7 @@ class AerRadProps {
    // aero constituents
    MamConstituents mam_consti;
 
-   // aero 
+   // aero
    Mam4_aer mam_aer;
 
    // pdel dry
@@ -126,4 +126,4 @@ class AerRadProps {
    // cmip6 short wave
    real3d ext_cmip6_sw, ssa_cmip6_sw, af_cmip6_sw;
 };
-#endif 
+#endif

@@ -7,12 +7,12 @@
 
 class Slingo {
   public:
-  static void slingo_liq_optics_sw(int ncol, int nlev, int nswbands, real2d& cldn, real2d& cliqwp, real2d& rel, 
+  static void slingo_liq_optics_sw(int ncol, int nlev, int nswbands, real2d& cldn, real2d& cliqwp, real2d& rel,
                                    real3d& liq_tau, real3d& liq_tau_w, real3d& liq_tau_w_g, real3d& liq_tau_w_f) {
     real1d wavmin("wavmin", nswbands);
     real1d wavmax("wavmax", nswbands);
 
-    // Minimum cloud amount (as a fraction of the grid-box area) to 
+    // Minimum cloud amount (as a fraction of the grid-box area) to
     // distinguish from clear sky
     real cldmin = 1.0e-80;
 
@@ -80,7 +80,7 @@ class Slingo {
        ebarli = ebarl[indxsl];
        fbarli = fbarl[indxsl];
 
-       for (auto k=0; k<nlev; ++k) { 
+       for (auto k=0; k<nlev; ++k) {
           for (auto i=0; i<ncol; ++i) {
 
              // note that optical properties for liquid valid only

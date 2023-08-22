@@ -63,7 +63,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
 
    // top layer (ilev = 0) has no aerosol (ie tau = 0)
    // also initialize rest of layers to accumulate od's
-   yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nswbands) , YAKL_LAMBDA (int icol, int isw) {   
+   yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nswbands) , YAKL_LAMBDA (int icol, int isw) {
      tau    (icol,0,isw) = 0.;
      tau_w  (icol,0,isw) = 0.;
      tau_w_g(icol,0,isw) = 0.;
@@ -99,7 +99,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
 
       //Find tropopause as extinction should be applied only above tropopause
       //trop_level has value for tropopause for each column
-      //tropopause_find(state, trop_level)      
+      //tropopause_find(state, trop_level)
       // Iterate over all of the columns to find the troppause
       real1d strop("strop",1);
       for (auto i = 0; i < ncol; ++i) {
@@ -116,7 +116,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
         }
         if (tlev != -1) trop_level(i) = tlev;
       }
-      
+
       //
       //Quit if tropopause is not found
       if (yakl::intrinsics::any(trop_level) == -1) {
@@ -173,7 +173,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
         // optical props for each aerosol hygroscopic
         real2d h_ext("h_ext", ncol, nlev);
         real2d h_ssa("h_ssa", ncol, nlev);
-        real2d h_asm("h_asm", ncol, nlev);   
+        real2d h_asm("h_asm", ncol, nlev);
 //         rad_cnst_get_aer_props(list_idx, iaerosol, sw_hygro_ext=h_ext, sw_hygro_ssa=h_ssa, sw_hygro_asm=h_asm);
         mam_consti.get_aer_sw_hygro_ext(list_idx, iaerosol, h_ext);
         mam_consti.get_aer_sw_hygro_ssa(list_idx, iaerosol, h_ssa);
@@ -206,7 +206,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
          // get optical properties for volcanic aerosols
           real1d n_ext("n_ext", ncol);
           real1d n_scat("n_scat", ncol);
-          real1d n_ascat("n_ascat", ncol); 
+          real1d n_ascat("n_ascat", ncol);
 //         rad_cnst_get_aer_props(list_idx, iaerosol, sw_nonhygro_ext=n_ext, sw_nonhygro_scat=n_scat, sw_nonhygro_ascat=n_ascat)
           mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaerosol, n_ext);
           mam_consti.get_aer_sw_nonhygro_scat(list_idx, iaerosol, n_scat);
@@ -220,7 +220,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
         });
       } else if (opticstype == "volcanic_radius") {
          // get optical properties for volcanic aerosols
-         real2d r_ext("r_ext",ncol,nlev);   
+         real2d r_ext("r_ext",ncol,nlev);
          real2d r_scat("r_scat",ncol,nlev);
          real2d r_ascat("r_ascat",ncol,nlev);
          real1d r_mu("r_mu", ncol);
@@ -238,7 +238,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
            //                                      real3d& tau,
            //                                      real3d& tau_w,
            //                                      real3d& tau_w_g,
-           //                                      real3d& tau_w_f) 
+           //                                      real3d& tau_w_f)
 
         yakl::c::parallel_for(yakl::c::Bounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
            tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
@@ -338,7 +338,7 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
           rhtrunc(icol, ilev) = std::min(rh(icol, ilev),1.);
           krh(icol, ilev) = std::min(std::floor(rhtrunc(icol, ilev) * nrh ) + 1, nrh - 1.);  // index into rh mesh
           wrh(icol, ilev) = rhtrunc(icol, ilev) * nrh - krh(icol, ilev);       // (-) weighting on left side values
-      }); 
+      });
    }
 
    yakl::memset(ext_cmip6_lw, 0.);
@@ -393,7 +393,7 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
       // are nested keeping that in mind
       yakl::c::parallel_for(yakl::c::Bounds<3>(ncol, nlev, nlwbands), YAKL_LAMBDA (int icol, int ilev, int ilw) {
          int ilev_tropp = trop_level(icol); //tropopause level
-         if (ilev < ilev_tropp) { 
+         if (ilev < ilev_tropp) {
             auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
            // odap_aer(icol,ilev,ilw) = lyr_thk * ext_cmip6_lw_inv_m(icol,ilev,ilw);
          }
@@ -413,7 +413,7 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
          } else {
            aermass(icol,ilev) = aermmr(icol,ilev) * mmr_to_mass(icol,ilev);
          }
-      }); 
+      });
 
       // get optics type
       mam_consti.get_aer_opticstype(list_idx, iaerosol, opticstype);
@@ -422,10 +422,10 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
          // get optical properties for hygroscopic aerosols
          mam_consti.get_aer_lw_hygro_abs(list_idx, iaerosol, lw_hygro_abs);
          yakl::c::parallel_for(yakl::c::Bounds<3>(ncol, nlev, nlwbands), YAKL_LAMBDA (int icol, int ilev, int bnd_idx) {
-             odap_aer(icol, ilev, bnd_idx) = odap_aer(icol, ilev, bnd_idx) + aermass(icol, ilev) * 
-                       ((1 + wrh(icol,ilev)) * lw_hygro_abs(krh(icol, ilev)+1,bnd_idx) 
+             odap_aer(icol, ilev, bnd_idx) = odap_aer(icol, ilev, bnd_idx) + aermass(icol, ilev) *
+                       ((1 + wrh(icol,ilev)) * lw_hygro_abs(krh(icol, ilev)+1,bnd_idx)
                        - wrh(icol, ilev)  * lw_hygro_abs(krh(icol, ilev),  bnd_idx));
-         }); 
+         });
       } else if (opticstype == "insoluble" || opticstype == "nonhygro" || opticstype == "hygro" || opticstype == "volcanic") {
           // get optical properties for hygroscopic aerosols
          mam_consti.get_aer_lw_abs(list_idx, iaerosol, lw_abs);
@@ -457,8 +457,8 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
             auto kmu = std::max(std::min(1 + (mutrunc-r_mu_min)/(r_mu_max-r_mu_min)*(nmu-1),nmu-1.),1.);
             auto wmu = std::max(std::min( (mutrunc -r_mu(kmu)) / (r_mu(kmu+1) - r_mu(kmu)) ,1.),0.);
             for (auto bnd_idx = 0; bnd_idx < nlwbands; ++bnd_idx) {
-                odap_aer(icol,ilev,bnd_idx) = odap_aer(icol,ilev,bnd_idx) + 
-                     aermass(icol,ilev) * ((1. - wmu) * r_lw_abs(bnd_idx, kmu) + 
+                odap_aer(icol,ilev,bnd_idx) = odap_aer(icol,ilev,bnd_idx) +
+                     aermass(icol,ilev) * ((1. - wmu) * r_lw_abs(bnd_idx, kmu) +
                      (wmu) * r_lw_abs(bnd_idx, kmu+1));
             }
         });
@@ -511,7 +511,7 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
    });
 }
 
- void AerRadProps::get_volcanic_radius_rad_props(const int& ncol, 
+ void AerRadProps::get_volcanic_radius_rad_props(const int& ncol,
                                                  const real2d& mass,
                                                  const real2d& r_ext,
                                                  const real2d& r_scat,
@@ -543,7 +543,7 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
    real2d mu("mu", ncol, nlev);
 
    yakl::c::parallel_for(yakl::c::Bounds<3>(ncol,nlev,nswbands), YAKL_LAMBDA (int icol, int ilev, int iswband) {
-       if(geometric_radius(icol,ilev) > 0.) 
+       if(geometric_radius(icol,ilev) > 0.)
           mu(icol,ilev) = std::log(geometric_radius(icol,ilev));
        else
           mu(icol,ilev) = 0.;
@@ -552,16 +552,16 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
        auto kmu = std::max(std::min(1 + (mutrunc-r_mu_min)/(r_mu_max-r_mu_min)*(nmu-1),nmu-1.),1.);
        auto wmu = std::max(std::min((mutrunc -r_mu(kmu)) / (r_mu(kmu+1) - r_mu(kmu)),1.),0.);
 
-       ext(iswband) = ((1. - wmu) * r_ext(iswband, kmu  ) + 
+       ext(iswband) = ((1. - wmu) * r_ext(iswband, kmu  ) +
                       (wmu) * r_ext(iswband, kmu+1));
-       scat(iswband) = ((1. - wmu) * r_scat(iswband, kmu  ) + 
+       scat(iswband) = ((1. - wmu) * r_scat(iswband, kmu  ) +
                        (wmu) * r_scat(iswband, kmu+1));
-       ascat(iswband) = ((1. - wmu) * r_ascat(iswband, kmu  ) + 
+       ascat(iswband) = ((1. - wmu) * r_ascat(iswband, kmu  ) +
                        (wmu) * r_ascat(iswband, kmu+1));
        real g = 0;
        if (scat(iswband) > 0.)
           g = ascat(iswband)/scat(iswband);
-           
+
        tau    (icol,ilev,iswband) = mass(icol,ilev) * ext(iswband);
        tau_w  (icol,ilev,iswband) = mass(icol,ilev) * scat(iswband);
        tau_w_g(icol,ilev,iswband) = mass(icol,ilev) * ascat(iswband);
@@ -588,7 +588,7 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
 
   // If tropopause is found, update taus with 50% contributuions from the volcanic input
   // file and 50% from the existing model computed values
-  real1d ext_unitless("ext_unitless", nswbands), 
+  real1d ext_unitless("ext_unitless", nswbands),
          asym_unitless("asym_unitless",nswbands),
          ext_ssa("ext_ssa",nswbands),
          ext_ssa_asym("ext_ssa_asym",nswbands);
@@ -642,12 +642,12 @@ void AerRadProps::get_volcanic_rad_props(const int& ncol,
    real g;
    int nswbands;
    for (auto iswband = 0; iswband < nswbands; ++iswband) {
-      if (scat(iswband) > 0.) 
+      if (scat(iswband) > 0.)
          g = ascat(iswband)/scat(iswband);
       else
          g=0.;
 
-      yakl::c::parallel_for(yakl::c::Bounds<2>(ncol,nlev), YAKL_LAMBDA (int icol, int ilev) { 
+      yakl::c::parallel_for(yakl::c::Bounds<2>(ncol,nlev), YAKL_LAMBDA (int icol, int ilev) {
         tau    (icol, ilev, iswband) = mass(icol, ilev) * ext(iswband);
         tau_w  (icol, ilev, iswband) = mass(icol, ilev) * scat(iswband);
         tau_w_g(icol, ilev, iswband) = mass(icol, ilev) * ascat(iswband);

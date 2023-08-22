@@ -10,7 +10,7 @@
 // Rrtmgp
 #include "Rrtmgp.H"
 
-void Rrtmgp::initialize() 
+void Rrtmgp::initialize()
 {
     // First, make sure yakl has been initialized
     if (!yakl::isInitialized()) {

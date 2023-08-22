@@ -10,7 +10,7 @@ void Rrtmgp::run_shortwave_rrtmgp (
         real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net, real3d& allsky_bnd_flux_dn_dir,
         real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    , real2d& clrsky_flux_dn_dir,
         real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net, real3d& clrsky_bnd_flux_dn_dir,
-        double tsi_scaling) 
+        double tsi_scaling)
 {
 
     // Wrap pointers in YAKL arrays
@@ -126,5 +126,5 @@ void Rrtmgp::run_shortwave_rrtmgp (
     fluxes_allsky.bnd_flux_dn_dir.deep_copy_to(allsky_bnd_flux_dn_dir);
     fluxes_allsky.bnd_flux_net.deep_copy_to(allsky_bnd_flux_net);
     yakl::fence();
-} 
+}
 
