@@ -35,24 +35,24 @@ class CloudRadProps {
                                   const real2d& pgam,
                                   real3d& abs_od);
 
-    void mitchell_ice_optics_sw(const int& ncol,
-                                const int& nlev,
-                                const real2d& iciwpth,
-                                const real2d& dei,
-                                real3d& tau,
+    void mitchell_ice_optics_sw(const int& ncol, 
+                                const int& nlev, 
+                                const real2d& iciwpth, 
+                                const real2d& dei, 
+                                real3d& tau, 
                                 real3d& tau_w,
-                                real3d& tau_w_g,
+                                real3d& tau_w_g, 
                                 real3d& tau_w_f);
 
     void mitchell_ice_optics_lw(const int& ncol,
                                 const int& nlev,
                                 const real2d& iciwpth,
                                 const real2d& dei,
-                                real3d& abs_od);
+                                real3d& abs_od); 
 
-    void gam_liquid_lw(const real& clwptn,
-                       const real& lamc,
-                       const real& pgam,
+    void gam_liquid_lw(const real& clwptn, 
+                       const real& lamc, 
+                       const real& pgam, 
                        real1d abs_od);
 
 
@@ -64,12 +64,12 @@ class CloudRadProps {
                        real1d tau_w,
                        real1d tau_w_g,
                        real1d tau_w_f);
-
+    
     // lambda weight
     void get_mu_lambda_weights(const real& lamc,
                                const real& pgam,
                                LinInterp::InterpType& mu_wgts,
-                               LinInterp::InterpType& lambda_wgts);
+                               LinInterp::InterpType& lambda_wgts);  
   private:
     std::string name{"CloudRadProps"};
     std::string liquid_file{"/ccs/home/yuanx/erf.radiation/Source/Radiation/data/F_nwvl200_mu20_lam50_res64_t298_c080428.nc"};

@@ -2,7 +2,6 @@
 // This module contains constexprants that are specific to the radiative transfer
 // code used in the RRTMG model.
 //
-
 #ifndef ERF_RAD_CONSTANTS_H
 #define ERF_RAD_CONSTANTS_H
 
@@ -10,8 +9,6 @@
 
 class RadConstants {
   public:
-   // SHORTWAVE DATA
-
    // number of shorwave spectral intervals
    static constexpr int nswbands = 14;
    static constexpr int nbndsw = 14;
@@ -22,21 +19,17 @@ class RadConstants {
    // 100 cm^-1 if it is too high to cover the far-IR. Any changes meant
    // to affect IR solar variability should take note of this.
 
-   static constexpr real wavenum_low[] /*(nbndsw)*/ =  // in cm^-1
-     {2600., 3250., 4000., 4650., 5150., 6150., 7700.,
+   static constexpr real wavenum_low[] =  // in cm^-1
+     {2600., 3250., 4000., 4650., 5150., 6150., 7700., 
       8050., 12850., 16000., 22650., 29000., 38000., 820.};
 
-   static constexpr real wavenum_high[] /*(nbndsw)*/ = // in cm^-1
+   static constexpr real wavenum_high[] = // in cm^-1
       {3250., 4000., 4650., 5150., 6150., 7700., 8050.,
        12850.,16000., 22650., 29000., 38000., 50000., 2600.};
 
-   // Mapping from old RRTMG sw bands to new band ordering in RRTMGP
-   static constexpr int rrtmg_to_rrtmgp_swbands[] = {
-                       14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
-
    // Solar irradiance at 1 A.U. in W/m^2 assumed by radiation code
    // Rescaled so that sum is precisely 1368.22 and fractional amounts sum to 1.0
-   static constexpr real solar_ref_band_irradiance[] /*(nbndsw)*/ =
+   static constexpr real solar_ref_band_irradiance[] = 
       {12.11,  20.3600000000001, 23.73,
        22.43,  55.63, 102.93, 24.29,
        345.74, 218.19, 347.20,
@@ -58,7 +51,7 @@ class RadConstants {
    // high variation near rh = 1.  Alternative methods
    // were found to be too slow.
    // Optimal approach would be for cam to specify size of aerosol
-   // based on each aerosol's characteristics.  Radiation
+   // based on each aerosol's characteristics.  Radiation 
    // should know nothing about hygroscopic growth!
    static constexpr int nrh = 1000;
 
@@ -72,11 +65,11 @@ class RadConstants {
    static constexpr int nlwbands = 16;
    static constexpr int nbndlw = 16;
 
-   static constexpr real wavenumber1_longwave[] /*(nlwbands)*/ =  // Longwave spectral band limits (cm-1)
+   static constexpr real wavenumber1_longwave[] =  // Longwave spectral band limits (cm-1)
        {10.,  350., 500.,   630.,  700.,  820.,  980., 1080.,
        1180., 1390., 1480., 1800., 2080., 2250., 2390., 2600.};
 
-   static constexpr real wavenumber2_longwave[] /*(nlwbands)*/ = // Longwave spectral band limits (cm-1)
+   static constexpr real wavenumber2_longwave[] = // Longwave spectral band limits (cm-1)
        {350.,  500.,  630.,  700.,  820.,  980., 1080., 1180.,
        1390., 1480., 1800., 2080., 2250., 2390., 2600., 3250.};
 
@@ -84,7 +77,7 @@ class RadConstants {
 
    // gasses required by radiation
    static constexpr int nradgas = 8;
-   static constexpr const char* gaslist[] /*(nradgas)*/ =
+   static constexpr const char* gaslist[] =
              {"H2O","O3", "O2", "CO2", "N2O", "CH4", "CFC11", "CFC12"};
 
    // use enum unit
@@ -96,14 +89,14 @@ class RadConstants {
       centimeter
    };
 
-   // provide Solar Irradiance for each band in RRTMG
+   // provide Solar Irradiance for each band in RRTMG   
    inline
    static void get_solar_band_fraction_irrad(real1d& fractional_irradiance) {
      real tsi = 0;  // total solar irradiance
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        tsi = tsi + solar_ref_band_irradiance[i];
 
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        fractional_irradiance(i) = solar_ref_band_irradiance[i] / tsi;
    }
 
@@ -111,14 +104,14 @@ class RadConstants {
    inline
    static void  get_ref_total_solar_irrad(real& tsi) {
       tsi = 0;
-      for(auto i = 0; i < nswbands; ++i)
-        tsi = tsi + solar_ref_band_irradiance[i];
+      for(auto i = 0; i < nswbands; ++i) 
+        tsi = tsi + solar_ref_band_irradiance[i]; 
    }
 
    // solar irradiance in each band (W/m^2)
    inline
    static void get_ref_solar_band_irrad(real1d& band_irrad ) {
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        band_irrad(i) = solar_ref_band_irradiance[i];
    }
 
@@ -130,8 +123,8 @@ class RadConstants {
 
    // provide spectral boundaries of each longwave band
    inline
-   static void get_lw_spectral_boundaries(real1d& low_boundaries,
-                                          real1d& high_boundaries,
+   static void get_lw_spectral_boundaries(real1d& low_boundaries, 
+                                          real1d& high_boundaries, 
                                           Units units) {
       switch (units) {
       case inv_cm:
@@ -177,9 +170,9 @@ class RadConstants {
       for(auto iband = 0; iband < nlwbands; ++iband) {
          band_midpoints(iband) = 0.5*(lower_boundaries(iband) + upper_boundaries(iband));
       }
-
+  
    }
-
+      
    // provide spectral boundaries of each shortwave band
    inline
    static void get_sw_spectral_boundaries(real1d& low_boundaries, real1d& high_boundaries, Units units) {
@@ -227,16 +220,14 @@ class RadConstants {
         band_midpoints(iband) = 0.5 * (lower_boundaries(iband) + upper_boundaries(iband));
      }
   }
-
+      
   // return the index in the gaslist array of the specified gasname
   inline
   static int rad_gas_index(std::string gasname) {
      for(auto igas = 0; igas < nradgas; ++igas) {
-        if (gaslist[igas] == gasname) {
-           return igas;
-        }
+        if (gaslist[igas] == gasname) return igas;
      }
      amrex::Print() << "rad_gas_index: can not find gas with name" << gasname << std::endl;
   }
-};
+}; 
 #endif

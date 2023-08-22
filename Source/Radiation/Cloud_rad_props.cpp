@@ -42,14 +42,14 @@ void CloudRadProps::initialize() {
     ext_sw_liq_h.deep_copy_to(ext_sw_liq);
     ssa_sw_liq_h.deep_copy_to(ssa_sw_liq);
     asm_sw_liq_h.deep_copy_to(asm_sw_liq);
-    abs_lw_liq_h.deep_copy_to(abs_lw_liq);
+    abs_lw_liq_h.deep_copy_to(abs_lw_liq);  
 
    // I forgot to convert kext from m^2/Volume to m^2/Kg
-   yakl::c::parallel_for(yakl::c::Bounds<3>(nmu,nlambda,nsw_band) , YAKL_LAMBDA (int i, int j, int k) {
-     ext_sw_liq(i,j,k) = ext_sw_liq(i,j,k) / 0.9970449e3;
+   yakl::c::parallel_for(yakl::c::Bounds<3>(nmu,nlambda,nsw_band) , YAKL_LAMBDA (int i, int j, int k) {   
+     ext_sw_liq(i,j,k) = ext_sw_liq(i,j,k) / 0.9970449e3; 
    });
 
-   yakl::c::parallel_for(yakl::c::Bounds<3>(nmu,nlambda,nlw_band) , YAKL_LAMBDA (int i, int j, int k) {
+   yakl::c::parallel_for(yakl::c::Bounds<3>(nmu,nlambda,nlw_band) , YAKL_LAMBDA (int i, int j, int k) {         
      abs_lw_liq(i,j,k) = abs_lw_liq(i,j,k) / 0.9970449e3;
    });
 
@@ -59,9 +59,9 @@ void CloudRadProps::initialize() {
    n_g_d    = ice.getDimSize( "d_eff" );
 
    ice.read( g_d_eff_h,    "d_eff");
-   ice.read( ext_sw_ice_h, "sw_ext");
-   ice.read( ssa_sw_ice_h, "sw_ssa");
-   ice.read( asm_sw_ice_h, "sw_asm");
+   ice.read( ext_sw_ice_h, "sw_ext"); 
+   ice.read( ssa_sw_ice_h, "sw_ssa"); 
+   ice.read( asm_sw_ice_h, "sw_asm"); 
    ice.read( abs_lw_ice_h, "lw_abs");
 
    g_d_eff_h.deep_copy_to(g_d_eff);
@@ -71,14 +71,14 @@ void CloudRadProps::initialize() {
    abs_lw_ice_h.deep_copy_to(abs_lw_ice);
 }
 
-void CloudRadProps::gammadist_liq_optics_sw(const int& ncol,
-                                            const int& nlev,
-                                            const real2d& iclwpth,
-                                            const real2d& lamc,
-                                            const real2d& pgam,
-                                            real3d& tau,
-                                            real3d& tau_w,
-                                            real3d& tau_w_g,
+void CloudRadProps::gammadist_liq_optics_sw(const int& ncol, 
+                                            const int& nlev, 
+                                            const real2d& iclwpth, 
+                                            const real2d& lamc, 
+                                            const real2d& pgam, 
+                                            real3d& tau, 
+                                            real3d& tau_w, 
+                                            real3d& tau_w_g, 
                                             real3d& tau_w_f) {
 
   real1d tau1d("tau1d", nswbands);
@@ -94,7 +94,7 @@ void CloudRadProps::gammadist_liq_optics_sw(const int& ncol,
           tauwf1d(iband) = tau_w_f(iband,i,k);
         }
         gam_liquid_sw(iclwpth(i,k), lamc(i,k), pgam(i,k), tau1d, tauw1d, tauwg1d, tauwf1d);
-     }
+     } 
      else {
        for (auto iband=0; iband<nswbands; ++iband) {
          tau(iband,i,k) = 0.;
@@ -106,18 +106,18 @@ void CloudRadProps::gammadist_liq_optics_sw(const int& ncol,
   });
 }
 
-void CloudRadProps::gammadist_liq_optics_lw(const int& ncol,
-                                            const int& nlev,
-                                            const real2d& iclwpth,
-                                            const real2d& lamc,
-                                            const real2d& pgam,
+void CloudRadProps::gammadist_liq_optics_lw(const int& ncol, 
+                                            const int& nlev, 
+                                            const real2d& iclwpth, 
+                                            const real2d& lamc, 
+                                            const real2d& pgam, 
                                             real3d& abs_od) {
-   auto abs_od_1d = real1d("abs_od_1d", nlwbands);
+   auto abs_od_1d = real1d("abs_od_1d", nlwbands); 
    yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k) {
       if(lamc(i,k) > 0.) { // This seems to be the clue for no cloud from microphysics formulation
         for (auto ib=0; ib<nlwbands; ++ib) abs_od_1d(ib) = abs_od(ib,i,k);
         gam_liquid_lw(iclwpth(i,k), lamc(i,k), pgam(i,k), abs_od_1d);
-      }
+      } 
       else {
         for(auto j=0; j<nlwbands; ++j) abs_od(j,i,k) = 0.;
      }
@@ -125,18 +125,18 @@ void CloudRadProps::gammadist_liq_optics_lw(const int& ncol,
 }
 
 
-void CloudRadProps::mitchell_ice_optics_sw(const int& ncol,
-                                           const int& nlev,
-                                           const real2d& iciwpth,
-                                           const real2d& dei,
-                                           real3d& tau,
+void CloudRadProps::mitchell_ice_optics_sw(const int& ncol, 
+                                           const int& nlev, 
+                                           const real2d& iciwpth, 
+                                           const real2d& dei, 
+                                           real3d& tau, 
                                            real3d& tau_w,
-                                           real3d& tau_w_g,
+                                           real3d& tau_w_g, 
                                            real3d& tau_w_f) {
   LinInterp::InterpType dei_wgts;
 
-  real1d ext("ext", nswbands),
-         ssa("ssa", nswbands),
+  real1d ext("ext", nswbands), 
+         ssa("ssa", nswbands), 
          assm("assm", nswbands);
 
   real1d ext_sw_ice_1d("ext_sw_ice_1d", n_g_d),
@@ -157,7 +157,7 @@ void CloudRadProps::mitchell_ice_optics_sw(const int& ncol,
           tau_w_g(ib,i,k) = 0.;
           tau_w_f(ib,i,k) = 0.;
         }
-     }
+     } 
      else {
        // for each cell interpolate to find weights in g_d_eff grid.
        dei_1d(0) = dei(i,k);
@@ -186,10 +186,10 @@ void CloudRadProps::mitchell_ice_optics_sw(const int& ncol,
   });
 }
 
-void CloudRadProps::mitchell_ice_optics_lw(const int& ncol,
-                                           const int& nlev,
-                                           const real2d& iciwpth,
-                                           const real2d& dei,
+void CloudRadProps::mitchell_ice_optics_lw(const int& ncol, 
+                                           const int& nlev, 
+                                           const real2d& iciwpth, 
+                                           const real2d& dei, 
                                            real3d& abs_od) {
   LinInterp::InterpType dei_wgts;
 
@@ -206,7 +206,7 @@ void CloudRadProps::mitchell_ice_optics_lw(const int& ncol,
         for (auto lb=0; lb<nlwbands; ++lb) {
           abs_od (lb,i,k) = 0.;
         }
-      }
+      } 
       else {
         // for each cell interpolate to find weights in g_d_eff grid.
         dei_1d(0) = dei(i,k);
@@ -226,9 +226,9 @@ void CloudRadProps::mitchell_ice_optics_lw(const int& ncol,
 }
 
 
-void CloudRadProps::gam_liquid_lw(const real& clwptn,
-                                  const real& lamc,
-                                  const real& pgam,
+void CloudRadProps::gam_liquid_lw(const real& clwptn, 
+                                  const real& lamc, 
+                                  const real& pgam, 
                                   real1d abs_od) {
   LinInterp::InterpType mu_wgts;
   LinInterp::InterpType lambda_wgts;
@@ -259,15 +259,15 @@ void CloudRadProps::gam_liquid_lw(const real& clwptn,
   });
 }
 
-void CloudRadProps::gam_liquid_sw(const real& clwptn,
-                                  const real& lamc,
-                                  const real& pgam,
-                                  real1d tau,
-                                  real1d tau_w,
-                                  real1d tau_w_g,
+void CloudRadProps::gam_liquid_sw(const real& clwptn, 
+                                  const real& lamc, 
+                                  const real& pgam, 
+                                  real1d tau, 
+                                  real1d tau_w, 
+                                  real1d tau_w_g, 
                                   real1d tau_w_f) {
-  real1d extb("ext", nswbands),
-         ssab("ssa", nswbands),
+  real1d extb("ext", nswbands), 
+         ssab("ssa", nswbands), 
          asmb("asm", nswbands);
 
   real2d ext_sw_liq_2d("ext_sw_liq_2d", nmu, nlambda),
@@ -310,9 +310,9 @@ void CloudRadProps::gam_liquid_sw(const real& clwptn,
 }
 
 
-void CloudRadProps::get_mu_lambda_weights(const real& lamc,
-                                          const real& pgam,
-                                          LinInterp::InterpType& mu_wgts,
+void CloudRadProps::get_mu_lambda_weights(const real& lamc, 
+                                          const real& pgam, 
+                                          LinInterp::InterpType& mu_wgts, 
                                           LinInterp::InterpType& lambda_wgts) {
   real1d g_lambda_interp("g_lambda_interp", nlambda);
   real1d pgam1d("pgam1d", nmu);
@@ -329,7 +329,7 @@ void CloudRadProps::get_mu_lambda_weights(const real& lamc,
   LinInterp::init(g_mu0, nmu, pgam1d, 1, LinInterp::extrap_method_bndry, mu_wgts);
 
   // Use mu weights to interpolate to a row in the lambda table.
-  for(auto i=0; i<nlambda; ++i) {
+  for(auto i=0; i<nlambda; ++i) { 
      for (auto im=0; im<nmu; ++im) g_lambda1d(im) = g_lambda(im, i);
      LinInterp::interp1d(g_lambda1d, nmu, g_lambda_interp, 1, mu_wgts);
   }
