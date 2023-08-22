@@ -27,7 +27,7 @@
 #endif
 
 #ifdef ERF_USE_PARTICLES
-#include <AMReX_TracerParticles.H>
+#include "TerrainFittedPC.H"
 #endif
 
 #include <IndexDefines.H>
@@ -297,7 +297,7 @@ public:
 #endif
 
 #ifdef ERF_USE_PARTICLES
-    std::unique_ptr<amrex::TracerParticleContainer> tracer_particles;
+    std::unique_ptr<TerrainFittedPC> tracer_particles;
     static amrex::Vector<std::string> tracer_particle_varnames;
 #endif
 
