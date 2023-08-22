@@ -50,6 +50,8 @@ jobs:
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-${{matrix.cuda_ver}}/lib:${LD_LIBRARY_PATH}
           cmake -Bbuild-${{matrix.cuda_pkg}} \
             -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+            -DAMReX_CUDA_ERROR_CROSS_EXECUTION_SPACE_CALL=ON \
+            -DAMReX_CUDA_ERROR_CAPTURE_THIS=ON           \
             -DERF_DIM:STRING=3 \
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON .
@@ -89,6 +91,8 @@ jobs:
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-${{matrix.cuda_ver}}/lib:${LD_LIBRARY_PATH}
           cmake -Bbuild-${{matrix.cuda_pkg}} \
             -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+            -DAMReX_CUDA_ERROR_CROSS_EXECUTION_SPACE_CALL=ON \
+            -DAMReX_CUDA_ERROR_CAPTURE_THIS=ON           \
             -DERF_DIM:STRING=3 \
             -DERF_ENABLE_MPI:BOOL=OFF \
             -DERF_ENABLE_MOISTURE:BOOL=ON \
