@@ -128,6 +128,10 @@ ifeq ($(USE_HDF5), TRUE)
   DEFINES += -DAMREX_USE_HDF5
 endif
 
+ifeq ($(USE_TERRAIN_VELOCITY), TRUE)
+  DEFINES += -DERF_USE_TERRAIN_VELOCITY
+endif
+
 CEXE_sources += AMReX_buildInfo.cpp
 CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts

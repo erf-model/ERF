@@ -797,6 +797,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                         Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
+
+#ifdef ERF_USE_PARTICLES
+            if (use_tracer_particles) {
+                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
+            }
+#endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
             amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
@@ -881,6 +887,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
 
             writeJobInfo(plotfilename);
+
+#ifdef ERF_USE_PARTICLES
+            if (use_tracer_particles) {
+                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
+            }
+#endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {

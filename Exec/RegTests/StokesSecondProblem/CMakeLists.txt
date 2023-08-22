@@ -1,4 +1,4 @@
-set(erf_exe_name erf_particles_over_woa)
+set(erf_exe_name erf_stokes_second_problem)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
@@ -7,8 +7,6 @@ target_sources(${erf_exe_name}
 )
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-set(ERF_ENABLE_PARTICLES ON)
 
 include(${CMAKE_SOURCE_DIR}/CMake/BuildERFExe.cmake)
 build_erf_exe(${erf_exe_name})

@@ -37,6 +37,12 @@ amrex::Real ERF::init_shrink   =  1.0;
 amrex::Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 
+
+#ifdef ERF_USE_PARTICLES
+bool ERF::use_tracer_particles = false;
+amrex::Vector<std::string> ERF::tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
+#endif
+
 // Type of mesh refinement algorithm
 std::string ERF::coupling_type = "OneWay";
 
@@ -160,6 +166,38 @@ ERF::ERF ()
 
     flux_registers.resize(nlevs_max);
 
+    // Stresses
+    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
+    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
+    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
+    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_diss_lev.resize(nlevs_max);
+    eddyDiffs_lev.resize(nlevs_max);
+    SmnSmn_lev.resize(nlevs_max);
+
+    // Metric terms
+    z_phys_nd.resize(nlevs_max);
+    z_phys_cc.resize(nlevs_max);
+    detJ_cc.resize(nlevs_max);
+    z_phys_nd_new.resize(nlevs_max);
+    detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_src.resize(nlevs_max);
+    detJ_cc_src.resize(nlevs_max);
+    z_t_rk.resize(nlevs_max);
+
+    // Mapfactors
+    mapfac_m.resize(nlevs_max);
+    mapfac_u.resize(nlevs_max);
+    mapfac_v.resize(nlevs_max);
+
+    // Base state
+    base_state.resize(nlevs_max);
+    base_state_new.resize(nlevs_max);
+
+    // Theta prim for MOST
+    Theta_prim.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -167,7 +205,7 @@ ERF::ERF ()
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
@@ -416,6 +454,27 @@ ERF::InitData ()
         if (coupling_type == "TwoWay") {
             AverageDown();
         }
+
+#ifdef ERF_USE_PARTICLES
+        // Initialize tracer particles if required
+        if (use_tracer_particles) {
+            tracer_particles = std::make_unique<amrex::TracerParticleContainer>(Geom(0), dmap[0], grids[0]);
+
+            amrex::ParticleInitType<TracerPC::NStructReal, 0, 0, 0> pdata {};
+            amrex::Real x_offset = 0;
+            amrex::Real y_offset = 0;
+            amrex::Real z_offset = 0;
+
+            // Do not offset in extra dimensions
+            AMREX_D_TERM( x_offset = 0.5; ,
+                          y_offset = 0.5; ,
+                          z_offset = 0.5; )
+
+            tracer_particles->InitOnePerCell(x_offset, y_offset, z_offset, pdata);
+
+            Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
+        }
+#endif
 
     } else { // Restart from a checkpoint
 
@@ -804,6 +863,11 @@ ERF::ReadParameters ()
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
+#ifdef ERF_USE_PARTICLES
+        // Tracer particle toggle
+        pp.query("use_tracer_particles", use_tracer_particles);
+#endif
+
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
         {
@@ -942,6 +1006,11 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(cf_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
         AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+
+        // AmrMesh iterate on grids?
+        bool iterate(true);
+        pp_amr.query("iterate_grids",iterate);
+        if (!iterate) SetIterateToFalse();
     }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1311,6 +1380,38 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
 
     flux_registers.resize(nlevs_max);
 
+    // Stresses
+    Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
+    Tau12_lev.resize(nlevs_max); Tau21_lev.resize(nlevs_max);
+    Tau13_lev.resize(nlevs_max); Tau31_lev.resize(nlevs_max);
+    Tau23_lev.resize(nlevs_max); Tau32_lev.resize(nlevs_max);
+    SFS_hfx1_lev.resize(nlevs_max); SFS_hfx2_lev.resize(nlevs_max); SFS_hfx3_lev.resize(nlevs_max);
+    SFS_diss_lev.resize(nlevs_max);
+    eddyDiffs_lev.resize(nlevs_max);
+    SmnSmn_lev.resize(nlevs_max);
+
+    // Metric terms
+    z_phys_nd.resize(nlevs_max);
+    z_phys_cc.resize(nlevs_max);
+    detJ_cc.resize(nlevs_max);
+    z_phys_nd_new.resize(nlevs_max);
+    detJ_cc_new.resize(nlevs_max);
+    z_phys_nd_src.resize(nlevs_max);
+    detJ_cc_src.resize(nlevs_max);
+    z_t_rk.resize(nlevs_max);
+
+    // Mapfactors
+    mapfac_m.resize(nlevs_max);
+    mapfac_u.resize(nlevs_max);
+    mapfac_v.resize(nlevs_max);
+
+    // Base state
+    base_state.resize(nlevs_max);
+    base_state_new.resize(nlevs_max);
+
+    // Theta prim for MOST
+    Theta_prim.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -1318,7 +1419,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev << " set to be " <<
+       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
