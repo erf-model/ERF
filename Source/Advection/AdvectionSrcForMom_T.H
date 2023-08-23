@@ -30,8 +30,10 @@ AdvectionSrcForXMom_T (int i, int j, int k,
                        InterpType_H interp_u_h,
                        InterpType_V interp_u_v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                       const amrex::Array4<const amrex::Real>& mf_u, const
-                       amrex::Array4<const amrex::Real>& mf_v)
+                       const amrex::Array4<const amrex::Real>& mf_u,
+                       const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -39,20 +41,20 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     amrex::Real rho_u_avg_lo, rho_u_avg_hi;
     amrex::Real rho_v_avg_lo, rho_v_avg_hi;
     amrex::Real Omega_avg_lo, Omega_avg_hi;
-
+/*
     amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
     amrex::Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
     amrex::Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0);
     amrex::Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_4   = 1. / mf_v(i-1,j  ,0);
-
+*/
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     // ****************************************************************************************
     // X-fluxes (at cell centers)
     // ****************************************************************************************
 
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv_hi + rho_u(i, j, k) * mf_u_inv_mid);
-    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_u_inv_lo + rho_u(i, j, k) * mf_u_inv_mid);
+    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j  ,0) + rho_u(i, j, k) * mf_u_inv(i  ,j  ,0));
+    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_u_inv(i-1,j  ,0) + rho_u(i, j, k) * mf_u_inv(i  ,j  ,0));
 
     interp_u_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
 
@@ -62,8 +64,8 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // ****************************************************************************************
     // Y-fluxes (at edges in k-direction)
     // ****************************************************************************************
-    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_v_inv_1 + rho_v(i-1, j+1, k) * mf_v_inv_2);
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_v_inv_3 + rho_v(i-1, j  , k) * mf_v_inv_4);
+    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_v_inv(i  ,j+1,0) + rho_v(i-1, j+1, k) * mf_v_inv(i-1,j+1,0));
+    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_v_inv(i  ,j  ,0) + rho_v(i-1, j  , k) * mf_v_inv(i-1,j  ,0));
 
     interp_u_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
 
@@ -123,7 +125,9 @@ AdvectionSrcForYMom_T (int i, int j, int k,
                        InterpType_V interp_v_v,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Array4<const amrex::Real>& mf_u,
-                       const amrex::Array4<const amrex::Real>& mf_v)
+                       const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv)
 {
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -131,19 +135,19 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     amrex::Real rho_u_avg_lo, rho_u_avg_hi;
     amrex::Real rho_v_avg_lo, rho_v_avg_hi;
     amrex::Real Omega_avg_lo, Omega_avg_hi;
-
+/*
     amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0);
     amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
     amrex::Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0);
     amrex::Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_4   = 1. / mf_u(i  ,j-1,0);
-
+*/
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     // ****************************************************************************************
     // x-fluxes (at edges in k-direction)
     // ****************************************************************************************
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv_1 + rho_u(i+1, j-1, k) * mf_u_inv_2);
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_u_inv_3 + rho_u(i  , j-1, k) * mf_u_inv_4);
+    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j  ,0) + rho_u(i+1, j-1, k) * mf_u_inv(i+1,j-1,0));
+    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_u_inv(i  ,j  ,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0));
 
     interp_v_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
 
@@ -153,8 +157,8 @@ AdvectionSrcForYMom_T (int i, int j, int k,
     // ****************************************************************************************
     // y-fluxes (at cell centers)
     // ****************************************************************************************
-    rho_v_avg_hi = 0.5 * (rho_v(i, j, k) * mf_v_inv_mid + rho_v(i, j+1, k) * mf_v_inv_hi);
-    rho_v_avg_lo = 0.5 * (rho_v(i, j, k) * mf_v_inv_mid + rho_v(i, j-1, k) * mf_v_inv_lo);
+    rho_v_avg_hi = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j+1, k) * mf_v_inv(i  ,j+1,0));
+    rho_v_avg_lo = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_v_inv(i  ,j-1,0));
 
     interp_v_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
 
@@ -221,6 +225,8 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
+                       const amrex::Array4<const amrex::Real>& mf_u_inv,
+                       const amrex::Array4<const amrex::Real>& mf_v_inv,
                        const AdvType vert_adv_type,
                        const int domhi_z)
 {
@@ -230,17 +236,17 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     amrex::Real rho_u_avg_lo, rho_u_avg_hi;
     amrex::Real rho_v_avg_lo, rho_v_avg_hi;
     amrex::Real Omega_avg_lo, Omega_avg_hi;
-
+/*
     amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
     amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
-
+*/
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     // ****************************************************************************************
     // x-fluxes (at edges in j-direction)
     // ****************************************************************************************
-    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_u_inv_hi;
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_u_inv_lo;
+    rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0);
+    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0);
 
     interp_omega_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
 
@@ -250,8 +256,8 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     // ****************************************************************************************
     // y-fluxes (at edges in i-direction)
     // ****************************************************************************************
-    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_v_inv_hi;
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_v_inv_lo;
+    rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_v_inv(i  ,j+1,0);
+    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0);
 
     interp_omega_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
 
@@ -347,6 +353,8 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_u_inv,
+                            const amrex::Array4<const amrex::Real>& mf_v_inv,
                             const AdvType vert_adv_type,
                             const int domhi_z)
 {
@@ -360,18 +368,18 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_T(i, j, k, rho_u, rho_v, Omega, z_nd, detJ,
-                                                    interp_u_h, interp_u_v, cellSizeInv, mf_u, mf_v);
+                                                    interp_u_h, interp_u_v, cellSizeInv, mf_u, mf_v, mf_u_inv, mf_v_inv);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_T(i, j, k, rho_u, rho_v, Omega, z_nd, detJ,
-                                                    interp_v_h, interp_v_v, cellSizeInv, mf_u, mf_v);
+                                                    interp_v_h, interp_v_v, cellSizeInv, mf_u, mf_v, mf_u_inv, mf_v_inv);
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, Omega, w, z_nd, detJ,
                                                     interp_w_h, interp_w_v, interp_w_wall,
-                                                    cellSizeInv, mf_m, mf_u, mf_v,
+                                                    cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                     vert_adv_type, domhi_z);
     });
 }
@@ -397,37 +405,39 @@ AdvectionSrcForMomVert_T(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
+                            const amrex::Array4<const amrex::Real>& mf_u_inv,
+                            const amrex::Array4<const amrex::Real>& mf_v_inv,
                             const AdvType vert_adv_type, const int domhi_z)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED2,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                                       vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND3,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                    cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Centered_4th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED4,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                                       vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND5,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                    cellSizeInv, mf_m, mf_u, mf_v,
+                                                                    cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                                     vert_adv_type, domhi_z);
     } else if (vert_adv_type == AdvType::Centered_6th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED6,UPWINDALL>(bxx, bxy, bxz,
                                                                       rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                       rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
                                                                       vert_adv_type, domhi_z);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
