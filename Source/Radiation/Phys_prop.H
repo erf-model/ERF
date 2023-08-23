@@ -684,7 +684,7 @@ class PhysProp {
      prop.read( physprop.dryrad_aer,        "dryrad" );
      prop.read( physprop.hygro_aer,         "hygroscopicity" );
      prop.read( physprop.num_to_mass_aer,   "num_to_mass_ration" );
-  }
+ }
 
  // Purpose:
  //interpolates f(x) to point y
@@ -747,16 +747,12 @@ class PhysProp {
    return f(k)+a*(y-x(k));
  }
 
-
  // Purpose:
  //   write out aerosol optical properties
  //   for a set of test rh values
  //   to test hygroscopic growth interpolation
  void aer_optics_log_rh(std::string name, const real1d& ext, const real1d& ssa, const real1d& asmin)
  {
-   //real(r8), intent(in) :: ext(nrh)
-   //real(r8), intent(in) :: ssa(nrh)
-   //real(r8), intent(in) :: asm(nrh)
    const int nrh_test = 36;
    int krh;
    real rh;
