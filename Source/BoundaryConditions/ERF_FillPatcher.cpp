@@ -116,49 +116,31 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
         }
     }
 
-    // Grown fine box list (expand interior halo to touch crse face)
-    BoxList gbl;
-    gbl.set(m_ixt);
-    for (auto bl_iter = bl.begin(); bl_iter < bl.end(); bl_iter++) {
-      const int* lo = (*bl_iter).loVect();
-      const int* hi = (*bl_iter).hiVect();
-      IntVect glo(0); IntVect ghi(0);
-      for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-        int rlo = lo[idim]%m_ratio[idim];
-        int rhi = hi[idim]%m_ratio[idim];
-        glo[idim] = lo[idim]; ghi[idim] = hi[idim];
-        if (rlo > 0) glo[idim] = lo[idim] - rlo;
-        if (rhi > 0) ghi[idim] = hi[idim] - rhi + m_ratio[idim];
-      }
-      Box gbx(glo,ghi,m_ixt);
-      gbl.push_back(gbx);
-    }
-
     // Coarse box list (coincides with grown fine box list)
     BoxList cbl;
     cbl.set(m_ixt);
-    cbl.reserve(gbl.size());
-    for (auto const& b : gbl) {
+    cbl.reserve(bl.size());
+    for (auto const& b : bl) {
         cbl.push_back(interp->CoarseBox(b, m_ratio));
     }
 
     // Box arrays for fine and coarse
-    BoxArray gcf_fba(std::move(gbl));
-    BoxArray gcf_cba(std::move(cbl));
+    BoxArray cf_fba(std::move(bl));
+    BoxArray cf_cba(std::move(cbl));
     BoxArray cf_fba_s(std::move(bl_subset));
-    DistributionMapping gcf_dm(gcf_fba);
+    DistributionMapping cf_dm(cf_fba);
     DistributionMapping cf_dm_s(cf_fba_s);
 
 
     // Fine patch to hold the time-interpolated state
-    m_cf_fine_data = new MultiFab (gcf_fba, gcf_dm, m_ncomp, 0);
+    m_cf_fine_data = new MultiFab (cf_fba, cf_dm, m_ncomp, 0);
 
     // Fine subset patch to hold the time-interpolated state
-    m_cf_fine_subset_data = new MultiFab (cf_fba_s, gcf_dm, m_ncomp, 0);
+    m_cf_fine_subset_data = new MultiFab (cf_fba_s, cf_dm, m_ncomp, 0);
 
     // Two coarse patches to hold the data to be interpolated
-    m_cf_crse_data[0] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
-    m_cf_crse_data[1] = new MultiFab (gcf_cba, gcf_dm, m_ncomp, 0);
+    m_cf_crse_data[0] = new MultiFab (cf_cba, cf_dm, m_ncomp, 0);
+    m_cf_crse_data[1] = new MultiFab (cf_cba, cf_dm, m_ncomp, 0);
 }
 
 
