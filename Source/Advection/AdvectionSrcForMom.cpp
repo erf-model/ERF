@@ -156,35 +156,35 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
                 AdvectionSrcForMomVert_N<CENTERED2>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
-                                                  cellSizeInv, mf_m, mf_u, mf_v,
+                                                  cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_N<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
-                                                  cellSizeInv, mf_m, mf_u, mf_v,
+                                                  cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_N<CENTERED4>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
-                                                  cellSizeInv, mf_m, mf_u, mf_v,
+                                                  cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_N<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
-                                                  cellSizeInv, mf_m, mf_u, mf_v,
+                                                  cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_N<CENTERED6>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
-                                                  cellSizeInv, mf_m, mf_u, mf_v,
+                                                  cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else {
@@ -194,20 +194,12 @@ Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
     } // end of use_terrain == false
     else
     { // now do use_terrain == true
-Print() << "I am here \n";
         // Inline with 2nd order for efficiency
         if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
         {
             ParallelFor(bxx, bxy, bxz,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                /*
-                Real mf_u_inv_hi  = 1. / mf_u(i+1,j  ,0);
-                Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
-                Real mf_u_inv_lo  = 1. / mf_u(i-1,j  ,0);
-                Real mf_v_inv_1   = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_2  = 1. / mf_v(i-1,j+1,0);
-                Real mf_v_inv_3   = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_4  = 1. / mf_v(i-1,j  ,0);
-                */
                 Real met_h_zeta_xhi = Compute_h_zeta_AtCellCenter(i  ,j  ,k  ,cellSizeInv,z_nd);
                 Real xflux_hi = 0.25 * (rho_u(i, j  , k) * mf_u_inv(i,j,0) + rho_u(i+1, j  , k) * mf_u_inv(i+1,j,0)) * (u(i+1,j,k) + u(i,j,k)) * met_h_zeta_xhi;
 
@@ -233,10 +225,6 @@ Print() << "I am here \n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                /*
-                Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
-                Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0); Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); Real mf_u_inv_4 = 1. / mf_u(i-1,j  ,0);
-                */
                 Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterK(i+1,j  ,k  ,cellSizeInv,z_nd);
                 Real xflux_hi = 0.25 * (rho_u(i+1,j  ,k) * mf_u_inv(i+1,j  ,0) + rho_u(i+1,j-1, k) * mf_u_inv(i+1,j-1,0)) * (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
@@ -262,10 +250,6 @@ Print() << "I am here \n";
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                /*
-                Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); Real mf_u_inv_lo = 1. / mf_u(i  ,j  ,0);
-                Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); Real mf_v_inv_lo = 1. / mf_v(i  ,j  ,0);
-                */
                 Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
                 Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0) * (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_xhi;
 
@@ -297,31 +281,31 @@ Print() << "I am here \n";
                 AdvectionSrcForMomVert_T<CENTERED2>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                  cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_T<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                  cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_T<CENTERED4>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                  cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_T<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                  cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_T<CENTERED6>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                  cellSizeInv, mf_m, mf_u, mf_v, mf_u_inv, mf_v_inv,
+                                                  cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                   vert_adv_type, domhi_z);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
