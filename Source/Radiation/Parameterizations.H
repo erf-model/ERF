@@ -1,10 +1,10 @@
 //
-// parameterization provides the tracer particle properties 
+// parameterization provides the tracer particle properties
 // that are not provided by the microphysics model
 //
 #ifndef ERF_PARAMETERIZATIONS_H
 #define ERF_PARAMETERIZATIONS_H_
-  
+
 #include "rrtmgp_const.h"
 #include "Rad_constants.H"
 #include "ERF_Constants.H"
@@ -14,18 +14,18 @@
     const real rliqland = 8.0;   // liquid drop size if over land
     const real rliqocean = 14.0; // liquid drop size if over ocean
     const real rliqice = 14.0;   // liquid drop size if over sea ice
- 
-    real reffective = 0.; 
+
+    real reffective = 0.;
     // jrm Reworked effective radius algorithm
     // Start with temperature-dependent value appropriate for continental air
     reffective = rliqland+(rliqocean-rliqland)*std::min(1.0, std::max(0.0, (tmelt-temperature)*0.05));
-    
+
     // Modify for snow depth over land
     reffective = reffective + (rliqocean-reffective)*std::min(1.0, std::max(0.0, snowh*10.));
-      
+
     // Ramp between polluted value over land to clean value over ocean.
     reffective = reffective + (rliqocean-reffective) * std::min(1.0, std::max(0.0, 1.0 - landfrac));
-    
+
     // Ramp between the resultant value and a sea ice value in the presence of ice.
     reffective = reffective + (rliqice-reffective) * std::min(1.0, std::max(0.0, icefrac));
     return reffective;
@@ -39,7 +39,7 @@
     return RadConstants::retab[index]*(1.-fraction)+RadConstants::retab[index+1]*fraction;
  }
 
-  // Computes surface albedos over ocean and the surface 
+  // Computes surface albedos over ocean and the surface
   // Two spectral surface albedos for direct (dir) and diffuse (dif)
   // incident radiation are calculated. The spectral intervals are:
   //   s (shortwave)  = 0.2-0.7 micro-meters
@@ -55,8 +55,8 @@
   // For more details , see Briegleb, Bruce P., 1992: Delta-Eddington
   // Approximation for Solar Radiation in the NCAR Community Climate Model,
   // Journal of Geophysical Research, Vol 97, D7, pp7603-7612).
- AMREX_FORCE_INLINE 
- void albedo(bool ocean, real1d& coszrs, real1d& tsurface, real1d& asdir, 
+ AMREX_FORCE_INLINE
+ void albedo(bool ocean, real1d& coszrs, real1d& tsurface, real1d& asdir,
               real1d& aldir, real1d& asdif, real1d& aldif)
   {
     using yakl::intrinsics::size;
@@ -67,12 +67,12 @@
       // independent of spectral interval:
       yakl::c::parallel_for(ncol, YAKL_LAMBDA (int icol) {
         if (coszrs(icol) <= 0) {
-          aldir(icol) = 0; 
-          asdir(icol) = 0; 
-          aldif(icol) = 0; 
+          aldir(icol) = 0;
+          asdir(icol) = 0;
+          aldif(icol) = 0;
           asdif(icol) = 0;
         } else if (tsurface(icol) > 271.) {
-          aldir(icol) = ( .026 / (std::pow(coszrs(icol), 1.7) + .065)) + 
+          aldir(icol) = ( .026 / (std::pow(coszrs(icol), 1.7) + .065)) +
              (.15*(coszrs(icol) - 0.10) * (coszrs(icol) - 0.50) * (coszrs(icol) - 1.00) );
           asdir(icol) = aldir(icol);
           aldif(icol) = adif;
@@ -88,9 +88,9 @@
     } else  {// land
        yakl::c::parallel_for(ncol, YAKL_LAMBDA (int icol) {
          if (coszrs(icol) <= 0.) {
-           aldir(icol) = 0.; 
-           asdir(icol) = 0.; 
-           aldif(icol) = 0.; 
+           aldir(icol) = 0.;
+           asdir(icol) = 0.;
+           aldif(icol) = 0.;
            asdif(icol) = 0.;
          } else {
            // Albedos for land type I (Briegleb)
