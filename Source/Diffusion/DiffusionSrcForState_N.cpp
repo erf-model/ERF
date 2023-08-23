@@ -401,10 +401,11 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
     // Using Deardorff
     if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
         int qty_index = RhoQKE_comp;
+        auto solverChoice_pbl_B1 = solverChoice.pbl_B1;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,solverChoice,tm_arr(i,j,0));
+                                                                  mu_turb,cellSizeInv,domain,solverChoice_pbl_B1,tm_arr(i,j,0));
         });
     }
 
