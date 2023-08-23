@@ -20,7 +20,7 @@ class RadConstants {
    // to affect IR solar variability should take note of this.
 
    static constexpr real wavenum_low[] =  // in cm^-1
-     {2600., 3250., 4000., 4650., 5150., 6150., 7700.,
+     {2600., 3250., 4000., 4650., 5150., 6150., 7700., 
       8050., 12850., 16000., 22650., 29000., 38000., 820.};
 
    static constexpr real wavenum_high[] = // in cm^-1
@@ -29,11 +29,30 @@ class RadConstants {
 
    // Solar irradiance at 1 A.U. in W/m^2 assumed by radiation code
    // Rescaled so that sum is precisely 1368.22 and fractional amounts sum to 1.0
-   static constexpr real solar_ref_band_irradiance[] =
+   static constexpr real solar_ref_band_irradiance[] = 
       {12.11,  20.3600000000001, 23.73,
        22.43,  55.63, 102.93, 24.29,
        345.74, 218.19, 347.20,
        129.49,  50.15,   3.08, 12.89};
+   
+   // parameterizations related to radiation (when microphysics model doesn't provide)
+   static constexpr real icesize_table_min_temp = 180.;
+   static constexpr real retab[] = { 5.92779, 6.26422, 6.61973, 6.99539, 7.39234, 
+                                     7.81177, 8.25496, 8.72323, 9.21800, 9.74075, 10.2930,   
+                                     10.8765, 11.4929, 12.1440, 12.8317, 13.5581, 14.2319, 
+                                     15.0351, 15.8799, 16.7674, 17.6986, 18.6744, 19.6955,   
+                                     20.7623, 21.8757, 23.0364, 24.2452, 25.5034, 26.8125,   
+                                     27.7895, 28.6450, 29.4167, 30.1088, 30.7306, 31.2943, 
+                                     31.8151, 32.3077, 32.7870, 33.2657, 33.7540, 34.2601, 
+                                     34.7892, 35.3442, 35.9255, 36.5316, 37.1602, 37.8078,   
+                                     38.4720, 39.1508, 39.8442, 40.5552, 41.2912, 42.0635,   
+                                     42.8876, 43.7863, 44.7853, 45.9170, 47.2165, 48.7221,   
+                                     50.4710, 52.4980, 54.8315, 57.4898, 60.4785, 63.7898,   
+                                     65.5604, 71.2885, 75.4113, 79.7368, 84.2351, 88.8833,   
+                                     93.6658, 98.5739, 103.603, 108.752, 114.025, 119.424, 
+                                     124.954, 130.630, 136.457, 142.446, 148.608, 154.956,   
+                                     161.503, 168.262, 175.248, 182.473, 189.952, 197.699,   
+                                     205.728, 214.055, 222.694, 231.661, 240.971, 250.639};
 
    // These are indices to the band for diagnostic output
    static constexpr int idx_sw_diag = 10; // index to sw visible band
@@ -51,7 +70,7 @@ class RadConstants {
    // high variation near rh = 1.  Alternative methods
    // were found to be too slow.
    // Optimal approach would be for cam to specify size of aerosol
-   // based on each aerosol's characteristics.  Radiation
+   // based on each aerosol's characteristics.  Radiation 
    // should know nothing about hygroscopic growth!
    static constexpr int nrh = 1000;
 
@@ -89,14 +108,14 @@ class RadConstants {
       centimeter
    };
 
-   // provide Solar Irradiance for each band in RRTMG
+   // provide Solar Irradiance for each band in RRTMG   
    inline
    static void get_solar_band_fraction_irrad(real1d& fractional_irradiance) {
      real tsi = 0;  // total solar irradiance
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        tsi = tsi + solar_ref_band_irradiance[i];
 
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        fractional_irradiance(i) = solar_ref_band_irradiance[i] / tsi;
    }
 
@@ -104,14 +123,14 @@ class RadConstants {
    inline
    static void  get_ref_total_solar_irrad(real& tsi) {
       tsi = 0;
-      for(auto i = 0; i < nswbands; ++i)
-        tsi = tsi + solar_ref_band_irradiance[i];
+      for(auto i = 0; i < nswbands; ++i) 
+        tsi = tsi + solar_ref_band_irradiance[i]; 
    }
 
    // solar irradiance in each band (W/m^2)
    inline
    static void get_ref_solar_band_irrad(real1d& band_irrad ) {
-     for(auto i = 0; i < nswbands; ++i)
+     for(auto i = 0; i < nswbands; ++i) 
        band_irrad(i) = solar_ref_band_irradiance[i];
    }
 
@@ -123,8 +142,8 @@ class RadConstants {
 
    // provide spectral boundaries of each longwave band
    inline
-   static void get_lw_spectral_boundaries(real1d& low_boundaries,
-                                          real1d& high_boundaries,
+   static void get_lw_spectral_boundaries(real1d& low_boundaries, 
+                                          real1d& high_boundaries, 
                                           Units units) {
       switch (units) {
       case inv_cm:
@@ -170,9 +189,9 @@ class RadConstants {
       for(auto iband = 0; iband < nlwbands; ++iband) {
          band_midpoints(iband) = 0.5*(lower_boundaries(iband) + upper_boundaries(iband));
       }
-
+  
    }
-
+      
    // provide spectral boundaries of each shortwave band
    inline
    static void get_sw_spectral_boundaries(real1d& low_boundaries, real1d& high_boundaries, Units units) {
@@ -220,7 +239,7 @@ class RadConstants {
         band_midpoints(iband) = 0.5 * (lower_boundaries(iband) + upper_boundaries(iband));
      }
   }
-
+      
   // return the index in the gaslist array of the specified gasname
   inline
   static int rad_gas_index(std::string gasname) {
@@ -229,5 +248,5 @@ class RadConstants {
      }
      amrex::Print() << "rad_gas_index: can not find gas with name" << gasname << std::endl;
   }
-};
+}; 
 #endif
