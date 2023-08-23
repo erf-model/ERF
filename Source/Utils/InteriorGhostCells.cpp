@@ -577,6 +577,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     Box domain  = boxes_at_level[g_ind];
                     domain.convert(fmf.boxArray().ixType());
 
+                    // NOTE:: width+1 to get halo interior cell from fill
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,
@@ -625,6 +626,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     Box domain  = boxes_at_level[g_ind];
                     domain.convert(fmf.boxArray().ixType());
 
+                    // NOTE:: width+1 to get halo interior cell from fill
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,
@@ -672,6 +674,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
                     Box domain = boxes_at_level[g_ind];
                     domain.convert(fmf.boxArray().ixType());
 
+                    // NOTE:: width+1 to get halo interior cell from fill
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
                                                   bx_xlo, bx_xhi,

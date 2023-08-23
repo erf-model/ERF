@@ -67,7 +67,7 @@ void
 ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
                       BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset)
 {
-    constexpr amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    constexpr amrex::Real eps = std::numeric_limits<float>::epsilon();
     AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
 
     // Time interpolation factors
