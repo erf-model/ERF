@@ -44,6 +44,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
 
     if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
     {
+        auto rho0_trans = solverChoice.rho0_trans;
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -52,7 +53,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau11(i  , j  , k  ) - tau11(i-1, j  ,k  )) * dxinv * mf   // Contribution to x-mom eqn from diffusive flux in x-dir
                                 + (tau12(i  , j+1, k  ) - tau12(i  , j  ,k  )) * dyinv * mf   // Contribution to x-mom eqn from diffusive flux in y-dir
                                 + (tau13(i  , j  , k+1) - tau13(i  , j  ,k  )) * dzinv );     // Contribution to x-mom eqn from diffusive flux in z-dir;
-            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp))  / solverChoice.rho0_trans;
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i-1,j,k,Rho_comp))  / rho0_trans;
             rho_u_rhs(i,j,k) -= diffContrib;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -62,7 +63,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau12(i+1, j  , k  ) - tau12(i  , j  , k  )) * dxinv * mf   // Contribution to y-mom eqn from diffusive flux in x-dir
                                 + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  )) * dyinv * mf   // Contribution to y-mom eqn from diffusive flux in y-dir
                                 + (tau23(i  , j  , k+1) - tau23(i  , j  , k  )) * dzinv );     // Contribution to y-mom eqn from diffusive flux in z-dir;
-            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp))  / solverChoice.rho0_trans;
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j-1,k,Rho_comp))  / rho0_trans;
             rho_v_rhs(i,j,k) -= diffContrib;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -72,7 +73,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
             Real diffContrib  = ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  )) * dxinv * mf   // Contribution to z-mom eqn from diffusive flux in x-dir
                                 + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  )) * dyinv * mf   // Contribution to z-mom eqn from diffusive flux in y-dir
                                 + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1)) * dzinv );     // Contribution to z-mom eqn from diffusive flux in z-dir;
-            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp))  / solverChoice.rho0_trans;
+            diffContrib      *= 0.5 * (cons(i,j,k,Rho_comp) + cons(i,j,k-1,Rho_comp))  / rho0_trans;
             rho_w_rhs(i,j,k) -= diffContrib;
         });
 
@@ -104,4 +105,3 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
         });
     }
 }
-
