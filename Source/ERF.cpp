@@ -1220,8 +1220,6 @@ ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
-    amrex::Print() << "FPr Construct: " << lev << "\n";
-
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1242,8 +1240,6 @@ ERF::Construct_ERFFillPatchers (int lev)
     FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
                        -cf_width, -cf_set_width, 1, &face_linear_interp);
-
-    amrex::Print() << "\n";
 }
 
 void

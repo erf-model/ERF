@@ -33,10 +33,6 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
 
     // Vector to hold times for coarse data
     m_crse_times.resize(2);
-    m_cf_crse_data.resize(2);
-
-    // Init MF patches
-    m_cf_crse_data[0] = nullptr; m_cf_crse_data[1] = nullptr;
 
     // Define the coarse and fine MFs
     Define(fba, fdm, fgeom, cba, cdm, cgeom,
@@ -76,8 +72,9 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
     m_ncomp  = ncomp;  m_interp = interp;
 
     // Delete old MFs if they exist
-    if (m_cf_crse_data[0]) delete m_cf_crse_data[0];
-    if (m_cf_crse_data[1]) delete m_cf_crse_data[1];
+    if (m_cf_crse_data_old) m_cf_crse_data_old.reset();
+    if (m_cf_crse_data_new) m_cf_crse_data_new.reset();
+    if (m_cf_mask) m_cf_mask.reset();
 
     // Index type for the BL/BA
     IndexType m_ixt = fba.ixType();
@@ -100,22 +97,16 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
     DistributionMapping cf_dm(cf_cba);
 
     // Two coarse patches to hold the data to be interpolated
-    m_cf_crse_data[0] = new MultiFab (cf_cba, fdm, m_ncomp, 0);
-    m_cf_crse_data[1] = new MultiFab (cf_cba, fdm, m_ncomp, 0);
+    m_cf_crse_data_old = std::make_unique<MultiFab> (cf_cba, fdm, m_ncomp, 0);
+    m_cf_crse_data_new = std::make_unique<MultiFab> (cf_cba, fdm, m_ncomp, 0);
 
     // Integer masking array
-    m_cf_mask = new iMultiFab (fba, fdm, 1, 0);
+    m_cf_mask = std::make_unique<iMultiFab> (fba, fdm, 1, 0);
     m_cf_mask->setVal(0);
 
     // Populate mask array
     BuildMask(fba,nghost,m_relax_mask);
     if (nghost_set < 0) BuildMask(fba,nghost_set,m_set_mask);
-
-    amrex::Print() << "CRSE NCOMP Define: " << m_cf_crse_data[0]->boxArray().ixType() << ' '
-                   << m_cf_crse_data[0]->nComp() << ' '
-                   << m_cf_crse_data[1]->nComp() << ' '
-                   << m_cf_crse_data[0] << ' '
-                   << m_cf_crse_data[1] << "\n";
 }
 
 void ERFFillPatcher::BuildMask (BoxArray const& fba,
@@ -290,22 +281,16 @@ void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_dat
     //       m_cf_crse_data into ghost cells in the z-dir. So we need
     //       to include ghost cells for crse_data when doing the copy
     IntVect src_ng = crse_data[0]->nGrowVect();
-    IntVect dst_ng = m_cf_crse_data[0]->nGrowVect();
-    m_cf_crse_data[0]->ParallelCopy(*(crse_data[0]), 0, 0, m_ncomp,
+    IntVect dst_ng = m_cf_crse_data_old->nGrowVect();
+    m_cf_crse_data_old->ParallelCopy(*(crse_data[0]), 0, 0, m_ncomp,
                                     src_ng, dst_ng, m_cgeom.periodicity()); // old data
-    m_cf_crse_data[1]->ParallelCopy(*(crse_data[1]), 0, 0, m_ncomp,
+    m_cf_crse_data_new->ParallelCopy(*(crse_data[1]), 0, 0, m_ncomp,
                                     src_ng, dst_ng, m_cgeom.periodicity()); // new data
 
     m_crse_times[0] = crse_time[0]; // time of "old" coarse data
     m_crse_times[1] = crse_time[1]; // time of "new" coarse data
 
     m_dt_crse = crse_time[1] - crse_time[0];
-
-    amrex::Print() << "CRSE NCOMP RegCrseData: " << m_cf_crse_data[0]->boxArray().ixType() << ' '
-                   << m_cf_crse_data[0]->nComp() << ' '
-                   << m_cf_crse_data[1]->nComp() << ' '
-                   << m_cf_crse_data[0] << ' '
-                   << m_cf_crse_data[1] << "\n";
 }
 
 
