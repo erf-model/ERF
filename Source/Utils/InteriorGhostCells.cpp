@@ -556,11 +556,11 @@ fine_compute_interior_ghost_RHS(const Real& time,
         //==========================================================
         if (ivar_idx == IntVar::cons)
         {
-            FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_c->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
         }
         else if (ivar_idx == IntVar::xmom)
         {
-            FPr_u->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_u->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -609,7 +609,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
         }
         else if (ivar_idx == IntVar::ymom)
         {
-            FPr_v->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_v->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -657,7 +657,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
         }
         else if (ivar_idx == IntVar::zmom)
         {
-            FPr_w->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_w->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

@@ -529,6 +529,37 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         } // use_terrain
 
         if (containerHasElement(plot_var_names, "mapfac")) {
+
+            // AML DEBUG
+            if (lev>0) {
+
+            iMultiFab* mask = FPr_c[lev-1].GetMask();
+
+            /*
+            amrex::AllPrint() << "OG: " << lev << ' ' << mf[lev].boxArray() << ' '
+                              << mf[lev].DistributionMap() << "\n";
+            amrex::AllPrint() << "MASK: " << lev << ' ' << mask->boxArray() << ' '
+                              << mask->DistributionMap() << "\n";
+            */
+
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat = mf[lev].array(mfi);
+                const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
+                const Array4<int>& mask_arr = mask->array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    derdat(i ,j ,k, mf_comp) = amrex::Real(mask_arr(i,j,k));
+                });
+            }
+            mf_comp ++;
+
+            } else {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -538,10 +569,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real>& mf_m   = mapfac_m[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
+                                    derdat(i ,j ,k, mf_comp) = -1.0;//mf_m(i,j,0);
                 });
             }
             mf_comp ++;
+            }
+
         }
 
 #if defined(ERF_USE_MOISTURE)
@@ -797,12 +830,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                         Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
-
-#ifdef ERF_USE_PARTICLES
-            if (use_tracer_particles) {
-                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
-            }
-#endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
             amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
@@ -887,12 +914,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
 
             writeJobInfo(plotfilename);
-
-#ifdef ERF_USE_PARTICLES
-            if (use_tracer_particles) {
-                tracer_particles->Checkpoint(plotfilename, "tracers", true, tracer_particle_varnames);
-            }
-#endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {
