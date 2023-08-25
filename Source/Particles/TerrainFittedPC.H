@@ -20,6 +20,20 @@ struct IntIdx
     };
 };
 
+struct TerrainFittedAssignor
+{
+
+    template <typename P>
+    AMREX_GPU_HOST_DEVICE
+    IntVect operator() (P const& p,
+                        amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& plo,
+                        amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
+                        const Box& domain) const noexcept
+    {
+        return getParticleCell(p, plo, dxi, domain);
+    }
+};
+
 class TerrainFittedPC
     : public amrex::ParticleContainer<RealIdx::ncomps, IntIdx::ncomps>
 {

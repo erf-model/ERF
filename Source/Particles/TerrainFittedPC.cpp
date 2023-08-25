@@ -154,7 +154,7 @@ TerrainFittedPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFa
                                      int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
                                      p.idata(0)));
                     iv[0] += domain.smallEnd()[0];
-                    iv[0] += domain.smallEnd()[1];
+                    iv[1] += domain.smallEnd()[1];
                     auto zlo = zheight(iv[0], iv[1], iv[2]);
                     auto zhi = zheight(iv[0], iv[1], iv[2]+1);
                     if (p.pos(2) > zhi) { // need to be careful here
