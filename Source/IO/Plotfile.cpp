@@ -533,7 +533,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             // AML DEBUG
             if (lev>0) {
 
-            iMultiFab* mask = FPr_c[lev-1].GetMask();
+                iMultiFab* mask = FPr_u[lev-1].GetMask();//FPr_c[lev-1].GetMask();
 
             /*
             amrex::AllPrint() << "OG: " << lev << ' ' << mf[lev].boxArray() << ' '
@@ -554,7 +554,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<int>& mask_arr = mask->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    derdat(i ,j ,k, mf_comp) = amrex::Real(mask_arr(i,j,k));
+                    //derdat(i ,j ,k, mf_comp) = amrex::Real(mask_arr(i,j,k));
+                    derdat(i ,j ,k, mf_comp) = 0.5 * (amrex::Real(mask_arr(i  ,j,k)) +
+                                                      amrex::Real(mask_arr(i+1,j,k)) );
                 });
             }
             mf_comp ++;

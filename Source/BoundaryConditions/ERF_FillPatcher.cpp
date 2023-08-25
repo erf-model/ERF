@@ -116,12 +116,16 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     // Index type for the BA
     IndexType m_ixt = fba.ixType();
 
+    // Convert FBA to cell centered so boxes do no overlap
+    IndexType m_ixt_cc(IntVect(0));
+    BoxArray fba_cc = amrex::convert(fba, m_ixt_cc);
+
     // Get interior halo cells for every box in fine ba
-    Vector<BoxList> halo_v; halo_v.resize(fba.size());
+    Vector<BoxList> halo_v; halo_v.resize(fba_cc.size());
     for (int ibox(0); ibox<halo_v.size(); ++ibox) {
         BoxList& halo = halo_v[ibox];
-        halo.set(m_ixt);
-        Box vbx = fba[ibox];
+        halo.set(m_ixt_cc);
+        Box vbx = fba_cc[ibox];
         Box sbx = amrex::grow(vbx, IntVect(nghost,nghost,0));
         BoxList const& bndry = amrex::boxDiff(vbx, sbx);
         if (bndry.isNotEmpty()) {
@@ -131,13 +135,13 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
 
     // Get interface unions (extend into boxes by nghost in normal dir)
     Vector<Vector<Box>> fba_un;
-    fba_un.resize(fba.size());
+    fba_un.resize(fba_cc.size());
     for (int ibox(0); ibox<fba_un.size()-1; ++ibox) {
-        const Box& src_bx = fba[ibox];
+        const Box& src_bx = fba_cc[ibox];
         const IntVect& src_se = src_bx.smallEnd();
         const IntVect& src_be = src_bx.bigEnd();
         for (int jbox(ibox+1); jbox<fba_un.size(); ++jbox) {
-            const Box& dst_bx = fba[jbox];
+            const Box& dst_bx = fba_cc[jbox];
             const IntVect& dst_se = dst_bx.smallEnd();
             const IntVect& dst_be = dst_bx.bigEnd();
             for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
@@ -163,8 +167,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                     IntVect src_u_gbe = src_u_be; src_u_gbe[jdim] += 1;
                     IntVect dst_u_gse = dst_u_se; dst_u_gse[jdim] -= 1;
                     IntVect dst_u_gbe = dst_u_be; dst_u_gbe[jdim] += 1;
-                    for (int kbox(0); kbox<fba.size(); ++kbox) {
-                        Box test_bx = fba[kbox];
+                    for (int kbox(0); kbox<fba_cc.size(); ++kbox) {
+                        Box test_bx = fba_cc[kbox];
                         if (test_bx.contains(src_u_gse)) src_lo_found = true;
                         if (test_bx.contains(dst_u_gse)) dst_lo_found = true;
                         if (test_bx.contains(src_u_gbe)) src_hi_found = true;
@@ -174,8 +178,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                     if (!src_hi_found || !dst_hi_found) {src_u_be[jdim] += nghost; dst_u_be[jdim] += nghost;}
 
                     // Build the face union box and add to BL
-                    Box src_u_bx(src_u_se,src_u_be,m_ixt);
-                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt);
+                    Box src_u_bx(src_u_se,src_u_be,m_ixt_cc);
+                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt_cc);
                     fba_un[ibox].push_back(src_u_bx);
                     fba_un[jbox].push_back(dst_u_bx);
 
@@ -199,8 +203,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                     IntVect src_u_gbe = src_u_be; src_u_gbe[jdim] += 1;
                     IntVect dst_u_gse = dst_u_se; dst_u_gse[jdim] -= 1;
                     IntVect dst_u_gbe = dst_u_be; dst_u_gbe[jdim] += 1;
-                    for (int kbox(0); kbox<fba.size(); ++kbox) {
-                        Box test_bx = fba[kbox];
+                    for (int kbox(0); kbox<fba_cc.size(); ++kbox) {
+                        Box test_bx = fba_cc[kbox];
                         if (test_bx.contains(src_u_gse)) src_lo_found = true;
                         if (test_bx.contains(dst_u_gse)) dst_lo_found = true;
                         if (test_bx.contains(src_u_gbe)) src_hi_found = true;
@@ -210,8 +214,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                     if (!src_hi_found || !dst_hi_found) {src_u_be[jdim] += nghost; dst_u_be[jdim] += nghost;}
 
                     // Build the face union box and add to BL
-                    Box src_u_bx(src_u_se,src_u_be,m_ixt);
-                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt);
+                    Box src_u_bx(src_u_se,src_u_be,m_ixt_cc);
+                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt_cc);
                     fba_un[ibox].push_back(src_u_bx);
                     fba_un[jbox].push_back(dst_u_bx);
                 } // intersects
@@ -220,15 +224,15 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     } // ibox
 
     // Subtract off the interface regions from interior halo cells
-    Vector<BoxList> mod_halo_v; mod_halo_v.resize(fba.size());
-    for (int i(0); i<mod_halo_v.size(); ++i) { mod_halo_v[i].set(m_ixt); }
+    Vector<BoxList> mod_halo_v; mod_halo_v.resize(fba_cc.size());
+    for (int i(0); i<mod_halo_v.size(); ++i) { mod_halo_v[i].set(m_ixt_cc); }
 
     for (int ibox(0); ibox<halo_v.size(); ++ibox) {
         Vector<Box>& m_halo = halo_v[ibox].data();
         BoxList&   mod_halo = mod_halo_v[ibox];
         for (int ihalo(0); ihalo<m_halo.size(); ++ihalo) {
             Box& halo_bx = m_halo[ihalo];
-            BoxList tmp; tmp.set(m_ixt); tmp.push_back(halo_bx);
+            BoxList tmp; tmp.set(m_ixt_cc); tmp.push_back(halo_bx);
             Vector<Box>& m_tmp = tmp.data();
             for (int ubox(0); ubox<fba_un[ibox].size(); ++ubox) {
                 Box& src_u_bx = fba_un[ibox][ubox];
@@ -246,6 +250,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         } // ihalo
     } // ibox
 
+    //for (int i(0); i<mod_halo_v.size(); ++i) { amrex::Print() << "MOD HALO: " << i << ' ' << mod_halo_v[i] << "\n";}
+
     // Fill mask based upon the mod_halo BoxList
     for (MFIter mfi(*m_cf_mask); mfi.isValid(); ++mfi) {
         const Box& tbx = mfi.tilebox();
@@ -254,7 +260,8 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         const Vector<Box>& m_halo = mod_halo.data();
 
         for (int ibox(0); ibox<m_halo.size(); ++ibox) {
-            Box mbx = tbx & m_halo[ibox];
+            Box m_halo_ixt = amrex::convert(m_halo[ibox], m_ixt);
+            Box mbx = tbx & m_halo_ixt;
             amrex::ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 mask_arr(i,j,k) = mask_val;

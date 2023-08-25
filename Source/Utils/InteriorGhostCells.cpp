@@ -519,8 +519,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
                                 Vector<MultiFab>& S_rhs_f,
                                 Vector<MultiFab>& S_data_f)
 {
-    amrex::Print() << "FINE RHS\n";
-
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
     // Relaxation constants
@@ -639,8 +637,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
         }
 
-        amrex::Print() << "Fill Relax: " << ivar_idx << "\n";
-
         // Zero RHS in set region
         //==========================================================
 #ifdef _OPENMP
@@ -663,8 +659,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
         // For Laplacian stencil
         rhs.FillBoundary(geom.periodicity());
 
-        amrex::Print() << "Zero RHS: " << ivar_idx << "\n";
-
         // Compute RHS in relaxation region
         //==========================================================
 #ifdef _OPENMP
@@ -678,12 +672,25 @@ fine_compute_interior_ghost_RHS(const Real& time,
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
             const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
+            const auto& vbx_lo = lbound(vbx);
+            const auto& vbx_hi = ubound(vbx);
+
             int icomp = 0;
 
+            int Spec_z  = set_width;
+            int Relax_z = width - Spec_z + 1;
+            amrex::Real num    = amrex::Real(Spec_z + Relax_z);
+            amrex::Real denom  = amrex::Real(Relax_z - 1);
             amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
                if (mask_arr(i,j,k) == 1) {
-                   amrex::Real Factor   = 1.0; //(num - amrex::Real(n_ind))/denom;
+                   // Masked cell must boarder the valid box
+                   int j_lo  = std::min(j-vbx_lo.y,width-1);
+                   int j_hi  = std::min(vbx_hi.y-j,width-1);
+                   int jj    = std::min(j_lo,j_hi);
+                   int n_ind = std::min(i-vbx_lo.x,jj) + 1;
+
+                   amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
                    amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
                    amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
                    amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
@@ -696,11 +703,28 @@ fine_compute_interior_ghost_RHS(const Real& time,
                    amrex::Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
                    amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
+
+                   /*
+                   if (delta    > 0.1 ||
+                       delta_xp > 0.1 ||
+                       delta_xm > 0.1 ||
+                       delta_yp > 0.1 ||
+                       delta_ym > 0.1 ) {
+                       amrex::Print() << "ERROR: " << ivar_idx << ' ' << n << ' ' << vbx << ' ' << IntVect(i,j,k) << ' ' << delta << ' ' << delta_xp << ' '
+                                      << delta_xm << ' ' << delta_yp << ' ' << delta_ym << ' ' << Factor << ' ' << n_ind << "\n";
+                       amrex::Print() << fine_arr(i  ,j  ,k,n) << ' ' << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << d     << ' ' << rhs_arr(i  , j  , k  ,n+icomp) << "\n";
+                       amrex::Print() << fine_arr(i+1,j  ,k,n) << ' ' << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << d_ip1 << ' ' << rhs_arr(i+1, j  , k  ,n+icomp) << "\n";
+                       amrex::Print() << fine_arr(i-1,j  ,k,n) << ' ' << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << d_im1 << ' ' << rhs_arr(i-1, j  , k  ,n+icomp) << "\n";
+                       amrex::Print() << fine_arr(i  ,j+1,k,n) << ' ' << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << d_jp1 << ' ' << rhs_arr(i  , j+1, k  ,n+icomp) << "\n";
+                       amrex::Print() << fine_arr(i  ,j-1,k,n) << ' ' << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << d_jm1 << ' ' << rhs_arr(i  , j-1, k  ,n+icomp) << "\n";
+                       amrex::Print() << "\n";
+                       //exit(0);
+                   }
+                   */
+
                }
            });
         } // mfi
-
-        amrex::Print() << "Laplacian: " << ivar_idx << "\n";
     } // ivar_idx
 }
 
