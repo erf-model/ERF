@@ -73,15 +73,11 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     } // var_idx
 
     // Coarse-Fine set region
-    // CHANGING THIS TO 1 LETS THINGS RUN. THERE MUST BE AN ISSUE WHEN I POPULATE
-    // MULTIPLE FPr OBJECTS (emplace back?)
     if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
-        amrex::Print() << "FPr FillSet: " << lev << "\n";
         FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
         FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
         FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
         FPr_w[lev-1].FillSet(*mfs[Vars::zvel], time, null_bc, domain_bcs_type);
-        amrex::Print() << "\n";
     }
 
     // ***************************************************************************

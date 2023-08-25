@@ -1245,8 +1245,6 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
-    amrex::Print() << "FPr Define: " << lev << "\n";
-
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1267,23 +1265,17 @@ ERF::Define_ERFFillPatchers (int lev)
     FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
                         -cf_width, -cf_set_width, 1, &face_linear_interp);
-
-    amrex::Print() << "\n";
 }
 
 void
 ERF::Register_ERFFillPatchers (int lev)
 {
-    amrex::Print() << "FPr Reg: " << lev << "\n";
-
     auto& lev_new = vars_new[lev-1];
     auto& lev_old = vars_old[lev-1];
     FPr_c[lev-1].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
     FPr_u[lev-1].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
     FPr_v[lev-1].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
     FPr_w[lev-1].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
-
-    amrex::Print() << "\n";
 }
 
 #ifdef ERF_USE_MULTIBLOCK
