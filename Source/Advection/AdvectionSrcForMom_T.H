@@ -4,7 +4,7 @@
 
 /**
  * Function for computing the advective tendency for the x-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of x-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -16,8 +16,6 @@
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -98,7 +96,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the y-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of y-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -110,8 +108,6 @@ AdvectionSrcForXMom_T (int i, int j, int k,
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -191,7 +187,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the z-component of momentum
- * with metric terms and for spatial order > 2 when not using WENO
+ * with metric terms and for spatial order > 2
  *
  * @param[in] i,j,k indices of z-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -204,8 +200,7 @@ AdvectionSrcForYMom_T (int i, int j, int k,
  * @param[in] mf_m map factor on cell centers
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
+ * @param[in] vert_adv_type int that defines advection stencil
  * @param[in] domhi_z maximum k value in the domain
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
@@ -226,7 +221,7 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       const int vert_spatial_order,
+                       const AdvType vert_adv_type,
                        const int domhi_z)
 {
     amrex::Real advectionSrc;
@@ -270,16 +265,24 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     Omega_avg_hi = (k == domhi_z+1) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k+1));
     amrex::Real centFluxZZNext = Omega_avg_hi;
 
-    // If k == domhi_z   and spatial_order >= 3 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,2)
-    // If k == domhi_z-1 and spatial_order >= 5 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    // int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    // If k == domhi_z   , l_spatial_order_hi = 2
+    // If k == domhi_z-1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
+    // If k ==         1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
     if (k == domhi_z+1) {
         centFluxZZNext *=  w(i,j,k);
-    } else if (l_spatial_order_hi < vert_spatial_order) {
-        interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,l_spatial_order_hi);
-        centFluxZZNext *=  interp_hi;
     } else {
-        interp_omega_v.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+        if (k == domhi_z) {
+            interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,AdvType::Centered_2nd);
+        } else if (k == domhi_z-1 || k == 1) {
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+                interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,AdvType::Centered_4th);
+            } else {
+                interp_omega_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi,vert_adv_type);
+            }
+        } else {
+            interp_omega_v.InterpolateInZ_hi(i,j,k,0,interp_hi,Omega_avg_hi);
+        }
         centFluxZZNext *=  interp_hi;
     }
 
@@ -288,16 +291,24 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     Omega_avg_lo = (k == 0) ? Omega(i,j,k) : 0.5 * (Omega(i,j,k) + Omega(i,j,k-1));
     amrex::Real centFluxZZPrev = Omega_avg_lo;
 
-    // If k == 1 and spatial_order >= 3 we would reach to k = -1 so we set to spatial_order = min(spatial_order,2)
-    // If k == 2 and spatial_order >= 5 we would reach to k = -1 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
+    // int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
+    // If k == domhi_z   , l_spatial_order_hi = 2
+    // If k == domhi_z-1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
+    // If k ==         1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
     if (k == 0) {
         centFluxZZPrev *=  w(i,j,k);
-    } else if (l_spatial_order_lo < vert_spatial_order) {
-        interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,l_spatial_order_lo);
-        centFluxZZPrev *=  interp_lo;
     } else {
-        interp_omega_v.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo);
+        if (k == 1) {
+            interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,AdvType::Centered_2nd);
+        } else if (k == 2 || k == domhi_z) {
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+                interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,AdvType::Centered_4th);
+            } else {
+                interp_omega_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo,vert_adv_type);
+            }
+        } else {
+            interp_omega_v.InterpolateInZ_lo(i,j,k,0,interp_lo,Omega_avg_lo);
+        }
         centFluxZZPrev *=  interp_lo;
     }
 
@@ -336,7 +347,7 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const int vert_spatial_order,
+                            const AdvType vert_adv_type,
                             const int domhi_z)
 {
     // Instantiate the appropriate structs
@@ -361,7 +372,7 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_T(i, j, k, rho_u, rho_v, Omega, w, z_nd, detJ,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                    vert_spatial_order, domhi_z);
+                                                    vert_adv_type, domhi_z);
     });
 }
 
@@ -386,39 +397,38 @@ AdvectionSrcForMomVert_T(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const int vert_spatial_order,
-                            const int domhi_z)
+                            const AdvType vert_adv_type, const int domhi_z)
 {
-    if (vert_spatial_order == 2) {
-        AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND2,UPWINDALL>(bxx, bxy, bxz,
-                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                                    rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                    cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 3) {
+    if (vert_adv_type == AdvType::Centered_2nd) {
+        AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED2,UPWINDALL>(bxx, bxy, bxz,
+                                                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                      rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND3,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 4) {
-        AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND4,UPWINDALL>(bxx, bxy, bxz,
-                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                                    rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                    cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 5) {
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Centered_4th) {
+        AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED4,UPWINDALL>(bxx, bxy, bxz,
+                                                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                      rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND5,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 6) {
-        AdvectionSrcForMomWrapper_T<InterpType_H,UPWIND6,UPWINDALL>(bxx, bxy, bxz,
-                                                                    rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                                    rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
-                                                                    cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Centered_6th) {
+        AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED6,UPWINDALL>(bxx, bxy, bxz,
+                                                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
+                                                                      rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
+                                                                      cellSizeInv, mf_m, mf_u, mf_v,
+                                                                      vert_adv_type, domhi_z);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
     }

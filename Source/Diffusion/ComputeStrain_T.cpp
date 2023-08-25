@@ -29,7 +29,7 @@ using namespace amrex;
  * @param[in] mf_v map factor at y-face
  */
 void
-ComputeStrain_T(Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
+ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
                 const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
                 Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
                 Array4<Real>& tau12, Array4<Real>& tau13,

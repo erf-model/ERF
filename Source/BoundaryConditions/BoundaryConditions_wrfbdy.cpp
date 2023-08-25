@@ -95,8 +95,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
-
-                    // Call w/o interior ghost cells
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,
@@ -151,7 +149,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
-
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,

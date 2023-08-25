@@ -18,7 +18,7 @@ using namespace amrex;
 
 void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
                                  IntVect const& nghost_cons, IntVect const& nghost_vels,
-                                 std::string& init_type, bool cons_only, int bccomp_cons)
+                                 std::string& init_type, bool cons_only, int bccomp_cons, const Real time)
 {
     BL_PROFILE("ERFPhysBCFunct::()");
 
@@ -123,7 +123,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 const Array4<      Real> vely_arr = mfs[Vars::yvel]->array(mfi);;
                 const Array4<      Real> velz_arr = mfs[Vars::zvel]->array(mfi);;
                 impose_vertical_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,
-                                         BCVars::xvel_bc);
+                                         BCVars::xvel_bc,time);
                 impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,
                                          BCVars::yvel_bc);
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,

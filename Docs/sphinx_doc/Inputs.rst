@@ -112,14 +112,19 @@ List of Parameters
 |                           | subsequent      |                 |             |
 |                           | levels          |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.regrid_int**        | how often to    | Integer > 0     | must be set |
-|                           | regrid          |                 |             |
+| **amr.regrid_int**        | how often to    | Integer > 0     | -1          |
+|                           | regrid          | (if negative,   |             |
+|                           |                 | no regridding)  |             |
 +---------------------------+-----------------+-----------------+-------------+
 | **amr.regrid_on_restart** | should we       | 0 or 1          | 0           |
 |                           | regrid          |                 |             |
 |                           | immediately     |                 |             |
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
++---------------------------+-----------------+-----------------+-------------+
+| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+|                           | on the grids?   |                 |             |
+|                           |                 |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
@@ -481,6 +486,67 @@ Examples of Usage
    | for example. If this line is commented out then it will not compute
      and print these quantities.
 
+Advection Schemes
+=================
+
+.. _list-of-parameters-11:
+
+List of Parameters
+------------------
+
++----------------------------------+--------------------+---------------------+--------------+
+| Parameter                        | Definition         | Acceptable          | Default      |
+|                                  |                    | Values              |              |
++==================================+====================+=====================+==============+
+| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dycore vars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dycore vars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Centered_2nd |
+|                                  | advection type     |                     |              |
+|                                  | for dry scalars    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.moistscal_horiz_adv_type** | Horizontal         | see below           | WENO3        |
+|                                  | advection type     |                     |              |
+|                                  | for moist scalars  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.moistscal_vert_adv_type**  | Vertical           | see below           | WENO3        |
+|                                  | advection type     |                     |              |
+|                                  | for moist scalars  |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_efficient_advection**  | Use efficient      | true/false          | false        |
+|                                  | advection scheme   |                     |              |
+|                                  | for scalars        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+
+
+The allowed advection types for the dycore variables are
+"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th" and "Centered_6th".
+
+The allowed advection types for the dry and moist scalars are
+"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th", "Centered_6th" and in addition,
+"WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
+
+Note: if using WENO schemes, the horizontal and vertical advection types must be set to
+the same string.
+
+The efficient advection schemes for dry and moist scalars exploit the substages of the
+time advancing RK3 scheme by using lower order schemes in the first two substages and the
+solver's choice of scheme in the final stage. Based on CPU-only runtimes on Perlmutter for
+the scalar advection routine, the approximate computational savings for the scalar advection
+schemes are as follows when using efficient advection option: roughly 30% for Centered_4th
+and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
+Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
+
+
 
 Diffusive Physics
 =================
@@ -490,42 +556,48 @@ Diffusive Physics
 List of Parameters
 ------------------
 
-+----------------------------------+--------------------+---------------------+-------------+
-| Parameter                        | Definition         | Acceptable          | Default     |
-|                                  |                    | Values              |             |
-+==================================+====================+=====================+=============+
-| **erf.alpha_T**                  | Diffusion coeff.   | Real                | 0.0         |
-|                                  | for temperature    |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.alpha_C**                  | Diffusion coeff.   | Real                | 0.0         |
-|                                  | for scalar         |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.rho0_trans**               | Reference density  | Real                | 1.0         |
-|                                  | to compute const.  |                     |             |
-|                                  | rho*Alpha          |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.les_type**                 | Using an LES       | "None",             | "None"      |
-|                                  | model, and if so,  | "Smagorinsky",      |             |
-|                                  | which type?        | "Deardorff"         |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.molec_diff_type**          | Using molecular    | "None",             | "None"      |
-|                                  | viscosity and      | "Constant", or      |             |
-|                                  | diffusivity?       | "ConstantAlpha"     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0         |
-|                                  | DNS                |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.Cs**                       | Constant           | Real                | 0.0         |
-|                                  | Smagorinsky coeff. |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0         |
-|                                  | Number             |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0         |
-|                                  | Number             |                     |             |
-+----------------------------------+--------------------+---------------------+-------------+
-| **erf.spatial_order**            |                    |  2 / 3 / 4 / 5 / 6  | 2           |
-+----------------------------------+--------------------+---------------------+-------------+
++----------------------------------+--------------------+---------------------+--------------+
+| Parameter                        | Definition         | Acceptable          | Default      |
+|                                  |                    | Values              |              |
++==================================+====================+=====================+==============+
+| **erf.alpha_T**                  | Diffusion coeff.   | Real                | 0.0          |
+|                                  | for temperature    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.alpha_C**                  | Diffusion coeff.   | Real                | 0.0          |
+|                                  | for scalar         |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.rho0_trans**               | Reference density  | Real                | 1.0          |
+|                                  | to compute const.  |                     |              |
+|                                  | rho*Alpha          |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.les_type**                 | Using an LES       | "None",             | "None"       |
+|                                  | model, and if so,  | "Smagorinsky",      |              |
+|                                  | which type?        | "Deardorff"         |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.molec_diff_type**          | Using molecular    | "None",             | "None"       |
+|                                  | viscosity and      | "Constant", or      |              |
+|                                  | diffusivity?       | "ConstantAlpha"     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.dynamicViscosity**         | Viscous coeff. if  | Real                | 0.0          |
+|                                  | DNS                |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Cs**                       | Constant           | Real                | 0.0          |
+|                                  | Smagorinsky coeff. |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Pr_t**                     | Turbulent Prandtl  | Real                | 1.0          |
+|                                  | Number             |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
+|                                  | Number             |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
+|                                  | numerical diffusion| "False"             |              |
+|                                  |                    |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+| **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
+|                                  | 6th order          | [0.0,  1.0]         |              |
+|                                  | numerical diffusion|                     |              |
++----------------------------------+--------------------+---------------------+--------------+
 
 Note: in the equations for the evolution of momentum, potential temperature and advected scalars, the
 diffusion coefficients are written as :math:`\mu`, :math:`\rho \alpha_T` and :math:`\rho \alpha_C`, respectively.

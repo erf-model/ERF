@@ -52,9 +52,6 @@ erf.use_coriolis = false
 erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = -0.2 0. 0.
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0 = 300.0

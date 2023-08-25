@@ -13,7 +13,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 
 void
-read_from_wrfinput(int lev, const std::string& fname,
+read_from_wrfinput(int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
@@ -79,7 +79,7 @@ init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
                         const Vector<FArrayBox>& NC_MSFV_fab,
                         const Vector<FArrayBox>& NC_MSFM_fab);
 void
-init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
+init_terrain_from_wrfinput(int lev, const Box& domain, FArrayBox& z_phys,
                            const Vector<FArrayBox>& NC_PH_fab,
                            const Vector<FArrayBox>& NC_PHB_fab);
 
@@ -130,10 +130,11 @@ ERF::init_from_wrfinput(int lev)
 
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
-        read_from_wrfinput(lev,nc_init_file[lev][idx],NC_xvel_fab[idx],NC_yvel_fab[idx],NC_zvel_fab[idx],NC_rho_fab[idx],
-                           NC_rhop_fab[idx],NC_rhoth_fab[idx], NC_MUB_fab[idx],
-                           NC_MSFU_fab[idx],NC_MSFV_fab[idx],NC_MSFM_fab[idx],
-                           NC_SST_fab[idx], NC_C1H_fab[idx],NC_C2H_fab[idx],NC_RDNW_fab[idx],
+        read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
+                           NC_xvel_fab[idx], NC_yvel_fab[idx],  NC_zvel_fab[idx], NC_rho_fab[idx],
+                           NC_rhop_fab[idx], NC_rhoth_fab[idx], NC_MUB_fab[idx],
+                           NC_MSFU_fab[idx], NC_MSFV_fab[idx],  NC_MSFM_fab[idx],
+                           NC_SST_fab[idx],  NC_C1H_fab[idx],   NC_C2H_fab[idx],  NC_RDNW_fab[idx],
 #if defined(ERF_USE_MOISTURE)
                            NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
 #elif defined(ERF_USE_WARM_NO_PRECIP)
@@ -147,7 +148,8 @@ ERF::init_from_wrfinput(int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     // INITIAL DATA common for "ideal" as well as "real" simulation
-    for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    // Don't tile this since we are operating on full FABs in this routine
+    for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
     {
         // Define fabs for holding the initial data
         FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
@@ -179,13 +181,15 @@ ERF::init_from_wrfinput(int lev)
                                 NC_MSFU_fab, NC_MSFV_fab, NC_MSFM_fab);
     } // mf
 
+    const Box& domain = geom[lev].Domain();
+
     if (solverChoice.use_terrain)
     {
         std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-            init_terrain_from_wrfinput(lev, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
+            init_terrain_from_wrfinput(lev, domain, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
 
         make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
@@ -220,6 +224,7 @@ ERF::init_from_wrfinput(int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width, start_bdy_time);
 
+        if (wrfbdy_width-1 <= wrfbdy_set_width) wrfbdy_set_width = wrfbdy_width;
         amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
         amrex::Print() << "Running with specification width: " << wrfbdy_set_width
                        << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
@@ -227,8 +232,6 @@ ERF::init_from_wrfinput(int lev)
         // NOTE: Last WRF BDY cell is a ghost cell for Laplacian relaxation.
         //       Without relaxation zones, we must augment this value by 1.
         if (wrfbdy_width == wrfbdy_set_width) wrfbdy_width += 1;
-
-        const Box& domain = geom[lev].Domain();
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
@@ -268,8 +271,10 @@ ERF::init_from_wrfinput(int lev)
  * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
-init_state_from_wrfinput(int lev, FArrayBox& state_fab,
-                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+init_state_from_wrfinput(int lev,
+                         FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab,
+                         FArrayBox& y_vel_fab,
                          FArrayBox& z_vel_fab,
 #if defined(ERF_USE_MOISTURE)
                          const Vector<FArrayBox>& NC_QVAPOR_fab,
@@ -404,7 +409,7 @@ init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
 void
-init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
+init_terrain_from_wrfinput(int lev, const Box& domain, FArrayBox& z_phys,
                            const Vector<FArrayBox>& NC_PH_fab,
                            const Vector<FArrayBox>& NC_PHB_fab)
 {
@@ -426,6 +431,9 @@ init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
         int jhi = nodal_box.bigEnd()[1];
         int klo = nodal_box.smallEnd()[2];
         int khi = nodal_box.bigEnd()[2]-1;
+
+        const auto domlo = amrex::lbound(domain);
+        const auto domhi = amrex::ubound(domain);
 
         //
         // We must be careful not to read out of bounds of the WPS data
@@ -458,6 +466,20 @@ init_terrain_from_wrfinput(int lev, FArrayBox& z_phys,
                                           nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
                                           nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
                                           nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
+
+             //
+             // Fill values outside the domain on the fly (we will need these to make detJ in ghost cells)
+             //
+             if (i == domlo.x) z_arr(i-1,j,k) = z_arr(i,j,k);
+             if (i == domhi.x) z_arr(i+1,j,k) = z_arr(i,j,k);
+             if (j == domlo.y) z_arr(i,j-1,k) = z_arr(i,j,k);
+             if (j == domhi.y) z_arr(i,j+1,k) = z_arr(i,j,k);
+
+             if (i == domlo.x && j == domlo.y) z_arr(i-1,j-1,k) = z_arr(i,j,k);
+             if (i == domlo.x && j == domhi.y) z_arr(i-1,j+1,k) = z_arr(i,j,k);
+             if (i == domhi.x && j == domlo.y) z_arr(i+1,j-1,k) = z_arr(i,j,k);
+             if (i == domhi.x && j == domhi.y) z_arr(i+1,j+1,k) = z_arr(i,j,k);
+
             } // k
         });
     } // idx

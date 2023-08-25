@@ -26,6 +26,10 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
+#ifdef ERF_USE_PARTICLES
+#include "TerrainFittedPC.H"
+#endif
+
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
@@ -36,6 +40,7 @@
 #include <ERF_WriteBndryPlanes.H>
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
+#include <ERF_FillPatcher.H>
 
 #ifdef ERF_USE_MOISTURE
 #include "Microphysics.H"
@@ -53,6 +58,10 @@
 
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
+#endif
+
+#ifdef ERF_USE_PARTICLES
+typedef amrex::ParticleContainer<AMREX_SPACEDIM, 0, 0, 0> TracerPC;
 #endif
 
 /**
@@ -89,10 +98,10 @@ public:
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    ERF(ERF&&)  noexcept = default;
+    ERF(ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
-    ERF& operator=(ERF&& other)  noexcept = default;
+    ERF& operator=(ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
     ERF(const ERF& other) = delete;
@@ -129,41 +138,40 @@ public:
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
 
     // Diagnostics
-    void sum_integrated_quantities(amrex::Real time);
-    void write_1D_profiles(amrex::Real time);
+    void sum_integrated_quantities (amrex::Real time);
+    void write_1D_profiles (amrex::Real time);
 
-    void sample_points(int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
-    void derive_diag_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_k,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_ku, amrex::Gpu::HostVector<amrex::Real>& h_avg_kv,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
-                              amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
+    void derive_diag_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_ww,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_uth , amrex::Gpu::HostVector<amrex::Real>& h_avg_vth,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_wth, amrex::Gpu::HostVector<amrex::Real>& h_avg_thth,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_k,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_ku, amrex::Gpu::HostVector<amrex::Real>& h_avg_kv,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
 
-    void derive_stress_profiles(amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
-                                amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
-                                amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
-                                amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+    void derive_stress_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
     // Perform the volume-weighted sum
     amrex::Real
-    volWgtSumMF(int lev,
-      const amrex::MultiFab& mf, int comp, bool local, bool finemask);
+    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp, bool local, bool finemask);
 
     // Decide if it is time to take an action
-    static bool is_it_time_for_action(int nstep, amrex::Real time, amrex::Real dt,
-                               int action_interval, amrex::Real action_per);
+    static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
+                                       int action_interval, amrex::Real action_per);
 
     // Make a new level using provided BoxArray and DistributionMapping and
     // fill with interpolated coarse level data.
@@ -185,32 +193,34 @@ public:
     // Only used during initialization.
     // overrides the pure virtual function in AmrCore
     void MakeNewLevelFromScratch (int lev, amrex::Real time, const amrex::BoxArray& ba,
-                      const amrex::DistributionMapping& dm) override;
+                                  const amrex::DistributionMapping& dm) override;
 
     // compute dt from CFL considerations
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
-    void advance_dycore(int level,
-                        amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
-                        amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
-                        amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
-                        amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
-                        amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
-                        amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
-                        amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
-                        amrex::Geometry fine_geom,
-                        amrex::Real dt, amrex::Real time,
-                        amrex::InterpFaceRegister* ifr);
+    void advance_dycore (int level,
+                         amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
+                         amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
+                         amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
+                         amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
+                         amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
+                         amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
+                         amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
+                         amrex::Geometry fine_geom,
+                         amrex::Real dt, amrex::Real time,
+                         amrex::InterpFaceRegister* ifr);
 
-    void advance_microphysics(int lev, amrex::MultiFab& cons_in,
-                              const amrex::Real& dt_advance);
+#if defined(ERF_USE_MOISTURE)
+    void advance_microphysics (int lev, amrex::MultiFab& cons_in,
+                               const amrex::Real& dt_advance);
+#endif
 
-    amrex::MultiFab& build_fine_mask(int lev);
+    amrex::MultiFab& build_fine_mask (int lev);
 
-    void MakeHorizontalAverages();
-    void MakeDiagnosticAverage(amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
-    void derive_upwp          (amrex::Vector<amrex::Real>& h_havg);
+    void MakeHorizontalAverages ();
+    void MakeDiagnosticAverage (amrex::Vector<amrex::Real>& h_havg, amrex::MultiFab& S, int n);
+    void derive_upwp (amrex::Vector<amrex::Real>& h_havg);
 
     // write plotfile to disk
     void WritePlotFile  (int which, amrex::Vector<std::string> plot_var_names);
@@ -238,19 +248,19 @@ public:
                                                 const std::string &levelPrefix,
                                                 const std::string &mfPrefix) const;
 
-    void erf_enforce_hse(int lev,
-                         amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
-                         std::unique_ptr<amrex::MultiFab>& z_cc,
-                         std::unique_ptr<amrex::MultiFab>& z_nd);
+    void erf_enforce_hse (int lev,
+                          amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
+                          std::unique_ptr<amrex::MultiFab>& z_cc,
+                          std::unique_ptr<amrex::MultiFab>& z_nd);
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile(int lev,
-                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
-                             amrex::Real time);
+    void writeToNCColumnFile (int lev,
+                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
+                              amrex::Real time);
 #endif //ERF_USE_NETCDF
 
-    void init_from_input_sounding(int lev);
+    void init_from_input_sounding (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
@@ -265,10 +275,10 @@ public:
     void Evolve_MB (int MBstep, int max_block_step);
 
     // Set parmparse prefix for MultiBlock
-    void SetParmParsePrefix(std::string name) { pp_prefix = name; }
+    void SetParmParsePrefix (std::string name) { pp_prefix = name; }
 
     // Set 'this' from multiblock container
-    void SetMultiBlockPointer(MultiBlockContainer *mbc) { m_mbc = mbc; }
+    void SetMultiBlockPointer (MultiBlockContainer *mbc) { m_mbc = mbc; }
 
     // Public data copy for MB
     std::vector<amrex::Box> domain_p;
@@ -288,6 +298,11 @@ public:
                            amrex::Real time);
 #endif
 
+#ifdef ERF_USE_PARTICLES
+    std::unique_ptr<TerrainFittedPC> tracer_particles;
+    static amrex::Vector<std::string> tracer_particle_varnames;
+#endif
+
 private:
 
     ///////////////////////////
@@ -300,19 +315,29 @@ private:
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
 
-    void define_grids_to_evolve (int lev); // NOLINT
+    void update_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void init1DArrays();
+    void update_terrain_arrays (int lev, amrex::Real time);
 
-    void init_bcs();
+    void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
 
-    void init_custom(int lev);
+    void Construct_ERFFillPatchers (int lev);
 
-    void initialize_integrator(int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
+    void Define_ERFFillPatchers (int lev);
+
+    void Register_ERFFillPatchers (int lev);
+
+    void init1DArrays ();
+
+    void init_bcs ();
+
+    void init_custom (int lev);
+
+    void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
 #ifdef ERF_USE_NETCDF
-    void init_from_wrfinput(int lev);
-    void init_from_metgrid(int lev);
+    void init_from_wrfinput (int lev);
+    void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -359,6 +384,7 @@ private:
 
     //! Initialize HSE
     void initHSE ();
+    void initHSE (int lev);
 
     //! Initialize Rayleigh damping profiles
     void initRayleigh ();
@@ -380,10 +406,10 @@ private:
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
-    void writeNCPlotFile(int lev, int which, const std::string& dir,
-                         const amrex::Vector<const amrex::MultiFab*> &mf,
-                         const amrex::Vector<std::string> &plot_var_names,
-                         const amrex::Vector<int>& level_steps, amrex::Real time) const;
+    void writeNCPlotFile (int lev, int which, const std::string& dir,
+                          const amrex::Vector<const amrex::MultiFab*> &mf,
+                          const amrex::Vector<std::string> &plot_var_names,
+                          const amrex::Vector<int>& level_steps, amrex::Real time) const;
 
     //! Write checkpointFile using NetCdf
     void WriteNCCheckpointFile () const;
@@ -393,8 +419,8 @@ private:
 
     //! Write MultiFab in NetCDF format
     static void WriteNCMultiFab (const amrex::FabArray<amrex::FArrayBox> &fab,
-                          const std::string& name,
-                          bool set_ghost = false) ;
+                                 const std::string& name,
+                                 bool set_ghost = false) ;
 
     //! Read MultiFab in NetCDF format
     void ReadNCMultiFab (amrex::FabArray<amrex::FArrayBox> &mf,
@@ -403,14 +429,14 @@ private:
                          int allow_empty_mf = 0);
 
     //! Create 1D vertical column output for coupling
-    void createNCColumnFile(int lev,
-                            const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
+    void createNCColumnFile (int lev,
+                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
 
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
-    void init_from_wrfbdy(amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
-                          amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
-                          amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
-                          amrex::Vector<amrex::FArrayBox*> T_lateral);
+    void init_from_wrfbdy (amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
+                           amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
+                           amrex::Vector<amrex::FArrayBox*> z_vel_lateral,
+                           amrex::Vector<amrex::FArrayBox*> T_lateral);
 
     amrex::Real start_bdy_time;
 
@@ -500,6 +526,14 @@ private:
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #endif
 
+    // Fillpatcher classes for coarse-fine boundaries
+    int cf_width{0};
+    int cf_set_width{0};
+    amrex::Vector<ERFFillPatcher> FPr_c;
+    amrex::Vector<ERFFillPatcher> FPr_u;
+    amrex::Vector<ERFFillPatcher> FPr_v;
+    amrex::Vector<ERFFillPatcher> FPr_w;
+
     // Diffusive stresses and Smag
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau11_lev, Tau22_lev, Tau33_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau12_lev, Tau21_lev;
@@ -583,7 +617,7 @@ private:
 
     // how often each level regrids the higher levels of refinement
     // (after a level advances that many time steps)
-    int regrid_int = 2;
+    int regrid_int = -1;
 
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
@@ -628,16 +662,12 @@ private:
     static SolverChoice solverChoice;
 
     static int verbose;
-    static int use_native_mri;
-    static int no_substepping;
-    static int force_stage1_single_substep;
 
-    static int incompressible;
+    // flag to turn tracer particle generation on/off
+    static bool use_tracer_particles;
 
     // mesh refinement
     static std::string coupling_type;
-    static int do_reflux;
-    static int do_avg_down;
 
     // Diagnostic output interval
     static int sum_interval;
@@ -654,8 +684,8 @@ private:
 
     // NetCDF initialization (wrfbdy) file
     static std::string nc_bdy_file;
-    int wrfbdy_width;
-    int wrfbdy_set_width{1};
+    int wrfbdy_width{0};
+    int wrfbdy_set_width{0};
 
     // NetCDF initialization (met_em) file
     int metgrid_bdy_width = 5;
@@ -732,36 +762,56 @@ private:
     //
     amrex::MultiFab fine_mask;
 
+    amrex::Real dz_min;
+
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells(const int& horiz_spatial_order,
-                      const int& vert_spatial_order,
-                      const bool& use_numerical_diff)
+    ComputeGhostCells (const SolverChoice& solverChoice)
     {
-      int spatial_order = std::max(horiz_spatial_order, vert_spatial_order);
-
-      int nGhostCells = 0;
-      if (use_numerical_diff) {
-          nGhostCells = 3;
-      } else {
-          switch (spatial_order) {
-          case 2: case 3: case 4:
-              nGhostCells = 2; // We need this many to compute the eddy viscosity in the ghost cells
-              break;
-          case 5: case 6:
-              nGhostCells = 3;
-              break;
-          default:
-              amrex::Error("Must specify spatial order to be 2,3,4,5 or 6");
-          }
-      }
-
-      return nGhostCells;
+        if (solverChoice.use_NumDiff)
+        {
+            return 3;
+        } else {
+            if (
+                 (solverChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+              || (solverChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+#endif
+              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+              || (solverChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+            { return 3; }
+            else if (
+                 (solverChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+              || (solverChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+#endif
+              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+              || (solverChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+            { return 3; }
+            else if (
+                  (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
+               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
+#endif
+               || (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
+            { return 3; }
+            else
+            { return 2; }
+        }
     }
 
     AMREX_FORCE_INLINE
     amrex::FluxRegister&
-    get_flux_reg(int lev)
+    get_flux_reg (int lev)
     {
       return *flux_registers[lev];
     }
@@ -838,7 +888,7 @@ private:
     static amrex::Real previousCPUTimeUsed;
 
     static amrex::Real
-    getCPUTime()
+    getCPUTime ()
     {
       int numCores = amrex::ParallelDescriptor::NProcs();
 #ifdef _OPENMP
@@ -920,8 +970,8 @@ private:
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
 
 public:
-    void writeJobInfo(const std::string& dir) const;
-    static void writeBuildInfo(std::ostream& os);
+    void writeJobInfo (const std::string& dir) const;
+    static void writeBuildInfo (std::ostream& os);
 };
 
 #endif

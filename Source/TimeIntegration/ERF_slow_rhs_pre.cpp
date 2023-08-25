@@ -114,10 +114,10 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
-    const int  l_horiz_spatial_order = solverChoice.horiz_spatial_order;
-    const int  l_vert_spatial_order  = solverChoice.vert_spatial_order;
-    const bool l_use_terrain    = solverChoice.use_terrain;
-    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    const AdvType l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
+    const AdvType l_vert_adv_type  = solverChoice.dycore_vert_adv_type;
+    const bool    l_use_terrain    = solverChoice.use_terrain;
+    const bool    l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -149,16 +149,16 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab* expr    = nullptr;
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
+    std::unique_ptr<MultiFab> expr;
+    std::unique_ptr<MultiFab> dflux_x;
+    std::unique_ptr<MultiFab> dflux_y;
+    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,0));
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -478,7 +478,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real> &       cell_rhs   = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real>       & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         // We must initialize these to zero each RK step
@@ -638,7 +638,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                    avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
                                    cell_prim, z_nd, detJ_arr,
                                    dxInv, mf_m, mf_u, mf_v,
-                                   l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain);
+                                   l_horiz_adv_type, l_vert_adv_type, l_use_terrain);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -720,7 +720,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                           l_horiz_spatial_order, l_vert_spatial_order, l_use_terrain, domhi_z);
+                           l_horiz_adv_type, l_vert_adv_type, l_use_terrain, domhi_z);
 
         if (l_use_diff) {
             if (l_use_terrain) {
@@ -751,8 +751,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
+        auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
+        auto abl_geo_forcing      = solverChoice.abl_geo_forcing;
+        auto use_coriolis         = solverChoice.use_coriolis;
+        auto coriolis_factor      = solverChoice.coriolis_factor;
+        auto cosphi               = solverChoice.cosphi;
+        auto sinphi               = solverChoice.sinphi;
+        auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
+
         {
         BL_PROFILE("slow_rhs_pre_xmom");
+        auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
@@ -794,20 +803,20 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                        +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
             rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                - solverChoice.abl_pressure_grad[0]
-                                + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * solverChoice.abl_geo_forcing[0];
+                                - abl_pressure_grad[0]
+                                + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (solverChoice.use_coriolis)
+            if (use_coriolis)
             {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
-                        (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
+                rho_u_rhs(i, j, k) += coriolis_factor *
+                        (rho_v_loc * sinphi - rho_w_loc * cosphi);
             }
 
             // Add Rayleigh damping
-            if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
+            if (use_rayleigh_damping && rayleigh_damp_U)
             {
                 Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                 rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
@@ -839,20 +848,20 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
               rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                  - solverChoice.abl_pressure_grad[0]
-                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * solverChoice.abl_geo_forcing[0];
+                                  - abl_pressure_grad[0]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (solverChoice.use_coriolis)
+              if (use_coriolis)
               {
                   Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                   Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                  rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
-                          (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
+                  rho_u_rhs(i, j, k) += coriolis_factor *
+                          (rho_v_loc * sinphi - rho_w_loc * cosphi);
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_U)
+              if (use_rayleigh_damping && rayleigh_damp_U)
               {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
@@ -863,6 +872,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         {
         BL_PROFILE("slow_rhs_pre_ymom");
+        auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
@@ -903,17 +913,17 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
               rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - solverChoice.abl_pressure_grad[1]
-                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * solverChoice.abl_geo_forcing[1];
+                                  - abl_pressure_grad[1]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
-              // Add Coriolis forcing (that assumes east is +x, north is +y) if (solverChoice.use_coriolis)
+              // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                  rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+                  rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_V)
+              if (use_rayleigh_damping && rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
@@ -945,18 +955,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
               rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - solverChoice.abl_pressure_grad[1]
-                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * solverChoice.abl_geo_forcing[1];
+                                  - abl_pressure_grad[1]
+                                  + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (solverChoice.use_coriolis)
+              if (use_coriolis)
               {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                  rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+                  rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
               }
 
               // Add Rayleigh damping
-              if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_V)
+              if (use_rayleigh_damping && rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * cell_data(i,j,k,Rho_comp);
@@ -979,6 +989,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         {
         BL_PROFILE("slow_rhs_pre_zmom");
+        auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
@@ -998,18 +1009,18 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - solverChoice.abl_pressure_grad[2]
-                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * solverChoice.abl_geo_forcing[2];
+                                    - abl_pressure_grad[2]
+                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (solverChoice.use_coriolis)
+                if (use_coriolis)
                 {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
+                    rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_W)
+                if (use_rayleigh_damping && rayleigh_damp_W)
                 {
                     Real ww = rho_w(i,j,k) / cell_data(i,j,k,Rho_comp);
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * cell_data(i,j,k,Rho_comp);
@@ -1039,31 +1050,26 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - solverChoice.abl_pressure_grad[2]
-                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * solverChoice.abl_geo_forcing[2];
+                                    - abl_pressure_grad[2]
+                                    + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (solverChoice.use_coriolis)
+                if (use_coriolis)
                 {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
+                    rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_W)
+                if (use_rayleigh_damping && rayleigh_damp_W)
                 {
                     Real ww = rho_w(i,j,k) / cell_data(i,j,k,Rho_comp);
                     rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * cell_data(i,j,k,Rho_comp);
                 }
         });
         } // no terrain
+         ApplySpongeZoneBCs(solverChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
+                            rho_w, bx, cell_rhs, cell_data);
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete expr;
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }

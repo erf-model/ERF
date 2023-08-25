@@ -1,0 +1,3 @@
+This problem setup is for simulation of a Low-Level Jet (LLJ) using
+two levels of refinement.  The initial data is specified in wrfinput_d01
+and wrfinput_d02 and the time-dependent boundary conditions are given in wrfbdy_d01.

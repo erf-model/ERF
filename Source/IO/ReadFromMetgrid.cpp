@@ -31,7 +31,7 @@ getEpochTime_metgrid(const std::string& dateTime, const std::string& dateTimeFor
 }
 
 void
-read_from_metgrid(int lev, const std::string& fname,
+read_from_metgrid(int lev, const Box& domain, const std::string& fname,
                   std::string& NC_dateTime, Real& NC_epochTime,
                   int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
                   int& flag_hgt,  int& NC_nx,     int& NC_ny,
@@ -99,7 +99,8 @@ read_from_metgrid(int lev, const std::string& fname,
     NC_fabs.push_back(&NC_msfm_fab);      NC_names.push_back("MAPFAC_M");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);
 
     // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
+    amrex::Print() << "Building initial FABS from file " << fname << std::endl;
+    BuildFABsFromNetCDFFile(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
     //

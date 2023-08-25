@@ -24,7 +24,8 @@ cloud water / ice mixing ratio.
 **Time Integration**: Time-split integration using 3rd-order Runge-Kutta scheme with smaller time step for
 acoustic and gravity wave modes.  Variable time step capability.
 
-**Spatial Discretization**: 2nd- to 6th-order advection options in horizontal and vertical
+**Spatial Discretization**: 2nd- to 6th-order advection options in horizontal and vertical.  In addition, several
+different WENO schemes are available for scalar variables other than density and potential temperature.
 
 **Turbulent Mixing**: Sub-grid scale turbulence formulation.  Vertically implicit acoustic step off-centering.
 

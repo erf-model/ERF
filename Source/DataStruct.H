@@ -10,6 +10,7 @@
 #include <AMReX_Geometry.H>
 
 #include <ERF_Constants.H>
+#include <IndexDefines.H>
 
 enum class ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -189,9 +190,130 @@ struct SolverChoice {
         rhoAlpha_T = rho0_trans * alpha_T;
         rhoAlpha_C = rho0_trans * alpha_C;
 
-        // Order of spatial discretization
-        pp.query("horiz_spatial_order", horiz_spatial_order);
-        pp.query("vert_spatial_order",   vert_spatial_order);
+        // Turn off acoustic substepping?
+        pp.query("no_substepping", no_substepping);
+
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+        pp.query("incompressible", incompressible);
+
+        // If this is set, it must be even
+        if (incompressible != 0 && no_substepping == 0)
+        {
+            amrex::Abort("If you specify incompressible, you must specific no_substepping");
+        }
+
+        // Order and type of spatial discretizations used in advection
+        pp.query("use_efficient_advection", use_efficient_advection);
+        std::string dycore_horiz_adv_string    = "" ; std::string dycore_vert_adv_string   = "";
+        std::string dryscal_horiz_adv_string   = "" ; std::string dryscal_vert_adv_string  = "";
+        pp.query("dycore_horiz_adv_type"   , dycore_horiz_adv_string);
+        pp.query("dycore_vert_adv_type"    , dycore_vert_adv_string);
+        pp.query("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
+        pp.query("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
+
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+        std::string moistscal_horiz_adv_string = ""; std::string moistscal_vert_adv_string = "";
+        pp.query("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
+        pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
+#endif
+
+        if (use_efficient_advection){
+           amrex::Print() << "Using efficient advection scheme" << std::endl;;
+        }
+
+        if ( (dycore_horiz_adv_string == "Centered_2nd") ||
+             (dycore_horiz_adv_string == "Upwind_3rd"  ) ||
+             (dycore_horiz_adv_string == "Centered_4th") ||
+             (dycore_horiz_adv_string == "Upwind_5th"  ) ||
+             (dycore_horiz_adv_string == "Centered_6th") )
+        {
+            dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
+            amrex::Print() << "Using dycore_horiz_adv_type: " << dycore_horiz_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default dycore_horiz_adv_type" << std::endl;;
+        }
+
+        if ( (dycore_vert_adv_string == "Centered_2nd") ||
+             (dycore_vert_adv_string == "Upwind_3rd"  ) ||
+             (dycore_vert_adv_string == "Centered_4th") ||
+             (dycore_vert_adv_string == "Upwind_5th"  ) ||
+             (dycore_vert_adv_string == "Centered_6th") )
+        {
+            dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
+            amrex::Print() << "Using dycore_vert_adv_type: " << dycore_vert_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default dycore_vert_adv_type" << std::endl;;
+        }
+
+        if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
+             (dryscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_horiz_adv_string == "Centered_4th") ||
+             (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
+             (dryscal_horiz_adv_string == "Centered_6th") ||
+             (dryscal_horiz_adv_string == "WENO3"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ3"      ) ||
+             (dryscal_horiz_adv_string == "WENOMZQ3"    ) ||
+             (dryscal_horiz_adv_string == "WENO5"       ) ||
+             (dryscal_horiz_adv_string == "WENOZ5"      ) )
+        {
+            dryscal_horiz_adv_type = adv_type_convert_string_to_advtype(dryscal_horiz_adv_string);
+            amrex::Print() << "Using dryscal_horiz_adv_type: " << dryscal_horiz_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default dryscal_horiz_adv_type" << std::endl;;
+        }
+
+        if ( (dryscal_vert_adv_string == "Centered_2nd") ||
+             (dryscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_vert_adv_string == "Centered_4th") ||
+             (dryscal_vert_adv_string == "Upwind_5th"  ) ||
+             (dryscal_vert_adv_string == "Centered_6th") ||
+             (dryscal_vert_adv_string == "WENO3"       ) ||
+             (dryscal_vert_adv_string == "WENOZ3"      ) ||
+             (dryscal_vert_adv_string == "WENOMZQ3"     ) ||
+             (dryscal_vert_adv_string == "WENO5"       ) ||
+             (dryscal_vert_adv_string == "WENOZ5"      ) )
+        {
+            dryscal_vert_adv_type = adv_type_convert_string_to_advtype(dryscal_vert_adv_string);
+            amrex::Print() << "Using dryscal_vert_adv_type: " << dryscal_vert_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
+        }
+
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+        if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
+             (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_horiz_adv_string == "Centered_4th") ||
+             (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
+             (moistscal_horiz_adv_string == "Centered_6th") ||
+             (moistscal_horiz_adv_string == "WENO3"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ3"      ) ||
+             (moistscal_horiz_adv_string == "WENOMZQ3"    ) ||
+             (moistscal_horiz_adv_string == "WENO5"       ) ||
+             (moistscal_horiz_adv_string == "WENOZ5"      ) )
+        {
+            moistscal_horiz_adv_type = adv_type_convert_string_to_advtype(moistscal_horiz_adv_string);
+            amrex::Print() << "Using moistscal_horiz_adv_type: " << moistscal_horiz_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default moistscal_horiz_adv_type" << std::endl;;
+        }
+
+        if ( (moistscal_vert_adv_string == "Centered_2nd") ||
+             (moistscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_vert_adv_string == "Centered_4th") ||
+             (moistscal_vert_adv_string == "Upwind_5th"  ) ||
+             (moistscal_vert_adv_string == "Centered_6th") ||
+             (moistscal_vert_adv_string == "WENO3"       ) ||
+             (moistscal_vert_adv_string == "WENOZ3"      ) ||
+             (moistscal_vert_adv_string == "WENOMZQ3"    ) ||
+             (moistscal_vert_adv_string == "WENO5"       ) ||
+             (moistscal_vert_adv_string == "WENOZ5"      ) )
+        {
+            moistscal_vert_adv_type = adv_type_convert_string_to_advtype(moistscal_vert_adv_string);
+            amrex::Print() << "Using moistscal_vert_adv_type: " << moistscal_vert_adv_string << std::endl;
+        } else {
+            amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
+        }
+#endif
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
@@ -202,6 +324,27 @@ struct SolverChoice {
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
+
+        // Include sponge damping
+        pp.query("use_xlo_sponge_damping", use_xlo_sponge_damping);
+        pp.query("use_xhi_sponge_damping", use_xhi_sponge_damping);
+        pp.query("use_ylo_sponge_damping", use_ylo_sponge_damping);
+        pp.query("use_yhi_sponge_damping", use_yhi_sponge_damping);
+        pp.query("use_zlo_sponge_damping", use_zlo_sponge_damping);
+        pp.query("use_zhi_sponge_damping", use_zhi_sponge_damping);
+
+        pp.query("sponge_strength" , sponge_strength);
+        pp.query("xlo_sponge_end"  , xlo_sponge_end);
+        pp.query("xhi_sponge_start", xhi_sponge_start);
+        pp.query("ylo_sponge_end"  , ylo_sponge_end);
+        pp.query("yhi_sponge_start", yhi_sponge_start);
+        pp.query("zlo_sponge_end"  , zlo_sponge_end);
+        pp.query("zhi_sponge_start", zhi_sponge_start);
+
+        pp.query("sponge_density" , sponge_density);
+        pp.query("sponge_x_velocity" , sponge_x_velocity);
+        pp.query("sponge_y_velocity" , sponge_y_velocity);
+        pp.query("sponge_z_velocity" , sponge_z_velocity);
 
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
@@ -230,36 +373,12 @@ struct SolverChoice {
             build_coriolis_forcings();
         }
 
-        static std::string ic_bc_type_string = "Ideal";
-        pp.query("ic_bc_type", ic_bc_type_string);
-
         pp.query("Ave_Plane", ave_plane);
 
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
-        pp.query("moist_use_WENO_Z", moist_use_WENO_Z);
-        if(!moist_use_WENO_Z) moist_use_WENO = true;
 #endif
-
-        // Use WENO for advection?
-        pp.query("all_use_WENO", all_use_WENO);
-        if (all_use_WENO || moist_use_WENO) {
-            pp.query("spatial_order_WENO", spatial_order_WENO);
-            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
-                                      "WENO advection only supports orders 3 & 5.");
-        }
-
-        // Use WENO-Z for advection?
-        pp.query("all_use_WENO_Z", all_use_WENO_Z);
-        if (all_use_WENO_Z || moist_use_WENO_Z) {
-            pp.query("spatial_order_WENO", spatial_order_WENO);
-            AMREX_ASSERT_WITH_MESSAGE(( (spatial_order_WENO==3) || (spatial_order_WENO==5) ),
-                                      "WENO advection only supports orders 3 & 5.");
-            AMREX_ASSERT_WITH_MESSAGE(( (!all_use_WENO) || (!moist_use_WENO) ),
-                                      "WENO and WENO-Z cannot be specified together.");
-        }
-
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
@@ -275,24 +394,33 @@ struct SolverChoice {
     void display()
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "use_coriolis          : " << use_coriolis << std::endl;
-        amrex::Print() << "use_rayleigh_damping  : " << use_rayleigh_damping << std::endl;
-        amrex::Print() << "use_gravity           : " << use_gravity << std::endl;
-        amrex::Print() << "rho0_trans            : " << rho0_trans << std::endl;
-        amrex::Print() << "alpha_T               : " << alpha_T << std::endl;
-        amrex::Print() << "alpha_C               : " << alpha_C << std::endl;
-        amrex::Print() << "dynamicViscosity      : " << dynamicViscosity << std::endl;
-        amrex::Print() << "Cs                    : " << Cs << std::endl;
-        amrex::Print() << "CI                    : " << CI << std::endl;
-        amrex::Print() << "Ce                    : " << Ce << std::endl;
-        amrex::Print() << "Ce at wall            : " << Ce_wall << std::endl;
-        amrex::Print() << "Ck                    : " << Ck << std::endl;
-        amrex::Print() << "reference theta       : " << theta_ref << std::endl;
-        amrex::Print() << "sigma_k               : " << sigma_k << std::endl;
-        amrex::Print() << "Pr_t                  : " << Pr_t << std::endl;
-        amrex::Print() << "Sc_t                  : " << Sc_t << std::endl;
-        amrex::Print() << "horiz spatial_order   : " << horiz_spatial_order << std::endl;
-        amrex::Print() << "vert  spatial_order   : " << vert_spatial_order << std::endl;
+        amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
+        amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
+        amrex::Print() << "incompressible              : "  << incompressible << std::endl;
+        amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
+        amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
+        amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
+        amrex::Print() << "rho0_trans                  : " << rho0_trans << std::endl;
+        amrex::Print() << "alpha_T                     : " << alpha_T << std::endl;
+        amrex::Print() << "alpha_C                     : " << alpha_C << std::endl;
+        amrex::Print() << "dynamicViscosity            : " << dynamicViscosity << std::endl;
+        amrex::Print() << "Cs                          : " << Cs << std::endl;
+        amrex::Print() << "CI                          : " << CI << std::endl;
+        amrex::Print() << "Ce                          : " << Ce << std::endl;
+        amrex::Print() << "Ce at wall                  : " << Ce_wall << std::endl;
+        amrex::Print() << "Ck                          : " << Ck << std::endl;
+        amrex::Print() << "reference theta             : " << theta_ref << std::endl;
+        amrex::Print() << "sigma_k                     : " << sigma_k << std::endl;
+        amrex::Print() << "Pr_t                        : " << Pr_t << std::endl;
+        amrex::Print() << "Sc_t                        : " << Sc_t << std::endl;
+        amrex::Print() << "dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type) << std::endl;
+        amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type) << std::endl;
+        amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type) << std::endl;
+        amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type) << std::endl;
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+        amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type) << std::endl;
+        amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type) << std::endl;
+#endif
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -361,8 +489,68 @@ struct SolverChoice {
         }
     }
 
+    std::string
+    adv_type_convert_int_to_string (AdvType adv_int)
+    {
+        if (adv_int == AdvType::Centered_2nd) {
+            return "Centered_2nd";
+        } else if (adv_int == AdvType::Upwind_3rd) {
+            return "Upwind_3rd";
+        } else if (adv_int == AdvType::Centered_4th) {
+            return "Centered_4th";
+        } else if (adv_int == AdvType::Upwind_5th) {
+            return "Upwind_5th";
+        } else if (adv_int == AdvType::Centered_6th) {
+            return "Centered_6th";
+        } else if (adv_int == AdvType::Weno_3) {
+            return "WENO3";
+        } else if (adv_int == AdvType::Weno_3Z) {
+            return "WENOZ3";
+        } else if (adv_int == AdvType::Weno_5) {
+            return "WENO5";
+        } else if (adv_int == AdvType::Weno_5Z) {
+            return "WENOZ5";
+        } else if (adv_int == AdvType::Weno_3MZQ) {
+            return "WENOMZQ3";
+        } else {
+            return "Unknown";
+        }
+    }
+
+
+    AdvType adv_type_convert_string_to_advtype (std::string adv_string)
+    {
+        if (adv_string == "Centered_2nd") {
+            return AdvType::Centered_2nd;
+        } else if (adv_string == "Upwind_3rd") {
+            return AdvType::Upwind_3rd;
+        } else if (adv_string == "Centered_4th") {
+            return AdvType::Centered_4th;
+        } else if (adv_string == "Upwind_5th") {
+            return AdvType::Upwind_5th;
+        } else if (adv_string == "Centered_6th") {
+            return AdvType::Centered_6th;
+        } else if (adv_string == "WENO3") {
+            return AdvType::Weno_3;
+        } else if (adv_string == "WENOZ3") {
+            return AdvType::Weno_3Z;
+        } else if (adv_string == "WENO5") {
+            return AdvType::Weno_5;
+        } else if (adv_string == "WENOZ5") {
+            return AdvType::Weno_5Z;
+        } else if (adv_string == "WENOMZQ3") {
+            return AdvType::Weno_3MZQ;
+        } else {
+            return AdvType::Unknown;
+        }
+    }
+
     // Default prefix
     std::string pp_prefix {"erf"};
+
+    int         no_substepping              = 0;
+    int         force_stage1_single_substep = 1;
+    int         incompressible              = 0;
 
     bool        use_terrain            = false;
     bool        test_mapfactor         = false;
@@ -382,6 +570,18 @@ struct SolverChoice {
     bool        rayleigh_damp_V        = false;
     bool        rayleigh_damp_W        = true;
     bool        rayleigh_damp_T        = false;
+
+    bool    use_xlo_sponge_damping     = false;
+    bool    use_xhi_sponge_damping     = false;
+    bool    use_ylo_sponge_damping     = false;
+    bool    use_yhi_sponge_damping     = false;
+    bool    use_zlo_sponge_damping     = false;
+    bool    use_zhi_sponge_damping     = false;
+    amrex::Real sponge_strength;
+    amrex::Real xlo_sponge_end, xhi_sponge_start;
+    amrex::Real ylo_sponge_end, yhi_sponge_start;
+    amrex::Real zlo_sponge_end, zhi_sponge_start;
+    amrex::Real sponge_density, sponge_x_velocity, sponge_y_velocity, sponge_z_velocity;
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt    = true;
@@ -457,15 +657,16 @@ struct SolverChoice {
     amrex::Real sinphi          = 0.0;
 
     // Spatial discretization
-    int   horiz_spatial_order = 2;
-    int    vert_spatial_order = 2;
-
-    // Positive definite advection scheme (3/5 order)
-    bool all_use_WENO{false};
-    bool moist_use_WENO{false};
-    bool all_use_WENO_Z{false};
-    bool moist_use_WENO_Z{false};
-    int  spatial_order_WENO{3};
+    // Order and type of spatial discretizations used in advection
+    bool use_efficient_advection = false;
+    AdvType dycore_horiz_adv_type    = AdvType::Centered_2nd;
+    AdvType dycore_vert_adv_type     = AdvType::Centered_2nd;
+    AdvType dryscal_horiz_adv_type   = AdvType::Centered_2nd;
+    AdvType dryscal_vert_adv_type    = AdvType::Centered_2nd;
+#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+    AdvType moistscal_horiz_adv_type = AdvType::Weno_3;
+    AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
+#endif
 
     // Numerical diffusion
     bool use_NumDiff{false};

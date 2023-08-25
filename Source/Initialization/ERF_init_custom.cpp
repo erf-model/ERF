@@ -22,7 +22,7 @@ using namespace amrex;
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_custom(int lev)
+ERF::init_custom (int lev)
 {
     auto& lev_new = vars_new[lev];
 #if defined(ERF_USE_MOISTURE)

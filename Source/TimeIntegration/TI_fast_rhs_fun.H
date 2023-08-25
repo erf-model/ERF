@@ -141,14 +141,24 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
 
 #ifdef ERF_USE_NETCDF
-        // Update vars in relaxation zones
-        if (((init_type == "real") || (init_type == "metgrid")) && level == 0)
+        // Update vars in set zone (relaxation already updated)
+        if (((init_type == "real") || (init_type == "metgrid")) && level == 0 && wrfbdy_set_width>0)
             if (fast_step == 0 ) {
-                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_old, S_data);
+                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
             } else {
-                update_interior_ghost(dtau, wrfbdy_width-1, fine_geom, S_slow_rhs, S_data, S_data);
+                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
             }
+        }
 #endif
+
+        // Update vars in set zone (relaxation already updated)
+        if (level>0 && cf_set_width>0) {
+            if (fast_step == 0 ) {
+                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
+            } else {
+                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
+            }
+        }
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep

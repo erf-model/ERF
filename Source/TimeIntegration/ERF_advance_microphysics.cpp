@@ -2,11 +2,11 @@
 
 using namespace amrex;
 
+#if defined(ERF_USE_MOISTURE)
 void ERF::advance_microphysics(int lev,
                                MultiFab& cons,
                                const Real& dt_advance)
 {
-#if defined(ERF_USE_MOISTURE)
     micro.Init(cons, qmoist[lev],
                grids_to_evolve[lev],
                Geom(lev),
@@ -19,5 +19,5 @@ void ERF::advance_microphysics(int lev,
     micro.MicroPrecipFall();
 
     micro.Update(cons, qmoist[lev]);
-#endif
 }
+#endif

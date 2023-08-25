@@ -52,12 +52,11 @@ Adding Tests
 
 Developers are encouraged to add tests to ERF and in this section we describe how the tests are organized in the
 CTest framework. The locations (relative to the ERF code base) of the tests are in ``Tests``. To add a test, first
-create a problem directory with a name in ``Exec/<prob_name>``. This problem directory is meant for a production
-run where the simulation is run until convergence or a solution is developed. This problem setup could comprise
-of a more complex physics than the corresponding tests for regression at ``Tests/test_files/<test_name>``. Prepare
-toned down versions of the input file(s) for each combination of physics that a regression test is desired.
-For example, ``TaylorGreenVortex`` problem with input file ``Exec/TaylorGreenVortex/inputs_ex`` solves an
-advection-diffusion problem. The corresponding regression tests are driven by the input files
+create a problem directory with a name in ``Exec/RegTests/<prob_name>`` (for problems to be used
+as regression tests) or ``Exec/DevTests/<prob_name>`` (for problems testing features under development),
+depending on which type of test is being added.  Prepare a suitable input file.
+As an example, the ``TaylorGreenVortex`` problem with input file ``Exec/RegTests/TaylorGreenVortex/inputs_ex``
+solves a simple advection-diffusion problem. The corresponding regression tests are driven by the input files
 ``Tests/test_files/TaylorGreenAdvecting/TaylorGreenAdvecting.i`` and
 ``Tests/test_files/TaylorGreenAdvectingDiffusing/TaylorGreenAdvectingDiffusing.i``.
 

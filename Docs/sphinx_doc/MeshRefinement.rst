@@ -34,13 +34,13 @@ one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents 
           amr.max_level = 1
           amr.ref_ratio = 2
 
-          amr.refinement_indicators = box1 box2
+          erf.refinement_indicators = box1 box2
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
-          amr.box2.in_box_lo = .65 .75
-          amr.box2.in_box_hi = .85 .95
+          erf.box2.in_box_lo = .65 .75
+          erf.box2.in_box_hi = .85 .95
 
 In the example below, we refine the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
 by two levels of factor 3 refinement. In this case, the refined region at level 1 will
@@ -51,10 +51,10 @@ be sufficient to enclose the refined region at level 2.
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
-          amr.refinement_indicators = box1
+          erf.refinement_indicators = box1
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
 And in this final example, the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
 will be refined by two levels of factor 3, but the larger region, ((.05,.05,prob_lo_z)(.75,.75,prob_hi_z))
@@ -65,14 +65,14 @@ will be refined by a single factor 3 refinement.
           amr.max_level = 2
           amr.ref_ratio = 3 3
 
-          amr.refinement_indicators = box1 box2
+          erf.refinement_indicators = box1 box2
 
-          amr.box1.in_box_lo = .15 .25
-          amr.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25
+          erf.box1.in_box_hi = .35 .45
 
-          amr.box2.in_box_lo = .05 .05
-          amr.box2.in_box_hi = .75 .75
-          amr.box2.max_level = 1
+          erf.box2.in_box_lo = .05 .05
+          erf.box2.in_box_hi = .75 .75
+          erf.box2.max_level = 1
 
 
 Dynamic Mesh Refinement
@@ -102,23 +102,23 @@ computed by dividing the variable named rhotheta by the variable named density.
 
 ::
 
-          amr.refinement_indicators = hi_rho lo_theta advdiff
+          erf.refinement_indicators = hi_rho lo_theta advdiff
 
-          amr.hi_rho.max_level = 3
-          amr.hi_rho.value_greater = 1. 2.
-          amr.hi_rho.field_name = density
+          erf.hi_rho.max_level = 3
+          erf.hi_rho.value_greater = 1. 2.
+          erf.hi_rho.field_name = density
 
-          amr.lo_theta.max_level = 1
-          amr.lo_theta.value_less = 300
-          amr.lo_theta.field_name = rhotheta
-          amr.lo_theta.in_box_lo = .25 .25 .25
-          amr.lo_theta.in_box_hi = .75 .75 .75
+          erf.lo_theta.max_level = 1
+          erf.lo_theta.value_less = 300
+          erf.lo_theta.field_name = rhotheta
+          erf.lo_theta.in_box_lo = .25 .25 .25
+          erf.lo_theta.in_box_hi = .75 .75 .75
 
-          amr.advdiff.max_level = 2
-          amr.advdiff.adjacent_difference_greater = 0.01
-          amr.advdiff.field_name = rhoadv_0
-          amr.advdiff.start_time = 0.001
-          amr.advdiff.end_time = 0.002
+          erf.advdiff.max_level = 2
+          erf.advdiff.adjacent_difference_greater = 0.01
+          erf.advdiff.field_name = rhoadv_0
+          erf.advdiff.start_time = 0.001
+          erf.advdiff.end_time = 0.002
 
 Coupling Types
 --------------
@@ -130,13 +130,57 @@ ERF supports both one-way and two-coupling; this is a run-time input
       erf.coupling_type = "OneWay" or "TwoWay"
 
 By one-way coupling, we mean that between each pair of refinement levels,
-the coarse mesh communicates Dirichlet data to the fine mesh in the form of ghost cell
-data (outside of the valid fine region) for cell-centered quantities, and face-baced normal
-momenta on the coarse-fine interface.  In both of these, the coarse data is conservatively
-interpolated to the fine mesh.
+only the coarse mesh communicates data to the fine mesh. For cell-centered quantities,
+and face-baced normal momenta on the coarse-fine interface, the coarse data is conservatively
+interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
+(outside of the valid fine region) as well as specify and relax data inside the lateral boundaries
+of the fine region. More specifically, a user may specify the total width of the interior
+Dirichlet and relaxation region with ``erf.cf_width = <Int>`` (yellow + blue)
+and analogously the width of the interior Dirichlet region may be specified with
+``erf.cf_set_width = <Int>`` (yellow).
 
-By two-way coupling, we mean that in additional to the one-way coupling operations, the fine mesh
-communicates data back to the coarse mesh in two ways:
+.. |wrfbdy| image:: figures/wrfbdy_BCs.png
+           :width: 600
+
+.. _fig:Lateral BCs
+
+.. table:: Lateral boundaries with OneWay coupling
+
+   +-----------------------------------------------------+
+   |                     |wrfbdy|                        |
+   +-----------------------------------------------------+
+   |  Image taken from `Skamarock et al. (2021)`_        |
+   +-----------------------------------------------------+
+
+.. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
+
+Within the interior Dirichlet region (yellow), the RHS is exactly 0. However, within the relaxation region (blue),
+the RHS (:math:`F`) is given by the following:
+
+.. math::
+
+   \begin{align}
+   F &= G + R, \\
+   \psi^{\prime} &= \psi^{n} + \Delta t \; G, \\
+   R &= H_{1} \left( \psi^{FP} - \psi^{\prime} \right) - H_{2} \Delta^2 \left( \psi^{FP} - \psi^{\prime} \right), \\
+   H_{1} &= \frac{1}{10 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1}, \\
+   H_{2} &= \frac{1}{50 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1},
+   \end{align}
+
+where :math:`G` is the RHS of the NS equations, :math:`\psi^{\prime}` is the predicted update without
+relaxation, :math:`\psi^{FP}` is the fine patch data obtained from space-time interpolation of the
+coarse mesh, and :math:`n` is the minimum number of grid point from a lateral boundary. The set and
+relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
+on the fine mesh. Finally, we note that time dependent Dirichlet data, provided via an external boundary file,
+may be enforced on the lateral boundary conditions of the domain (coarsest mesh). For such cases,
+the relaxation region width at the domain edges may be specified with ``erf.wrfbdy_width = <Int>``
+(yellow + blue) while the interior Dirichlet region may be specified with ``erf.wrfbdy_set_width = <Int>``
+(yellow). With the boundary file approach, all dycore variables are set and relaxed but
+moisture is only set in the yellow region if it is present within the boundary file.
+
+
+By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),
+the fine mesh communicates data back to the coarse mesh in two ways:
 
 - The fine cell-centered data is conservatively averaged onto the coarse mesh covered by fine mesh.
 

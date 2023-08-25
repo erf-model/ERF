@@ -153,12 +153,9 @@ ERF::ReadNCCheckpointFile ()
     ncf.var("dt")   .get(dt.data(),    {0}, {static_cast<long unsigned int>(ndt)});
     ncf.var("t_new").get(t_new.data(), {0}, {static_cast<long unsigned int>(ntime)});
 
-    int ngrow_state = ComputeGhostCells(solverChoice.horiz_spatial_order,
-                                        solverChoice.vert_spatial_order,
-                                        solverChoice.use_NumDiff)+1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice.horiz_spatial_order,
-                                        solverChoice.vert_spatial_order,
-                                        solverChoice.use_NumDiff);
+    int ngrow_state = ComputeGhostCells(solverChoice) + 1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice);
+
     for (int lev = 0; lev <= finest_level; ++lev) {
 
         int num_box = static_cast<int>(ncf.dim("Nbox_"+std::to_string(lev)).len());

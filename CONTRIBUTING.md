@@ -5,7 +5,7 @@ Development generally follows the following ideas:
   * New features are merged into to the `development` branch using
     Pull Requests (PRs).
 
-    Regression testing is used to ensure that no answers
+    Nightly regression testing is used to ensure that no answers
     change (or if they do, that the changes were expected).
 
   * Bug fixes, questions and contributions of new features are welcome!
@@ -18,7 +18,7 @@ Development generally follows the following ideas:
          details on how this process works.
 
          In general we squash commits upon merge to have a clean history.
-         *Please ensure that your PR title and first post are descriptive,
+         *Please ensure that your PR title and description are descriptive,
          since these will be used for a squashed commit message.*
 
          Please note the following:
@@ -28,6 +28,11 @@ Development generally follows the following ideas:
             incorporate into other computer software,
             distribute, and sublicense such enhancements or derivative works
             thereof, in binary and source code form.
+
+  * On the first workday of each month, we make a tagged release.  The merge window into
+    `development` is closed a few days before the release day.  While the merge window is closed,
+    only bug fixes should be merged into `development`.  Once the release is done, the merge window
+    reopens.
 
 ## Git workflow
 
@@ -46,61 +51,60 @@ your fork.
 `development` on the main ERF repository.
 
 First, let us setup your local git repo. To make your own fork of the main
-(`upstream`) repository, press the fork button on the [ERF Github page](https://github.com/erf-model/ERF).
+repository, press the fork button on the [ERF Github page](https://github.com/erf-model/ERF).
 
-Then, clone your fork on your local computer. If you plan on doing a lot of ERF development,
+Then, clone ERF on your local computer. If you plan on doing a lot of ERF development,
 we recommend configuring your clone to use ssh access so you won't have to enter your Github
 password every time, which you can do using these commands:
 
 ```
-git clone --branch development git@github.com:<myGithubUsername>/ERF.git
-
-# Then, navigate into your repo, add a new remote for the main ERF repo, and fetch it:
+git clone git@github.com:erf-model/ERF.git
 cd ERF
-git remote add upstream https://github.com/erf-model/ERF
-git remote set-url --push upstream git@github.com:<myGithubUsername>/ERF.git
-git fetch upstream
 
-# We recommend setting your development branch to track the upstream one instead of your fork:
-git branch -u upstream/development
+# Add your own fork.
+# Here <Jane> is the name you give to your fork. It does not need to be your github name.
+# <myGithubUsername> is your GitHub name.
+git remote add <Jane> git@github.com:<myGithubUsername>/ERF.git
+git fetch <Jane>
+
+# Don't push to the main repo. Instead pushes go to your fork.
+git remote set-url --push origin git@github.com:<myGithubUsername>/ERF.git
 ```
 
-For instructions on setting up SSH access to your Github account on a new machine, see [here.](https://docs.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
+For instructions on setting up SSH access to your Github account on a new
+machine, see
+[here.](https://docs.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
 
 If you instead prefer to use HTTPS authentication, configure your local clone as follows:
 
 ```
-git clone --branch development https://github.com/<myGithubUsername>/ERF.git
-
-# Navigate into your repo, add a new remote for the main ERF repo, and fetch it
+git clone https://github.com/erf-model/ERF.git
 cd ERF
-git remote add upstream https://github.com/erf-model/ERF
-git remote set-url --push upstream https://github.com/<myGithubUsername>/ERF.git
-git fetch upstream
 
-# We recommend setting your development branch to track the upstream one instead of your fork:
-git branch -u upstream/development
+# Add your own fork.
+# Here <Jane> is the name you give to your fork. It does not need to be your github name.
+# <myGithubUsername> is your GitHub name.
+git remote add <Jane> https://github.com/<myGithubUsername>/ERF.git
+git fetch <Jane>
+
+# Don't push to the main repo. Instead pushes go to your fork.
+git remote set-url --push origin https://github.com/<myGithubUsername>/ERF.git
 ```
 
 Now you are free to play with your fork (for additional information, you can visit the
 [Github fork help page](https://help.github.com/en/articles/fork-a-repo)).
 
 > Note: you do not have to re-do the setup above every time.
-> Instead, in the future, you need to update the `development` branch
-> on your fork with
-> ```
-> git checkout development
-> git pull
-> ```
 
 Make sure you are on the `development` branch with
 ```
 git checkout development
+git pull
 ```
 in the ERF directory.
 
 Create a branch `<branch_name>` (the branch name should reflect the piece
-of code you want to add, like `add_new_physics`) with
+of code you want to add, like `high_order_interpolation`) with
 ```
 git checkout -b <branch_name>
 ```
@@ -122,14 +126,15 @@ follow the developments and identify bugs.
 For the moment, commits are on your local repo only. You can push them to
 your fork with
 ```
-git push -u origin <branch_name>
+git push -u <Jane> <branch_name>
 ```
 
 If you want to synchronize your branch with the `development` branch (this is useful
 when `development` is being modified while you are working on
 `<branch_name>`), you can use
 ```
-git pull upstream development
+# merge ERF main repo's development into current branch
+git pull origin development
 ```
 and fix any conflicts that may occur.
 
@@ -174,7 +179,7 @@ git branch -D <branch_name>
 
 and you can delete the remote one on your fork with
 ```
-git push origin --delete <branch_name>
+git push <Jane> --delete <branch_name>
 ```
 
 Generally speaking, you want to follow the following rules.
@@ -185,49 +190,18 @@ Generally speaking, you want to follow the following rules.
 
   * Do not commit in your `development` branch that tracks ERF `development` branch.
 
-  * Always create a new branch based off `development` branch for each pull request, unless you are
-    going to use git to fix it later.
+  * Always create a new branch based off the latest `development` branch for
+    each pull request, unless you are going to use git to fix it later.
 
 If you have accidentally committed in `development` branch, you can fix it as follows,
 ```
-git checkout -b new_branch
+git checkout -b new_branch # save your changes in a branch
 git checkout development
-git reset HEAD~2  # Here 2 is the number of commits you have accidentally committed in development
-git checkout .
+git fetch origin
+git reset --hard origin/development
 ```
 After this, the local `development` should be in sync with ERF `development` and your recent
 commits have been saved in `new_branch` branch.
-
-If for some reason your PR branch has diverged from ERF, you can try to fix it as follows.  Before
-you try it, you should back up your code in case things might go wrong.
-```
-git fetch upstream   # assuming upstream is the remote name for the official ERF repo
-git checkout -b xxx upstream/development  # replace xxx with whatever name you like
-git branch -D development
-git checkout -b development upstream/development
-git checkout xxx
-git merge yyy  # here yyy is your PR branch with unclean history
-git rebase -i upstream/development
-```
-You will see something like below in your editor,
-```
-pick 7451d9d commit message a
-pick c4c2459 commit message b
-pick 6fj3g90 commit message c
-```
-This now requires a bit of knowledge on what those commits are, which commits have been merged,
-which commits are actually new.  However, you should only see your only commits.  So it should be
-easy to figure out which commits have already been merged.  Assuming the first two commits have been
-merged, you can drop them by replace `pick` with `drop`,
-```
-drop 7451d9d commit message a
-drop c4c2459 commit message b
-pick 6fj3g90 commit message c
-```
-After saving and then exiting the editor, `git log` should show a clean history based on top of
-`development` branch.  You can also do `git diff yyy..xxx` to make sure nothing new was dropped.  If
-all goes well, you can submit a PR using `xxx` branch.
-Don't worry, if something goes wrong during the rebase, you an always `git rebase --abort` and start over.
 
 ## ERF Coding Style Guide
 
@@ -255,9 +229,8 @@ ERF developers should adhere to the following coding guidelines:
        for (int n=0; n<10; ++n)
           Print() << "Not like this.";
 ```
-  * Add a space after the function name and before the
-parenthesis of the parameter list (but
-not when simply calling the function). For example:
+  * When declaring and defining a function, add a space after the function name and before the
+parenthesis of the parameter list (but not when simply calling the function). For example:
 ```cpp
         void CorrectFunctionDec (int input)
 ```
@@ -272,56 +245,3 @@ not when simply calling the function). For example:
 ```
 These guidelines should be adhered to in new contributions to ERF, but
 please refrain from making stylistic changes to unrelated sections of code in your PRs.
-
-### Fixing Style Issues
-
-On any pull request, or any new commits to an open pull request that trigger
-the ERF CI tests, ERF will run style checks. These checks ensure the developer
-is using spaces instead of tabs and has not inserted any whitespace at the end
-of source lines.
-
-We require pull requests to pass these style checks before merging. If failures
-arise, there is an easy way to automatically fix style issues like this by
-running the following shell commands from the main ERF repository.
-
-For removing whitespace at the end of lines:
-
-```
-$ .github/workflows/style/check_trailing_whitespaces.sh
-```
-
-For replacing tabs with 4 spaces:
-
-```
-$ .github/workflows/style/check_tabs.sh
-```
-
-These commands will modify your local source files, so it is best to run these
-commands after committing your local changes and then add and commit the style
-changes that result.
-
-These commands will also output a git diff that shows the changes made by the
-style scripts.
-
-### API Documentation Using Doxygen
-
-The Doxygen documentation is designed for advanced user-developers. It aims
-to maximize the efficiency of a search-and-find style of locating information.
-Doxygen style comment blocks should proceed the namespace, class, function, etc.
-to be documented where appropriate. For example:
-```cpp
-   /**
-    * \brief A one line description.
-    *
-    * \param[in] variable A short description of the variable.
-    * \param[inout] data The value of data is read and changed.
-    *
-    * A longer description can be included here.
-    */
-
-    void MyFunction (int variable, MultiFab& data){
-    ...
-```
-Additional information regarding Doxygen comment formatting can be found
-in the [Doxygen Manual](https://www.doxygen.nl/manual/).
-

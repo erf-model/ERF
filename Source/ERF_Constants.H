@@ -1,11 +1,7 @@
-#ifndef ERF_CONSTANTS_H_
-#define ERF_CONSTANTS_H_
+#ifndef _CONSTANTS_H_
+#define _CONSTANTS_H_
 
 #include <AMReX_REAL.H>
-
-/**
- * Constants used in the ERF model
-*/
 
 constexpr amrex::Real PI           = 3.14159265358979323846264338327950288;
 constexpr amrex::Real PIoTwo       = PI/2.0;
@@ -62,15 +58,15 @@ constexpr amrex::Real nzeros       = 3.e6;   // Intersept coeff. for snow
 constexpr amrex::Real nzerog       = 4.e6;   // Intersept coeff. for graupel
 constexpr amrex::Real qp_threshold = 1.e-8;  // minimal rain/snow water content
 
-constexpr amrex::Real boltz  = 1.38065e-23;
-constexpr amrex::Real avogad = 6.02214e26;
-constexpr amrex::Real mwdair = 28.966;
-constexpr amrex::Real mwwv   = 18.016;
-constexpr amrex::Real lcond  = 2.501e6;
-constexpr amrex::Real lfus   = 2.11727e3;
-constexpr amrex::Real lsub   = lcond+lfus;
-constexpr amrex::Real rgas   = boltz*avogad/mwdair;
-constexpr amrex::Real rv     = rgas/mwwv;
+constexpr amrex::Real boltz    = 1.38065e-23;
+constexpr amrex::Real avogadro = 6.02214e26;
+constexpr amrex::Real mwdair   = 28.966;
+constexpr amrex::Real mwwv     = 18.016;
+constexpr amrex::Real lcond    = 2.501e6;
+constexpr amrex::Real lfus     = 2.11727e3;
+constexpr amrex::Real lsub     = lcond+lfus;
+constexpr amrex::Real rgas     = boltz*avogadro/mwdair;
+constexpr amrex::Real rv       = rgas/mwwv;
 
 constexpr amrex::Real diffelq = 2.21e-05;     // Diffusivity of water vapor, m2/s
 constexpr amrex::Real therco  = 2.40e-02;     // Thermal conductivity of air, J/m/s/K
@@ -84,4 +80,14 @@ constexpr amrex::Real crain = b_rain / 4.0;
 constexpr amrex::Real csnow = b_snow / 4.0;
 constexpr amrex::Real cgrau = b_grau / 4.0;
 
+constexpr amrex::Real latvap   = 2.5e6;     // Latent heat of vaporization (J/kg)
+constexpr amrex::Real latice   = 3.337e5;   // latent heat of fusion (J/kg)
+constexpr amrex::Real Rd_on_Rv = R_d/R_v;
+constexpr amrex::Real tmelt    = 273.15;  // melting temp.
+constexpr amrex::Real h2otrip  = 273.15;  // Triple point temperature of water (K)
+constexpr amrex::Real tboil    = 373.16;  // Boiling point of water at 1 atm (K)
+constexpr amrex::Real ttrice   = 20.00;   // transition range from es over H2O to es over ice
+constexpr amrex::Real epsilo   = Rd_on_Rv;
+constexpr amrex::Real omeps    = 1. - epsilo;
+constexpr amrex::Real rhoh2o   = 1.000e3;  // density of liquid water
 #endif

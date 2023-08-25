@@ -273,7 +273,8 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_pw   = sumToLine(mf_out,20,1,domain,zdir);
 
     // Divide by the total number of cells we are averaging over
-    for (int k = 0; k < h_avg_u.size(); ++k) {
+    int h_avg_u_size = static_cast<int>(h_avg_u.size());
+    for (int k = 0; k < h_avg_u_size; ++k) {
         h_avg_rho[k] /= area_z;  h_avg_ksgs[k] /= area_z;
         h_avg_th[k]  /= area_z;  h_avg_thth[k] /= area_z;
         h_avg_uu[k]  /= area_z;  h_avg_uv[k]   /= area_z;  h_avg_uw[k]  /= area_z;

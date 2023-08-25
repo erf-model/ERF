@@ -41,12 +41,14 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = false
 
+erf.dryscal_horiz_adv_type = "Centered_2nd"
+erf.dryscal_vert_adv_type  = "Centered_2nd"
+erf.moistscal_horiz_adv_type = "Centered_2nd"
+erf.moistscal_vert_adv_type  = "Centered_2nd"
+
 erf.les_type         = "None"
 erf.molec_diff_type  = "None"
 erf.dynamicViscosity = 0.0
-
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

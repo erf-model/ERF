@@ -54,6 +54,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   amrex::Real estdt_lowM = 1.e20;
 
   auto const dxinv = geom[level].InvCellSizeArray();
+  auto const dzinv = 1.0 / dz_min;
 
   MultiFab const& S_new = vars_new[level][Vars::cons];
 
@@ -63,6 +64,8 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
       Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
                                &vars_new[level][Vars::yvel],
                                &vars_new[level][Vars::zvel]});
+
+  int l_no_substepping = solverChoice.no_substepping;
 
   Real estdt_comp_inv = amrex::ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
@@ -81,9 +84,19 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
                amrex::Real pressure = getPgivenRTh(rhotheta);
                amrex::Real c = std::sqrt(Gamma * pressure / rho);
 
-               new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                        ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                        ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv[2]), new_comp_dt);
+               // If we are not doing the acoustic substepping, then the z-direction contributes
+               //    to the computation of the time step
+               if (l_no_substepping) {
+                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                            ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+
+               // If we are     doing the acoustic substepping, then the z-direction does not contribute
+               //    to the computation of the time step
+               } else {
+                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+               }
            });
            return new_comp_dt;
        });
@@ -119,6 +132,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
             amrex::Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
         }
     }
+
     if (fixed_dt > 0.0) {
         amrex::Print() << "Based on cfl of 1.0 " << std::endl;
         amrex::Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
@@ -143,7 +157,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   }
 
   // Force time step ratio to be an even value
-  if (force_stage1_single_substep) {
+  if (solverChoice.force_stage1_single_substep) {
       if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
   } else {
       if ( dt_fast_ratio%6 != 0) {
@@ -159,7 +173,7 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
   if (fixed_dt > 0.0) {
     return fixed_dt;
   } else {
-    if (no_substepping) {
+    if (l_no_substepping) {
         return estdt_comp;
     } else {
         return estdt_lowM;

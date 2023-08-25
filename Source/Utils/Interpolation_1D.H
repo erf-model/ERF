@@ -48,16 +48,12 @@ amrex::Real interpolate_1d(const amrex::Real* alpha, const amrex::Real* beta,
     else //extrapolate
     {
         // y = y0 + ((x - x0) / (x1 - x0)) * (y1 - y0)
-        int i;
+        int i = 0;
         if (alpha_interp > alpha_max)
         {
             i = alpha_size-2;
         }
-        else if (alpha_interp < alpha_min)
-        {
-            i = 0;
-        }
-        else
+        else if (alpha_interp >= alpha_min)
         {
             amrex::Abort("interpolate_1d: we shouldn't be here!");
         }

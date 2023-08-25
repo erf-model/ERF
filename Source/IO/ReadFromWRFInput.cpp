@@ -5,7 +5,9 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput(int lev, const std::string& fname,
+read_from_wrfinput(int lev,
+                   const Box& domain,
+                   const std::string& fname,
                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
@@ -50,15 +52,15 @@ read_from_wrfinput(int lev, const std::string& fname,
     NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 16
     NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 17
 #if defined(ERF_USE_MOISTURE)
-    NC_fabs.push_back(&NC_QVAPOR_fab);      NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 18
-    NC_fabs.push_back(&NC_QCLOUD_fab);      NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 19
-    NC_fabs.push_back(&NC_QRAIN_fab);      NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 20
+    NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 18
+    NC_fabs.push_back(&NC_QCLOUD_fab);    NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 19
+    NC_fabs.push_back(&NC_QRAIN_fab);     NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 20
 # elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
 
     // Read the netcdf file and fill these FABs
     amrex::Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile(fname, NC_names, NC_dim_types, NC_fabs);
+    BuildFABsFromNetCDFFile(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
     //
     // Convert the velocities using the map factors

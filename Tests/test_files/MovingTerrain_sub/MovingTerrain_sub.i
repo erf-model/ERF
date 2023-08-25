@@ -49,9 +49,6 @@ erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 erf.buoyancy_type = 1
 
 # MULTILEVEL

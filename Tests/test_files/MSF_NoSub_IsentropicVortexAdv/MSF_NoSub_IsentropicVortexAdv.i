@@ -48,9 +48,6 @@ erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 1.0
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 # PROBLEM PARAMETERS
 prob.p_inf = 1e5  # reference pressure [Pa]
 prob.T_inf = 300. # reference temperature [K]

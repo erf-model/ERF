@@ -15,26 +15,20 @@ AMREX_FORCE_INLINE
 amrex::Real
 interpolatedVal (amrex::Real avg1,  amrex::Real avg2,  amrex::Real avg3,
                  amrex::Real diff1, amrex::Real diff2, amrex::Real diff3,
-                 amrex::Real scaled_upw, int spatial_order)
+                 amrex::Real scaled_upw, const AdvType adv_type)
 {
-    amrex::Real myInterpolatedVal;
-    switch (spatial_order) {
-        case 2:
-            myInterpolatedVal = 0.5 * avg1;
-            break;
-        case 3:
-            myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2 + (scaled_upw/12.0)*(diff2 - 3.0*diff1);
-            break;
-        case 4:
-            myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2;
-            break;
-        case 5:
-            myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3
-                              -(scaled_upw/60.0)*(diff3 - 5.0*diff2 + 10.0*diff1);
-            break;
-        case 6:
-            myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3;
-            break;
+    amrex::Real myInterpolatedVal(0.);
+    if (adv_type == AdvType::Centered_2nd) {
+        myInterpolatedVal = 0.5 * avg1;
+    } else if (adv_type == AdvType::Upwind_3rd) {
+        myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2 + (scaled_upw/12.0)*(diff2 - 3.0*diff1);
+    } else if (adv_type == AdvType::Centered_4th) {
+        myInterpolatedVal = (7.0/12.0)*avg1 -(1.0/12.0)*avg2;
+    } else if (adv_type == AdvType::Upwind_5th) {
+        myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3
+                          -(scaled_upw/60.0)*(diff3 - 5.0*diff2 + 10.0*diff1);
+    } else if (adv_type == AdvType::Centered_6th) {
+        myInterpolatedVal = (37.0/60.0)*avg1 -(2.0/15.0)*avg2 +(1.0/60.0)*avg3;
     }
     return myInterpolatedVal;
 }
@@ -43,10 +37,10 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
-                int qty_index, amrex::Real upw, int spatial_order)
+                int qty_index, amrex::Real upw, const AdvType adv_type)
 {
 
-    if (spatial_order == 2) {
+    if (adv_type == AdvType::Centered_2nd) {
         return 0.5 * (qty(i,j,k,qty_index) + qty(i-1,j,k,qty_index));
     } else {
 
@@ -62,12 +56,12 @@ InterpolateInX (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         diff1 = (qty(i, j, k, qty_index) - qty(i-1, j, k, qty_index));
         avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
         diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
             diff3 = (qty(i+2, j, k, qty_index) - qty(i-3, j, k, qty_index));
         }
-        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,adv_type);
     }
 }
 
@@ -75,9 +69,9 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
-                int qty_index, amrex::Real upw, int spatial_order)
+                int qty_index, amrex::Real upw, const AdvType adv_type)
 {
-    if (spatial_order == 2) {
+    if (adv_type == AdvType::Centered_2nd) {
         return 0.5 * (qty(i,j,k,qty_index) + qty(i,j-1,k,qty_index));
     } else {
 
@@ -93,12 +87,12 @@ InterpolateInY (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
         avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
         diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
             diff3 = (qty(i, j+2, k, qty_index) - qty(i, j-3, k, qty_index));
         }
-        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,adv_type);
     }
 }
 
@@ -106,9 +100,9 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty,
-                int qty_index, amrex::Real upw, int spatial_order)
+                int qty_index, amrex::Real upw, const AdvType adv_type)
 {
-    if (spatial_order == 2) {
+    if (adv_type == AdvType::Centered_2nd) {
         return 0.5 * (qty(i,j,k,qty_index) + qty(i,j,k-1,qty_index));
     } else {
 
@@ -123,12 +117,12 @@ InterpolateInZ (int i, int j, int k, const amrex::Array4<const amrex::Real>& qty
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
         avg2  = (qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
         diff2 = (qty(i, j, k+1, qty_index) - qty(i, j, k-2, qty_index));
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i, j, k+2, qty_index) + qty(i, j, k-3, qty_index));
             diff3 = (qty(i, j, k+2, qty_index) - qty(i, j, k-3, qty_index));
         }
-        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+        return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,adv_type);
     }
 }
 
@@ -137,8 +131,8 @@ AMREX_FORCE_INLINE
 amrex::Real
 InterpolatePertFromCell (int i, int j, int k,
                          const amrex::Array4<const amrex::Real>& qty,
-                         int qty_index, amrex::Real upw, Coord coordDir, int spatial_order,
-                         const amrex::Array4<const amrex::Real>& r0_arr)
+                         int qty_index, amrex::Real upw, Coord coordDir,
+                         const AdvType adv_type, const amrex::Array4<const amrex::Real>& r0_arr)
 {
     amrex::Real avg1 = 0.; amrex::Real avg2 = 0.; amrex::Real avg3 = 0.;
     amrex::Real diff1 = 0.; amrex::Real diff2 = 0.; amrex::Real diff3 = 0.;
@@ -152,13 +146,13 @@ InterpolatePertFromCell (int i, int j, int k,
         avg1  = (qty(i  , j, k, qty_index) + qty(i-1, j, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i-1,j,k));
         diff1 = (qty(i  , j, k, qty_index) - qty(i-1, j, k, qty_index));
-        if (spatial_order > 2)
+        if (adv_type != AdvType::Centered_2nd)
         {
             avg2  = (qty(i+1, j, k, qty_index) + qty(i-2, j, k, qty_index));
             avg2 -= (r0_arr(i+1,j,k) + r0_arr(i-2,j,k));
             diff2 = (qty(i+1, j, k, qty_index) - qty(i-2, j, k, qty_index));
         }
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i+2, j, k, qty_index) + qty(i-3, j, k, qty_index));
             avg3 -= (r0_arr(i+2,j,k) + r0_arr(i-3,j,k));
@@ -168,13 +162,13 @@ InterpolatePertFromCell (int i, int j, int k,
         avg1  = (qty(i, j  , k, qty_index) + qty(i, j-1, k, qty_index));
         avg1 -= (r0_arr(i,j,k) + r0_arr(i,j-1,k));
         diff1 = (qty(i, j  , k, qty_index) - qty(i, j-1, k, qty_index));
-        if (spatial_order > 2)
+        if (adv_type != AdvType::Centered_2nd)
         {
             avg2  = (qty(i, j+1, k, qty_index) + qty(i, j-2, k, qty_index));
             avg2 -= (r0_arr(i,j+1,k) + r0_arr(i,j-2,k));
             diff2 = (qty(i, j+1, k, qty_index) - qty(i, j-2, k, qty_index));
         }
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i, j+2, k, qty_index) + qty(i, j-3, k, qty_index));
             avg3 -= (r0_arr(i,j+2,k) + r0_arr(i,j-3,k));
@@ -185,14 +179,15 @@ InterpolatePertFromCell (int i, int j, int k,
         diff1 = (qty(i, j, k  , qty_index) - qty(i, j, k-1, qty_index));
         avg1  -= (r0_arr(i,j,k) + r0_arr(i,j,k-1));
         diff1 -= (r0_arr(i,j,k) - r0_arr(i,j,k-1));
-        if (spatial_order > 2)
+
+        if (adv_type != AdvType::Centered_2nd)
         {
             avg2  = (qty(i, j, k+1, qty_index) + qty(i, j, k-2, qty_index));
             diff2 = (qty(i, j, k+1, qty_index) - qty(i, j, k-2, qty_index));
             avg2  -= (r0_arr(i,j,k+1) + r0_arr(i,j,k-2));
             diff2 -= (r0_arr(i,j,k+1) - r0_arr(i,j,k-2));
         }
-        if (spatial_order > 4)
+        if (adv_type == AdvType::Upwind_5th || adv_type == AdvType::Centered_6th)
         {
             avg3  = (qty(i, j, k+2, qty_index) + qty(i, j, k-3, qty_index));
             diff3 = (qty(i, j, k+2, qty_index) - qty(i, j, k-3, qty_index));
@@ -201,16 +196,16 @@ InterpolatePertFromCell (int i, int j, int k,
         }
     }
 
-    return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,spatial_order);
+    return interpolatedVal(avg1,avg2,avg3,diff1,diff2,diff3,scaled_upw,adv_type);
 }
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 InterpolateDensityPertFromCellToFace (int i, int j, int k, const amrex::Array4<const amrex::Real>& cons_in,
-                                      amrex::Real upw, Coord coordDir, int spatial_order,
+                                      amrex::Real upw, Coord coordDir, const AdvType adv_type,
                                       const amrex::Array4<const amrex::Real>& r0_arr)
 {
-    return InterpolatePertFromCell(i, j, k, cons_in, Rho_comp, upw, coordDir, spatial_order, r0_arr);
+    return InterpolatePertFromCell(i, j, k, cons_in, Rho_comp, upw, coordDir, adv_type, r0_arr);
 }
 #endif

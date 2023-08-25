@@ -9,6 +9,6 @@ amr.regrid_int      = 2 2 2 2     # how often to regrid
 amr.n_error_buf     = 2 2 2 2     # number of buffer cells in error est
 
 # How to specify a region for static refinement
-amr.refinement_indicators = box1
-amr.box1.in_box_lo = .15 .25
-amr.box1.in_box_hi = .55 .65
+erf.refinement_indicators = box1
+erf.box1.in_box_lo = .15 .25
+erf.box1.in_box_hi = .55 .65

@@ -29,7 +29,8 @@ fill_fab_from_arrays(int iv, Vector<RARRAY>& nc_arrays,
  * @param fab_vars Fab data we are to fill
  */
 void
-BuildFABsFromNetCDFFile(const std::string &fname,
+BuildFABsFromNetCDFFile(const Box& domain,
+                        const std::string &fname,
                         Vector<std::string> nc_var_names,
                         Vector<enum NC_Data_Dims_Type> NC_dim_types,
                         Vector<amrex::FArrayBox*> fab_vars)
@@ -66,13 +67,17 @@ BuildFABsFromNetCDFFile(const std::string &fname,
 
         ParallelDescriptor::Bcast(tmp.dataPtr(), tmp.size(), ioproc);
 
-#ifdef AMREX_USE_GPU
+        // Shift box by the domain lower corner
+        Box  fab_bx = tmp.box();
+        Dim3 dom_lb = lbound(domain);
+        fab_bx += IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
         // fab_vars points to data on device
-        // tmp      holds data on every MPI rank on host
-        fab_vars[iv]->resize(tmp.box(),1);
+        fab_vars[iv]->resize(fab_bx,1);
+#ifdef AMREX_USE_GPU
         Gpu::copy(Gpu::hostToDevice, tmp.dataPtr(), tmp.dataPtr() + tmp.size(), fab_vars[iv]->dataPtr());
 #else
-        *(fab_vars[iv]) = std::move(tmp);
+        // Provided by BaseFab inheritance through FArrayBox
+        fab_vars[iv]->copy(tmp,tmp.box(),0,fab_bx,0,1);
 #endif
     }
 }

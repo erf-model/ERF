@@ -53,8 +53,10 @@ erf.molec_diff_type  = "Constant"
 erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 0.0
 
-erf.horiz_spatial_order = 6
-erf.vert_spatial_order = 6
+erf.dycore_horiz_adv_type  = Centered_6th
+erf.dycore_vert_adv_type   = Centered_6th
+erf.dryscal_horiz_adv_type = Centered_6th
+erf.dryscal_vert_adv_type  = Centered_6th
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

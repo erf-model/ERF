@@ -3,7 +3,7 @@
 
 /**
  * Function for computing the advective tendency for the x-component of momentum
- * without metric terms and for spatial order > 2
+ * without metric terms and for higher-order stencils
  *
  * @param[in] i,j,k indices of x-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -13,8 +13,6 @@
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -30,8 +28,6 @@ AdvectionSrcForXMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v)
 {
-    //used when spatial order > 2
-
     amrex::Real advectionSrc;
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -43,8 +39,10 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     amrex::Real yflux_hi; amrex::Real yflux_lo;
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
-    amrex::Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_2   = 1. / mf_v(i-1,j+1,0); amrex::Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_4 = 1. / mf_v(i-1,j  ,0);
+    amrex::Real mf_u_inv_hi = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_mid = 1. / mf_u(i  ,j  ,0);
+    amrex::Real mf_u_inv_lo = 1. / mf_u(i-1,j  ,0);
+    amrex::Real mf_v_inv_1  = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_2 = 1. / mf_v(i-1,j+1,0);
+    amrex::Real mf_v_inv_3  = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_4 = 1. / mf_v(i-1,j  ,0);
 
     amrex::Real interp_hi(0.), interp_lo(0.);
 
@@ -78,7 +76,7 @@ AdvectionSrcForXMom_N (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the y-component of momentum
- * without metric terms and for spatial order > 2
+ * without metric terms and for higher-order stencils
  *
  * @param[in] i,j,k indices of y-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -88,8 +86,6 @@ AdvectionSrcForXMom_N (int i, int j, int k,
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  */
 template<typename InterpType_H, typename InterpType_V>
 AMREX_GPU_DEVICE
@@ -116,8 +112,10 @@ AdvectionSrcForYMom_N (int i, int j, int k,
     amrex::Real yflux_hi; amrex::Real yflux_lo;
     amrex::Real zflux_hi; amrex::Real zflux_lo;
 
-    amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0); amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
-    amrex::Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_2   = 1. / mf_u(i+1,j-1,0); amrex::Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_4 = 1. / mf_u(i  ,j-1,0);
+    amrex::Real mf_v_inv_hi = 1. / mf_v(i  ,j+1,0); amrex::Real mf_v_inv_mid = 1. / mf_v(i  ,j  ,0);
+    amrex::Real mf_v_inv_lo = 1. / mf_v(i  ,j-1,0);
+    amrex::Real mf_u_inv_1  = 1. / mf_u(i+1,j  ,0); amrex::Real mf_u_inv_2 = 1. / mf_u(i+1,j-1,0);
+    amrex::Real mf_u_inv_3  = 1. / mf_u(i  ,j  ,0); amrex::Real mf_u_inv_4 = 1. / mf_u(i  ,j-1,0);
 
     amrex::Real interp_hi(0.), interp_lo(0.);
 
@@ -151,7 +149,7 @@ AdvectionSrcForYMom_N (int i, int j, int k,
 
 /**
  * Function for computing the advective tendency for the z-component of momentum
- * without metric terms and for spatial order > 2
+ * without metric terms and for higher-order stencils
  *
  * @param[in] i,j,k indices of z-face at which to create tendency
  * @param[in] rho_u x-component of momentum
@@ -162,8 +160,6 @@ AdvectionSrcForYMom_N (int i, int j, int k,
  * @param[in] mf_m map factor on cell centers
  * @param[in] mf_u map factor on x-faces
  * @param[in] mf_v map factor on y-faces
- * @param[in] horiz_spatial_order spatial order to be used for lateral derivatives if not using WENO (2-6)
- * @param[in] vert_spatial_order spatial order to be used for vertical derivatives if not using WENO (2-6)
  * @param[in] domhi_z maximum k value in the domain
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
@@ -182,8 +178,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& mf_m,
                        const amrex::Array4<const amrex::Real>& mf_u,
                        const amrex::Array4<const amrex::Real>& mf_v,
-                       const int vert_spatial_order,
-                       const int domhi_z)
+                       const AdvType vert_adv_type, const int domhi_z)
 {
 
     amrex::Real advectionSrc;
@@ -214,35 +209,50 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     yflux_hi = rho_v_avg_hi * interp_hi;
     yflux_lo = rho_v_avg_lo * interp_lo;
 
-    // If k+1 == domhi_z   and spatial_order >= 3 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,2)
-    // If k+1 == domhi_z-1 and spatial_order >= 5 we would reach to k = domhi_z+2 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    // int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
+    // If k == domhi_z   , l_spatial_order_hi = 2
+    // If k == domhi_z-1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
+    // If k ==         1 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
 
     if (k == domhi_z+1) {
         zflux_hi =  rho_w(i,j,k) * w(i,j,k);
-    } else if (l_spatial_order_hi < vert_spatial_order) {
-        rho_w_avg_hi = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,l_spatial_order_hi);
-        zflux_hi = rho_w_avg_hi * interp_hi;
     } else {
         rho_w_avg_hi = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        interp_w_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
+        if (k == domhi_z)
+        {
+            interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
+        } else if (k == domhi_z-1 || k == 1) {
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+               interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,AdvType::Centered_4th);
+            } else {
+               interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,vert_adv_type);
+            }
+        } else {
+            interp_w_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
+        }
         zflux_hi = rho_w_avg_hi * interp_hi;
     }
 
-    // If k == 1 and spatial_order >= 3 we would reach to k = -1 so we set to spatial_order = min(spatial_order,2)
-    // If k == 2 and spatial_order >= 5 we would reach to k = -1 so we set to spatial_order = min(spatial_order,4)
-    int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
+    // int l_spatial_order_lo = std::min(std::min(vert_spatial_order, 2*(domhi_z+2-k)), 2*k);
+    // If k ==         1 , l_spatial_order_hi = 2
+    // If k ==         2 , l_spatial_order_hi = std::min(vert_spatial_order, 4);
+    // If k == domhi_z   , l_spatial_order_hi = std::min(vert_spatial_order, 4);
 
     if (k == 0) {
         zflux_lo = rho_w(i,j,k) * w(i,j,k);
-    } else if (l_spatial_order_lo < vert_spatial_order) {
-        rho_w_avg_lo = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-        interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,l_spatial_order_lo);
-        zflux_lo = rho_w_avg_lo * interp_lo;
     } else {
         rho_w_avg_lo = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
-        interp_w_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
+        if (k == 1) {
+            interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_2nd);
+        } else if (k == 2 || k == domhi_z) {
+            if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
+                interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_4th);
+            } else {
+                interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,vert_adv_type);
+            }
+        } else {
+            interp_w_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
+        }
         zflux_lo = rho_w_avg_lo * interp_lo;
     }
 
@@ -274,7 +284,7 @@ AdvectionSrcForMomWrapper_N(const amrex::Box& bxx, const amrex::Box& bxy, const 
                             const amrex::Array4<const amrex::Real>& mf_m,
                             const amrex::Array4<const amrex::Real>& mf_u,
                             const amrex::Array4<const amrex::Real>& mf_v,
-                            const int vert_spatial_order,
+                            const AdvType vert_adv_type,
                             const int domhi_z)
 {
     // Instantiate the appropriate structs
@@ -299,7 +309,7 @@ AdvectionSrcForMomWrapper_N(const amrex::Box& bxx, const amrex::Box& bxy, const 
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                    vert_spatial_order, domhi_z);
+                                                    vert_adv_type, domhi_z);
     });
 }
 
@@ -322,39 +332,39 @@ AdvectionSrcForMomVert_N(const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const int vert_spatial_order,
+                         const AdvType vert_adv_type,
                          const int domhi_z)
 {
-    if (vert_spatial_order == 2) {
-        AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND2,UPWINDALL>(bxx, bxy, bxz,
+    if (vert_adv_type == AdvType::Centered_2nd) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,CENTERED2,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 3) {
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND3,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 4) {
-        AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND4,UPWINDALL>(bxx, bxy, bxz,
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Centered_4th) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,CENTERED4,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 5) {
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND5,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
-    } else if (vert_spatial_order == 6) {
-        AdvectionSrcForMomWrapper_N<InterpType_H,UPWIND6,UPWINDALL>(bxx, bxy, bxz,
+                                                                    vert_adv_type, domhi_z);
+    } else if (vert_adv_type == AdvType::Centered_6th) {
+        AdvectionSrcForMomWrapper_N<InterpType_H,CENTERED6,UPWINDALL>(bxx, bxy, bxz,
                                                                     rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                                     rho_u, rho_v, rho_w, u, v, w,
                                                                     cellSizeInv, mf_m, mf_u, mf_v,
-                                                                    vert_spatial_order, domhi_z);
+                                                                    vert_adv_type, domhi_z);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
     }

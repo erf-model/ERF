@@ -47,9 +47,6 @@ erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 5.0
 
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
-
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"
 erf.latitude = 90.

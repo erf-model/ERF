@@ -10,6 +10,7 @@ CEXE_sources += ERF_slow_rhs_post.cpp
 CEXE_sources += ERF_fast_rhs_N.cpp
 CEXE_sources += ERF_fast_rhs_T.cpp
 CEXE_sources += ERF_fast_rhs_MT.cpp
+CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
 
 ifeq ($(USE_WARM_NO_PRECIP),TRUE)
 CEXE_sources += ERF_make_condensation_source.cpp

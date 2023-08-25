@@ -91,33 +91,33 @@ AdvectionSrcForRhoThetaVert_N(const amrex::Box& bx,
                               const amrex::Array4<const amrex::Real>& mf_m,
                               const amrex::Array4<const amrex::Real>& mf_u,
                               const amrex::Array4<const amrex::Real>& mf_v,
-                              const int&  vert_spatial_order)
+                              const AdvType vert_adv_type)
 {
-    if (vert_spatial_order == 2) {
-        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND2>(bx, vbx_hi, fac, advectionSrc,
-                                                               cell_prim, rho_u, rho_v, rho_w,
-                                                               avg_xmom, avg_ymom, avg_zmom,
-                                                               cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_spatial_order == 3) {
+    if (vert_adv_type == AdvType::Centered_2nd) {
+        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED2>(bx, vbx_hi, fac, advectionSrc,
+                                                                 cell_prim, rho_u, rho_v, rho_w,
+                                                                 avg_xmom, avg_ymom, avg_zmom,
+                                                                 cellSizeInv, mf_m, mf_u, mf_v);
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND3>(bx, vbx_hi, fac, advectionSrc,
                                                                cell_prim, rho_u, rho_v, rho_w,
                                                                avg_xmom, avg_ymom, avg_zmom,
                                                                cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_spatial_order == 4) {
-        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND4>(bx, vbx_hi, fac, advectionSrc,
-                                                               cell_prim, rho_u, rho_v, rho_w,
-                                                               avg_xmom, avg_ymom, avg_zmom,
-                                                               cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_spatial_order == 5) {
+    } else if (vert_adv_type == AdvType::Centered_4th) {
+        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED4>(bx, vbx_hi, fac, advectionSrc,
+                                                                 cell_prim, rho_u, rho_v, rho_w,
+                                                                 avg_xmom, avg_ymom, avg_zmom,
+                                                                 cellSizeInv, mf_m, mf_u, mf_v);
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
         AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND5>(bx, vbx_hi, fac, advectionSrc,
                                                                cell_prim, rho_u, rho_v, rho_w,
                                                                avg_xmom, avg_ymom, avg_zmom,
                                                                cellSizeInv, mf_m, mf_u, mf_v);
-    } else if (vert_spatial_order == 6) {
-        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,UPWIND6>(bx, vbx_hi, fac, advectionSrc,
-                                                               cell_prim, rho_u, rho_v, rho_w,
-                                                               avg_xmom, avg_ymom, avg_zmom,
-                                                               cellSizeInv, mf_m, mf_u, mf_v);
+    } else if (vert_adv_type == AdvType::Centered_6th) {
+        AdvectionSrcForRhoThetaWrapper_N<InterpType_H,CENTERED6>(bx, vbx_hi, fac, advectionSrc,
+                                                                 cell_prim, rho_u, rho_v, rho_w,
+                                                                 avg_xmom, avg_ymom, avg_zmom,
+                                                                 cellSizeInv, mf_m, mf_u, mf_v);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
     }
@@ -129,9 +129,7 @@ AdvectionSrcForRhoThetaVert_N(const amrex::Box& bx,
 template<typename InterpType_H, typename InterpType_V>
 void
 AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
-                                const int& ncomp_end,
-                                const int& icomp,
-                                const int& use_terrain,
+                                const int& ncomp, const int& icomp, const int& use_terrain,
                                 const amrex::Array4<      amrex::Real>& advectionSrc,
                                 const amrex::Array4<const amrex::Real>& cell_prim,
                                 const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -146,7 +144,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
     InterpType_V interp_prim_v(cell_prim);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-    amrex::ParallelFor(bx, ncomp_end, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         amrex::Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
         amrex::Real mfsq    = mf_m(i,j,0) * mf_m(i,j,0);
@@ -180,9 +178,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
 template<typename InterpType_H>
 void
 AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
-                             const int& ncomp_end,
-                             const int& icomp,
-                             const int& use_terrain,
+                             const int& ncomp, const int& icomp, const int& use_terrain,
                              const amrex::Array4<      amrex::Real>& advectionSrc,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
@@ -191,33 +187,33 @@ AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const int&  vert_spatial_order)
+                             const AdvType vert_adv_type)
 {
-    if (vert_spatial_order == 2) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND2>(bx, ncomp_end, icomp,
+    if (vert_adv_type == AdvType::Centered_2nd) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED2>(bx, ncomp, icomp,
+                                                                use_terrain, advectionSrc, cell_prim,
+                                                                avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                                cellSizeInv, mf_m);
+    } else if (vert_adv_type == AdvType::Upwind_3rd) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 3) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp_end, icomp,
+    } else if (vert_adv_type == AdvType::Centered_4th) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED4>(bx, ncomp, icomp,
+                                                                use_terrain, advectionSrc, cell_prim,
+                                                                avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                                cellSizeInv, mf_m);
+    } else if (vert_adv_type == AdvType::Upwind_5th) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND5>(bx, ncomp, icomp,
                                                               use_terrain, advectionSrc, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom, detJ,
                                                               cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 4) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND4>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 5) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND5>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
-    } else if (vert_spatial_order == 6) {
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND6>(bx, ncomp_end, icomp,
-                                                              use_terrain, advectionSrc, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom, detJ,
-                                                              cellSizeInv, mf_m);
+    } else if (vert_adv_type == AdvType::Centered_6th) {
+        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED6>(bx, ncomp, icomp,
+                                                                use_terrain, advectionSrc, cell_prim,
+                                                                avg_xmom, avg_ymom, avg_zmom, detJ,
+                                                                cellSizeInv, mf_m);
     } else {
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
     }

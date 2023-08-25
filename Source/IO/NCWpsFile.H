@@ -37,7 +37,8 @@ enum class NC_Data_Dims_Type {
     Time_BdyWidth_WE
 };
 
-void BuildFABsFromNetCDFFile(const std::string &fname,
+void BuildFABsFromNetCDFFile(const amrex::Box& domain,
+                             const std::string &fname,
                              amrex::Vector<std::string> nc_var_names,
                              amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
                              amrex::Vector<amrex::FArrayBox*> fab_vars);

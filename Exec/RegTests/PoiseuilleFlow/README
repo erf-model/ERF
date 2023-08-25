@@ -1,0 +1,6 @@
+This problem setup is for classic Poiseuille flow.  The domain is periodic in the x- and y-directions
+and has no slip walls on the top and bottom. The flow is driven by a pressure gradient in the x- or 
+y-direction.
+
+The Couette flow and Poiseuille flow problems primarily test the implementation of the
+viscous terms, in particular the discretization at the boundaries.

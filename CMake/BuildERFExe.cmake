@@ -36,6 +36,10 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
 
+  if(ERF_ENABLE_PARTICLES)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
+  endif()
+
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCBuildFABs.cpp
@@ -62,6 +66,30 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
+  if(ERF_ENABLE_RRTMGP)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Radiation/Init_rrtmgp.cpp
+                   ${SRC_DIR}/Radiation/Finalize_rrtmgp.cpp
+                   ${SRC_DIR}/Radiation/Run_longwave_rrtmgp.cpp
+                   ${SRC_DIR}/Radiation/Run_shortwave_rrtmgp.cpp
+                   ${SRC_DIR}/Radiation/Cloud_rad_props.cpp
+                   ${SRC_DIR}/Radiation/Aero_rad_props.cpp
+                   ${SRC_DIR}/Radiation/Optics.cpp
+                   ${SRC_DIR}/Radiation/Radiation.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
+                   ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
+                  )
+
+    # The interface code needs to know about the RRTMGP includes 
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
+
+    target_include_directories(${erf_lib_name} SYSTEM PUBLIC 
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/cloud_optics
+                               ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples
+                              )
+  endif()
+
   if(ERF_ENABLE_HDF5)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_HDF5)
   endif()
@@ -70,6 +98,7 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_make_new_level.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
@@ -82,6 +111,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_N.cpp
        ${SRC_DIR}/Diffusion/DiffusionSrcForMom_T.cpp
@@ -115,6 +145,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
@@ -148,6 +179,10 @@ function(build_erf_lib erf_lib_name)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
   endif()
 
+  if(ERF_ENABLE_RRTMGP)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Radiation)
+  endif()
+
   if(ERF_ENABLE_MPI)
     target_link_libraries(${erf_lib_name} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
   endif()
@@ -162,6 +197,11 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
+
+  if(ERF_ENABLE_RRTMGP)
+     target_link_libraries(${erf_lib_name} PUBLIC yakl)
+     target_link_libraries(${erf_lib_name} PUBLIC rrtmgp)
+  endif()
 
   #Link to amrex library
   target_link_libraries_system(${erf_lib_name} PUBLIC amrex)

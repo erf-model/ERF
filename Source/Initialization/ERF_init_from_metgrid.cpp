@@ -11,7 +11,7 @@
 using namespace amrex;
 
 void
-read_from_metgrid(int lev, const std::string& fname,
+read_from_metgrid(int lev, const Box& domain, const std::string& fname,
                   std::string& NC_dateTime, Real& NC_epochTime,
                   int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
                   int& flag_hgt,  int& NC_nx,     int& NC_ny,
@@ -157,7 +157,7 @@ ERF::init_from_metgrid(int lev)
 #ifndef AMREX_USE_GPU
         amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": nc_init_file[" << lev << "][" << it << "]\t" << nc_init_file[lev][it] << std::endl;
 #endif
-        read_from_metgrid(lev, nc_init_file[lev][it],
+        read_from_metgrid(lev, boxes_at_level[lev][0], nc_init_file[lev][it],
                           NC_dateTime[it], NC_epochTime[it],
                           flag_psfc[it],   flag_msfu[it],   flag_msfv[it], flag_msfm[it],
                           flag_hgt[it],    NC_nx[it],       NC_ny[it],

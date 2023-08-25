@@ -75,19 +75,19 @@ The following problems are currently tested in the CI:
 |                               |          |          |          | SlipWall   |       |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order2          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 2     |
+|                               |          |          |          | SlipWall   |       | "Centered_2nd"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order3          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 3     |
+|                               |          |          |          | SlipWall   |       | "Upwind_3rd"          |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order4          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
+|                               |          |          |          | SlipWall   |       | "Centered_4th"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order5          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 4     |
+|                               |          |          |          | SlipWall   |       | "Upwind_5th"          |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarAdvDiff_order6          | 32 32 32 | Periodic | Periodic | SlipWall   | None  | advection + diffusion |
-|                               |          |          |          | SlipWall   |       | spatial_order = 6     |
+|                               |          |          |          | SlipWall   |       | "Centered_6th"        |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | ScalarDiffusionGaussian       | 16 16 16 | Periodic | Periodic | SlipWall   | None  |                       |
 |                               |          |          |          | SlipWall   |       |                       |
@@ -181,9 +181,9 @@ Test Location: `Tests/test_files/ScalarAdvectionUniformU`_
 
 .. _`Tests/test_files/ScalarAdvectionUniformU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionUniformU
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a2| image:: figures/tests/scalar_advec_uniform_u_start.png
         :width: 200
@@ -209,9 +209,9 @@ Test Location: `Tests/test_files/ScalarAdvectionShearedU`_
 
 .. _`Tests/test_files/ScalarAdvectionShearedU`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvectionShearedU
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a3| image:: figures/tests/scalar_advec_sheared_u_start.png
         :width: 200
@@ -238,9 +238,9 @@ Test Location: `Tests/test_files/ScalarDiffusionGaussian`_
 
 .. _`Tests/test_files/ScalarDiffusionGaussian`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionGaussian
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a5| image:: figures/tests/scalar_diff_start.png
         :width: 300
@@ -266,9 +266,9 @@ Test Location: `Tests/test_files/ScalarDiffusionSine`_
 
 .. _`Tests/test_files/ScalarDiffusionSine`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusionSine
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a6| image:: figures/tests/scalar_diff_sine_start.png
         :width: 300
@@ -295,9 +295,9 @@ Test Location (for 2nd order): `Tests/test_files/ScalarAdvDiff_order2`_
 
 .. _`Tests/test_files/ScalarAdvDiff_order2`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarAdvDiff_order2
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 .. |a7| image:: figures/tests/scalar_advec_diff_start.png
         :width: 300
@@ -325,9 +325,9 @@ Test Location: `Tests/test_files/RayleighDamping`_
 
 .. _`Tests/test_files/RayleighDamping`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/RayleighDamping
 
-Problem Location: `Exec/ScalarAdvDiff`_
+Problem Location: `Exec/RegTests/ScalarAdvDiff`_
 
-.. _`Exec/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/ScalarAdvDiff
+.. _`Exec/RegTests/ScalarAdvDiff`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/ScalarAdvDiff
 
 
 Isentropic Vortex: Stationary
@@ -338,9 +338,9 @@ Test Location: `Tests/test_files/IsentropicVortexStationary`_
 
 .. _`Tests/test_files/IsentropicVortexStationary`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexStationary
 
-Problem Location: `Exec/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Isentropic Vortex: Advecting
 ----------------------------
@@ -350,9 +350,9 @@ Test Location: `Tests/test_files/IsentropicVortexAdvecting`_
 
 .. _`Tests/test_files/IsentropicVortexAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IsentropicVortexAdvecting
 
-Problem Location: `Exec/IsentropicVortex`_
+Problem Location: `Exec/RegTests/IsentropicVortex`_
 
-.. _`Exec/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/IsentropicVortex
+.. _`Exec/RegTests/IsentropicVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/IsentropicVortex
 
 Taylor Green Vortex: Advection
 ------------------------------------------------
@@ -362,9 +362,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvecting`_
 
 .. _`Tests/test_files/TaylorGreenAdvecting`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvecting
 
-Problem Location: `Exec/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 Taylor Green Vortex: Advection and Diffusion
 ------------------------------------------------
@@ -374,9 +374,9 @@ Test Location: `Tests/test_files/TaylorGreenAdvectingDiffusing`_
 
 .. _`Tests/test_files/TaylorGreenAdvectingDiffusing`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TaylorGreenAdvectingDiffusing
 
-Problem Location: `Exec/TaylorGreenVortex`_
+Problem Location: `Exec/RegTests/TaylorGreenVortex`_
 
-.. _`Exec/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/TaylorGreenVortex
+.. _`Exec/RegTests/TaylorGreenVortex`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/TaylorGreenVortex
 
 .. |a8| image:: figures/tests/TGV_start.png
         :width: 300
@@ -406,9 +406,9 @@ Test Location: `Tests/test_files/CouetteFlow`_
 
 .. _`Tests/test_files/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow
 
-Problem Location: `Exec/CouetteFlow`_
+Problem Location: `Exec/RegTests/CouetteFlow`_
 
-.. _`Exec/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/CouetteFlow
+.. _`Exec/RegTests/CouetteFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/CouetteFlow
 
 Poiseuille Flow
 ---------------
@@ -422,73 +422,34 @@ Test Location: `Tests/test_files/PoiseuilleFlow`_
 
 .. _`Tests/test_files/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/PoiseuilleFlow
 
-Problem Location: `Exec/PoiseuilleFlow`_
+Problem Location: `Exec/RegTests/PoiseuilleFlow`_
 
-.. _`Exec/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/PoiseuilleFlow
+.. _`Exec/RegTests/PoiseuilleFlow`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/PoiseuilleFlow
 
 Nonlinear Density Current
 ---------------------------
 The density current problem tests the effects of gravity and the behavior at a slip wall.
 
-A detailed description of the problem and a comparison of solutions using a number
-of different codes can be found in the `Straka 1993 paper`_
-
-.. _`Straka 1993 paper`: https://onlinelibrary.wiley.com/doi/10.1002/fld.1650170103
+See :ref:`sec:Verification` for more information.
 
 Test Location: `Tests/test_files/DensityCurrent`_
 
 .. _`Tests/test_files/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/DensityCurrent
 
-Problem Location: `Exec/DensityCurrent`_
+Problem Location: `Exec/RegTests/DensityCurrent`_
 
-.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/DensityCurrent
-
-.. |adc| image:: figures/density_current_600.png
-         :width: 300
-
-.. |bdc| image:: figures/density_current_900.png
-         :width: 300
-
-.. _fig:density_currennt
-
-.. table:: Potential temperature perturbation at 600s and 900s
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |adc|                        |                        |bdc|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Perturbational potential temperature at t = 600s  |   Perturbational potential temperature at t = 900s   |
-   +-----------------------------------------------------+------------------------------------------------------+
+.. _`Exec/DensityCurrent`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/DensityCurrent
 
 Ekman Spiral
 ---------------------------
 The Ekman spiral problem tests the computation of the stress term internally and at no-slip walls, as well as Coriolis and geostrophic forcing.
 
-A description of the problem, including the exact solution, can be found at `Ekman Spiral Description`_
-
-.. _`Ekman Spiral Description`: https://exawind.github.io/amr-wind/developer/verification.html#ekman-spiral
-
-The steady solution is shown below, as well as a log-log plot showing the error scaling as :math:`O(\Delta z^2)`.
+See :ref:`sec:Verification` for more information.
 
 Test Location: `Tests/test_files/EkmanSpiral`_
 
 .. _`Tests/test_files/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/EkmanSpiral
 
-Problem Location: `Exec/EkmanSpiral`_
+Problem Location: `Exec/RegTests/EkmanSpiral`_
 
-.. _`Exec/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/EkmanSpiral_ideal
-
-.. |aek| image:: figures/ekman_spiral_profiles.png
-         :width: 300
-
-.. |bek| image:: figures/ekman_spiral_errors.png
-         :width: 300
-
-.. _fig:ekman_spiral
-
-.. table:: Flow profile and Error
-
-   +-----------------------------------------------------+------------------------------------------------------+
-   |                        |aek|                        |                        |bek|                         |
-   +-----------------------------------------------------+------------------------------------------------------+
-   |   Flow profiles                                     |   Convergence study                                  |
-   +-----------------------------------------------------+------------------------------------------------------+
+.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral_ideal

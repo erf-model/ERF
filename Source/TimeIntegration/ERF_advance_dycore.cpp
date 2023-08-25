@@ -295,7 +295,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_post_update(post_update_fun);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (incompressible) {
+    if (solverChoice.incompressible) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
 #endif
@@ -306,6 +306,14 @@ void ERF::advance_dycore(int level,
     } // profile
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
+
+    // Register coarse data for coarse-fine fill
+    if (level<finest_level && coupling_type=="OneWay" && cf_width>0) {
+        FPr_c[level].registerCoarseData({&cons_old, &cons_new}, {old_time, old_time + dt_advance});
+        FPr_u[level].registerCoarseData({&xvel_old, &xvel_new}, {old_time, old_time + dt_advance});
+        FPr_v[level].registerCoarseData({&yvel_old, &yvel_new}, {old_time, old_time + dt_advance});
+        FPr_w[level].registerCoarseData({&zvel_old, &zvel_new}, {old_time, old_time + dt_advance});
+    }
 
     if (verbose) Print() << "Done with advance_dycore at level " << level << std::endl;
 }

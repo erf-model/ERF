@@ -11,12 +11,12 @@
 
 class MOSTAverage {
 public:
-    explicit MOSTAverage(amrex::Vector<amrex::Geometry>  geom,
-                         amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                         amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
+    explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
+                          amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
     // MOSTAverage() = default;
-    ~MOSTAverage()
+    ~MOSTAverage ()
     {
         for (int lev(0); lev<m_maxlev; ++lev){
             for (int iavg(0); iavg<m_navg; ++iavg) delete m_averages[lev][iavg];
@@ -33,70 +33,70 @@ public:
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    MOSTAverage(MOSTAverage&&)  noexcept = default;
+    MOSTAverage (MOSTAverage&&)  noexcept = default;
 
     // Delete the move assignment operator
     MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
 
     // Delete the copy constructor
-    MOSTAverage(const MOSTAverage& other) = delete;
+    MOSTAverage (const MOSTAverage& other) = delete;
     //
     // Delete the copy assignment operator
     MOSTAverage& operator=(const MOSTAverage& other) = delete;
 
     // Reset the pointers to field MFs
-    void update_field_ptrs(int lev,
+    void update_field_ptrs (int lev,
                            amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim);
 
     // Compute ncells per plane
-    void set_plane_normalization();
+    void set_plane_normalization ();
 
     // Compute ncells per plane
-    void set_region_normalization()
+    void set_region_normalization ()
     {m_ncell_region = (2 * m_radius + 1) * (2 * m_radius + 1) * (2 * m_radius + 1);}
 
     // Populate a 2D iMF k_indx (w/o terrain)
-    void set_k_indices_N();
+    void set_k_indices_N ();
 
     // Populate a 2D iMF k_indx (w/ terrain)
-    void set_k_indices_T();
+    void set_k_indices_T ();
 
     // Populate all 2D iMFs ijk_indx (w/ terrain)
-    void set_norm_indices_T();
+    void set_norm_indices_T ();
 
     // Populate positions (w/ terrain & norm vector & interpolation)
-    void set_z_positions_T();
+    void set_z_positions_T ();
 
     // Populate positions (w/ terrain & norm vector & interpolation)
-    void set_norm_positions_T();
+    void set_norm_positions_T ();
 
     // Driver for the different average policies
-    void compute_averages(int lev);
+    void compute_averages (int lev);
 
     // Fill averages for policy::plane
-    void compute_plane_averages(int lev);
+    void compute_plane_averages (int lev);
 
     // Fill averages for policy::point
-    void compute_region_averages(int lev);
+    void compute_region_averages (int lev);
 
     // Write k indices
-    void write_k_indices(int lev);
+    void write_k_indices (int lev);
 
     // Write ijk indices
-    void write_norm_indices(int lev);
+    void write_norm_indices (int lev);
 
     // Write XZ planar positions
-    void write_xz_positions(int lev, int j);
+    void write_xz_positions (int lev, int j);
 
     // Write averages on 2D mf
-    void write_averages(int lev);
+    void write_averages (int lev);
 
     // Get pointer to the 2D mf of averages
-    [[nodiscard]] const amrex::MultiFab* get_average(int lev, int comp) const { return m_averages[lev][comp]; }
+    [[nodiscard]] const amrex::MultiFab* get_average (int lev, int comp) const { return m_averages[lev][comp]; }
 
     // Get z_ref (may be computed from specified k_indx)
-    [[nodiscard]] amrex::Real get_zref() const { return m_zref; }
+    [[nodiscard]] amrex::Real get_zref () const { return m_zref; }
 
     /**
      * Function to compute trilinear interpolation with terrain.
@@ -112,14 +112,14 @@ public:
      */
     AMREX_GPU_HOST_DEVICE AMREX_INLINE
     static void trilinear_interp_T (const amrex::Real& xp,
-                             const amrex::Real& yp,
-                             const amrex::Real& zp,
-                             amrex::Real* interp_vals,
-                             amrex::Array4<amrex::Real const> const& interp_array,
-                             amrex::Array4<amrex::Real const> const& z_arr,
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
-                             const int interp_comp)
+                                    const amrex::Real& yp,
+                                    const amrex::Real& zp,
+                                    amrex::Real* interp_vals,
+                                    amrex::Array4<amrex::Real const> const& interp_array,
+                                    amrex::Array4<amrex::Real const> const& z_arr,
+                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
+                                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
+                                    const int interp_comp)
     {
         // Search to get z/k
         amrex::Real zval= 0.0;

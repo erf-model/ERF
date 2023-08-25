@@ -58,7 +58,7 @@ jobs:
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_HIP:BOOL=ON \
@@ -159,7 +159,7 @@ jobs:
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_VERBOSE_MAKEFILE=ON                   \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_HIP:BOOL=ON \

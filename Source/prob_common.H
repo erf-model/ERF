@@ -91,6 +91,8 @@ init_custom_terrain (const amrex::Geometry& geom,
                            amrex::MultiFab& z_phys_nd,
                      const amrex::Real& time);
 
+amrex::Real compute_terrain_velocity(const amrex::Real time);
+
 /**
  * Function to define the quantities needed to impose Rayleigh damping
  *

@@ -1,0 +1,94 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 4000
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = 0.   0.  0. 
+geometry.prob_hi     = 10  10  10
+
+amr.n_cell           = 100  100   100   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+xlo.velocity = 1. 0. 0.
+xlo.density  = 1.16
+xlo.theta    = 300.
+xlo.scalar   = 0.
+    
+zlo.type = "SlipWall"
+zhi.type = "Outflow"
+
+erf.sponge_strength = 100.0
+erf.use_xlo_sponge_damping = true
+erf.xlo_sponge_end = 2.0
+erf.use_xhi_sponge_damping = true
+erf.xhi_sponge_start = 8.0
+erf.use_ylo_sponge_damping = true
+erf.ylo_sponge_end = 2.0
+erf.use_yhi_sponge_damping = true
+erf.yhi_sponge_start = 8.0
+erf.use_zhi_sponge_damping = true
+erf.zhi_sponge_start = 8.0
+
+erf.sponge_density = 1.2
+erf.sponge_x_velocity = 10.0
+erf.sponge_y_velocity = 0.0
+erf.sponge_z_velocity = 0.0
+
+
+# TIME STEP CONTROL
+erf.no_substepping     = 1
+#erf.fixed_dt           = 1E-5
+
+erf.cfl = 0.3
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1        # timesteps between computing mass
+erf.v              = 1        # verbosity in ERF.cpp
+amr.v              = 1        # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+erf.refinement_indicators = box1
+erf.box1.max_level = 1
+erf.box1.in_box_lo =   3.   3.
+erf.box1.in_box_hi =   7.   7.
+erf.coupling_type  = "OneWay"
+erf.cf_width = 0 #5
+erf.cf_set_width = 0 #1
+
+# CHECKPOINT FILES
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = -57600  # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 100       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+erf.les_type = "None"
+
+# TERRRAIN GRID TYPE
+erf.use_terrain = true
+erf.terrain_smoothing = 0
+
+# Diffusion coefficient from Straka, K = 75 m^2/s
+erf.molec_diff_type = "ConstantAlpha"
+erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 0.1 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 0.0 # [m^2/s]
+
+# PROBLEM PARAMETERS (optional)
+prob.T_0   = 300.0
+prob.U_0   = 0.0
+prob.rho_0 = 1.16

@@ -27,12 +27,12 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& mf_m,
                                  const amrex::Array4<const amrex::Real>& mf_u,
                                  const amrex::Array4<const amrex::Real>& mf_v,
-                                 const int horiz_spatial_order, const int vert_spatial_order,
+                                 const AdvType horiz_adv_type, const AdvType vert_adv_type,
                                  const int use_terrain);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
 void AdvectionSrcForScalars (const amrex::Box& bx,
-                             const int &icomp, const int &ncomp,
+                             const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
                              const amrex::Array4<const amrex::Real>& avg_ymom,
                              const amrex::Array4<const amrex::Real>& avg_zmom,
@@ -41,12 +41,8 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& detJ,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                              const amrex::Array4<const amrex::Real>& mf_m,
-                             const bool all_use_WENO,
-                             const bool moist_use_WENO,
-                             const bool all_use_WENO_Z,
-                             const bool moist_use_WENO_Z,
-                             const int  spatial_order_WENO,
-                             const int horiz_spatial_order, const int vert_spatial_order, const int use_terrain);
+                             const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                             const int use_terrain);
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
@@ -61,7 +57,47 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-                         const int horiz_spatial_order, const int vert_spatial_order,
+                         const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const int use_terrain, const int domhi_z);
 
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+AdvType
+EfficientAdvType(int nrk, AdvType adv_type)
+{
+     AdvType eff_adv_type;
+
+     if (nrk == 0) {
+
+         eff_adv_type = AdvType::Centered_2nd;
+
+     } else if (nrk == 1) {
+
+         if ( (adv_type == AdvType::Centered_2nd) ||
+              (adv_type == AdvType::Upwind_3rd)   ||
+              (adv_type == AdvType::Centered_4th) ||
+              (adv_type == AdvType::Weno_3)       ||
+              (adv_type == AdvType::Weno_3Z)      ||
+              (adv_type == AdvType::Weno_3MZQ)    )
+         {
+             eff_adv_type = AdvType::Centered_2nd;
+
+         } else if ( (adv_type == AdvType::Upwind_5th) ||
+                     (adv_type == AdvType::Weno_5)     ||
+                     (adv_type == AdvType::Weno_5Z)    )
+         {
+             eff_adv_type = AdvType::Upwind_3rd;
+
+         } else { // (adv_type == AdvType::Centered_6th)
+
+             eff_adv_type = AdvType::Centered_4th;
+         }
+
+     } else {
+
+         eff_adv_type = adv_type;
+     }
+
+     return(eff_adv_type);
+}
 #endif

@@ -53,8 +53,11 @@ erf.plot_int_1      = 100    # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rhoKE pres_hse dens_hse pert_pres pert_dens
 
 # SOLVER CHOICES
-erf.horiz_spatial_order = 2
-erf.vert_spatial_order = 2
+erf.dycore_horiz_adv_type    = "Centered_2nd"
+erf.dycore_vert_adv_type     = "Centered_2nd"
+erf.dryscal_horiz_adv_type   = "Centered_2nd"
+erf.dryscal_vert_adv_type    = "Centered_2nd"
+
 erf.use_gravity = true
 erf.use_gravity = false
 
