@@ -68,12 +68,14 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Radiation/Rrtmgp.H
                    ${SRC_DIR}/Radiation/Init_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Finalize_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Run_longwave_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Run_shortwave_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Cloud_rad_props.cpp
+                   ${SRC_DIR}/Radiation/Aero_rad_props.cpp
+                   ${SRC_DIR}/Radiation/Optics.cpp
+                   ${SRC_DIR}/Radiation/Radiation.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
                    ${CMAKE_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
                   )

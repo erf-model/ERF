@@ -1,11 +1,10 @@
 //
 // interpolation of data in latitude, longitude, and time
 //
-#ifndef ERF_LINEAR_INTERP_H
-#define ERF_LINERA_INTERP_H
+#ifndef ERF_LINEAR_INTERP_H_
+#define ERF_LINEAR_INTERP_H_
 
 #include "rrtmgp_const.h"
-#include "Logging.H"
 
 class LinInterp
 {
@@ -38,10 +37,10 @@ class LinInterp
   YAKL_INLINE
   static void init(const real1d& yin,
                    const int& nin,
-                   real1d& yout,
+                   real1d yout,
                    const int& nout,
                    const InterpMethod& extrap_method,
-                   InterpType& interp_wgts,
+                   InterpType interp_wgts,
                    real cyclicmin = 0.,
                    real cyclicmax= 0.) {
       real cmin, cmax;
@@ -241,9 +240,9 @@ class LinInterp
    YAKL_INLINE
    static void interp1d(const real1d& arrin,
                         const int& n1,
-                        real1d& arrout,
+                        real1d arrout,
                         const int& m1,
-                        InterpType& interp_wgts) {
+                        const InterpType& interp_wgts) {
      //
      // Do the interpolation
      //
@@ -257,11 +256,11 @@ class LinInterp
    static void interp2d2d(const real2d& arrin,
                           const int& n1,
                           const int& n2,
-                          real2d& arrout,
+                          real2d arrout,
                           const int& m1,
                           const int& m2,
-                          InterpType& wgt1,
-                          InterpType& wgt2) {
+                          const InterpType& wgt1,
+                          const InterpType& wgt2) {
 
      real2d arrtmp("arrtmp",n1,m2);
 
@@ -278,10 +277,10 @@ class LinInterp
    static void interp2d1d(const real2d& arrin,
                           const int& n1,
                           const int& n2,
-                          real1d& arrout,
+                          real1d arrout,
                           const int& m1,
-                          InterpType& wgt1,
-                          InterpType& wgt2) {
+                          const InterpType& wgt1,
+                          const InterpType& wgt2) {
 
      yakl::c::parallel_for(yakl::c::Bounds<1>(m1), YAKL_LAMBDA (int i) {
         arrout(i) = arrin(wgt1.jjm(i),wgt2.jjm(i))*wgt1.wgts(i)*wgt2.wgts(i)+arrin(wgt1.jjp(i),wgt2.jjm(i))*wgt1.wgtn(i)*wgt2.wgts(i)
@@ -294,11 +293,11 @@ class LinInterp
                           const int& n1,
                           const int& n2,
                           const int& n3,
-                          real2d& arrout,
+                          real2d arrout,
                           const int& m1,
                           const int& len1,
-                          InterpType& wgt1,
-                          InterpType& wgt2) {
+                          const InterpType& wgt1,
+                          const InterpType& wgt2) {
 
      yakl::c::parallel_for(yakl::c::Bounds<2>(m1, n3), YAKL_LAMBDA (int i, int k) {
         arrout(i,k) = arrin(wgt1.jjm(i),wgt2.jjm(i),k)*wgt1.wgts(i)*wgt2.wgts(i)+arrin(wgt1.jjp(i),wgt2.jjm(i),k)*wgt1.wgtn(i)*wgt2.wgts(i) +

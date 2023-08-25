@@ -512,6 +512,8 @@ struct SolverChoice {
             return "WENOZ5";
         } else if (adv_int == AdvType::Weno_3MZQ) {
             return "WENOMZQ3";
+        } else {
+            return "Unknown";
         }
     }
 

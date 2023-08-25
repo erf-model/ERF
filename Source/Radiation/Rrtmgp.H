@@ -51,27 +51,27 @@ class Rrtmgp {
     // run rrtmgp short wave model
     void run_shortwave_rrtmgp (
         int ngas, int ncol, int nlay,
-        double *gas_vmr_p, double *pmid_p      , double *tmid_p      , double *pint_p,
-        double *coszrs_p , double *albedo_dir_p, double *albedo_dif_p,
-        double *cld_tau_gpt_p, double *cld_ssa_gpt_p, double *cld_asm_gpt_p,
-        double *aer_tau_bnd_p, double *aer_ssa_bnd_p, double *aer_asm_bnd_p,
-        double *allsky_flux_up_p    , double *allsky_flux_dn_p    , double *allsky_flux_net_p    , double *allsky_flux_dn_dir_p,
-        double *allsky_bnd_flux_up_p, double *allsky_bnd_flux_dn_p, double *allsky_bnd_flux_net_p, double *allsky_bnd_flux_dn_dir_p,
-        double *clrsky_flux_up_p    , double *clrsky_flux_dn_p    , double *clrsky_flux_net_p    , double *clrsky_flux_dn_dir_p,
-        double *clrsky_bnd_flux_up_p, double *clrsky_bnd_flux_dn_p, double *clrsky_bnd_flux_net_p, double *clrsky_bnd_flux_dn_dir_p,
+        real3d& gas_vmr, real2d& pmid      , real2d& tmid      , real2d& pint,
+        real1d& coszrs , real2d& albedo_dir, real2d& albedo_dif,
+        real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
+        real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
+        real2d& allsky_flux_up    , real2d& allsky_flux_dn    , real2d& allsky_flux_net    , real2d& allsky_flux_dn_dir,
+        real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net, real3d& allsky_bnd_flux_dn_dir,
+        real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    , real2d& clrsky_flux_dn_dir,
+        real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net, real3d& clrsky_bnd_flux_dn_dir,
         double tsi_scaling);
 
     // run rrtmgp long wave model
     void run_longwave_rrtmgp (
         int ngas, int ncol, int nlay,
-        double *gas_vmr_p           ,
-        double *pmid_p              , double *tmid_p              , double *pint_p               ,
-        double *tint_p              , double *emis_sfc_p          ,
-        double *cld_tau_gpt_p       , double *aer_tau_bnd_p       ,
-        double *allsky_flux_up_p    , double *allsky_flux_dn_p    , double *allsky_flux_net_p    ,
-        double *allsky_bnd_flux_up_p, double *allsky_bnd_flux_dn_p, double *allsky_bnd_flux_net_p,
-        double *clrsky_flux_up_p    , double *clrsky_flux_dn_p    , double *clrsky_flux_net_p    ,
-        double *clrsky_bnd_flux_up_p, double *clrsky_bnd_flux_dn_p, double *clrsky_bnd_flux_net_p);
+        real3d& gas_vmr           ,
+        real2d& pmid              , real2d& tmid              , real2d& pint               , real2d& tint,
+        real2d& emis_sfc          ,
+        real3d& cld_tau_gpt       , real3d& aer_tau_bnd       ,
+        real2d& allsky_flux_up    , real2d& allsky_flux_dn    , real2d& allsky_flux_net    ,
+        real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net,
+        real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    ,
+        real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net);
 
     int get_nband_sw() {
        return k_dist_sw.get_nband();
@@ -97,17 +97,13 @@ class Rrtmgp {
        return std::max(k_dist_sw.temp_ref_max, k_dist_lw.temp_ref_max);
     }
 
-    void get_gpoint_bands_sw(int *gpoint_bands_p) {
-       auto gpoint_bands_sw = intHost1d("gpoint_bands", gpoint_bands_p, k_dist_sw.get_ngpt());
-       auto tmp = k_dist_sw.get_gpoint_bands();
-       tmp.deep_copy_to(gpoint_bands_sw);
+    void get_gpoint_bands_sw(int1d gpoint_bands) {
+       gpoint_bands = k_dist_sw.get_gpoint_bands();
        yakl::fence();
     }
 
-    void get_gpoint_bands_lw(int *gpoint_bands_p) {
-       auto gpoint_bands_lw = intHost1d("gpoint_bands", gpoint_bands_p, k_dist_lw.get_ngpt());
-       auto tmp = k_dist_lw.get_gpoint_bands();
-       tmp.deep_copy_to(gpoint_bands_lw);
+    void get_gpoint_bands_lw(int1d& gpoint_bands) {
+       gpoint_bands = k_dist_lw.get_gpoint_bands();
        yakl::fence();
     }
 
