@@ -82,7 +82,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (init_type != "real")
+            if ((init_type != "real") and (init_type != "metgrid"))
             {
 
                 //! If there are cells not in the valid + periodic grown box
@@ -109,7 +109,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
 
                     impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,BCVars::zvel_bc);
                 } // !cons_only
-            } // init_type != "real"
+            } // init_type != "real" and init_type != "metgrid"
 
             // Every grid touches the bottom and top domain boundary so we call the vertical bcs
             //       for every box -- and we need to call these even if init_type == real

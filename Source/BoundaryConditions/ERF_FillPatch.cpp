@@ -84,7 +84,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
     if (init_type == "real") fill_from_wrfbdy(mfs,time);
-    if (init_type == "metgrid") amrex::Print() << " ERF_FillPatch FillPatch for metgrid" << std::endl;
+    if (init_type == "metgrid") fill_from_metgrid(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);

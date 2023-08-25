@@ -194,12 +194,21 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type == "real" && level == 0)
-            compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
-                                       wrfbdy_width-1, wrfbdy_set_width, fine_geom,
+        if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
+            int width, set_width;
+            if (init_type == "real") {
+                width = wrfbdy_width;
+                set_width = wrfbdy_set_width;
+            } else if (init_type == "metgrid") {
+                width = metgrid_bdy_width;
+                set_width = metgrid_bdy_set_width;
+            }
+            compute_interior_ghost_RHS(init_type,
+                                       bdy_time_interval, old_stage_time, slow_dt,
+                                       width, set_width, fine_geom,
                                        S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                        bdy_data_ylo, bdy_data_yhi, start_bdy_time);
-        if (init_type == "metgrid" && level == 0) amrex::Print() << " compute_interior_ghost_RHS from slow_rhs_fun_pre" << std::endl;
+        }
 #endif
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
@@ -309,12 +318,21 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type == "real" && level == 0)
+        if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
+            int width, set_width;
+            if (init_type == "real") {
+                width = wrfbdy_width;
+                set_width = wrfbdy_set_width;
+            } else if (init_type == "metgrid") {
+                width = metgrid_bdy_width;
+                set_width = metgrid_bdy_set_width;
+            }
+            amrex::Print() << " DJW[TI_slow_rhs_fun.H]: start_bdy_time \t" << start_bdy_time << std::endl;
             compute_interior_ghost_RHS(bdy_time_interval, old_stage_time, slow_dt,
-                                       wrfbdy_width-1, wrfbdy_set_width, fine_geom,
+                                       width, set_width, fine_geom,
                                        S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                        bdy_data_ylo, bdy_data_yhi, start_bdy_time);
-        if (init_type == "metgrid" && level == 0) amrex::Print() << " compute_interior_ghost_RHS from slow_rhs_fun_inc" << std::endl;
+        }
 #endif
     }; // end slow_rhs_fun_inc
 #endif

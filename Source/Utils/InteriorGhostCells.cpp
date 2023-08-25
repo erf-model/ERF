@@ -88,6 +88,7 @@ compute_interior_ghost_bxs_xy(const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
+ * @param[in] init_type initialization method for this simulation
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
  * @param[in] time    current time
  * @param[in] delta_t timestep
@@ -103,7 +104,8 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-compute_interior_ghost_RHS(const Real& bdy_time_interval,
+compute_interior_ghost_RHS(const std::string& init_type,
+                           const Real& bdy_time_interval,
                            const Real& time,
                            const Real& delta_t,
                            const int&  width,
@@ -125,7 +127,8 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = (time - start_bdy_time) / 1.e10;
+    Real time_since_start = time;
+    if (init_type == "real") time_since_start = (time - start_bdy_time) / 1.e10;
     int n_time = static_cast<int>( time_since_start / dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
@@ -146,22 +149,43 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
-    // End of loop for WRFBdyVars
-    int WRFBdyEnd = WRFBdyVars::NumTypes-3;
-
 #if defined(ERF_USE_MOISTURE)
      var_map.push_back( Vars::cons );
     comp_map.push_back( RhoQt_comp );
-    WRFBdyEnd +=1;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
      var_map.push_back( Vars::cons );
     comp_map.push_back( RhoQv_comp );
-    WRFBdyEnd +=1;
 #endif
+
+    int BdyEnd, ivarU, ivarV, ivarR, ivarT;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    int ivarQV;
+#endif
+    if (init_type == "real") {
+        BdyEnd = WRFBdyVars::NumTypes-3;
+        ivarU = WRFBdyVars::U;
+        ivarV = WRFBdyVars::V;
+        ivarR = WRFBdyVars::R;
+        ivarT = WRFBdyVars::T;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        BdyEnd += 1;
+        ivarQV = WRFBdyVars::QV;
+#endif
+    } else if (init_type == "metgrid") {
+        BdyEnd = MetGridBdyVars::NumTypes-1;
+        ivarU = MetGridBdyVars::U;
+        ivarV = MetGridBdyVars::V;
+        ivarR = MetGridBdyVars::R;
+        ivarT = MetGridBdyVars::T;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+        BdyEnd += 1;
+        ivarQV = MetGridBdyVars::QV;
+#endif
+    }
 
     // Size the FABs for each variable
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -181,20 +205,20 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
                                       ng_vect, true);
 
         // Size the FABs
-        if (ivar  == WRFBdyVars::U) {
+        if (ivar  == ivarU) {
             U_xlo.resize(bx_xlo,1); U_xhi.resize(bx_xhi,1);
             U_ylo.resize(bx_ylo,1); U_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::V) {
+        } else if (ivar  == ivarV) {
             V_xlo.resize(bx_xlo,1); V_xhi.resize(bx_xhi,1);
             V_ylo.resize(bx_ylo,1); V_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::R) {
+        } else if (ivar  == ivarR) {
             R_xlo.resize(bx_xlo,1); R_xhi.resize(bx_xhi,1);
             R_ylo.resize(bx_ylo,1); R_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::T){
+        } else if (ivar  == ivarT){
             T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
             T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == WRFBdyVars::QV ) {
+        } else if (ivar  == ivarQV ) {
             Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
             Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
 #endif
@@ -223,7 +247,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Populate FABs from boundary interpolation
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -247,20 +271,20 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         // Get the FAB array4s
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == WRFBdyVars::U) {
+        if (ivar  == ivarU) {
             arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
             arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-        } else if (ivar  == WRFBdyVars::V) {
+        } else if (ivar  == ivarV) {
             arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
             arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-        } else if (ivar  == WRFBdyVars::R) {
+        } else if (ivar  == ivarR) {
             arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
             arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-        } else if (ivar  == WRFBdyVars::T){
+        } else if (ivar  == ivarT){
             arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
             arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == WRFBdyVars::QV ) {
+        } else if (ivar  == ivarQV ) {
             arr_xlo = Q_xlo.array(); arr_xhi = Q_xhi.array();
             arr_ylo = Q_ylo.array(); arr_yhi = Q_yhi.array();
 #endif
@@ -322,7 +346,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
 
     // Velocity to momentum
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::V; ivar++)
+    for (int ivar(ivarU); ivar <= ivarV; ivar++)
     {
         // Convert the domain to the ixtype of the variable
         int var_idx = var_map[ivar];
@@ -348,7 +372,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         // Get the FAB array4s
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == WRFBdyVars::U) {
+        if (ivar  == ivarU) {
             arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
             arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
 
@@ -447,7 +471,7 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
         }
     } // mfi
 
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         // Variable & comp maps
         int var_idx =  var_map[ivar];
@@ -477,28 +501,28 @@ compute_interior_ghost_RHS(const Real& bdy_time_interval,
             Array4<Real> rhs_arr; Array4<Real> data_arr;
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-            if (ivar  == WRFBdyVars::U) {
+            if (ivar  == ivarU) {
                 arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                 arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                 rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
                 data_arr = S_data[IntVar::xmom].array(mfi);
-            } else if (ivar  == WRFBdyVars::V) {
+            } else if (ivar  == ivarV) {
                 arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                 arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                 rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
                 data_arr = S_data[IntVar::ymom].array(mfi);
-            } else if (ivar  == WRFBdyVars::R) {
+            } else if (ivar  == ivarR) {
                 arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                 arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
-            } else if (ivar  == WRFBdyVars::T){
+            } else if (ivar  == ivarT){
                 arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-            } else if (ivar  == WRFBdyVars::QV ) {
+            } else if (ivar  == ivarQV ) {
                 arr_xlo  = Q_xlo.array(); arr_xhi = Q_xhi.array();
                 arr_ylo  = Q_ylo.array(); arr_yhi = Q_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);

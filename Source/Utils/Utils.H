@@ -67,7 +67,8 @@ void compute_interior_ghost_bxs_xy(const amrex::Box& bx,
 /*
  * Compute boxes to be used for specifying where in the relaxation zone to compute the RHS
  */
-void compute_interior_ghost_RHS(const amrex::Real& bdy_time_interval,
+void compute_interior_ghost_RHS(const std::string& init_type,
+                                const amrex::Real& bdy_time_interval,
                                 const amrex::Real& time,
                                 const amrex::Real& delta_t,
                                 const int& width,

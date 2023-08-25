@@ -18,8 +18,8 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    amrex::Print() << " BoundaryConditions_metgrid.cpp ERF::fill_from_metgrid \ttime \t" << time << std::endl;
-    Real time_since_start = time - start_bdy_time;
+//    amrex::Print() << " BoundaryConditions_metgrid.cpp ERF::fill_from_metgrid \ttime \t" << time << std::endl;
+    Real time_since_start = time;
     int n_time = static_cast<int>( time_since_start / dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
@@ -71,7 +71,7 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
             //------------------------------------
             if (is_read[var_idx][comp_idx])
             {
-                width = wrfbdy_set_width;
+                width = metgrid_bdy_width;
                 int ivar  = ind_map[var_idx][comp_idx];
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
@@ -141,7 +141,7 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
             // Variable not read or computed from met_em files
             //------------------------------------
             } else {
-                width = metgrid_bdy_width - metgrid_bdy_set_width;
+                width = metgrid_bdy_width;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
