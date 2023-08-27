@@ -106,21 +106,20 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-compute_interior_ghost_RHS(const std::string& init_type,
-                           const Real& bdy_time_interval,
-                           const Real& start_bdy_time,
-                           const Real& time,
-                           const Real& delta_t,
-                           const int&  width,
-                           const int&  set_width,
-                           const Geometry& geom,
-                           Vector<MultiFab>& S_rhs,
-                           Vector<MultiFab>& S_data,
-                           Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                           Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                           Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                           Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                           const Real start_bdy_time)
+wrfbdy_compute_interior_ghost_RHS(const std::string& init_type,
+                                  const Real& bdy_time_interval,
+                                  const Real& start_bdy_time,
+                                  const Real& time,
+                                  const Real& delta_t,
+                                  const int&  width,
+                                  const int&  set_width,
+                                  const Geometry& geom,
+                                  Vector<MultiFab>& S_rhs,
+                                  Vector<MultiFab>& S_data,
+                                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                                  Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
 
@@ -142,6 +141,9 @@ compute_interior_ghost_RHS(const std::string& init_type,
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
+#endif
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
@@ -150,13 +152,15 @@ compute_interior_ghost_RHS(const std::string& init_type,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
-#if defined(ERF_USE_MOISTURE)
-     var_map.push_back( Vars::cons );
-    comp_map.push_back( RhoQt_comp );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-     var_map.push_back( Vars::cons );
-    comp_map.push_back( RhoQv_comp );
-#endif
+//#if defined(ERF_USE_MOISTURE)
+//     var_map.push_back( Vars::cons );
+//    ivar_map.push_back( IntVar::cons );
+//    comp_map.push_back( RhoQt_comp );
+//#elif defined(ERF_USE_WARM_NO_PRECIP)
+//     var_map.push_back( Vars::cons );
+//    ivar_map.push_back( IntVar::cons );
+//    comp_map.push_back( RhoQv_comp );
+//#endif
 
     int BdyEnd, ivarU, ivarV, ivarR, ivarT;
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
@@ -168,20 +172,20 @@ compute_interior_ghost_RHS(const std::string& init_type,
         ivarV = WRFBdyVars::V;
         ivarR = WRFBdyVars::R;
         ivarT = WRFBdyVars::T;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        BdyEnd += 1;
-        ivarQV = WRFBdyVars::QV;
-#endif
+//#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+//        BdyEnd += 1;
+//        ivarQV = WRFBdyVars::QV;
+//#endif
     } else if (init_type == "metgrid") {
         BdyEnd = MetGridBdyVars::NumTypes-1;
         ivarU = MetGridBdyVars::U;
         ivarV = MetGridBdyVars::V;
         ivarR = MetGridBdyVars::R;
         ivarT = MetGridBdyVars::T;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        BdyEnd += 1;
-        ivarQV = MetGridBdyVars::QV;
-#endif
+//#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+//        BdyEnd += 1;
+//        ivarQV = MetGridBdyVars::QV;
+//#endif
     }
 
     // Size the FABs
@@ -238,6 +242,10 @@ compute_interior_ghost_RHS(const std::string& init_type,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
+    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
+#endif
 
     // Populate FABs from boundary interpolation
     //==========================================================
@@ -333,7 +341,6 @@ compute_interior_ghost_RHS(const std::string& init_type,
                            + alpha * bdatyhi_np1(ii,jj,k,0);
         });
     } // ivar
-
 
     // Velocity to momentum
     //==========================================================

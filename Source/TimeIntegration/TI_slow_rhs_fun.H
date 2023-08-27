@@ -203,10 +203,10 @@
                 width = metgrid_bdy_width;
                 set_width = metgrid_bdy_set_width;
             }
-            compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                       width-1, set_width, fine_geom,
-                                       S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                       bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+            wrfbdy_compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                              width-1, set_width, fine_geom,
+                                              S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
+                                              bdy_data_ylo, bdy_data_yhi);
         }
 #endif
 
@@ -360,10 +360,10 @@
                 set_width = metgrid_bdy_set_width;
             }
             amrex::Print() << " DJW[TI_slow_rhs_fun.H]: start_bdy_time \t" << start_bdy_time << std::endl;
-            compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                       width-1, set_width, fine_geom,
-                                       S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                       bdy_data_ylo, bdy_data_yhi, start_bdy_time);
+            wrfbdy_compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                              width-1, set_width, fine_geom,
+                                              S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
+                                              bdy_data_ylo, bdy_data_yhi);
         }
 #endif
 

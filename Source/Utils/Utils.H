@@ -259,21 +259,20 @@ compute_Laplacian_relaxation (const amrex::Real& delta_t,
 /*
  * Compute relaxation region RHS with wrfbdy or metgrid forcing
  */
-void compute_interior_ghost_RHS(const std::string& init_type,
-                                const amrex::Real& bdy_time_interval,
-                                const amrex::Real& start_bdy_time,
-                                const amrex::Real& time,
-                                const amrex::Real& delta_t,
-                                const int& width,
-                                const int& set_width,
-                                const amrex::Geometry& geom,
-                                amrex::Vector<amrex::MultiFab>& S_rhs,
-                                amrex::Vector<amrex::MultiFab>& S_data,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
-                                const amrex::Real start_bdy_time);
+void wrfbdy_compute_interior_ghost_RHS(const std::string& init_type,
+                                       const amrex::Real& bdy_time_interval,
+                                       const amrex::Real& start_bdy_time,
+                                       const amrex::Real& time,
+                                       const amrex::Real& delta_t,
+                                       const int& width,
+                                       const int& set_width,
+                                       const amrex::Geometry& geom,
+                                       amrex::Vector<amrex::MultiFab>& S_rhs,
+                                       amrex::Vector<amrex::MultiFab>& S_data,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 /*
  * Compute moist relaxation region RHS with wrfbdy
