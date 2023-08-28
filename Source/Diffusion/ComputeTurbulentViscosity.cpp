@@ -59,31 +59,33 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
       for (amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          Box bxcc  = mfi.tilebox();
+          // NOTE: This gets us the lateral ghost cells for lev>1; which
+          //       have been filled from FP Two Levels.
+          Box bxcc  = mfi.growntilebox() & domain;
 
-        const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-        const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+          const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+          const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
 
-        Array4<Real const> tau11 = Tau11.array(mfi);
-        Array4<Real const> tau22 = Tau22.array(mfi);
-        Array4<Real const> tau33 = Tau33.array(mfi);
-        Array4<Real const> tau12 = Tau12.array(mfi);
-        Array4<Real const> tau13 = Tau13.array(mfi);
-        Array4<Real const> tau23 = Tau23.array(mfi);
+          Array4<Real const> tau11 = Tau11.array(mfi);
+          Array4<Real const> tau22 = Tau22.array(mfi);
+          Array4<Real const> tau33 = Tau33.array(mfi);
+          Array4<Real const> tau12 = Tau12.array(mfi);
+          Array4<Real const> tau13 = Tau13.array(mfi);
+          Array4<Real const> tau23 = Tau23.array(mfi);
 
-        Array4<Real const> mf_u = mapfac_u.array(mfi);
-        Array4<Real const> mf_v = mapfac_v.array(mfi);
+          Array4<Real const> mf_u = mapfac_u.array(mfi);
+          Array4<Real const> mf_v = mapfac_v.array(mfi);
 
-        ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-            Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
-            Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
-            Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
+          ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+          {
+              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+              Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+              Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+              Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
-          mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
-          mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
-        });
+              mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
+              mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+          });
       }
     }
     // DEARDORFF: Fill Kturb for momentum in horizontal and vertical
