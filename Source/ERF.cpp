@@ -541,12 +541,15 @@ ERF::InitData ()
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
-        int lev = 0; amrex::IntVect ng = IntVect(0,0,0);
-        MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
-        MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
-        MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
-        m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-        m_most->update_fluxes(lev);
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            amrex::IntVect ng = IntVect(0,0,0);
+            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+            MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+            m_most->update_fluxes(lev);
+        }
     }
 
     if (solverChoice.use_rayleigh_damping)
