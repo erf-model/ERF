@@ -251,7 +251,7 @@ MOSTAverage::set_k_indices_N()
 
             AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
                                       "Query point must be past first z-cell!");
-            AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - + 0.5 * m_dz,
+            AMREX_ASSERT_WITH_MESSAGE(m_zref <= m_zhi - 0.5 * m_dz,
                                       "Query point must be below the last z-cell!");
 
             int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
