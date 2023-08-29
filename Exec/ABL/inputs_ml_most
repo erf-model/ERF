@@ -14,8 +14,9 @@ geometry.is_periodic = 1 1 0
 zlo.type = "Most"
 zhi.type = "SlipWall"
 
-erf.most.z0 = 100.0
-erf.most.zref = 200.0
+erf.most.roughness_type = modified_charnock    
+erf.most.z0 = 0.1
+erf.most.zref = 10.0
 erf.most.surf_temp = 1.1
 
 # TIME STEP CONTROL

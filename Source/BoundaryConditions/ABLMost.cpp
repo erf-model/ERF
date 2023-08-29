@@ -33,27 +33,93 @@ void ABLMost::update_fluxes(int lev, int max_iters)
     amrex::IntVect ng = u_star[lev]->nGrowVect(); ng[2]=0;
 
     // Initialize to the adiabatic q=0 case
-    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
-    {
-        amrex::Box bx = mfi.growntilebox(ng);
-
-        auto t_star_arr = t_star[lev]->array(mfi);
-        auto u_star_arr = u_star[lev]->array(mfi);
-        auto olen_arr   = olen[lev]->array(mfi);
-
-        const auto umm_arr = umm_ptr->array(mfi);
-        const auto z0_arr  = z_0[lev].array();
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    if (mom_type == MomCalcType::CHARNOCK) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
-            t_star_arr(i,j,k) = 0.0;
-            olen_arr(i,j,k) = 0.0;
-            u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
-        });
+            amrex::Box bx = mfi.growntilebox(ng);
+
+            auto t_surf_arr = t_surf[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto u_star_arr = u_star[lev]->array(mfi);
+
+            const auto tm_arr  = tm_ptr->array(mfi);
+            const auto umm_arr = umm_ptr->array(mfi);
+            const auto z0_arr  = z_0[lev].array();
+
+            auto olen_arr = olen[lev]->array(mfi);
+
+            amrex::Real d_a = d_most.Cnk_a;
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int iter = 0;
+                u_star_arr(i,j,k) = umm_arr(i,j,k);
+                amrex::Real ustar = 0.0;
+                amrex::Real z0    = 0.0;
+                do {
+                    ustar = u_star_arr(i,j,k);
+                    z0    = (d_a / d_gravity) * ustar * ustar;
+                    u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0);
+                    ++iter;
+                } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+                olen_arr(i,j,k) = std::numeric_limits<Real>::max();
+            });
+        }
+    } else if (mom_type == MomCalcType::MODIFIED_CHARNOCK) {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            amrex::Box bx = mfi.growntilebox(ng);
+
+            auto t_surf_arr = t_surf[lev]->array(mfi);
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto u_star_arr = u_star[lev]->array(mfi);
+
+            const auto tm_arr  = tm_ptr->array(mfi);
+            const auto umm_arr = umm_ptr->array(mfi);
+            const auto z0_arr  = z_0[lev].array();
+
+            auto olen_arr = olen[lev]->array(mfi);
+
+            amrex::Real d_b = d_most.Cnk_b1 * std::log(d_most.Cnk_b2 / d_most.Cnk_d);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int iter = 0;
+                u_star_arr(i,j,k) = umm_arr(i,j,k);
+                amrex::Real ustar = 0.0;
+                amrex::Real z0    = 0.0;
+                do {
+                    ustar = u_star_arr(i,j,k);
+                    z0    = std::exp( (2.7*ustar - 1.8/d_b) / (ustar + 0.17/d_b) );
+                    u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0);
+                    ++iter;
+                } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+                olen_arr(i,j,k) = std::numeric_limits<Real>::max();
+            });
+        }
+    } else {
+        for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
+        {
+            amrex::Box bx = mfi.growntilebox(ng);
+
+            auto t_star_arr = t_star[lev]->array(mfi);
+            auto u_star_arr = u_star[lev]->array(mfi);
+            auto olen_arr   = olen[lev]->array(mfi);
+
+            const auto umm_arr = umm_ptr->array(mfi);
+            const auto z0_arr  = z_0[lev].array();
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                t_star_arr(i,j,k) = 0.0;
+                olen_arr(i,j,k)   = std::numeric_limits<Real>::max();
+                u_star_arr(i,j,k) = d_kappa * umm_arr(i,j,k) / std::log(d_zref / z0_arr(i,j,k));
+            });
+        }
     }
 
     // Specified finite heat flux
-    if ( (alg_type == HEAT_FLUX) && (std::abs(surf_temp_flux) > eps) ) {
+    if ( (theta_type == ThetaCalcType::HEAT_FLUX) && (std::abs(surf_temp_flux) > eps) ) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             amrex::Box bx = mfi.growntilebox(ng);
@@ -90,12 +156,11 @@ void ABLMost::update_fluxes(int lev, int max_iters)
                 t_surf_arr(i,j,k) = d_surf_temp_flux * (std::log(d_zref / z0_arr(i,j,k)) - psi_h) /
                                     (u_star_arr(i,j,k) * d_kappa) + tm_arr(i,j,k);
                 t_star_arr(i,j,k) = -d_surf_temp_flux / u_star_arr(i,j,k);
-
-                olen_arr(i,j,k) = Olen;
+                olen_arr(i,j,k)   = Olen;
             });
         }
     // Specified surface temperature
-    } else if ( alg_type == SURFACE_TEMPERATURE ) {
+    } else if ( theta_type == ThetaCalcType::SURFACE_TEMPERATURE ) {
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             amrex::Box bx = mfi.growntilebox(ng);
@@ -136,8 +201,7 @@ void ABLMost::update_fluxes(int lev, int max_iters)
 
                     t_star_arr(i,j,k) = d_kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
                                         (std::log(d_zref / z0_arr(i,j,k)) - psi_h);
-
-                    olen_arr(i,j,k) = Olen;
+                    olen_arr(i,j,k)   = Olen;
                 }
             });
         }

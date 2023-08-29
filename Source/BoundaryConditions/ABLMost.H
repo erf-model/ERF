@@ -34,6 +34,10 @@ public:
     amrex::Real surf_temp;           ///< Surface temperature
     amrex::Real beta_m{5.0};         ///< Constants from Dyer, BLM, 1974
     amrex::Real beta_h{5.0};         ///< https://doi.org/10.1007/BF00240838
+    amrex::Real Cnk_a{0.0185};       ///< Standard Charnock constant https://doi.org/10.1175/JAMC-D-17-0137.1
+    amrex::Real Cnk_b1{1.0/30.0};    ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
+    amrex::Real Cnk_b2{1260.0};      ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
+    amrex::Real Cnk_d{30.0};         ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real gamma_m{16.0};
     amrex::Real gamma_h{16.0};
 
@@ -84,15 +88,34 @@ public:
       : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
-        pp.query("most.z0"       , z0_const);
+        pp.query("most.z0" , z0_const);
+
+        // Specify the momentum calc type
+        std::string mom_type_in;
+        auto erf_mom = pp.query("most.roughness_type", mom_type_in);
+        if (erf_mom) {
+            if (mom_type_in == "constant") {
+                mom_type = MomCalcType::DEFAULT;
+            } else if (mom_type_in == "charnock") {
+                mom_type = MomCalcType::CHARNOCK;
+                pp.query("most.charnock_constant", Cnk_a);
+            } else if (mom_type_in == "modified_charnock") {
+                mom_type = MomCalcType::MODIFIED_CHARNOCK;
+                pp.query("most.modified_charnock_depth", Cnk_d);
+            } else {
+                amrex::Abort("MOST momentum calc type not recognized!");
+            }
+        } else {
+            mom_type = MomCalcType::DEFAULT;
+        }
 
         // Specify surface temperature or surface flux
         auto erf_st = pp.query("most.surf_temp", surf_temp);
         if (erf_st) {
-            alg_type = SURFACE_TEMPERATURE;
+            theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
         } else {
             pp.query("most.surf_temp_flux", surf_temp_flux);
-            alg_type = HEAT_FLUX;
+            theta_type = ThetaCalcType::HEAT_FLUX;
         }
 
         int nlevs = m_geom.size();
@@ -191,12 +214,19 @@ public:
     const amrex::MultiFab*
     get_mac_avg(int lev, int comp) { return m_ma.get_average(lev,comp); }
 
+    enum MomCalcType {
+        DEFAULT = 0,
+        CHARNOCK,
+        MODIFIED_CHARNOCK
+    };
+
     enum ThetaCalcType {
         HEAT_FLUX = 0,      ///< Heat-flux specified
         SURFACE_TEMPERATURE ///< Surface temperature specified
     };
 
-    ThetaCalcType alg_type;
+    MomCalcType   mom_type;
+    ThetaCalcType theta_type;
 
     void print() const
     {
