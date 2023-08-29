@@ -740,12 +740,17 @@ fine_compute_interior_ghost_RHS(const Real& time,
  */
 
 void
-update_interior_ghost(const Real& delta_t,
+update_interior_ghost(const int& lev,
+                      const Real& delta_t,
                       const int&  width,
                       Vector<Box>& boxes_at_level,
                       Vector<MultiFab>& S_rhs,
                       const Vector<MultiFab>& S_old,
-                      Vector<MultiFab>& S_data)
+                      Vector<MultiFab>& S_data,
+                      ERFFillPatcher* FPr_c,
+                      ERFFillPatcher* FPr_u,
+                      ERFFillPatcher* FPr_v,
+                      ERFFillPatcher* FPr_w)
 {
     BL_PROFILE_REGION("update_interior_ghost()");
 
@@ -755,45 +760,84 @@ update_interior_ghost(const Real& delta_t,
         int ncomp = ncomp_map[ivar];
         IndexType m_ixt = S_data[ivar].boxArray().ixType();
 
+        // WRF BDY set region
+        if (lev==0) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-            Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
-            Array4<const Real> old_arr = S_old[ivar].array(mfi);
-            Array4<Real> new_arr       = S_data[ivar].array(mfi);
-
-            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+            for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box domain = boxes_at_level[g_ind];
-                domain.convert(m_ixt);
-                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                              tbx_xlo, tbx_xhi,
-                                              tbx_ylo, tbx_yhi);
+                Box tbx = mfi.tilebox();
+                Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
+                Array4<const Real> old_arr = S_old[ivar].array(mfi);
+                Array4<Real> new_arr       = S_data[ivar].array(mfi);
 
-                amrex::ParallelFor(tbx_xlo, ncomp,
+                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                {
+                    Box domain = boxes_at_level[g_ind];
+                    domain.convert(m_ixt);
+                    Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+                    compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                                  tbx_xlo, tbx_xhi,
+                                                  tbx_ylo, tbx_yhi);
+
+                    amrex::ParallelFor(tbx_xlo, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                    },
+                    tbx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                    });
+
+                    amrex::ParallelFor(tbx_ylo, ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                    },
+                    tbx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                    });
+                } // boxes_at_level
+            } // mfi
+
+        // CRSE-FINE set region
+        } else {
+            iMultiFab* mask;
+
+            if (ivar == IntVar::cons) {
+                mask = FPr_c->GetMask();
+            } else if (ivar == IntVar::xmom) {
+                mask = FPr_u->GetMask();
+            } else if (ivar == IntVar::ymom) {
+                mask = FPr_v->GetMask();
+            } else if (ivar == IntVar::zmom) {
+                mask = FPr_w->GetMask();
+            } else {
+                amrex::Abort("Dont recognize this variable type in update_interior_ghost");
+            }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                Box vbx = mfi.validbox();
+                Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
+                Array4<const Real> old_arr = S_old[ivar].array(mfi);
+                Array4<Real> new_arr       = S_data[ivar].array(mfi);
+                const Array4<const int> mask_arr = mask->const_array(mfi);
+
+                amrex::ParallelFor(vbx, ncomp,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                },
-                tbx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
+                    if (mask_arr(i,j,k) == 2) {
+                        rhs_arr(i,j,k,n) = 0.0;
+                        new_arr(i,j,k,n) = old_arr(i,j,k,n);
+                    }
                 });
-
-                amrex::ParallelFor(tbx_ylo, ncomp,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                },
-                tbx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                });
-            } // boxes_at_level
-        } // mfi
+            } // mfi
+        } // lev
     } // ivar
 }

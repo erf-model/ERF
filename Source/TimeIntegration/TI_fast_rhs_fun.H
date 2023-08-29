@@ -144,9 +144,9 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         // Update vars in set zone (relaxation already updated)
         if (init_type=="real" && level==0 && wrfbdy_set_width>0) {
             if (fast_step == 0 ) {
-                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
+                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
             } else {
-                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
+                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
             }
         }
 #endif
@@ -154,9 +154,9 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         // Update vars in set zone (relaxation already updated)
         if (level>0 && cf_set_width>0) {
             if (fast_step == 0 ) {
-                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
+                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
             } else {
-                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
+                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
             }
         }
 
