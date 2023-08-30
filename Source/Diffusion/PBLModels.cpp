@@ -1,6 +1,7 @@
 #include "ABLMost.H"
 #include "DirectionSelector.H"
 #include "Diffusion.H"
+#include "ERF_Constants.H"
 
 /**
  * Function to compute turbulent viscosity with PBL.
@@ -84,8 +85,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
       // Spatially varying MOST
       amrex::Real eps       = 1.0e-16;
-      amrex::Real d_kappa   = most->kappa;
-      amrex::Real d_gravity = most->gravity;
+      amrex::Real d_kappa   = KAPPA;
+      amrex::Real d_gravity = CONST_GRAV;
 
       const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
       const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
