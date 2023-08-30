@@ -478,6 +478,12 @@ ERF::InitData ()
 #endif
     }
 
+    // *************************************************************************
+    // At this point, init_only has been called (from ERF::MakeNewLevelFromScratch),
+    // which should have updated lev_new and base_state; however, the base_state
+    // may or may not be in HSE.
+    // *************************************************************************
+
     // Define after wrfbdy_width is known
     for (int lev = 0; lev <= finest_level; lev++) {
         define_grids_to_evolve(lev, grids[lev]);
@@ -508,7 +514,7 @@ ERF::InitData ()
     // If we are reading initial data from metgrid output, the base state is defined there and we will rebalance
     //    after interpolation.
     // If we are reading initial data from an input_sounding, then the base state is calculated by
-    //   InputSoundingData.calc_rho_p().
+    //   InputSoundingData.calc_rho_p() if the init_sounding_ideal flag is set.
     // If we are restarting, the base state is read from the restart file, including ghost cell data
     if (restart_chkfile.empty()) {
         if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
@@ -797,8 +803,13 @@ ERF::init_only (int lev, Real time)
 #endif
 
     // Add problem-specific flow features
-    // If init_type is specified, then this is a perturbation to the background
-    // flow from either input_sounding data or WRF WPS outputs (wrfinput_d0*)
+    //
+    // Notes: 
+    // - This calls init_custom_prob that is defined for each problem
+    // - init_custom_prob may modify the base_state
+    // - If init_type is specified (either an "input_sounding" or "real" data
+    //   from WRF WPS), then the fields set by init_custom_prob are treated as
+    //   perturbations to the background flow
     init_custom(lev);
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
