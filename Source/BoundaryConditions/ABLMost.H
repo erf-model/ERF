@@ -38,13 +38,28 @@ public:
         amrex::ParmParse pp("erf");
         pp.query("most.z0", z0_const);
 
+        // Specify how to compute the flux
+        std::string flux_string{"moeng"};
+        pp.query("most.flux_type", flux_string);
+        if (flux_string == "donelan") {
+            flux_type = FluxCalcType::DONELAN;
+        } else if (flux_string == "moeng") {
+            flux_type = FluxCalcType::MOENG;
+        } else {
+            amrex::Abort("Undefined MOST flux type!");
+        }
+
         // Specify surface temperature or surface flux
         auto erf_st = pp.query("most.surf_temp", surf_temp);
         if (erf_st) {
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
         } else {
             pp.query("most.surf_temp_flux", surf_temp_flux);
-            theta_type = ThetaCalcType::HEAT_FLUX;
+            if (std::abs(surf_temp_flux) > std::numeric_limits<amrex::Real>::epsilon()) {
+                theta_type = ThetaCalcType::HEAT_FLUX;
+            } else {
+                theta_type = ThetaCalcType::ADIABATIC;
+            }
         }
 
         int nlevs = m_geom.size();
@@ -116,6 +131,13 @@ public:
                      const amrex::Vector<amrex::MultiFab*>& mfs,
                      amrex::MultiFab* eddyDiffs);
 
+    template<typename FluxCalc>
+    void
+    compute_most_bcs (const int lev,
+                      const amrex::Vector<amrex::MultiFab*>& mfs,
+                      amrex::MultiFab* eddyDiffs,
+                      const FluxCalc& flux_comp);
+
     void
     update_fluxes (int lev, int max_iters = 25);
 
@@ -143,17 +165,24 @@ public:
     const amrex::MultiFab*
     get_mac_avg (int lev, int comp) { return m_ma.get_average(lev,comp); }
 
+    enum FluxCalcType {
+        MOENG = 0,      ///< Moeng functional form
+        DONELAN         ///< Donelan functional form
+    };
+
     enum ThetaCalcType {
-        HEAT_FLUX = 0,      ///< Heat-flux specified
+        ADIABATIC = 0,
+        HEAT_FLUX,      ///< Heat-flux specified
         SURFACE_TEMPERATURE ///< Surface temperature specified
     };
 
     ThetaCalcType theta_type;
+    FluxCalcType  flux_type;
 
 private:
     amrex::Real z0_const;
     amrex::Real surf_temp;
-    amrex::Real surf_temp_flux;
+    amrex::Real surf_temp_flux{0};
     amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
 
