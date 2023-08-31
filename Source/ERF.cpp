@@ -789,11 +789,14 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
+        // Initializes base state if init_sounding_ideal flag is set
         init_from_input_sounding(lev);
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
+        // Initializes base state from WRF real.exe wrfinput output data
         init_from_wrfinput(lev);
     } else if (init_type == "metgrid") {
+        // Initializes base state from WPS metgrid output data
         init_from_metgrid(lev);
 #endif
     }
@@ -808,7 +811,7 @@ ERF::init_only (int lev, Real time)
     // - This calls init_custom_prob that is defined for each problem
     // - init_custom_prob may modify the base_state
     // - If init_type is specified (either an "input_sounding" or "real" data
-    //   from WRF WPS), then the fields set by init_custom_prob are treated as
+    //   from WRF), then the fields set by init_custom_prob are treated as
     //   perturbations to the background flow
     init_custom(lev);
 

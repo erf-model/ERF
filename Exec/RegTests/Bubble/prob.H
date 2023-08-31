@@ -34,8 +34,13 @@ struct ProbParm {
 extern ProbParm parms;
 
 /*
- * Calculate perturbation to potential temperature and density at a
- * given (x,y,z). Note that pressure is not perturbed.
+ * Calculate perturbation to potential temperature or density at a
+ * given (x,y,z). If the perturb_rho flag is set, then rho is perturbed,
+ * and pressure is not (rho*theta is constant); otherwise, rho is
+ * constant and rho*theta is perturbed
+ *
+ * Note: the input p_hse and r_hse should be in HSE given an appropriate
+ * background flow initialization. 
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void
