@@ -129,7 +129,7 @@ ERF::initHSE(int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-    // Initial r_hse may or may not be in HSE
+    // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 
     // This integrates up through column to update p_hse, pi_hse;

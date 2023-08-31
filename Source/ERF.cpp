@@ -480,8 +480,7 @@ ERF::InitData ()
 
     // *************************************************************************
     // At this point, init_only has been called (from ERF::MakeNewLevelFromScratch),
-    // which should have updated lev_new and base_state; however, the base_state
-    // may or may not be in HSE.
+    // which sets lev_new and base_state
     // *************************************************************************
 
     // Define after wrfbdy_width is known
@@ -516,11 +515,13 @@ ERF::InitData ()
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p() if the init_sounding_ideal flag is set.
     // If we are restarting, the base state is read from the restart file, including ghost cell data
+#if 0
     if (restart_chkfile.empty()) {
         if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
             initHSE();
         }
     }
+#endif
 
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
@@ -772,6 +773,10 @@ ERF::restart ()
     last_check_file_step = istep[0];
 }
 
+// This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
+//
+// If we are restarting, the base state is read from the restart file, including
+// ghost cell data.
 void
 ERF::init_only (int lev, Real time)
 {
@@ -789,16 +794,32 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
-        // Initializes base state if init_sounding_ideal flag is set
+        // The base state is initialized by integrating vertically through the
+        // input sounding, if the init_sounding_ideal flag is set; otherwise
+        // it is set below by initHSE()
         init_from_input_sounding(lev);
+
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
-        // Initializes base state from WRF real.exe wrfinput output data
+        // The base state is initialized from WRF wrfinput data, output by
+        // ideal.exe or real.exe
         init_from_wrfinput(lev);
+
     } else if (init_type == "metgrid") {
-        // Initializes base state from WPS metgrid output data
+        // The base state is initialized from data output by WPS metgrid;
+        // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
+    }
+    
+    // No background flow initialization, initialize base state based on density
+    // set by prob.cpp
+    if ((init_type != "ideal") &&
+        (init_type != "real") &&
+        (init_type != "metgrid") &&
+        (!init_sounding_ideal))
+    {
+        initHSE(lev);
     }
 
 #if defined(ERF_USE_MOISTURE)
@@ -809,10 +830,9 @@ ERF::init_only (int lev, Real time)
     //
     // Notes: 
     // - This calls init_custom_prob that is defined for each problem
-    // - init_custom_prob may modify the base_state
-    // - If init_type is specified (either an "input_sounding" or "real" data
-    //   from WRF), then the fields set by init_custom_prob are treated as
-    //   perturbations to the background flow
+    // - This may modify the base state
+    // - If init_type is specified, then the fields set by init_custom_prob are
+    //   treated as perturbations to the background flow
     init_custom(lev);
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
