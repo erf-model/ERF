@@ -308,14 +308,14 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                     }
                 }
 
-            // Grow the BE. (X & Y halo)    
+            // Grow the BE. (X & Y halo)
             } else if (m_ixt[2] == 1) {
                 halo_be[2] += 1;
             }
 
             Box m_halo_ixt(halo_se,halo_be,m_ixt);
 
-            
+
             Box mbx = vbx & m_halo_ixt;
             amrex::ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {

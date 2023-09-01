@@ -564,7 +564,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                         amrex::Real(mask_arr(i+1,j,k)) );
                     */
 
-                    /* 
+                    /*
                        derdat(i ,j ,k, mf_comp) = 0.5 * (amrex::Real(mask_arr(i,j  ,k)) +
                                                          amrex::Real(mask_arr(i,j+1,k)) );
                     */
@@ -573,7 +573,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     derdat(i ,j ,k, mf_comp) = 0.5 * (amrex::Real(mask_arr(i,j,k  )) +
                                                       amrex::Real(mask_arr(i,j,k+1)) );
                     */
-                    
+
                 });
             }
             mf_comp ++;

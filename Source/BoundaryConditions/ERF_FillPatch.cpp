@@ -228,10 +228,14 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     // Coarse-Fine set region
     if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
-        FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
-        FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
-        FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
-        FPr_w[lev-1].FillSet(*mfs[Vars::zvel], time, null_bc, domain_bcs_type);
+        if (cons_only) {
+            FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
+        } else {
+            FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
+            FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
+            FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
+            FPr_w[lev-1].FillSet(*mfs[Vars::zvel], time, null_bc, domain_bcs_type);
+        }
     }
 
     // ***************************************************************************

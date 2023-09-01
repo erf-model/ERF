@@ -152,9 +152,9 @@ ERFFillPatcher::FillRelax (amrex::MultiFab& mf, amrex::Real time,
     amrex::IndexType m_ixt = mf.boxArray().ixType();
     int ixt_sum = m_ixt[0]+m_ixt[1]+m_ixt[2];
     if (ixt_sum == 0) {
-        InterpCell(mf,crse_data_time_interp,bcs,m_set_mask);
+        InterpCell(mf,crse_data_time_interp,bcs,m_relax_mask);
     } else if (ixt_sum == 1) {
-        InterpFace(mf,crse_data_time_interp,m_set_mask);
+        InterpFace(mf,crse_data_time_interp,m_relax_mask);
     } else {
         amrex::Abort("ERF_FillPatcher only supports face linear and cell cons linear interp!");
     }

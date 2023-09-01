@@ -637,6 +637,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
         }
 
+
         // Zero RHS in set region
         //==========================================================
 #ifdef _OPENMP
@@ -658,6 +659,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
         // For Laplacian stencil
         rhs.FillBoundary(geom.periodicity());
+
 
         // Compute RHS in relaxation region
         //==========================================================
@@ -684,32 +686,112 @@ fine_compute_interior_ghost_RHS(const Real& time,
             amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
                if (mask_arr(i,j,k) == 1) {
-                   // Masked cell must boarder the valid box
-                   int i_lo  = std::min(i-vbx_lo.x,width-1);
-                   int i_hi  = std::min(vbx_hi.x-i,width-1);
-                   int ii    = std::min(i_lo,i_hi);
-                   
-                   int j_lo  = std::min(j-vbx_lo.y,width-1);
-                   int j_hi  = std::min(vbx_hi.y-j,width-1);
-                   int jj    = std::min(j_lo,j_hi);
 
-                   // NOTE: Corner cell, max is safe with correct mask
-                   int n_ind;
-                   if (ii==0 || jj==0) {
-                       n_ind = std::max(ii,jj) + 1;
-                   } else {
-                       n_ind = std::min(ii,jj) + 1;
+                   // Indices
+                   Real n_ind;
+                   int ii{width-1}; int jj{width-1};
+                   bool near_x_lo_wall{false}; bool near_x_hi_wall{false};
+                   bool near_y_lo_wall{false}; bool near_y_hi_wall{false};
+                   bool mask_x_found{false};   bool mask_y_found{false};
+
+                   // Near x-wall
+                   if ((i-vbx_lo.x) < width) {
+                       near_x_lo_wall = true;
+                       ii = i-vbx_lo.x;
+                       if (mask_arr(vbx_lo.x,j,k) == 2) mask_x_found = true;
+                   } else if ((vbx_hi.x-i) < width) {
+                       near_x_hi_wall = true;
+                       ii = vbx_hi.x-i;
+                       if (mask_arr(vbx_hi.x,j,k) == 2) mask_x_found = true;
                    }
 
-                   // TODO: Check for mask==2 in x and y dir (use that to set n_ind)
+                   // Near y-wall
+                   if ((j-vbx_lo.y) < width) {
+                       near_y_lo_wall = true;
+                       jj = j-vbx_lo.y;
+                       if (mask_arr(i,vbx_lo.y,k) == 2) mask_y_found = true;
+                   } else if ((vbx_hi.y-j) < width) {
+                       near_y_hi_wall = true;
+                       jj = vbx_hi.y-j;
+                       if (mask_arr(i,vbx_hi.y,k) == 2) mask_y_found = true;
+                   }
 
+                   // Found a nearby masked cell (valid n_ind)
+                   if (mask_x_found && mask_y_found) {
+                       n_ind = std::min(ii,jj) + 1.0;
+                   } else if (mask_x_found) {
+                       n_ind = ii + 1.0;
+                   } else if (mask_y_found) {
+                       n_ind = jj + 1.0;
+                   // Pesky corner cell
+                   } else {
+                       if ((near_x_lo_wall || near_x_hi_wall) && (near_y_lo_wall || near_y_hi_wall))
+                           amrex::Abort("Mask must be found if you are near a corner!");
+
+                       if (near_x_lo_wall || near_x_hi_wall) {
+                           Real dj_min{width-1.0};
+                           int j_lb = std::max(vbx_lo.y,j-width);
+                           int j_ub = std::min(vbx_hi.y,j+width);
+                           int li   = (near_x_lo_wall) ? vbx_lo.x : vbx_hi.x;
+                           for (int lj(j_lb); lj<=j_ub; ++lj) {
+                               if (mask_arr(li,lj,k) == 2) {
+                                   mask_y_found = true;
+                                   dj_min = std::min(dj_min,(Real) std::abs(lj-j));
+                               }
+                           }
+                           if (mask_y_found) {
+                               Real mag = sqrt( amrex::Real(dj_min*dj_min + ii*ii) );
+                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               /*
+                               amrex::Print() << "X CORNER FOUND: "
+                                              << IntVect(i,j,k) << ' '
+                                              << vbx << ' '
+                                              << dj_min << ' '
+                                              << ii << ' '
+                                              << n_ind << "\n";
+                               */
+                           } else {
+                               amrex::Abort("Mask not found near x wall!");
+                           }
+                       } else if (near_y_lo_wall || near_y_hi_wall) {
+                           Real di_min{width-1.0};
+                           int i_lb = std::max(vbx_lo.x,i-width);
+                           int i_ub = std::min(vbx_hi.x,i+width);
+                           int lj   = (near_y_lo_wall) ? vbx_lo.y : vbx_hi.y;
+                           for (int li(i_lb); li<=i_ub; ++li) {
+                               if (mask_arr(li,lj,k) == 2) {
+                                   mask_x_found = true;
+                                   di_min = std::min(di_min,(Real) std::abs(li-i));
+                               }
+                           }
+                           if (mask_x_found) {
+                               Real mag = sqrt( amrex::Real(di_min*di_min + jj*jj) );
+                               n_ind = std::min(mag,width-1.0) + 1.0;
+                               /*
+                               amrex::Print() << "Y CORNER FOUND: "
+                                              << IntVect(i,j,k) << ' '
+                                              << vbx << ' '
+                                              << di_min << ' '
+                                              << jj << ' '
+                                              << n_ind << "\n";
+                               */
+                           } else {
+                               amrex::Abort("Mask not found near y wall!");
+                           }
+                       } else {
+                           amrex::Abort("Relaxation cell must be near a wall!");
+                       }
+                   }
+
+                   /*
                    if(n_ind<2 || n_ind>4) {
                        amrex::Print() << "SHIT: " << ivar_idx << ' ' << IntVect(i,j,k) << ' '
-                                      <<vbx << ' ' << n_ind << "\n";
+                                      << vbx << ' ' << n_ind << "\n";
                        exit(0);
                    }
-                   
-                   amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
+                   */
+
+                   amrex::Real Factor   = (num - n_ind)/denom;
                    amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
                    amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
                    amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
@@ -721,16 +803,18 @@ fine_compute_interior_ghost_RHS(const Real& time,
                    amrex::Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
                    amrex::Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
                    amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+                   amrex::Real HOLD = rhs_arr(i,j,k,n);
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
 
                    /*
-                   if (delta    > 0.1 ||
-                       delta_xp > 0.1 ||
-                       delta_xm > 0.1 ||
-                       delta_yp > 0.1 ||
-                       delta_ym > 0.1 ) {
+                   Real eps = std::numeric_limits<Real>::epsilon();
+                   if (delta   /(fine_arr(i  ,j  ,k,n)+eps)    > 0.1 ||
+                       delta_xp/(fine_arr(i+1,j  ,k,n)+eps) > 0.1 ||
+                       delta_xm/(fine_arr(i-1,j  ,k,n)+eps) > 0.1 ||
+                       delta_yp/(fine_arr(i  ,j+1,k,n)+eps) > 0.1 ||
+                       delta_ym/(fine_arr(i  ,j-1,k,n)+eps) > 0.1 ) {
                        amrex::Print() << "ERROR: " << ivar_idx << ' ' << n << ' ' << vbx << ' ' << IntVect(i,j,k) << ' ' << delta << ' ' << delta_xp << ' '
-                                      << delta_xm << ' ' << delta_yp << ' ' << delta_ym << ' ' << Factor << ' ' << n_ind << "\n";
+                                      << delta_xm << ' ' << delta_yp << ' ' << delta_ym << ' ' << Factor << ' ' << n_ind << ' ' << (F1*delta - F2*Laplacian) * Factor << ' ' << HOLD << "\n";
                        amrex::Print() << fine_arr(i  ,j  ,k,n) << ' ' << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << d     << ' ' << rhs_arr(i  , j  , k  ,n+icomp) << "\n";
                        amrex::Print() << fine_arr(i+1,j  ,k,n) << ' ' << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << d_ip1 << ' ' << rhs_arr(i+1, j  , k  ,n+icomp) << "\n";
                        amrex::Print() << fine_arr(i-1,j  ,k,n) << ' ' << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << d_im1 << ' ' << rhs_arr(i-1, j  , k  ,n+icomp) << "\n";
