@@ -254,14 +254,69 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
 
     // Fill mask based upon the mod_halo BoxList
     for (MFIter mfi(*m_cf_mask); mfi.isValid(); ++mfi) {
-        const Box& tbx = mfi.tilebox();
+        const Box& vbx = mfi.validbox();
         const Array4<int>& mask_arr = m_cf_mask->array(mfi);
         BoxList& mod_halo = mod_halo_v[mfi.index()];
         const Vector<Box>& m_halo = mod_halo.data();
 
         for (int ibox(0); ibox<m_halo.size(); ++ibox) {
-            Box m_halo_ixt = amrex::convert(m_halo[ibox], m_ixt);
-            Box mbx = tbx & m_halo_ixt;
+            //Box m_halo_ixt = amrex::convert(m_halo[ibox], m_ixt);
+
+            // Grow upper bound if the halo box coincides with
+            // the upper bound of the valid box. Also grow the
+            // lower bound of the halo if it DOESN'T coincide
+            // with the lower bound of the valid box.
+            Box vbx_cc = amrex::convert(vbx, IntVect(0));
+            IntVect vbx_be  = vbx_cc.bigEnd();
+            IntVect vbx_se  = vbx_cc.smallEnd();
+            IntVect halo_be = m_halo[ibox].bigEnd();
+            IntVect halo_se = m_halo[ibox].smallEnd();
+
+            /*
+            for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
+              if (m_ixt[idim] == 1) {
+                if (vbx_be[idim] == halo_be[idim]) {
+                  halo_be[idim] += 1;
+                  if (vbx_se[idim] != halo_se[idim]) {
+                    halo_se[idim] +=1;
+                  }
+                }
+              } //m_ixt
+            }// idim
+            */
+
+            // Grow BE if we coincide with upper face. (X & Y halo)
+            // Grow SE if we don't coincide with lower face. (chopped Y halo OR untouched X halo)
+            if (m_ixt[0] == 1) {
+                if (vbx_be[0] == halo_be[0]) {
+                    halo_be[0] += 1;
+                    if (vbx_se[0] != halo_se[0]) {
+                        halo_se[0] += 1;
+                    }
+                }
+
+            // Grow BE and SE if we coincide with upper face. (Y halo)
+            // Grow BE if we don't coincide with lower or upper face. (X halo)
+            // Grow SE if we don't coincide with lower + nghost. (chopped X halo)
+            } else if (m_ixt[1] == 1) {
+                if (vbx_be[1] == halo_be[1]) {
+                    halo_be[1] += 1; halo_se[1] += 1;
+                } else if (vbx_se[1] != halo_se[1] && vbx_be[1] != halo_be[1]) {
+                    halo_be[1] += 1;
+                    if (vbx_se[1]-nghost != halo_se[1]) {
+                        halo_se[1] += 1;
+                    }
+                }
+
+            // Grow the BE. (X & Y halo)    
+            } else if (m_ixt[2] == 1) {
+                halo_be[2] += 1;
+            }
+
+            Box m_halo_ixt(halo_se,halo_be,m_ixt);
+
+            
+            Box mbx = vbx & m_halo_ixt;
             amrex::ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 mask_arr(i,j,k) = mask_val;

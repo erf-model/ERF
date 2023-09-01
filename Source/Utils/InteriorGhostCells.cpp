@@ -678,18 +678,37 @@ fine_compute_interior_ghost_RHS(const Real& time,
             int icomp = 0;
 
             int Spec_z  = set_width;
-            int Relax_z = width - Spec_z + 1;
-            amrex::Real num    = amrex::Real(Spec_z + Relax_z);
-            amrex::Real denom  = amrex::Real(Relax_z - 1);
+            int Relax_z = width - Spec_z;
+            amrex::Real num   = amrex::Real(Spec_z + Relax_z);
+            amrex::Real denom = amrex::Real(Relax_z - 1);
             amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
                if (mask_arr(i,j,k) == 1) {
                    // Masked cell must boarder the valid box
+                   int i_lo  = std::min(i-vbx_lo.x,width-1);
+                   int i_hi  = std::min(vbx_hi.x-i,width-1);
+                   int ii    = std::min(i_lo,i_hi);
+                   
                    int j_lo  = std::min(j-vbx_lo.y,width-1);
                    int j_hi  = std::min(vbx_hi.y-j,width-1);
                    int jj    = std::min(j_lo,j_hi);
-                   int n_ind = std::min(i-vbx_lo.x,jj) + 1;
 
+                   // NOTE: Corner cell, max is safe with correct mask
+                   int n_ind;
+                   if (ii==0 || jj==0) {
+                       n_ind = std::max(ii,jj) + 1;
+                   } else {
+                       n_ind = std::min(ii,jj) + 1;
+                   }
+
+                   // TODO: Check for mask==2 in x and y dir (use that to set n_ind)
+
+                   if(n_ind<2 || n_ind>4) {
+                       amrex::Print() << "SHIT: " << ivar_idx << ' ' << IntVect(i,j,k) << ' '
+                                      <<vbx << ' ' << n_ind << "\n";
+                       exit(0);
+                   }
+                   
                    amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
                    amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
                    amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
