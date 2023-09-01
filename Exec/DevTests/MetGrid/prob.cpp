@@ -17,13 +17,6 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 
 void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-}
-
-void
 erf_init_rayleigh(Vector<Real>& /*tau*/,
                   Vector<Real>& /*ubar*/,
                   Vector<Real>& /*vbar*/,
@@ -32,6 +25,13 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
                   Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for metgrid problems");
+}
+
+void
+amrex_probinit(
+  const amrex_real* /*problo*/,
+  const amrex_real* /*probhi*/)
+{
 }
 
 void

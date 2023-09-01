@@ -10,6 +10,7 @@ struct ProbParm {
   amrex::Real T_0 = 300.0;
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
+  amrex::Real W_0 = 0.0;
 
   // center of thermal perturbation
   amrex::Real x_c = 0.0;

@@ -5,6 +5,8 @@ using namespace amrex;
 
 ProbParm parms;
 
+#include "Prob/init_constant_density_hse.H"
+
 AMREX_GPU_DEVICE
 static
 Real
@@ -28,27 +30,6 @@ erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
                   amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for Isentropic Vortex problem");
-}
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const&)
-{
-    Real rho_inf = parms.rho_inf;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            rho_hse_arr(i,j,k) = rho_inf;
-        });
-    }
 }
 
 void
@@ -99,12 +80,12 @@ init_custom_prob(
 
     // Set the density
     const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    state(i, j, k, Rho_comp) = rho_norm * parms.rho_inf;
+    state(i, j, k, Rho_comp) = rho_norm * parms.rho_0;
 
     // Initial _potential_ temperature
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
-                          * parms.rho_inf*parms.a_inf*parms.a_inf;
+                          * parms.rho_0*parms.a_inf*parms.a_inf;
     state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, rdOcp); // T --> theta
     state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
 
@@ -206,9 +187,9 @@ amrex_probinit(
   amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
   amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
 
-  parms.rho_inf = parms.p_inf / (R_d * parms.T_inf);
+  parms.rho_0 = parms.p_inf / (R_d * parms.T_inf);
   amrex::Print() << "  calculated freestream air density = "
-                 << parms.rho_inf << " kg/m^3"
+                 << parms.rho_0 << " kg/m^3"
                  << std::endl;
 
   parms.a_inf = std::sqrt(parms.gamma * R_d * parms.T_inf);

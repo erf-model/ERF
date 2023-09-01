@@ -6,65 +6,8 @@
 using namespace amrex;
 
 ProbParm parms;
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  Geometry const&)
-{
-    Real R0 = parms.rho_0;
-    for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-       const Box& gbx = mfi.growntilebox(1);
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = R0;
-       });
-    }
-}
-
-void
-erf_init_rayleigh(Vector<Real>& tau,
-                  Vector<Real>& ubar,
-                  Vector<Real>& vbar,
-                  Vector<Real>& wbar,
-                  Vector<Real>& thetabar,
-                  Geometry      const& geom)
-{
-  const auto ztop = geom.ProbHi()[2];
-  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
-    << ztop-parms.zdamp << " and " << ztop << std::endl;
-
-  const Real* prob_lo = geom.ProbLo();
-  const auto *const dx       = geom.CellSize();
-  const int khi       = geom.Domain().bigEnd()[2];
-
-  for (int k = 0; k <= khi; k++)
-  {
-      // WRF's vertical velocity damping layer structure, which is based
-      // on Durran and Klemp 1983
-      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
-      if (zfrac >= 0)
-      {
-          const Real sinefac = std::sin(PIoTwo*zfrac);
-          tau[k]      = parms.dampcoef * sinefac * sinefac;
-          ubar[k]     = parms.U_0;
-          vbar[k]     = parms.V_0;
-          wbar[k]     = parms.W_0;
-          thetabar[k] = parms.Theta_0;
-      }
-      else
-      {
-          tau[k]      = 0.0;
-          ubar[k]     = 0.0;
-          vbar[k]     = 0.0;
-          wbar[k]     = 0.0;
-          thetabar[k] = 0.0;
-      }
-  }
-}
+#include "Prob/init_constant_density_hse.H"
+#include "Prob/init_rayleigh_damping.H"
 
 void
 init_custom_prob(
@@ -114,7 +57,7 @@ init_custom_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
@@ -230,7 +173,7 @@ amrex_probinit(
   // Parse params
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
+  pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
   pp.query("QKE_0", parms.QKE_0);
 

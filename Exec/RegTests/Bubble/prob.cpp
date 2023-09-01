@@ -7,6 +7,7 @@
 using namespace amrex;
 
 ProbParm parms;
+#include "Prob/init_rayleigh_damping.H"
 
 void
 init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
@@ -431,6 +432,7 @@ init_custom_prob(
 
     const Real u0 = parms.U_0;
     const Real v0 = parms.V_0;
+    const Real w0 = parms.W_0;
 
     // Set the x-velocity
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -447,7 +449,7 @@ init_custom_prob(
     // Set the z-velocity
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        z_vel(i, j, k) = 0.0;
+        z_vel(i, j, k) = w0;
     });
 
     amrex::Gpu::streamSynchronize();
@@ -481,48 +483,6 @@ init_custom_terrain (const Geometry& /*geom*/,
 }
 
 void
-erf_init_rayleigh(Vector<Real>& tau,
-                  Vector<Real>& ubar,
-                  Vector<Real>& vbar,
-                  Vector<Real>& wbar,
-                  Vector<Real>& thetabar,
-                  amrex::Geometry const& geom)
-{
-  const auto ztop = geom.ProbHi()[2];
-  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
-    << ztop-parms.zdamp << " and " << ztop << std::endl;
-
-  const int khi = geom.Domain().bigEnd()[2];
-  const auto prob_lo = geom.ProbLo();
-  const auto dx = geom.CellSize();
-
-  for (int k = 0; k <= khi; k++)
-  {
-      // WRF's vertical velocity damping layer structure, which is based
-      // on Durran and Klemp 1983
-      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
-      if (zfrac >= 0)
-      {
-          const Real sinefac = std::sin(PIoTwo*zfrac);
-          tau[k]      = parms.dampcoef * sinefac * sinefac;
-          ubar[k]     = parms.U_0;
-          vbar[k]     = parms.V_0;
-          wbar[k]     = 0.0;
-          thetabar[k] = parms.T_0;
-      }
-      else
-      {
-          tau[k]      = 0.0;
-          ubar[k]     = 0.0;
-          vbar[k]     = 0.0;
-          wbar[k]     = 0.0;
-          thetabar[k] = 0.0;
-      }
-  }
-}
-
-void
 amrex_probinit(
   const amrex_real* /*problo*/,
   const amrex_real* /*probhi*/)
@@ -532,6 +492,7 @@ amrex_probinit(
   pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
   pp.query("x_c", parms.x_c);
   pp.query("y_c", parms.y_c);
   pp.query("z_c", parms.z_c);

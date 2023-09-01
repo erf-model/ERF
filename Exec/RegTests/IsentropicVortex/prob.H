@@ -15,7 +15,7 @@ struct ProbParm {
   amrex::Real xc = 0.5; //normalized x-location of vortex center [-]
   amrex::Real yc = 0.5; //normalized y-location of vortex center [-]
   // calculated quantiites
-  amrex::Real rho_inf; //characteristic density [m/s]
+  amrex::Real rho_0; //characteristic density [m/s]
   amrex::Real a_inf; //speed of sound [m/s]
   amrex::Real inv_gm1; //1/(gamma - 1) [-]
 }; // namespace ProbParm

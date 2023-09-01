@@ -7,22 +7,7 @@ using namespace amrex;
 
 ProbParm parms;
 
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  Geometry const&)
-{
-    Real rho_0 = parms.rho_0;
-    for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-       const Box& gbx = mfi.growntilebox(1);
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = rho_0;
-       });
-    }
-}
+#include "Prob/init_constant_density_hse.H"
 
 void
 erf_init_rayleigh(Vector<Real>& /*tau*/,

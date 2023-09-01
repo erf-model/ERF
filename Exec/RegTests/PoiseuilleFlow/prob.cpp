@@ -5,6 +5,8 @@ using namespace amrex;
 
 ProbParm parms;
 
+#include "Prob/init_constant_density_hse.H"
+
 void
 erf_init_rayleigh(Vector<Real>& /*tau*/,
                   Vector<Real>& /*ubar*/,
@@ -14,27 +16,6 @@ erf_init_rayleigh(Vector<Real>& /*tau*/,
                   amrex::Geometry      const& /*geom*/)
 {
    amrex::Error("Should never get here for PoiseuilleFlow problem");
-}
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const& /*geom*/)
-{
-    Real rho_0 = parms.rho_0;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            rho_hse_arr(i,j,k) = rho_0;
-        });
-    }
 }
 
 void
