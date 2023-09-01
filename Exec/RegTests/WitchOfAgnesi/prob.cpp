@@ -2,9 +2,6 @@
 #include "prob_common.H"
 
 #include "EOS.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "IndexDefines.H"
 #include "TerrainMetrics.H"
 #include "TileNoZ.H"
 

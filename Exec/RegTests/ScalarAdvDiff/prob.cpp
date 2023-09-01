@@ -1,10 +1,7 @@
 #include "prob.H"
 #include "prob_common.H"
 
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 #include "ERF_Constants.H"
-#include "IndexDefines.H"
 
 using namespace amrex;
 

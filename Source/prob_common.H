@@ -1,9 +1,12 @@
 #ifndef _PROBCOMMON_H_
 #define _PROBCOMMON_H_
 
+#include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_MultiFab.H>
 #include "DataStruct.H"
+#include "IndexDefines.H"
 
 /**
  * Function to init the physical bounds of the domain

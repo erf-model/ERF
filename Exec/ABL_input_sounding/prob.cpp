@@ -2,9 +2,6 @@
 #include "prob_common.H"
 
 #include "AMReX_Random.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "IndexDefines.H"
 
 using namespace amrex;
 

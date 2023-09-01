@@ -1,11 +1,6 @@
 #include "prob.H"
 #include "prob_common.H"
 
-#include "IndexDefines.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "AMReX_Geometry.H"
-
 using namespace amrex;
 
 ProbParm parms;

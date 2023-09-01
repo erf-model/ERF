@@ -3,9 +3,6 @@
 
 #include "EOS.H"
 #include "ERF_Constants.H"
-#include "IndexDefines.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 
 using namespace amrex;
 
