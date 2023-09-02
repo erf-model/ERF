@@ -515,13 +515,13 @@ ERF::InitData ()
     // If we are reading initial data from an input_sounding, then the base state is calculated by
     //   InputSoundingData.calc_rho_p() if the init_sounding_ideal flag is set.
     // If we are restarting, the base state is read from the restart file, including ghost cell data
-#if 0
+//#if 0
     if (restart_chkfile.empty()) {
         if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
             initHSE();
         }
     }
-#endif
+//#endif
 
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
