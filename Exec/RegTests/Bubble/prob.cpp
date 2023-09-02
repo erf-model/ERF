@@ -6,8 +6,15 @@
 
 using namespace amrex;
 
-ProbParm parms;
-#include "Prob/init_rayleigh_damping.H"
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+// TODO: reorder function declarations for consistency
 
 void
 init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
@@ -191,10 +198,11 @@ init_isentropic_hse_terrain(int i, int j,
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& z_phys_nd,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
+Problem::erf_init_dens_hse(
+    MultiFab& rho_hse,
+    std::unique_ptr<MultiFab>& z_phys_nd,
+    std::unique_ptr<MultiFab>& z_phys_cc,
+    Geometry const& geom)
 {
     // if erf.init_type is specified, then the base density should
     // already have been calculated. In that case, these assumed (dry)
@@ -272,7 +280,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 
 void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -456,9 +464,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -482,10 +491,7 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
+Problem::Problem()
 {
   // Parse params
   ParmParse pp("prob");

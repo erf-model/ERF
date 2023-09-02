@@ -7,7 +7,13 @@
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+{
+    return std::make_unique<Problem>();
+}
+
+// TODO: reorder function declarations for consistency
 
 AMREX_GPU_DEVICE
 static
@@ -101,10 +107,11 @@ init_isentropic_hse(int i, int j,
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
+Problem::erf_init_dens_hse(
+    MultiFab& rho_hse,
+    std::unique_ptr<MultiFab>& /*z_phys_nd*/,
+    std::unique_ptr<MultiFab>& z_phys_cc,
+    Geometry const& geom)
 {
   //const Real prob_lo_z = geom.ProbLo()[2];
   const int khi        = geom.Domain().bigEnd()[2];
@@ -142,7 +149,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 
 void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -272,21 +279,7 @@ init_custom_prob(
 
 }
 
-void
-erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
-                  amrex::Vector<Real>& /*ubar*/,
-                  amrex::Vector<Real>& /*vbar*/,
-                  amrex::Vector<Real>& /*wbar*/,
-                  amrex::Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for WitchOfAgnesi problem");
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
+Problem::Problem()
 {
   // Parse params
   amrex::ParmParse pp("prob");
@@ -300,9 +293,10 @@ amrex_probinit(
 }
 
 void
-init_custom_terrain (const Geometry& geom,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();

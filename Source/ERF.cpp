@@ -6,7 +6,6 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-#include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
 
@@ -119,7 +118,7 @@ ERF::ERF ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 
@@ -1350,7 +1349,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 

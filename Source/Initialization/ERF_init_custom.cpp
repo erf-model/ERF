@@ -98,7 +98,7 @@ ERF::init_custom (int lev)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
-        init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+        prob->init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,

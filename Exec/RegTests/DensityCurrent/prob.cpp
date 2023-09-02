@@ -1,12 +1,9 @@
 #include "prob.H"
-#include "prob_common.H"
 
 #include "EOS.H"
 #include "TileNoZ.H"
 
 using namespace amrex;
-
-ProbParm parms;
 
 void
 init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
@@ -189,11 +186,33 @@ init_isentropic_hse_terrain(int i, int j,
   }
 }
 
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+  // Parse params
+  ParmParse pp("prob");
+  pp.query("T_0", parms.T_0);
+  pp.query("U_0", parms.U_0);
+  pp.query("x_c", parms.x_c);
+  pp.query("z_c", parms.z_c);
+  pp.query("x_r", parms.x_r);
+  pp.query("z_r", parms.z_r);
+  pp.query("T_pert", parms.T_pert);
+}
+
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& z_phys_nd,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
+Problem::erf_init_dens_hse(
+    MultiFab& rho_hse,
+    std::unique_ptr<MultiFab>& z_phys_nd,
+    std::unique_ptr<MultiFab>& z_phys_cc,
+    Geometry const& geom)
 {
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
@@ -266,7 +285,7 @@ erf_init_dens_hse(MultiFab& rho_hse,
 }
 
 void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -456,9 +475,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -482,29 +502,3 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
-void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*wbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for DensityCurrent problem");
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
-}

@@ -6,23 +6,18 @@
 
 using namespace amrex;
 
-ProbParm parms;
-
-#include "Prob/init_constant_density_hse.H"
-
-void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*wbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  Geometry const& /*geom*/)
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
 {
-   amrex::Error("Should never get here for TaylorGreenVortex problem");
+    return std::make_unique<Problem>();
 }
 
+// TODO: reorder function declarations for consistency
+
 void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -114,9 +109,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain (
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -137,10 +133,7 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
+Problem::Problem()
 {
   // Parse params
   ParmParse pp("prob");

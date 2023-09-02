@@ -43,7 +43,7 @@ ERF::initRayleigh()
         h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
         d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
-        erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
+        prob->erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
                           h_rayleigh_wbar[lev], h_rayleigh_thetabar[lev], geom[lev]);
 
         // Copy from host version to device version
@@ -130,7 +130,7 @@ ERF::initHSE(int lev)
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
-    erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+    prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 
     // This integrates up through column to update p_hse, pi_hse;
     // FillBoundary is called at the end for r_hse and p_hse
@@ -285,6 +285,7 @@ ERF::erf_enforce_hse(int lev,
             });
         }
     }
+
     dens.FillBoundary(geom[lev].periodicity());
     pres.FillBoundary(geom[lev].periodicity());
 }

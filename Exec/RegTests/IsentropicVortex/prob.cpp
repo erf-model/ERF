@@ -3,9 +3,13 @@
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+{
+    return std::make_unique<Problem>(problo, probhi);
+}
 
-#include "Prob/init_constant_density_hse.H"
+// TODO: reorder function declarations for consistency
 
 AMREX_GPU_DEVICE
 static
@@ -22,18 +26,7 @@ erf_vortex_Gaussian(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
-                  amrex::Vector<Real>& /*ubar*/,
-                  amrex::Vector<Real>& /*vbar*/,
-                  amrex::Vector<Real>& /*wbar*/,
-                  amrex::Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for Isentropic Vortex problem");
-}
-
-void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -137,8 +130,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
-                    const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     auto dx = geom.CellSizeArray();
 
@@ -157,10 +152,7 @@ init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
     z_phys_nd.FillBoundary(geom.periodicity());
 }
 
-void
-amrex_probinit(
-  const amrex_real* problo,
-  const amrex_real* probhi)
+Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
 {
   // Parse params
   amrex::ParmParse pp("prob");

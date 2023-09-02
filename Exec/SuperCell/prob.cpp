@@ -6,7 +6,15 @@
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+// TODO: reorder function declarations for consistency
 
 void
 init_isentropic_hse_no_terrain(const Real& r_sfc, const Real& theta,
@@ -180,10 +188,11 @@ init_isentropic_hse_terrain(int i, int j,
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& z_phys_nd,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
+Problem::erf_init_dens_hse(
+    MultiFab& rho_hse,
+    std::unique_ptr<MultiFab>& z_phys_nd,
+    std::unique_ptr<MultiFab>& z_phys_cc,
+    Geometry const& geom)
 {
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
@@ -311,7 +320,7 @@ init_supercell_relhum(amrex::Real z, amrex::Real z_trop)
 }
 
 void
-init_custom_prob(
+Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -453,9 +462,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -480,12 +490,13 @@ init_custom_terrain (const Geometry& /*geom*/,
 }
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
-                  amrex::Vector<amrex::Real>& ubar,
-                  amrex::Vector<amrex::Real>& vbar,
-                  amrex::Vector<amrex::Real>& wbar,
-                  amrex::Vector<amrex::Real>& thetabar,
-                  amrex::Geometry      const& geom)
+Problem::erf_init_rayleigh(
+    amrex::Vector<amrex::Real>& tau,
+    amrex::Vector<amrex::Real>& ubar,
+    amrex::Vector<amrex::Real>& vbar,
+    amrex::Vector<amrex::Real>& wbar,
+    amrex::Vector<amrex::Real>& thetabar,
+    amrex::Geometry      const& geom)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
@@ -500,10 +511,7 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
   }
 }
 
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
+Problem::Problem()
 {
   // Parse params
   amrex::ParmParse pp("prob");

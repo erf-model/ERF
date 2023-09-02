@@ -30,6 +30,8 @@
 #include "TerrainFittedPC.H"
 #endif
 
+#include "prob_common.H"
+
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
@@ -482,6 +484,8 @@ private:
 
     ////////////////
     // private data members
+
+    std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
     amrex::Vector<int> num_files_at_level;                   // how many wrfinput files specified at each level

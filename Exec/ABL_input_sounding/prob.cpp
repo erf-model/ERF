@@ -5,37 +5,41 @@
 
 using namespace amrex;
 
-ProbParm parms;
-#include "Prob/init_constant_density_hse.H"
-#include "Prob/init_rayleigh_damping.H"
+std::unique_ptr<ProblemBase>
+amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+{
+    return std::make_unique<Problem>(problo, probhi);
+}
+
+// TODO: reorder function declarations for consistency
 
 void
-init_custom_prob(
-  const Box&  bx,
-  const Box& xbx,
-  const Box& ybx,
-  const Box& zbx,
-  Array4<Real> const& state,
-  Array4<Real> const& x_vel,
-  Array4<Real> const& y_vel,
-  Array4<Real> const& z_vel,
-  Array4<Real> const&,
-  Array4<Real> const&,
-  Array4<Real const> const&,
-  Array4<Real const> const&,
+Problem::init_custom_prob(
+    const amrex::Box&  bx,
+    const amrex::Box& xbx,
+    const amrex::Box& ybx,
+    const amrex::Box& zbx,
+    amrex::Array4<amrex::Real      > const& state,
+    amrex::Array4<amrex::Real      > const& x_vel,
+    amrex::Array4<amrex::Real      > const& y_vel,
+    amrex::Array4<amrex::Real      > const& z_vel,
+    amrex::Array4<amrex::Real      > const& /*r_hse*/,
+    amrex::Array4<amrex::Real      > const& /*p_hse*/,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
+    amrex::Array4<amrex::Real const> const& /*z_cc*/,
 #if defined(ERF_USE_MOISTURE)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    amrex::Array4<amrex::Real      > const& /*qv*/,
+    amrex::Array4<amrex::Real      > const& /*qc*/,
+    amrex::Array4<amrex::Real      > const& /*qi*/,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  Array4<Real      > const&,
-  Array4<Real      > const&,
+    amrex::Array4<amrex::Real      > const& /*qv*/,
+    amrex::Array4<amrex::Real      > const& /*qc*/,
 #endif
-  GeometryData const& geomdata,
-  Array4<Real const> const& /*mf_m*/,
-  Array4<Real const> const& /*mf_u*/,
-  Array4<Real const> const& /*mf_v*/,
-  const SolverChoice&)
+    amrex::GeometryData const& geomdata,
+    amrex::Array4<amrex::Real const> const& /*mf_m*/,
+    amrex::Array4<amrex::Real const> const& /*mf_u*/,
+    amrex::Array4<amrex::Real const> const& /*mf_v*/,
+    const SolverChoice& /*sc*/)
 {
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
@@ -142,9 +146,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -165,10 +170,7 @@ init_custom_terrain (const Geometry& /*geom*/,
     }
 }
 
-void
-amrex_probinit(
-  const amrex_real* problo,
-  const amrex_real* probhi)
+Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 {
   // Parse params
   ParmParse pp("prob");

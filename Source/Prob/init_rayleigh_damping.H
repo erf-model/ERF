@@ -1,29 +1,30 @@
-/* Initialize a Rayleigh damping layer with the same structure as in WRF, based
+/**
+ * Initialize a Rayleigh damping layer with the same structure as in WRF, based
  * on Durran and Klemp 1983
- */
+*/
 void
-erf_init_rayleigh(Vector<Real>& tau,
-                  Vector<Real>& ubar,
-                  Vector<Real>& vbar,
-                  Vector<Real>& wbar,
-                  Vector<Real>& thetabar,
-                  Geometry      const& geom)
+erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
+                  amrex::Vector<amrex::Real>& ubar,
+                  amrex::Vector<amrex::Real>& vbar,
+                  amrex::Vector<amrex::Real>& wbar,
+                  amrex::Vector<amrex::Real>& thetabar,
+                  amrex::Geometry      const& geom) override
 {
     const auto ztop = geom.ProbHi()[2];
     amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
       << ztop-parms.zdamp << " and " << ztop << std::endl;
     
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx       = geom.CellSize();
-    const int khi       = geom.Domain().bigEnd()[2];
+    const amrex::Real* prob_lo = geom.ProbLo();
+    const auto dx              = geom.CellSize();
+    const int khi              = geom.Domain().bigEnd()[2];
     
     for (int k = 0; k <= khi; k++)
     {
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-        const Real zfrac = 1 - (ztop - z) / parms.zdamp;
+        const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        const amrex::Real zfrac = 1 - (ztop - z) / parms.zdamp;
         if (zfrac >= 0)
         {
-            const Real sinefac = std::sin(PIoTwo*zfrac);
+            const amrex::Real sinefac = std::sin(PIoTwo*zfrac);
             tau[k]      = parms.dampcoef * sinefac * sinefac;
             ubar[k]     = parms.U_0;
             vbar[k]     = parms.V_0;
