@@ -100,6 +100,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_make_new_level.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
+       ${SRC_DIR}/prob_common.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
