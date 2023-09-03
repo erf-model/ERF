@@ -7,12 +7,6 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
-#include <AMReX_Geometry.H>
-
-#include <ERF_Constants.H>
-#include <IndexDefines.H>
-#include <AdvStruct.H>
-#include <TurbStruct.H>
 
 /**
  * Container holding the sponge-related choices

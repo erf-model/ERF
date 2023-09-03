@@ -27,7 +27,8 @@ using namespace amrex;
  * @param[out] S_data current solution
  * @param[in]  S_scratch scratch space
  * @param[in]  geom container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  gravity Magnitude of gravity
+ * @param[in]  use_lagged_delta_rt define lagged_delta_rt for our next step
  * @param[in]  Omega component of the momentum normal to the z-coordinate surface
  * @param[in]  z_t_rk rate of change of grid height -- only relevant for moving terrain
  * @param[in]  z_t_pert rate of change of grid height -- interpolated between RK stages
@@ -55,8 +56,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
-                      const amrex::Geometry geom,
-                      const SolverChoice& solverChoice,
+                      const Geometry geom,
+                      const Real gravity,
+                      const bool use_lagged_delta_rt,
                             MultiFab& Omega,
                       std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
                       const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
@@ -73,8 +75,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_MT()");
-
-    AMREX_ASSERT(solverChoice.terrain_type == 1);
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -96,7 +96,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
@@ -193,7 +193,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
-        } else if (solverChoice.use_lagged_delta_rt) {
+        } else if (use_lagged_delta_rt) {
             // This is the default for cases with no or static terrain
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

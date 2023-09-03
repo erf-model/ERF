@@ -760,43 +760,43 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells (const SolverChoice& solverChoice)
+    ComputeGhostCells (const AdvChoice& advChoice, bool use_num_diff)
     {
-        if (solverChoice.use_NumDiff)
+        if (use_num_diff)
         {
             return 3;
         } else {
             if (
-                 (solverChoice.advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-              || (solverChoice.advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
 #endif
-              || (solverChoice.advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-              || (solverChoice.advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
             { return 3; }
             else if (
-                 (solverChoice.advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-              || (solverChoice.advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
 #endif
-              || (solverChoice.advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-              || (solverChoice.advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
             { return 3; }
             else if (
-                  (solverChoice.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-               || (solverChoice.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+                  (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-               || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-               || (solverChoice.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
-               || (solverChoice.advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-               || (solverChoice.advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
 #endif
-               || (solverChoice.advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-               || (solverChoice.advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
+               || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }
             else
             { return 2; }

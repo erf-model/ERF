@@ -7,10 +7,6 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
-#include <AMReX_Geometry.H>
-
-#include <ERF_Constants.H>
-#include <IndexDefines.H>
 
 enum struct MolecDiffType {
     None, Constant, ConstantAlpha

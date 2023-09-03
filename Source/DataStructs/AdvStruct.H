@@ -11,7 +11,6 @@
 
 #include <ERF_Constants.H>
 #include <IndexDefines.H>
-#include <TurbStruct.H>
 
 /**
  * Container holding the advection-related choices
