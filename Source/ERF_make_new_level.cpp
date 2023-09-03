@@ -88,7 +88,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
     mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
     mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if(solverChoice.test_mapfactor) {
+    if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
         mapfac_v[lev]->setVal(0.5);
@@ -332,7 +332,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
     mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
     mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if(solverChoice.test_mapfactor) {
+    if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
         mapfac_v[lev]->setVal(0.5);
@@ -354,12 +354,12 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
     // Diffusive terms
     // ********************************************************************************************
     bool l_use_terrain = solverChoice.use_terrain;
-    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.les_type        !=       LESType::None) ||
-                           (solverChoice.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
-                           (solverChoice.pbl_type != PBLType::None) );
-    bool l_use_ddorf   = (solverChoice.les_type == LESType::Deardorff);
+    bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                           (solverChoice.turbChoice.les_type        !=       LESType::None) ||
+                           (solverChoice.turbChoice.pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (solverChoice.turbChoice.les_type        != LESType::None)   ||
+                           (solverChoice.turbChoice.pbl_type        != PBLType::None) );
+    bool l_use_ddorf   = (  solverChoice.turbChoice.les_type        == LESType::Deardorff);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));

@@ -165,14 +165,14 @@ public:
     const amrex::MultiFab*
     get_mac_avg (int lev, int comp) { return m_ma.get_average(lev,comp); }
 
-    enum FluxCalcType {
+    enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN         ///< Donelan functional form
     };
 
-    enum ThetaCalcType {
+    enum struct ThetaCalcType {
         ADIABATIC = 0,
-        HEAT_FLUX,      ///< Heat-flux specified
+        HEAT_FLUX,          ///< Heat-flux specified
         SURFACE_TEMPERATURE ///< Surface temperature specified
     };
 

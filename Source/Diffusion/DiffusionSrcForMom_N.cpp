@@ -20,7 +20,7 @@ using namespace amrex;
  * @param[in]  tau13 13 stress
  * @param[in]  tau23 23 stress
  * @param[in]  cons conserved cell center quantities
- * @param[in]  solverChoice container with solver parameters
+ * @param[in]  diffChoice container with diffusion parameters
  * @param[in]  dxInv inverse cell size array
  * @param[in]  mf_m map factor at cell center
  */
@@ -32,7 +32,7 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
                       const Array4<const Real>& tau11, const Array4<const Real>& tau22,
                       const Array4<const Real>& tau33, const Array4<const Real>& tau12,
                       const Array4<const Real>& tau13, const Array4<const Real>& tau23,
-                      const Array4<const Real>& cons , const SolverChoice& solverChoice,
+                      const Array4<const Real>& cons , const DiffChoice& diffChoice,
                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                       const Array4<const Real>& mf_m,
                       const Array4<const Real>& /*mf_u*/,
@@ -42,9 +42,9 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
 
     auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
 
-    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
+    if (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
     {
-        auto rho0_trans = solverChoice.rho0_trans;
+        auto rho0_trans = diffChoice.rho0_trans;
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {

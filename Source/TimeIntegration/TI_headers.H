@@ -275,7 +275,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
 void
 ApplySpongeZoneBCs(
-  const SolverChoice& solverChoice,
+  const SpongeChoice& spongeChoice,
   const amrex::Geometry geom,
   const amrex::Box& tbx,
   const amrex::Box& tby,
