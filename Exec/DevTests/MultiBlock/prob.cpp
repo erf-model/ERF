@@ -27,50 +27,6 @@ Problem::Problem()
 }
 
 void
-Problem::erf_init_dens_hse(
-    MultiFab& rho_hse,
-    std::unique_ptr<MultiFab>&,
-    std::unique_ptr<MultiFab>&,
-    Geometry const& geom)
-{
-  const Real prob_lo_z = geom.ProbLo()[2];
-  const Real dz        = geom.CellSize()[2];
-  const int khi        = geom.Domain().bigEnd()[2];
-
-  const Real T_sfc    = 300.;
-  const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real Thetabar = T_sfc;
-
-  // These are at cell centers (unstaggered)
-  Vector<Real> h_r(khi+2);
-  Vector<Real> h_p(khi+2);
-
-  amrex::Gpu::DeviceVector<Real> d_r(khi+2);
-  amrex::Gpu::DeviceVector<Real> d_p(khi+2);
-
-  init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
-
-  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
-  amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
-
-  Real* r = d_r.data();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            int kk = std::max(k,0);
-            rho_hse_arr(i,j,k) = r[kk];
-        });
-    }
-}
-
-void
 Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,

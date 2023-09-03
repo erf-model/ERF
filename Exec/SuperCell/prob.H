@@ -26,11 +26,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-    void erf_init_dens_hse (
-        amrex::MultiFab& rho_hse,
-        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-        std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-        amrex::Geometry const& geom) override;
+#include "Prob/init_density_hse_dry.H"
 
     void init_custom_prob (
         const amrex::Box&  bx,

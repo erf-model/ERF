@@ -29,47 +29,6 @@ Problem::Problem()
 }
 
 void
-Problem::erf_init_dens_hse(
-    MultiFab& rho_hse,
-    std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-    std::unique_ptr<MultiFab>& z_phys_cc,
-    Geometry const& geom)
-{
-  //const Real prob_lo_z = geom.ProbLo()[2];
-  const int khi        = geom.Domain().bigEnd()[2];
-
-  const Real T_sfc    = parms.T_0;
-  const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real Thetabar = T_sfc;
-
-  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-  for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
-  {
-       Array4<Real      > rho_arr  = rho_hse.array(mfi);
-       Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
-
-       // Create a flat box with same horizontal extent but only one cell in vertical
-       const Box& tbz = mfi.nodaltilebox(2);
-       Box b2d = tbz; // Copy constructor
-       b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-       b2d.setRange(2,0);
-
-       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-         Array1D<Real,0,255> r;;
-         Array1D<Real,0,255> p;;
-
-         init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
-
-         for (int k = 0; k <= khi; k++) {
-            rho_arr(i,j,k) = r(k);
-         }
-         rho_arr(i,j,   -1) = rho_arr(i,j,0);
-         rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-       });
-   }
-} 
-void
 Problem::init_custom_prob(
     const Box& bx,
     const Box& xbx,
