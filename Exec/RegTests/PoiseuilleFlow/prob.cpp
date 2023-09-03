@@ -11,7 +11,15 @@ amrex_probinit(
     return std::make_unique<Problem>();
 }
 
-// TODO: reorder function declarations for consistency
+Problem::Problem()
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.Theta_0);
+
+  pp.query("prob_type", parms.prob_type);
+}
 
 void
 Problem::init_custom_prob(
@@ -119,14 +127,4 @@ Problem::init_custom_terrain(
             z_arr(i,j,0) = 0.;
         });
     }
-}
-
-Problem::Problem()
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
-
-  pp.query("prob_type", parms.prob_type);
 }

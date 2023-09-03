@@ -9,7 +9,51 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-// TODO: reorder function declarations for consistency
+Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("p_inf", parms.p_inf);
+  pp.query("T_inf", parms.T_inf);
+  pp.query("M_inf", parms.M_inf);
+  pp.query("alpha", parms.alpha);
+  pp.query("gamma", parms.gamma);
+  pp.query("beta", parms.beta);
+  pp.query("sigma", parms.sigma);
+  pp.query("R", parms.R);
+  pp.query("xc", parms.xc);
+  pp.query("yc", parms.yc);
+
+  parms.xc = problo[0] + parms.xc * (probhi[0] - problo[0]);
+  parms.yc = problo[1] + parms.yc * (probhi[1] - problo[1]);
+  amrex::Print() << "  vortex initialized at ("
+                 << parms.xc << ", "
+                 << parms.yc << ")"
+                 << std::endl;
+
+  parms.inv_gm1 = 1.0 / (parms.gamma - 1.0);
+
+  amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
+  amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
+
+  parms.rho_0 = parms.p_inf / (R_d * parms.T_inf);
+  amrex::Print() << "  calculated freestream air density = "
+                 << parms.rho_0 << " kg/m^3"
+                 << std::endl;
+
+  parms.a_inf = std::sqrt(parms.gamma * R_d * parms.T_inf);
+  amrex::Print() << "  calculated speed of sound, a = "
+                 << parms.a_inf << " m/s"
+                 << std::endl;
+
+  amrex::Print() << "  freestream u/a = "
+                 << parms.M_inf * std::cos(parms.alpha)
+                 << std::endl;
+  amrex::Print() << "  freestream v/a = "
+                 << parms.M_inf * std::sin(parms.alpha)
+                 << std::endl;
+
+}
 
 AMREX_GPU_DEVICE
 static
@@ -152,52 +196,7 @@ Problem::init_custom_terrain(
     z_phys_nd.FillBoundary(geom.periodicity());
 }
 
-Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("p_inf", parms.p_inf);
-  pp.query("T_inf", parms.T_inf);
-  pp.query("M_inf", parms.M_inf);
-  pp.query("alpha", parms.alpha);
-  pp.query("gamma", parms.gamma);
-  pp.query("beta", parms.beta);
-  pp.query("sigma", parms.sigma);
-  pp.query("R", parms.R);
-  pp.query("xc", parms.xc);
-  pp.query("yc", parms.yc);
-
-  parms.xc = problo[0] + parms.xc * (probhi[0] - problo[0]);
-  parms.yc = problo[1] + parms.yc * (probhi[1] - problo[1]);
-  amrex::Print() << "  vortex initialized at ("
-                 << parms.xc << ", "
-                 << parms.yc << ")"
-                 << std::endl;
-
-  parms.inv_gm1 = 1.0 / (parms.gamma - 1.0);
-
-  amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
-  amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
-
-  parms.rho_0 = parms.p_inf / (R_d * parms.T_inf);
-  amrex::Print() << "  calculated freestream air density = "
-                 << parms.rho_0 << " kg/m^3"
-                 << std::endl;
-
-  parms.a_inf = std::sqrt(parms.gamma * R_d * parms.T_inf);
-  amrex::Print() << "  calculated speed of sound, a = "
-                 << parms.a_inf << " m/s"
-                 << std::endl;
-
-  amrex::Print() << "  freestream u/a = "
-                 << parms.M_inf * std::cos(parms.alpha)
-                 << std::endl;
-  amrex::Print() << "  freestream v/a = "
-                 << parms.M_inf * std::sin(parms.alpha)
-                 << std::endl;
-
-}
-
+#if 0
 AMREX_GPU_DEVICE
 Real
 dhdt(int /*i*/, int /*j*/,
@@ -206,3 +205,4 @@ dhdt(int /*i*/, int /*j*/,
 {
     return 0.;
 }
+#endif

@@ -14,7 +14,18 @@ amrex_probinit(
     return std::make_unique<Problem>();
 }
 
-// TODO: reorder function declarations for consistency
+Problem::Problem()
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("T_0", parms.T_0);
+  pp.query("U_0", parms.U_0);
+  pp.query("x_c", parms.x_c);
+  pp.query("z_c", parms.z_c);
+  pp.query("x_r", parms.x_r);
+  pp.query("z_r", parms.z_r);
+  pp.query("T_pert", parms.T_pert);
+}
 
 void
 Problem::erf_init_dens_hse(
@@ -338,17 +349,4 @@ Problem::erf_init_rayleigh(
       wbar[k] = 0.0;
       thetabar[k] = parms.Theta_0;
   }
-}
-
-Problem::Problem()
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
 }

@@ -11,7 +11,36 @@ amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-// TODO: reorder function declarations for consistency
+Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
+{
+  // Parse params
+  ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
+  pp.query("A_0", parms.A_0);
+  pp.query("QKE_0", parms.QKE_0);
+
+  pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
+  pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
+  pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
+  pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
+  pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
+
+  pp.query("pert_deltaU", parms.pert_deltaU);
+  pp.query("pert_deltaV", parms.pert_deltaV);
+  pp.query("pert_periods_U", parms.pert_periods_U);
+  pp.query("pert_periods_V", parms.pert_periods_V);
+  pp.query("pert_ref_height", parms.pert_ref_height);
+  parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
+  parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
+  parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
+  parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
+}
 
 void
 Problem::init_custom_prob(
@@ -173,35 +202,4 @@ Problem::init_custom_terrain(
             z_arr(i,j,0) = 0.;
         });
     }
-}
-
-Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
-{
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
-  pp.query("A_0", parms.A_0);
-  pp.query("QKE_0", parms.QKE_0);
-
-  pp.query("U_0", parms.U_0);
-  pp.query("V_0", parms.V_0);
-  pp.query("W_0", parms.W_0);
-  pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
-  pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
-  pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
-  pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
-
-  pp.query("pert_deltaU", parms.pert_deltaU);
-  pp.query("pert_deltaV", parms.pert_deltaV);
-  pp.query("pert_periods_U", parms.pert_periods_U);
-  pp.query("pert_periods_V", parms.pert_periods_V);
-  pp.query("pert_ref_height", parms.pert_ref_height);
-  parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
-  parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
-  parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
-  parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
-
-  pp.query("dampcoef", parms.dampcoef);
-  pp.query("zdamp", parms.zdamp);
 }
