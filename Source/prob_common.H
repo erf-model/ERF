@@ -187,6 +187,11 @@ private:
 };
 
 
+struct ProbParmDefaults {
+    amrex::Real rho_0 = 1.0;
+};
+
+
 /**
  * Function to init the physical bounds of the domain
  * and instantiate a Problem derived from ProblemBase

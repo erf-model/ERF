@@ -8,7 +8,7 @@
 #include "prob_common.H"
 #include "ERF_Constants.H"
 
-struct ProbParm {
+struct ProbParm : ProbParmDefaults {
   amrex::Real p_inf = p_0; //freestream pressure [Pa]
   amrex::Real T_inf = 300.0; //freestream temperature [K]
   amrex::Real M_inf = 0.2; //freestream Mach number [-]

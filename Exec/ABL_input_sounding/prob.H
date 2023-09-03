@@ -7,7 +7,7 @@
 
 #include "prob_common.H"
 
-struct ProbParm {
+struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0 = 0.0;
   amrex::Real T_0   = 0.0;
   amrex::Real A_0   = 1.0;

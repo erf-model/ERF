@@ -8,7 +8,7 @@
 #include "prob_common.H"
 #include "EOS.H"
 
-struct ProbParm {
+struct ProbParm : ProbParmDefaults {
   // background conditions
   // if init_type != "" then these are perturbations and should be 0
   amrex::Real T_0 = 300.0;

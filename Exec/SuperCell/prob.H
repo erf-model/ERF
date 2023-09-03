@@ -7,7 +7,7 @@
 
 #include "prob_common.H"
 
-struct ProbParm {
+struct ProbParm : ProbParmDefaults {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
   amrex::Real U_0 = 10.0;
   amrex::Real Theta_0 = 1.0;

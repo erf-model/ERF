@@ -7,7 +7,7 @@
 
 #include "prob_common.H"
 
-struct ProbParm {
+struct ProbParm : ProbParmDefaults {
   amrex::Real Ampl = 0.16;
   amrex::Real T_0  = 300.;
 }; // namespace ProbParm
