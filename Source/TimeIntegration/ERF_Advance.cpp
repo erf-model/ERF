@@ -82,8 +82,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     }
 
     // Do an error check
-    if ( ( (solverChoice.turbChoice.pbl_type == PBLType::MYNN25) ||
-           (solverChoice.turbChoice.pbl_type == PBLType::YSU   )    )  &&
+    if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+           (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU   )    )  &&
         phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
         amrex::Error("Must use MOST BC for MYNN2.5 or YSU PBL model");
     }

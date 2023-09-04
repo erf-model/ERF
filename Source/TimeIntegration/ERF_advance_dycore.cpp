@@ -59,7 +59,7 @@ void ERF::advance_dycore(int level,
     if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
 
     DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
 
     int nvars = cons_old.nComp();
 

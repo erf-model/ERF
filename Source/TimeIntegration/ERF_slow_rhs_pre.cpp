@@ -68,7 +68,8 @@ using namespace amrex;
  * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
  */
 
-void erf_slow_rhs_pre (int /*level*/, int nrk,
+void erf_slow_rhs_pre (int level,
+                       int nrk,
                        amrex::Real dt,
                        BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
@@ -108,7 +109,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
     DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
