@@ -18,7 +18,7 @@ Problem::Problem()
   // Parse params
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
+  pp.query("T_0", parms.T_0);
 }
 
 void
@@ -61,7 +61,7 @@ Problem::init_custom_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature (Actually rho*theta)
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

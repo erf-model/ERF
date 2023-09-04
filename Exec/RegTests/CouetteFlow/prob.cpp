@@ -16,7 +16,7 @@ Problem::Problem()
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
+  pp.query("T_0", parms.T_0);
   pp.query("u_0", parms.u_0);
   pp.query("v_0", parms.v_0);
   pp.query("w_0", parms.w_0);
@@ -56,7 +56,7 @@ Problem::init_custom_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     // Set scalar to 0
     state(i, j, k, RhoScalar_comp) = 0.0;

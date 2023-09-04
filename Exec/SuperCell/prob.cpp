@@ -270,6 +270,6 @@ Problem::erf_init_rayleigh(
       ubar[k] = 2.0;
       vbar[k] = 1.0;
       wbar[k] = 0.0;
-      thetabar[k] = parms.Theta_0;
+      thetabar[k] = parms.T_0;
   }
 }

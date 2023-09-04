@@ -18,7 +18,7 @@ Problem::Problem()
   // Parse params
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
+  pp.query("T_0", parms.T_0);
 }
 
 void

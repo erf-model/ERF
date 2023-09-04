@@ -189,6 +189,7 @@ private:
 
 struct ProbParmDefaults {
     amrex::Real rho_0 = 1.0;
+    amrex::Real T_0 = 300.0;
 };
 
 

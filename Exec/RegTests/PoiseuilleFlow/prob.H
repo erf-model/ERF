@@ -8,8 +8,8 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0   = 1.0;
-  amrex::Real Theta_0 = 300.0;
+  amrex::Real rho_0 = 1.0;
+  amrex::Real T_0   = 300.0;
 
   int prob_type = -1;
 }; // namespace ProbParm

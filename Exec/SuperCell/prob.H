@@ -10,7 +10,6 @@
 struct ProbParm : ProbParmDefaults {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
   amrex::Real U_0 = 10.0;
-  amrex::Real Theta_0 = 1.0;
   amrex::Real V_0 = 0.0;
   amrex::Real x_c = 0.0; // center of thermal perturbation
   amrex::Real z_c = 3200.0;

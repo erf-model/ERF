@@ -8,11 +8,11 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0   = 1.0;
-  amrex::Real Theta_0 = 300.0;
-  amrex::Real u_0     = 0.0;
-  amrex::Real v_0     = 0.0;
-  amrex::Real w_0     = 0.0;
+  amrex::Real rho_0 = 1.0;
+  amrex::Real T_0   = 300.0;
+  amrex::Real u_0   = 0.0;
+  amrex::Real v_0   = 0.0;
+  amrex::Real w_0   = 0.0;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

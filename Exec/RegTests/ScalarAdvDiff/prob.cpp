@@ -18,7 +18,7 @@ Problem::Problem()
     // Parse params
     amrex::ParmParse pp("prob");
     pp.query("rho_0", parms.rho_0);
-    pp.query("T_0", parms.Theta_0);
+    pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
     pp.query("B_0", parms.B_0);
     pp.query("u_0", parms.u_0);
@@ -53,7 +53,7 @@ Problem::erf_init_rayleigh(
       ubar[k] = 2.0;
       vbar[k] = 1.0;
       wbar[k] = 0.0;
-      thetabar[k] = parms.Theta_0;
+      thetabar[k] = parms.T_0;
   }
 }
 
@@ -111,7 +111,7 @@ Problem::init_custom_prob(
     state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
+    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
 
     if (parms.prob_type == 10)
     {
