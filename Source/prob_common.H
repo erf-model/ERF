@@ -3,7 +3,7 @@
 
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
-#include "DataStruct.H"
+#include <DataStruct.H>
 
 /**
  * Function to init the physical bounds of the domain

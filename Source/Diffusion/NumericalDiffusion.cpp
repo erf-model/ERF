@@ -8,7 +8,7 @@ using namespace amrex;
  * @param[in]  bx box to loop over
  * @param[in]  start_comp staring component index
  * @param[in]  num_comp number of total components
- * @param[in]  solverChoice container with solver parameters
+ * @param[in]  num_diff_coeff
  * @param[in]  data variables used to compute RHS
  * @param[out] rhs stor the right hand side
  * @param[in]  mf_x map factor at x-face
@@ -21,7 +21,7 @@ NumericalDiffusion (const Box& bx,
                     const int  start_comp,
                     const int  num_comp,
                     const Real dt,
-                    const SolverChoice& solverChoice,
+                    const Real num_diff_coeff,
                     const Array4<const Real>& data,
                     const Array4<      Real>& rhs,
                     const Array4<const Real>& mf_x,
@@ -54,7 +54,7 @@ NumericalDiffusion (const Box& bx,
     });
 
     // Capture diffusion coeff
-    Real coeff6 = solverChoice.NumDiffCoeff / (2.0 * dt);
+    Real coeff6 = num_diff_coeff / (2.0 * dt);
 
     // Compute 5th order derivative and augment RHS
     amrex::ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept

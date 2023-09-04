@@ -1,0 +1,5 @@
+CEXE_headers += DataStruct.H
+CEXE_headers += DiffStruct.H
+CEXE_headers += AdvStruct.H
+CEXE_headers += SpongeStruct.H
+CEXE_headers += TurbStruct.H

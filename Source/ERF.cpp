@@ -389,10 +389,11 @@ ERF::InitData ()
     //     those types into what they mean for each variable
     init_bcs();
 
-    // Verify BCs are compatible sith solver choice
-    if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
-        amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
+    // Verify BCs are compatible with solver choice
+    if ( ( (solverChoice.turbChoice.pbl_type == PBLType::MYNN25) ||
+           (solverChoice.turbChoice.pbl_type == PBLType::YSU)       ) &&
+        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+        amrex::Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
     }
 
     if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {

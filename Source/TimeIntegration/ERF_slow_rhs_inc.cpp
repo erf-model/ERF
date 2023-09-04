@@ -130,7 +130,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                     (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
     const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25 );
+                                    solverChoice.pbl_type == PBLType::MYNN25      ||
+                                    solverChoice.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -620,7 +621,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
@@ -677,11 +678,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 

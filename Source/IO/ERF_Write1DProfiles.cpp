@@ -158,8 +158,8 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_KE  = (solverChoice.les_type == LESType::Deardorff);
-    bool l_use_QKE = solverChoice.use_QKE && solverChoice.advect_QKE;
+    bool l_use_KE  = (solverChoice.turbChoice.les_type == LESType::Deardorff);
+    bool l_use_QKE = solverChoice.turbChoice.use_QKE && solverChoice.turbChoice.advect_QKE;
 
     // This will hold rho, theta, ksgs, uu, uv, uw, vv, vw, ww, uth, vth, wth, thth, k, ku, kv, kw, p, pu, pv, pw
     MultiFab mf_out(grids[lev], dmap[lev], 21, 0);
