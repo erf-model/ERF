@@ -30,7 +30,7 @@ enum struct Coord {
 
 struct SolverChoice {
   public:
-    void init_params()
+    void init_params(int max_level)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -139,12 +139,18 @@ struct SolverChoice {
            advChoice.init_params();
           diffChoice.init_params();
         spongeChoice.init_params();
-          turbChoice.init_params();
+
+        turbChoice.resize(max_level+1);
+        for (int lev = 0; lev <= max_level; lev++) {
+            turbChoice[lev].init_params(lev,max_level);
+        }
 
         // If running LES/PBL then must use "ConstantAlpha"
-        if (turbChoice.les_type != LESType::None) {
-            if ( diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha ) {
-                amrex::Error("We don't allow LES with MolecDiffType::ConstantAlpha");
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (turbChoice[lev].les_type != LESType::None) {
+                if ( diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha ) {
+                    amrex::Error("We don't allow LES with MolecDiffType::ConstantAlpha");
+                }
             }
         }
     }
@@ -179,7 +185,11 @@ struct SolverChoice {
            advChoice.display();
           diffChoice.display();
         spongeChoice.display();
-          turbChoice.display();
+
+        int max_level = turbChoice.size()-1;
+        for (int lev = 0; lev <= max_level; lev++) {
+            turbChoice[lev].display(lev);
+        }
     }
 
     void build_coriolis_forcings()
@@ -219,7 +229,7 @@ struct SolverChoice {
     AdvChoice    advChoice;
     DiffChoice   diffChoice;
     SpongeChoice spongeChoice;
-    TurbChoice   turbChoice;
+    amrex::Vector<TurbChoice>  turbChoice;
 
     // Default prefix
     std::string pp_prefix {"erf"};

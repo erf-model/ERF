@@ -355,11 +355,11 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
     // ********************************************************************************************
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.turbChoice.les_type        !=       LESType::None) ||
-                           (solverChoice.turbChoice.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.turbChoice.les_type        != LESType::None)   ||
-                           (solverChoice.turbChoice.pbl_type        != PBLType::None) );
-    bool l_use_ddorf   = (  solverChoice.turbChoice.les_type        == LESType::Deardorff);
+                           (solverChoice.turbChoice[lev].les_type        !=       LESType::None) ||
+                           (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
+                           (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
+    bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));

@@ -44,7 +44,7 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  */
 
-void erf_slow_rhs_post (int /*level*/,
+void erf_slow_rhs_post (int level,
                         int nrk,
                         Real dt,
                         Vector<MultiFab>& S_rhs,
@@ -88,7 +88,7 @@ void erf_slow_rhs_post (int /*level*/,
 
     AdvChoice  ac = solverChoice.advChoice;
     DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
 
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
