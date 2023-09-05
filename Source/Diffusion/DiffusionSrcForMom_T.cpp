@@ -24,7 +24,7 @@ using namespace amrex;
  * @param[in]  tau32 32 stress
  * @param[in]  cons conserved cell center quantities
  * @param[in]  detJ Jacobian determinant
- * @param[in]  solverChoice container with solver parameters
+ * @param[in]  differChoice container with diffusion parameters
  * @param[in]  dxInv inverse cell size array
  * @param[in]  mf_m map factor at cell center
  */
@@ -38,7 +38,7 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
                       const Array4<const Real>& tau21, const Array4<const Real>& tau23,
                       const Array4<const Real>& tau31, const Array4<const Real>& tau32,
                       const Array4<const Real>& cons , const Array4<const Real>& detJ ,
-                      const SolverChoice& solverChoice,
+                      const DiffChoice& diffChoice,
                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                       const Array4<const Real>& mf_m,
                       const Array4<const Real>& /*mf_u*/,
@@ -48,9 +48,9 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
 
     auto dxinv = dxInv[0], dyinv = dxInv[1], dzinv = dxInv[2];
 
-    if (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
+    if (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
     {
-        auto rho0_trans = solverChoice.rho0_trans;
+        auto rho0_trans = diffChoice.rho0_trans;
         amrex::ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {

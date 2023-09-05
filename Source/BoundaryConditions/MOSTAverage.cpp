@@ -253,6 +253,8 @@ MOSTAverage::set_k_indices_N()
 
             int lk = static_cast<int>(floor((m_zref - m_zlo) / m_dz - 0.5));
 
+            m_zref = (lk + 0.5) * m_dz + m_zlo;
+
             AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
             m_k_indx[lev]->setVal(lk);

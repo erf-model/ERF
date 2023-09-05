@@ -19,7 +19,7 @@ using namespace amrex;
 
 void
 ApplySpongeZoneBCs(
-  const SolverChoice& solverChoice,
+  const SpongeChoice& spongeChoice,
   const amrex::Geometry geom,
   const Box& tbx,
   const Box& tby,
@@ -39,25 +39,25 @@ ApplySpongeZoneBCs(
   auto ProbHiArr = geom.ProbHiArray();
   auto ProbLoArr = geom.ProbLoArray();
 
-  const amrex::Real sponge_strength = solverChoice.sponge_strength;
-  const int use_xlo_sponge_damping = solverChoice.use_xlo_sponge_damping;
-  const int use_xhi_sponge_damping = solverChoice.use_xhi_sponge_damping;
-  const int use_ylo_sponge_damping = solverChoice.use_ylo_sponge_damping;
-  const int use_yhi_sponge_damping = solverChoice.use_yhi_sponge_damping;
-  const int use_zlo_sponge_damping = solverChoice.use_zlo_sponge_damping;
-  const int use_zhi_sponge_damping = solverChoice.use_zhi_sponge_damping;
+  const amrex::Real sponge_strength = spongeChoice.sponge_strength;
+  const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
+  const int use_xhi_sponge_damping = spongeChoice.use_xhi_sponge_damping;
+  const int use_ylo_sponge_damping = spongeChoice.use_ylo_sponge_damping;
+  const int use_yhi_sponge_damping = spongeChoice.use_yhi_sponge_damping;
+  const int use_zlo_sponge_damping = spongeChoice.use_zlo_sponge_damping;
+  const int use_zhi_sponge_damping = spongeChoice.use_zhi_sponge_damping;
 
-  const amrex::Real xlo_sponge_end   = solverChoice.xlo_sponge_end;
-  const amrex::Real xhi_sponge_start = solverChoice.xhi_sponge_start;
-  const amrex::Real ylo_sponge_end   = solverChoice.ylo_sponge_end;
-  const amrex::Real yhi_sponge_start = solverChoice.yhi_sponge_start;
-  const amrex::Real zlo_sponge_end   = solverChoice.zlo_sponge_end;
-  const amrex::Real zhi_sponge_start = solverChoice.zhi_sponge_start;
+  const amrex::Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+  const amrex::Real xhi_sponge_start = spongeChoice.xhi_sponge_start;
+  const amrex::Real ylo_sponge_end   = spongeChoice.ylo_sponge_end;
+  const amrex::Real yhi_sponge_start = spongeChoice.yhi_sponge_start;
+  const amrex::Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
+  const amrex::Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
-  const amrex::Real sponge_density = solverChoice.sponge_density;
-  const amrex::Real sponge_x_velocity = solverChoice.sponge_x_velocity;
-  const amrex::Real sponge_y_velocity = solverChoice.sponge_y_velocity;
-  const amrex::Real sponge_z_velocity = solverChoice.sponge_z_velocity;
+  const amrex::Real sponge_density = spongeChoice.sponge_density;
+  const amrex::Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
+  const amrex::Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
+  const amrex::Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();

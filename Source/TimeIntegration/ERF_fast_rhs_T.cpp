@@ -27,7 +27,7 @@ using namespace amrex;
  * @param[out] S_data current solution
  * @param[in]  S_scratch scratch space
  * @param[in]  geom container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  gravity magnitude of gravity
  * @param[in]  Omega component of the momentum normal to the z-coordinate surface
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] detJ_cc Jacobian of the metric transformation
@@ -50,7 +50,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
                      const amrex::Geometry geom,
-                     const SolverChoice& solverChoice,
+                     const Real gravity,
                            MultiFab& Omega,
                      std::unique_ptr<MultiFab>& z_phys_nd,
                      std::unique_ptr<MultiFab>& detJ_cc,
@@ -61,8 +61,6 @@ void erf_fast_rhs_T (int step, int /*level*/,
                      std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
-
-    AMREX_ASSERT(solverChoice.terrain_type == 0);
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -96,7 +94,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);

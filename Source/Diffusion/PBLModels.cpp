@@ -1,6 +1,8 @@
 #include "ABLMost.H"
 #include "DirectionSelector.H"
 #include "Diffusion.H"
+#include "ERF_Constants.H"
+#include "TurbStruct.H"
 
 /**
  * Function to compute turbulent viscosity with PBL.
@@ -10,7 +12,7 @@
  * @param[in] cons_in cell center conserved quantities
  * @param[out] eddyViscosity holds turbulent viscosity
  * @param[in] geom problem geometry
- * @param[in] solverChoice container with solver parameters
+ * @param[in] turbChoice container with turbulence parameters
  * @param[in] most pointer to Monin-Obukhov class if instantiated
  */
 void
@@ -19,22 +21,22 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& cons_in,
                               amrex::MultiFab& eddyViscosity,
                               const amrex::Geometry& geom,
-                              const SolverChoice& solverChoice,
+                              const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               bool /*vert_only*/)
 {
   // MYNN Level 2.5 PBL Model
-  if (solverChoice.pbl_type == PBLType::MYNN25) {
+  if (turbChoice.pbl_type == PBLType::MYNN25) {
 
-    const amrex::Real A1 = solverChoice.pbl_A1;
-    const amrex::Real A2 = solverChoice.pbl_A2;
-    //const amrex::Real B1 = solverChoice.pbl_B1;
-    const amrex::Real B2 = solverChoice.pbl_B2;
-    const amrex::Real C1 = solverChoice.pbl_C1;
-    const amrex::Real C2 = solverChoice.pbl_C2;
-    const amrex::Real C3 = solverChoice.pbl_C3;
-    //const amrex::Real C4 = solverChoice.pbl_C4;
-    const amrex::Real C5 = solverChoice.pbl_C5;
+    const amrex::Real A1 = turbChoice.pbl_A1;
+    const amrex::Real A2 = turbChoice.pbl_A2;
+    //const amrex::Real B1 = turbChoice.pbl_B1;
+    const amrex::Real B2 = turbChoice.pbl_B2;
+    const amrex::Real C1 = turbChoice.pbl_C1;
+    const amrex::Real C2 = turbChoice.pbl_C2;
+    const amrex::Real C3 = turbChoice.pbl_C3;
+    //const amrex::Real C4 = turbChoice.pbl_C4;
+    const amrex::Real C5 = turbChoice.pbl_C5;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -84,8 +86,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
       // Spatially varying MOST
       amrex::Real eps       = 1.0e-16;
-      amrex::Real d_kappa   = most->kappa;
-      amrex::Real d_gravity = most->gravity;
+      amrex::Real d_kappa   = KAPPA;
+      amrex::Real d_gravity = CONST_GRAV;
 
       const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
       const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
@@ -191,5 +193,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // TODO: How should this be done for other components (scalars, moisture)
       });
     }
+  } else if (turbChoice.pbl_type == PBLType::YSU) {
+      amrex::Error("YSU Model not implemented yet");
   }
 }

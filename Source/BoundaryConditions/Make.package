@@ -19,3 +19,5 @@ CEXE_headers += TimeInterpolatedData.H
 
 CEXE_headers += MOSTAverage.H
 CEXE_sources += MOSTAverage.cpp
+
+CEXE_headers += MOSTStress.H

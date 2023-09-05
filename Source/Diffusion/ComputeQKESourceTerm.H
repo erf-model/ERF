@@ -11,7 +11,7 @@
  * @param[in] K_turb turbulent viscosity
  * @param[in] cellSizeInv inverse cell size array
  * @param[in] domain box of the whole domain
- * @param[in] solverChoice_pbl_B1 a parameter
+ * @param[in] pbl_B1_l a parameter
  * @param[in] theta_mean average theta
  */
 AMREX_GPU_DEVICE
@@ -25,7 +25,7 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& K_turb,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                        const amrex::Box& domain,
-                       amrex::Real solverChoice_pbl_B1,
+                       amrex::Real pbl_B1_l,
                        const amrex::Real theta_mean)
 {
   // Compute some relevant derivatives
@@ -58,7 +58,7 @@ ComputeQKESourceTerms (int i, int j, int k,
   amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
   if (std::abs(qke) > 0.0) {
     source_term += 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
-      (solverChoice_pbl_B1 * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
+      (pbl_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
   }
 
   return source_term;

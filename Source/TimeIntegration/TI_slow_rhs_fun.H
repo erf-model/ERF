@@ -104,8 +104,8 @@
 
             // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
             //    discretize the vertical pressure gradient in perturbational form.
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             Real dt_base  = (new_stage_time - old_step_time);
 

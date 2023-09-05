@@ -389,10 +389,13 @@ ERF::InitData ()
     //     those types into what they mean for each variable
     init_bcs();
 
-    // Verify BCs are compatible sith solver choice
-    if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
-        amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
+    // Verify BCs are compatible with solver choice
+    for (int lev(0); lev <= max_level; ++lev) {
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            amrex::Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+        }
     }
 
     if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
@@ -541,12 +544,15 @@ ERF::InitData ()
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
-        int lev = 0; amrex::IntVect ng = IntVect(0,0,0);
-        MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
-        MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
-        MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
-        m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-        m_most->update_fluxes(lev);
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            amrex::IntVect ng = IntVect(0,0,0);
+            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+            MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+            m_most->update_fluxes(lev);
+        }
     }
 
     if (solverChoice.use_rayleigh_damping)
@@ -839,7 +845,6 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
 
-
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -1007,7 +1012,10 @@ ERF::ReadParameters ()
     solverChoice.pp_prefix = pp_prefix;
 #endif
 
-    solverChoice.init_params();
+    solverChoice.init_params(max_level);
+    if (verbose > 0) {
+        solverChoice.display();
+    }
 }
 
 // Create horizontal average quantities for 5 variables:
