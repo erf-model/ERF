@@ -75,7 +75,8 @@ struct TurbChoice {
                 if (les_type != LESType::None) {
                     amrex::Print() << "Selected a PBL model and an LES model: " <<
                     "Using PBL for vertical transport, LES for horizontal" << std::endl;
-                } else if (les_type == LESType::Deardorff) {
+                }
+                if (les_type == LESType::Deardorff) {
                     amrex::Error("It is not recommended to use Deardorff LES and a PBL model");
                 }
                 pp.query("pbl_A1", pbl_A1);
