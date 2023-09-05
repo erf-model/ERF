@@ -19,6 +19,8 @@ public:
 #include "Prob/init_constant_density_hse.H"
 
 protected:
+    const ProbParm& get_parms() override { return parms; }
+
     std::string name() override { return "Stokes Second Problem"; }
 
 private:

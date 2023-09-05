@@ -795,8 +795,9 @@ ERF::init_only (int lev, Real time)
     if (init_type == "input_sounding") {
         // The base state is initialized by integrating vertically through the
         // input sounding, if the init_sounding_ideal flag is set; otherwise
-        // it is set below by initHSE()
+        // it is set by initHSE()
         init_from_input_sounding(lev);
+        if (!init_sounding_ideal) initHSE();
 
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
@@ -809,15 +810,11 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    }
-    
-    // No background flow initialization, initialize base state based on density
-    // set by prob.cpp
-    if ((init_type != "ideal") &&
-        (init_type != "real") &&
-        (init_type != "metgrid") &&
-        (!init_sounding_ideal))
-    {
+    } else {
+        // No background flow initialization specified, initialize a uniform
+        // background field and base state based on the problem-specified
+        // reference density and temperature
+        init_uniform(lev);
         initHSE(lev);
     }
 
@@ -1349,7 +1346,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(), geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 

@@ -78,6 +78,8 @@ public:
 #include "Prob/init_rayleigh_damping.H"
 
 protected:
+    const ProbParm& get_parms() override { return parms; }
+
     std::string name() override { return "Bubble"; }
 
 private:

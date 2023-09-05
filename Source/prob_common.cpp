@@ -4,6 +4,21 @@
 using namespace amrex;
 
 void
+ProblemBase::init_state(
+    const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)
+{
+    ProbParmDefaults parms = get_parms();
+    amrex::Real rho_0 = parms.rho_0;
+    amrex::Real T_0 = parms.T_0;
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        state(i, j, k, Rho_comp) = rho_0;
+        state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
+    });
+}
+
+void
 ProblemBase::init_isentropic_hse(
     const Real& r_sfc,
     const Real& theta,

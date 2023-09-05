@@ -9,6 +9,11 @@
 #include "DataStruct.H"
 #include "IndexDefines.H"
 
+struct ProbParmDefaults {
+    amrex::Real rho_0 = 1.0;
+    amrex::Real T_0 = 300.0;
+};
+
 /**
  * Class to hold problem-specific routines
 */
@@ -136,6 +141,12 @@ public:
         amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
     }
 
+    /**
+     * Function to set uniform background density and pressure fields
+    */
+    void
+    init_state (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state);
+
 protected:
     /**
      * Function to calculate the hydrostatic density and pressure
@@ -179,17 +190,12 @@ protected:
                                  const amrex::Array4<amrex::Real const> z_cc,
                                  const int& khi);
 
+    virtual const ProbParmDefaults& get_parms() = 0;
     virtual std::string name() = 0;
 
 private:
     const int MAX_ITER = 10;
     const amrex::Real TOL = 1.e-8;
-};
-
-
-struct ProbParmDefaults {
-    amrex::Real rho_0 = 1.0;
-    amrex::Real T_0 = 300.0;
 };
 
 

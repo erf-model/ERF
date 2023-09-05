@@ -53,6 +53,8 @@ public:
         const amrex::Real& time) override;
 
 protected:
+    const ProbParm& get_parms() override { return parms; }
+
     std::string name() override { return "Low-Level Jet"; }
 
 private:
