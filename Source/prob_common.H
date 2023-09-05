@@ -66,7 +66,7 @@ public:
     */
 
     virtual void
-    init_custom_prob (
+    init_custom_pert (
       const amrex::Box&  bx,
       const amrex::Box& xbx,
       const amrex::Box& ybx,

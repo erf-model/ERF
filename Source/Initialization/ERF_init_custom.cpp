@@ -12,8 +12,8 @@ using namespace amrex;
 /**
  * Wrapper for custom problem-specific initialization routines that can be
  * defined by the user as they set up a new problem in ERF. This wrapper
- * handles all the overhead of defining both the background and perturbation
- * state as well as initializing the random seed.
+ * handles all the overhead of defining the perturbation as well as initializing
+ * the random seed if needed.
  *
  * This wrapper calls a user function to customize initialization on a per-Fab
  * level inside an MFIter loop, so all the MultiFab operations are hidden from
@@ -98,7 +98,7 @@ ERF::init_custom (int lev)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
-        prob->init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+        prob->init_custom_pert(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                          r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
                          qv_pert_arr, qc_pert_arr, qi_pert_arr,

@@ -42,7 +42,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 }
 
 void
-Problem::init_custom_prob(
+Problem::init_custom_pert(
     const amrex::Box&  bx,
     const amrex::Box& xbx,
     const amrex::Box& ybx,

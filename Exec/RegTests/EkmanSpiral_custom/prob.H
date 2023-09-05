@@ -20,7 +20,7 @@ public:
 
 #include "Prob/init_constant_density_hse.H"
 
-    void init_custom_prob (
+    void init_custom_pert (
         const amrex::Box&  bx,
         const amrex::Box& xbx,
         const amrex::Box& ybx,

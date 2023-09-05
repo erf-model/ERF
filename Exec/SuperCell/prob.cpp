@@ -83,7 +83,7 @@ init_supercell_relhum(amrex::Real z, amrex::Real z_trop)
 }
 
 void
-Problem::init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,

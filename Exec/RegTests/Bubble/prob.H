@@ -43,7 +43,7 @@ public:
 
 #include "Prob/init_density_hse_dry.H"
 
-    void init_custom_prob (
+    void init_custom_pert (
         const amrex::Box&  bx,
         const amrex::Box& xbx,
         const amrex::Box& ybx,

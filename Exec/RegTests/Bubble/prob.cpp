@@ -36,7 +36,7 @@ Problem::Problem()
 }
 
 void
-Problem::init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,

@@ -825,10 +825,10 @@ ERF::init_only (int lev, Real time)
     // Add problem-specific flow features
     //
     // Notes: 
-    // - This calls init_custom_prob that is defined for each problem
+    // - This calls init_custom_pert that is defined for each problem
     // - This may modify the base state
-    // - If init_type is specified, then the fields set by init_custom_prob are
-    //   treated as perturbations to the background flow
+    // - The fields set by init_custom_pert are **perturbations** to the
+    //   background flow set based on init_type
     init_custom(lev);
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
