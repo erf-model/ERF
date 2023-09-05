@@ -77,8 +77,8 @@ first `heat equation`_ tutorial code.
 
 .. _`heat equation`: https://github.com/AMReX-Codes/amrex-tutorials/tree/main/GuidedTutorials/HeatEquation
 
-Next, download and install VisIt from
-https://wci.llnl.gov/simulation/computer-codes/visit.  To open a single
+Next, download VisIt from
+https://visit-dav.github.io/visit-website/ and install.  To open a single
 plotfile, run VisIt, then select "File" :math:`\rightarrow` "Open file ...",
 then select the Header file associated the the plotfile of interest (e.g.,
 plt00000/Header).  Assuming you ran the simulation in 2D, here are instructions
@@ -309,5 +309,3 @@ The output of this is :numref:`fig:yt_Nyx_vol_rend`.
    Volume rendering of :math:`128^3` Nyx simulation using yt. This corresponds
    to the same plot file used to generate the slice plot in
    :numref:`fig:yt_Nyx_slice_plot`.
-
-
