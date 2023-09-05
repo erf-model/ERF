@@ -342,7 +342,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type=="real" && level==0 && nrk==0) {
+        if (init_type=="real" && level==0) {
             wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
@@ -351,7 +351,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && coupling_type=="OneWay" && cf_width>0 && nrk==0) {
+        if (level>0 && coupling_type=="OneWay" && cf_width>0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             cf_width-1, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
