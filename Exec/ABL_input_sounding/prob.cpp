@@ -85,12 +85,6 @@ Problem::init_custom_pert(
 
     const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial Rho0*Theta0
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
-
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 

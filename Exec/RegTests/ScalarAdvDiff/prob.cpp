@@ -107,12 +107,6 @@ Problem::init_custom_pert(
     const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
     const Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
-
     if (parms.prob_type == 10)
     {
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,

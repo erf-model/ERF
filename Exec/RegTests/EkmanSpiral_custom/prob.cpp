@@ -57,12 +57,6 @@ Problem::init_custom_pert(
     //const Real y = prob_lo[1] + (j + 0.5) * dx[1];
     //const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature (Actually rho*theta)
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
-
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
 

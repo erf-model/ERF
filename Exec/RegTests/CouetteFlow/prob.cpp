@@ -52,12 +52,6 @@ Problem::init_custom_pert(
 {
     amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
-
     // Set scalar to 0
     state(i, j, k, RhoScalar_comp) = 0.0;
 

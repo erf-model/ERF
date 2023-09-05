@@ -55,7 +55,7 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
+// init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type;
 
 // NetCDF wrfinput (initialization) file(s)
@@ -810,12 +810,17 @@ ERF::init_only (int lev, Real time)
         // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
-    } else {
-        // No background flow initialization specified, initialize a uniform
-        // background field and base state based on the problem-specified
-        // reference density and temperature
-        init_uniform(lev);
+    } else if (init_type == "uniform") {
+        // Initialize a uniform background field and base state based on the
+        // problem-specified reference density and temperature
         initHSE(lev);
+        init_uniform(lev);
+    } else {
+        // No background flow initialization specified, initialize the
+        // background field to be equal to the base state, calculated from the
+        // problem-specific erf_init_dens_hse
+        initHSE(lev);
+        //TODO: init_from_hse(lev);
     }
 
 #if defined(ERF_USE_MOISTURE)
@@ -926,12 +931,13 @@ ERF::ReadParameters ()
         // How to initialize
         pp.query("init_type",init_type);
         if (!init_type.empty() &&
+            init_type != "uniform" &&
             init_type != "ideal" &&
             init_type != "real" &&
             init_type != "metgrid" &&
             init_type != "input_sounding")
         {
-            amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
+            amrex::Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
         }
 
         // No moving terrain with init real

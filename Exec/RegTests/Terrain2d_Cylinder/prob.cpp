@@ -117,7 +117,7 @@ Problem::init_custom_pert(
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = std::pow(p_hse(i,j,k)/p_0,1.0/Gamma) * p_0 / R_d;
-    state(i, j, k, Rho_comp) = 1.2;
+    state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

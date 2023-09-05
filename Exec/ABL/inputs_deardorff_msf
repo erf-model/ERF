@@ -50,6 +50,8 @@ erf.Ck       = 0.1
 erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0

@@ -35,6 +35,7 @@ Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
 
   amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
   amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
+  amrex::Print() << "  reference potential temperature (not used) = " << parms.T_0 << " K" << std::endl;
 
   parms.rho_0 = parms.p_inf / (R_d * parms.T_inf);
   amrex::Print() << "  calculated freestream air density = "
@@ -103,6 +104,7 @@ Problem::init_custom_pert(
   Real sigma = parms.sigma;
 
   const Real rdOcp = sc.rdOcp;
+  const Real T_0 = parms.T_0;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -115,16 +117,17 @@ Problem::init_custom_pert(
     const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
     const Real deltaT = -(parms.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
 
-    // Set the density
-    const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    state(i, j, k, Rho_comp) = rho_norm * parms.rho_0;
+    // Set the perturbation density
+    //const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
+    const Real rho_norm_pert = std::pow(1.0 + deltaT, parms.inv_gm1) - 1.0;
+    state(i, j, k, Rho_comp) = rho_norm_pert * parms.rho_0;
 
     // Initial _potential_ temperature
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                           * parms.rho_0*parms.a_inf*parms.a_inf;
-    state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, rdOcp); // T --> theta
-    state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
+    const Real rho_theta = state(i, j, k, Rho_comp) * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
+    state(i, j, k, RhoTheta_comp) = rho_theta - parms.rho_0 * parms.T_0; // Set the perturbation rho*theta
 
     // Set scalar = 0 -- unused
     state(i, j, k, RhoScalar_comp) = 0.0;

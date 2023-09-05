@@ -50,14 +50,15 @@ Problem::init_custom_pert(
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
+  const Real rhotheta_0 = parms.rho_0 * parms.T_0;
+
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // Geometry (note we must include these here to get the data on device)
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0;
-    state(i, j, k, Rho_comp) = parms.rho_0;
+    // This version perturbs rho but not p -- TODO: CHECK THIS
+    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - rhotheta_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

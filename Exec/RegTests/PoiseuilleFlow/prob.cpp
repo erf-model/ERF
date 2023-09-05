@@ -53,12 +53,6 @@ Problem::init_custom_pert(
   {
     // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.T_0;
-
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = 0.0;
 
