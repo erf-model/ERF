@@ -14,7 +14,6 @@
  */
 void erf_slow_rhs_pre (int level, int nrk,
                       amrex::Real dt,
-                      amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_data,
                       const amrex::MultiFab& S_prim,
@@ -229,7 +228,6 @@ void make_buoyancy (amrex::BoxArray& grids_to_evolve,
  */
 void erf_slow_rhs_inc (int level, int nrk,
                       amrex::Real dt,
-                      amrex::BoxArray& grids_to_evolve,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
                       amrex::Vector<amrex::MultiFab>& S_old,
                       amrex::Vector<amrex::MultiFab>& S_data,

@@ -19,18 +19,17 @@ PhysBCFunctNoOp void_bc;
  * @param[in] ng_vect number of ghost cells in each direction
  * @param[in] get_int_ng flag to get ghost cells inside the domain
  */
-
 void
-compute_interior_ghost_bxs_xy(const Box& bx,
-                              const Box& domain,
-                              const int& width,
-                              const int& set_width,
-                              Box& bx_xlo,
-                              Box& bx_xhi,
-                              Box& bx_ylo,
-                              Box& bx_yhi,
-                              const IntVect& ng_vect,
-                              const bool get_int_ng)
+compute_interior_ghost_bxs_xy (const Box& bx,
+                               const Box& domain,
+                               const int& width,
+                               const int& set_width,
+                               Box& bx_xlo,
+                               Box& bx_xhi,
+                               Box& bx_ylo,
+                               Box& bx_yhi,
+                               const IntVect& ng_vect,
+                               const bool get_int_ng)
 {
     AMREX_ALWAYS_ASSERT(bx.ixType() == domain.ixType());
 
@@ -105,19 +104,19 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
-                                  const Real& start_bdy_time,
-                                  const Real& time,
-                                  const Real& delta_t,
-                                  const int&  width,
-                                  const int&  set_width,
-                                  const Geometry& geom,
-                                  Vector<MultiFab>& S_rhs,
-                                  Vector<MultiFab>& S_data,
-                                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                  Vector<Vector<FArrayBox>>& bdy_data_yhi)
+wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+                                   const Real& start_bdy_time,
+                                   const Real& time,
+                                   const Real& delta_t,
+                                   const int&  width,
+                                   const int&  set_width,
+                                   const Geometry& geom,
+                                   Vector<MultiFab>& S_rhs,
+                                   Vector<MultiFab>& S_data,
+                                   Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                                   Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
 
@@ -389,7 +388,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
+            wrfbdy_zero_rhs_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
         }
 
         {
@@ -400,7 +399,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
         }
 
         {
@@ -411,7 +410,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
 
         {
@@ -422,7 +421,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
         }
     } // mfi
 
@@ -480,10 +479,10 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                 continue;
             }
 
-            compute_Laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
-                                         tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                         arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                         data_arr, rhs_arr);
+            wrfbdy_compute_laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
+                                                tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                                arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                                data_arr, rhs_arr);
         } // mfi
     } // ivar
 }
@@ -505,19 +504,18 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
  * @param[in]  S_data    current value of the solution
  */
 void
-fine_compute_interior_ghost_RHS(const Real& time,
-                                const Real& delta_t,
-                                const int& width,
-                                const int& set_width,
-                                const Geometry& geom,
-                                ERFFillPatcher* FPr_c,
-                                ERFFillPatcher* FPr_u,
-                                ERFFillPatcher* FPr_v,
-                                ERFFillPatcher* FPr_w,
-                                Vector<Box>& boxes_at_level,
-                                Vector<BCRec>& domain_bcs_type,
-                                Vector<MultiFab>& S_rhs_f,
-                                Vector<MultiFab>& S_data_f)
+fine_compute_interior_ghost_rhs (const Real& time,
+                                 const Real& delta_t,
+                                 const int& width,
+                                 const int& set_width,
+                                 const Geometry& geom,
+                                 ERFFillPatcher* FPr_c,
+                                 ERFFillPatcher* FPr_u,
+                                 ERFFillPatcher* FPr_v,
+                                 ERFFillPatcher* FPr_w,
+                                 Vector<BCRec>& domain_bcs_type,
+                                 Vector<MultiFab>& S_rhs_f,
+                                 Vector<MultiFab>& S_data_f)
 {
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
@@ -553,6 +551,8 @@ fine_compute_interior_ghost_RHS(const Real& time,
         amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
 
         // Integer mask MF
+        int set_mask_val;
+        int relax_mask_val;
         iMultiFab* mask;
 
         // Fill fine patch on interior halo region
@@ -560,12 +560,16 @@ fine_compute_interior_ghost_RHS(const Real& time,
         if (ivar_idx == IntVar::cons)
         {
             FPr_c->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
-            mask = FPr_c->GetMask();
+            mask           = FPr_c->GetMask();
+            set_mask_val   = FPr_c->GetSetMaskVal();
+            relax_mask_val = FPr_c->GetRelaxMaskVal();
         }
         else if (ivar_idx == IntVar::xmom)
         {
             FPr_u->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
-            mask = FPr_u->GetMask();
+            mask           = FPr_u->GetMask();
+            set_mask_val   = FPr_u->GetSetMaskVal();
+            relax_mask_val = FPr_u->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -579,7 +583,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
                 amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (mask_arr(i,j,k) == 1) {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
@@ -589,7 +593,9 @@ fine_compute_interior_ghost_RHS(const Real& time,
         else if (ivar_idx == IntVar::ymom)
         {
             FPr_v->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
-            mask = FPr_v->GetMask();
+            mask           = FPr_v->GetMask();
+            set_mask_val   = FPr_v->GetSetMaskVal();
+            relax_mask_val = FPr_v->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -603,7 +609,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
                 amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (mask_arr(i,j,k) == 1) {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
@@ -613,7 +619,9 @@ fine_compute_interior_ghost_RHS(const Real& time,
         else if (ivar_idx == IntVar::zmom)
         {
             FPr_w->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
-            mask = FPr_w->GetMask();
+            mask           = FPr_w->GetMask();
+            set_mask_val   = FPr_w->GetSetMaskVal();
+            relax_mask_val = FPr_w->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -627,7 +635,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
                 amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    if (mask_arr(i,j,k) == 1) {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
                     }
@@ -651,7 +659,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
 
             amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (mask_arr(i,j,k) == 2) {
+                if (mask_arr(i,j,k) == set_mask_val) {
                     rhs_arr(i,j,k) = 0.0;
                 }
             });
@@ -685,7 +693,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
             amrex::Real denom = amrex::Real(Relax_z - 1);
             amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
            {
-               if (mask_arr(i,j,k) == 1) {
+               if (mask_arr(i,j,k) == relax_mask_val) {
 
                    // Indices
                    Real n_ind;
@@ -831,6 +839,7 @@ fine_compute_interior_ghost_RHS(const Real& time,
     } // ivar_idx
 }
 
+// TODO: DELETE ALL OF THIS
 /**
  * Update the solution in the relaxation zone
  *
@@ -841,19 +850,19 @@ fine_compute_interior_ghost_RHS(const Real& time,
  * @param[in]  S_old  previous value of the solution
  * @param[out] S_data new value of the solution defined here
  */
-
+/*
 void
-update_interior_ghost(const int& lev,
-                      const Real& delta_t,
-                      const int&  width,
-                      Vector<Box>& boxes_at_level,
-                      Vector<MultiFab>& S_rhs,
-                      const Vector<MultiFab>& S_old,
-                      Vector<MultiFab>& S_data,
-                      ERFFillPatcher* FPr_c,
-                      ERFFillPatcher* FPr_u,
-                      ERFFillPatcher* FPr_v,
-                      ERFFillPatcher* FPr_w)
+update_interior_ghost (const int& lev,
+                       const Real& delta_t,
+                       const int&  width,
+                       Vector<Box>& boxes_at_level,
+                       Vector<MultiFab>& S_rhs,
+                       const Vector<MultiFab>& S_old,
+                       Vector<MultiFab>& S_data,
+                       ERFFillPatcher* FPr_c,
+                       ERFFillPatcher* FPr_u,
+                       ERFFillPatcher* FPr_v,
+                       ERFFillPatcher* FPr_w)
 {
     BL_PROFILE_REGION("update_interior_ghost()");
 
@@ -909,15 +918,20 @@ update_interior_ghost(const int& lev,
         // CRSE-FINE set region
         } else {
             iMultiFab* mask;
+            int set_mask_val;
 
             if (ivar == IntVar::cons) {
                 mask = FPr_c->GetMask();
+                set_mask_val = FPr_c->GetSetMaskVal();
             } else if (ivar == IntVar::xmom) {
                 mask = FPr_u->GetMask();
+                set_mask_val = FPr_u->GetSetMaskVal();
             } else if (ivar == IntVar::ymom) {
                 mask = FPr_v->GetMask();
+                set_mask_val = FPr_v->GetSetMaskVal();
             } else if (ivar == IntVar::zmom) {
                 mask = FPr_w->GetMask();
+                set_mask_val = FPr_w->GetSetMaskVal();
             } else {
                 amrex::Abort("Dont recognize this variable type in update_interior_ghost");
             }
@@ -935,7 +949,7 @@ update_interior_ghost(const int& lev,
                 amrex::ParallelFor(vbx, ncomp,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                 {
-                    if (mask_arr(i,j,k) == 2) {
+                    if (mask_arr(i,j,k) == set_mask_val) {
                         rhs_arr(i,j,k,n) = 0.0;
                         new_arr(i,j,k,n) = old_arr(i,j,k,n);
                     }
@@ -944,3 +958,4 @@ update_interior_ghost(const int& lev,
         } // lev
     } // ivar
 }
+*/

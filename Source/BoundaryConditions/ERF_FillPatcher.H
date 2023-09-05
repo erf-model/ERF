@@ -36,6 +36,10 @@ public:
                      amrex::Vector<amrex::BCRec> const& bcr,
                      int mask_val);
 
+    int GetSetMaskVal() { return m_set_mask; }
+
+    int GetRelaxMaskVal() { return m_relax_mask; }
+
     amrex::iMultiFab* GetMask() { return m_cf_mask.get(); }
 
     template <typename BC>

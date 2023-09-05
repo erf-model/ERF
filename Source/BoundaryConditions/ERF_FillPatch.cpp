@@ -255,10 +255,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
     // ***************************************************************************
 
-    //
-    // It is important that we apply the MOST bcs after we have imposed all the others
-    //    so that we have enough information in the ghost cells to calculate the viscosity
-    //
+    // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
         m_most->impose_most_bcs(lev,mfs,eddyDiffs);
 }
