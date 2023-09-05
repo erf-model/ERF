@@ -6,7 +6,6 @@ CEXE_sources += prob_common.cpp
 
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H
-CEXE_headers += DataStruct.H
 CEXE_headers += InputSoundingData.H
 CEXE_headers += ERF_Constants.H
 CEXE_sources += ERF_Tagging.cpp

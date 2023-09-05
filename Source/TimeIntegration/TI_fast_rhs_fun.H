@@ -67,14 +67,17 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
-            make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, solverChoice,
+            make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+                             solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s);
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_MT(fast_step, level, grids_to_evolve[level],
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom, solverChoice, Omega, z_t_rk[level], z_t_pert,
+                                S_data, S_scratch, fine_geom,
+                                solverChoice.gravity, solverChoice.use_lagged_delta_rt,
+                                Omega, z_t_rk[level], z_t_pert,
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -83,7 +86,9 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_MT(fast_step, level, grids_to_evolve[level],
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                                S_data, S_scratch, fine_geom, solverChoice, Omega, z_t_rk[level], z_t_pert,
+                                S_data, S_scratch, fine_geom,
+                                solverChoice.gravity, solverChoice.use_lagged_delta_rt,
+                                Omega, z_t_rk[level], z_t_pert,
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -93,20 +98,21 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, solverChoice,
+                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+                                 solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, grids_to_evolve[level],
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice, Omega,
+                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_T(fast_step, level, grids_to_evolve[level],
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice, Omega,
+                               S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             }
@@ -114,20 +120,21 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom, solverChoice,
+                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+                                 solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, grids_to_evolve[level],
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice,
+                               S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, level, grids_to_evolve[level],
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
-                               S_data, S_scratch, fine_geom, solverChoice,
+                               S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             }

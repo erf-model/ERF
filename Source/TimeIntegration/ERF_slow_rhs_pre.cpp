@@ -68,7 +68,8 @@ using namespace amrex;
  * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
  */
 
-void erf_slow_rhs_pre (int /*level*/, int nrk,
+void erf_slow_rhs_pre (int level,
+                       int nrk,
                        amrex::Real dt,
                        BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
@@ -107,6 +108,9 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
+    DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
@@ -114,19 +118,20 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
-    const AdvType l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
-    const AdvType l_vert_adv_type  = solverChoice.dycore_vert_adv_type;
+    const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
+    const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const bool    l_use_terrain    = solverChoice.use_terrain;
     const bool    l_moving_terrain = (solverChoice.terrain_type == 1);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                    (solverChoice.les_type        !=       LESType::None) ||
-                                    (solverChoice.pbl_type        !=       PBLType::None) );
-    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
-                                    solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25 );
+    const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
+                                    (tc.les_type        !=       LESType::None) ||
+                                    (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
+                                    tc.les_type == LESType::Deardorff   ||
+                                    tc.pbl_type == PBLType::MYNN25      ||
+                                    tc.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -296,7 +301,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -315,7 +320,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
+                Real mu_eff = 2.0 * dc.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             s11, s22, s33,
@@ -393,7 +398,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -412,7 +417,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
+                Real mu_eff = 2.0 * dc.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                             s11, s22, s33,
@@ -623,7 +628,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
 
         // Strain magnitude
         Array4<Real> SmnSmn_a;
-        if (solverChoice.les_type == LESType::Deardorff) {
+        if (tc.les_type == LESType::Deardorff) {
             SmnSmn_a = SmnSmn->array(mfi);
         } else {
             SmnSmn_a = Array4<Real>{};
@@ -659,22 +664,23 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, diss,
-                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                       hfx_z, diss, mu_turb, dc, tc,
+                                       tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                       mu_turb, dc, tc,
+                                       tm_arr, grav_gpu, bc_ptr);
             }
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                cell_data, cell_rhs, mf_u, mf_v, false, false);
-        }
+       }
 
         // Add source terms for (rho theta)
         {
@@ -730,24 +736,24 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                                      tau12, tau13,
                                      tau21, tau23,
                                      tau31, tau32,
-                                     cell_data, detJ_arr, solverChoice, dxInv,
+                                     cell_data, detJ_arr, dc, dxInv,
                                      mf_m, mf_u, mf_v);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23,
-                                     cell_data, solverChoice, dxInv,
+                                     cell_data, dc, dxInv,
                                      mf_m, mf_u, mf_v);
             }
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
@@ -1068,7 +1074,7 @@ void erf_slow_rhs_pre (int /*level*/, int nrk,
                 }
         });
         } // no terrain
-         ApplySpongeZoneBCs(solverChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
+         ApplySpongeZoneBCs(solverChoice.spongeChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
                             rho_w, bx, cell_rhs, cell_data);
         } // end profile
     } // mfi

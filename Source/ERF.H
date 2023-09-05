@@ -766,43 +766,43 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells (const SolverChoice& solverChoice)
+    ComputeGhostCells (const AdvChoice& advChoice, bool use_num_diff)
     {
-        if (solverChoice.use_NumDiff)
+        if (use_num_diff)
         {
             return 3;
         } else {
             if (
-                 (solverChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-              || (solverChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
 #endif
-              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-              || (solverChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
             { return 3; }
             else if (
-                 (solverChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-              || (solverChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
 #endif
-              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-              || (solverChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
             { return 3; }
             else if (
-                  (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+                  (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
-               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
 #endif
-               || (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
+               || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }
             else
             { return 2; }

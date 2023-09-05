@@ -388,10 +388,13 @@ ERF::InitData ()
     //     those types into what they mean for each variable
     init_bcs();
 
-    // Verify BCs are compatible sith solver choice
-    if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
-        amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
+    // Verify BCs are compatible with solver choice
+    for (int lev(0); lev <= max_level; ++lev) {
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            amrex::Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+        }
     }
 
     if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
@@ -877,7 +880,6 @@ ERF::ReadParameters ()
         // Verbosity
         pp.query("v", verbose);
 
-
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
@@ -1046,7 +1048,10 @@ ERF::ReadParameters ()
     solverChoice.pp_prefix = pp_prefix;
 #endif
 
-    solverChoice.init_params();
+    solverChoice.init_params(max_level);
+    if (verbose > 0) {
+        solverChoice.display();
+    }
 }
 
 // Create horizontal average quantities for 5 variables:

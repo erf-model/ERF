@@ -4,10 +4,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_Print.H>
-#include "DataStruct.H"
-#include "IndexDefines.H"
+#include <DataStruct.H>
 
 struct ProbParmDefaults {
     amrex::Real rho_0 = 1.0;
