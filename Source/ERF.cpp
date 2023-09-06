@@ -134,8 +134,6 @@ ERF::ERF ()
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
 
-    grids_to_evolve.resize(nlevs_max);
-
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
     dt.resize(nlevs_max, 1.e100);
@@ -481,11 +479,6 @@ ERF::InitData ()
 #endif
     }
 
-    // Define after wrfbdy_width is known
-    for (int lev = 0; lev <= finest_level; lev++) {
-        define_grids_to_evolve(lev, grids[lev]);
-    }
-
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -529,7 +522,7 @@ ERF::InitData ()
         // If not restarting we need to fill qmoist given qt and qp.
         if (restart_chkfile.empty()) {
             micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+                       grids_[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
             micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
         }
     }
@@ -1182,50 +1175,6 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 }
 
 void
-ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
-{
-
-    Box domain(geom[lev].Domain());
-    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
-    {
-        int width = wrfbdy_set_width;
-        Box shrunk_domain(domain);
-        shrunk_domain.grow(0,-width);
-        shrunk_domain.grow(1,-width);
-        BoxList bl;
-        int N = static_cast<int>(ba.size());
-        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-        grids_to_evolve[lev].define(std::move(bl));
-    } else if (lev == 1 && regrid_int < 0) {
-        int width = cf_set_width;
-        Box shrunk_domain(boxes_at_level[lev][0]);
-        shrunk_domain.grow(0,-width);
-        shrunk_domain.grow(1,-width);
-        BoxList bl;
-        int N = static_cast<int>(ba.size());
-        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-        grids_to_evolve[lev].define(std::move(bl));
-#if 0
-        if (num_boxes_at_level[lev] > 1) {
-            for (int i = 1; i < num_boxes_at_level[lev]; i++) {
-                int width = cf_set_width;
-                Box shrunk_domain(boxes_at_level[lev][i]);
-                shrunk_domain.grow(0,-width);
-                shrunk_domain.grow(1,-width);
-                BoxList bl;
-                int N = static_cast<int>(ba.size());
-                for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-                grids_to_evolve[lev].define(std::move(bl));
-            }
-        }
-#endif
-    } else {
-        // Just copy grids...
-        grids_to_evolve[lev] = ba;
-    }
-}
-
-void
 ERF::Construct_ERFFillPatchers (int lev)
 {
     auto& fine_new = vars_new[lev];
@@ -1335,8 +1284,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     for (int lev = 1; lev <= max_level; ++lev) {
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
-
-    grids_to_evolve.resize(nlevs_max);
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);

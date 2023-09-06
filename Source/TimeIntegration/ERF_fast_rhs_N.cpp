@@ -16,7 +16,6 @@ using namespace amrex;
  *
  * @param[in]  step  which fast time step
  * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
  * @param[in]  S_prev previous solution
  * @param[in]  S_stage_data solution            at previous RK stage
@@ -36,7 +35,6 @@ using namespace amrex;
  */
 
 void erf_fast_rhs_N (int step, int /*level*/,
-                     BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -54,8 +52,6 @@ void erf_fast_rhs_N (int step, int /*level*/,
                      std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
-
-    // TODO: REMOVE G2E !!!!!
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -119,8 +115,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
         const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
 
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+        Box gbx = mfi.tilebox(); gbx.grow(1);
 
         if (step == 0) {
             amrex::ParallelFor(gbx,
@@ -130,7 +125,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
             });
         } // step = 0
 
-        Box gtbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box gtbz = mfi.nodaltilebox(2);
         gtbz.grow(IntVect(1,1,0));
         amrex::ParallelFor(gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -157,8 +152,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We define lagged_delta_rt for our next step as the current delta_rt
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+        Box gbx = mfi.tilebox(); gbx.grow(1);
 
         const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
         const Array4<Real>& old_drho_theta  = Delta_rho_theta.array(mfi);
@@ -177,11 +171,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
@@ -276,9 +267,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & grids_to_evolve[mfi.index()];
-
+        Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
@@ -512,7 +501,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Box& bx =  mfi.tilebox() & grids_to_evolve[mfi.index()];
+        const Box& bx = mfi.tilebox();
 
         int cons_dycore{2};
         const Array4<Real>& cur_cons = S_data[IntVar::cons].array(mfi);

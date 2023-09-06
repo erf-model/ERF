@@ -235,8 +235,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for calculating diffusive/turbulent terms
     update_arrays(lev, ba, dm);
 
-    define_grids_to_evolve(lev, grids[lev]);
-
     FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                 &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
@@ -250,8 +248,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
-    define_grids_to_evolve(lev, ba);
-
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
@@ -482,6 +478,4 @@ ERF::ClearLevel (int lev)
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
     physbcs[lev].reset();
-
-    grids_to_evolve[lev].clear();
 }

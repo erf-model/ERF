@@ -317,8 +317,6 @@ private:
 
     void update_terrain_arrays (int lev, amrex::Real time);
 
-    void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
-
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
@@ -504,9 +502,6 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
-
-    // BoxArray at each level to define where we actually evolve the solution
-    amrex::Vector<amrex::BoxArray> grids_to_evolve;
 
     // Store Theta variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;

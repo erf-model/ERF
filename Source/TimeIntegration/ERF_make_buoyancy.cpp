@@ -21,7 +21,6 @@ using namespace amrex;
  * equation for the z-component of momentum in the slow integrator.  There
  * are three options for how buoyancy is computed (two are the same in the absence of moisture).
  *
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[in]  S_data current solution
  * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[out] buoyancy the buoyancy term computed here
@@ -36,8 +35,7 @@ using namespace amrex;
  * @param[in]  r0     Reference (hydrostatically stratified) density
  */
 
-void make_buoyancy (BoxArray& grids_to_evolve,
-                    Vector<MultiFab>& S_data,
+void make_buoyancy (Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
 #if defined(ERF_USE_MOISTURE)
@@ -72,10 +70,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
     if (solverChoice.buoyancy_type == 1) {
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top domain boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
@@ -122,10 +117,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #endif
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
@@ -162,10 +154,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top domain boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
@@ -234,10 +223,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #endif
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top domain boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
@@ -285,10 +271,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 #endif
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top domain boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
@@ -332,10 +315,7 @@ void make_buoyancy (BoxArray& grids_to_evolve,
 
         for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& valid_bx = surroundingNodes(grids_to_evolve[mfi.index()],2);
-
-            // Construct intersection of current tilebox and valid region for updating
-            Box tbz = mfi.tilebox() & valid_bx;
+            Box tbz = mfi.tilebox();
 
             // We don't compute a source term for z-momentum on the bottom or top domain boundary
             if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);

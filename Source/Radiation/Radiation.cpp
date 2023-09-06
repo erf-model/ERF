@@ -76,7 +76,7 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
                            const amrex::MultiFab& qc_in,
                            const amrex::MultiFab& qv_in,
                            const amrex::MultiFab& qi_in,
-                           const amrex::BoxArray& grids_to_evolve,
+                           const amrex::BoxArray& grids,
                            const amrex::Geometry& geom,
                            const amrex::Real& dt_advance,
                            const bool& do_sw_rad,
@@ -85,7 +85,7 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
                            const bool& do_snow_opt,
                            const bool& is_cmip6_volcano) {
    m_geom = geom;
-   m_gtoe = grids_to_evolve;
+   m_gtoe = grids;
 
    auto dz   = m_geom.CellSize(2);
    auto lowz = m_geom.ProbLo(2);

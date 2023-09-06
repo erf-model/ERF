@@ -15,17 +15,17 @@ using namespace amrex;
  * @param[in] qc_in Cloud variables input
  * @param[in,out] qv_in Vapor variables input
  * @param[in] qi_in Ice variables input
- * @param[in] grids_to_evolve The boxes on which we will evolve the solution
+ * @param[in] grids The boxes on which we will evolve the solution
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
 void Microphysics::Init(const MultiFab& cons_in, MultiFab& qmoist,
-                        const BoxArray& grids_to_evolve,
+                        const BoxArray& grids,
                         const Geometry& geom,
                         const Real& dt_advance)
  {
   m_geom = geom;
-  m_gtoe = grids_to_evolve;
+  m_gtoe = grids;
 
   auto dz   = m_geom.CellSize(2);
   auto lowz = m_geom.ProbLo(2);

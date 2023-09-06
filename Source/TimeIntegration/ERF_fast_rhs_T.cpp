@@ -17,7 +17,6 @@ using namespace amrex;
  *
  * @param[in]  step  which fast time step
  * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
  * @param[in]  S_prev previous solution
  * @param[in]  S_stage_data solution            at previous RK stage
@@ -40,7 +39,6 @@ using namespace amrex;
  */
 
 void erf_fast_rhs_T (int step, int /*level*/,
-                     BoxArray& grids_to_evolve,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -127,20 +125,19 @@ void erf_fast_rhs_T (int step, int /*level*/,
         const Array4<const Real>& stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
 
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
+        Box gbx = mfi.tilebox(); gbx.grow(1);
 
         if (step == 0) {
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                cur_cons(i,j,k,Rho_comp)            = prev_cons(i,j,k,Rho_comp);
-                cur_cons(i,j,k,RhoTheta_comp)       = prev_cons(i,j,k,RhoTheta_comp);
+                cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
+                cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
         } // step = 0
 
-        Box gtbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(IntVect(1,1,0));
-        Box gtby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(IntVect(1,1,0));
-        Box gtbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2); gtbz.grow(IntVect(1,1,0));
+        Box gtbx = mfi.nodaltilebox(0); gtbx.grow(IntVect(1,1,0));
+        Box gtby = mfi.nodaltilebox(1); gtby.grow(IntVect(1,1,0));
+        Box gtbz = mfi.nodaltilebox(2); gtbz.grow(IntVect(1,1,0));
 
         amrex::ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -173,10 +170,9 @@ void erf_fast_rhs_T (int step, int /*level*/,
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We define lagged_delta_rt for our next step as the current delta_rt
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box gbx = mfi.tilebox() & valid_bx; gbx.grow(1);
-        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
-        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVar::cons].array(mfi);
+        Box gbx = mfi.tilebox(); gbx.grow(1);
+        const Array4<Real>& old_drho_theta  = Delta_rho_theta.array(mfi);
+        const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
@@ -191,10 +187,8 @@ void erf_fast_rhs_T (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
@@ -314,10 +308,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
 #endif
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box bx = mfi.tilebox() & valid_bx;
-
+        Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
@@ -417,7 +408,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
         } // end profile
 
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box gbxo = mfi.nodaltilebox(2);
         {
         BL_PROFILE("fast_T_making_omega");
         Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);

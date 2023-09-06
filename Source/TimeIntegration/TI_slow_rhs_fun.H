@@ -74,7 +74,7 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
@@ -170,7 +170,7 @@
         } else {
 
             // If not moving_terrain
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
@@ -317,7 +317,7 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         // If not moving_terrain
-        make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+        make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                       qmoist[level], qv_d, qc_d, qi_d,
 #endif
