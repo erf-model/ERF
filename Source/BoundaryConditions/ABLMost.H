@@ -95,16 +95,16 @@ public:
                 const int ncomp   = 1;
                 amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-                u_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
+                u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
                 u_star[lev]->setVal(1.E34);
 
-                t_star[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
+                t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
                 t_star[lev]->setVal(1.E34);
 
-                olen[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
+                olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
                 olen[lev]->setVal(1.E34);
 
-                t_surf[lev] = new amrex::MultiFab(ba2d,dm,ncomp,ng);
+                t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
                 if (erf_st) {
                    t_surf[lev]->setVal(surf_temp);
                 } else {
@@ -112,18 +112,6 @@ public:
                 }
             }
         }// lev
-    }
-
-    // Destructor
-    ~ABLMost ()
-    {
-        for (int lev(0); lev<m_geom.size(); ++lev)
-        {
-          delete u_star[lev];
-          delete t_star[lev];
-          delete t_surf[lev];
-          delete olen[lev];
-        }
     }
 
     void
@@ -154,13 +142,13 @@ public:
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); }
 
     const amrex::MultiFab*
-    get_u_star (int lev) { return u_star[lev]; }
+    get_u_star (int lev) { return u_star[lev].get(); }
 
     const amrex::MultiFab*
-    get_t_star (int lev) { return t_star[lev]; }
+    get_t_star (int lev) { return t_star[lev].get(); }
 
     const amrex::MultiFab*
-    get_olen (int lev) { return olen[lev]; }
+    get_olen (int lev) { return olen[lev].get(); }
 
     const amrex::MultiFab*
     get_mac_avg (int lev, int comp) { return m_ma.get_average(lev,comp); }
@@ -187,10 +175,10 @@ private:
     amrex::Vector<amrex::FArrayBox> z_0;
 
     MOSTAverage m_ma;
-    amrex::Vector<amrex::MultiFab*> u_star;
-    amrex::Vector<amrex::MultiFab*> t_star;
-    amrex::Vector<amrex::MultiFab*> olen;
-    amrex::Vector<amrex::MultiFab*> t_surf;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 };
 
 #endif /* ABLMOST_H */

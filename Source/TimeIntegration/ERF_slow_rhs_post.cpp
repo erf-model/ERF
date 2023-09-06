@@ -126,14 +126,18 @@ void erf_slow_rhs_post (int level,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
+    std::unique_ptr<MultiFab> dflux_x;
+    std::unique_ptr<MultiFab> dflux_y;
+    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+    } else {
+        dflux_x = nullptr;
+        dflux_y = nullptr;
+        dflux_z = nullptr;
     }
 
     // *************************************************************************
@@ -263,7 +267,6 @@ void erf_slow_rhs_post (int level,
         // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
         num_comp = 1;
-
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                               horiz_adv_type, vert_adv_type,
@@ -408,7 +411,8 @@ void erf_slow_rhs_post (int level,
 
         if (l_moving_terrain)
         {
-            num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            start_comp = RhoScalar_comp;
+            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -441,7 +445,8 @@ void erf_slow_rhs_post (int level,
             }
         } else {
             auto const& src_arr = source.const_array(mfi);
-            num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            start_comp = RhoScalar_comp;
+            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -503,10 +508,4 @@ void erf_slow_rhs_post (int level,
         });
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }
