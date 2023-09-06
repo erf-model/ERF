@@ -250,8 +250,6 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         } // ihalo
     } // ibox
 
-    //for (int i(0); i<mod_halo_v.size(); ++i) { amrex::Print() << "MOD HALO: " << i << ' ' << mod_halo_v[i] << "\n";}
-
     // Fill mask based upon the mod_halo BoxList
     for (MFIter mfi(*m_cf_mask); mfi.isValid(); ++mfi) {
         const Box& vbx = mfi.validbox();
@@ -260,30 +258,13 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
         const Vector<Box>& m_halo = mod_halo.data();
 
         for (int ibox(0); ibox<m_halo.size(); ++ibox) {
-            //Box m_halo_ixt = amrex::convert(m_halo[ibox], m_ixt);
 
-            // Grow upper bound if the halo box coincides with
-            // the upper bound of the valid box. Also grow the
-            // lower bound of the halo if it DOESN'T coincide
-            // with the lower bound of the valid box.
+            // Correct the halo box since it's built with a CC BA
             Box vbx_cc = amrex::convert(vbx, IntVect(0));
             IntVect vbx_be  = vbx_cc.bigEnd();
             IntVect vbx_se  = vbx_cc.smallEnd();
             IntVect halo_be = m_halo[ibox].bigEnd();
             IntVect halo_se = m_halo[ibox].smallEnd();
-
-            /*
-            for (int idim(0); idim < AMREX_SPACEDIM; ++idim) {
-              if (m_ixt[idim] == 1) {
-                if (vbx_be[idim] == halo_be[idim]) {
-                  halo_be[idim] += 1;
-                  if (vbx_se[idim] != halo_se[idim]) {
-                    halo_se[idim] +=1;
-                  }
-                }
-              } //m_ixt
-            }// idim
-            */
 
             // Grow BE if we coincide with upper face. (X & Y halo)
             // Grow SE if we don't coincide with lower face. (chopped Y halo OR untouched X halo)
@@ -312,9 +293,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
             } else if (m_ixt[2] == 1) {
                 halo_be[2] += 1;
             }
-
             Box m_halo_ixt(halo_se,halo_be,m_ixt);
-
 
             Box mbx = vbx & m_halo_ixt;
             amrex::ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
