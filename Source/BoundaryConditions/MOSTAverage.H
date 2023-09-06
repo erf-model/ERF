@@ -15,21 +15,10 @@ public:
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
+
     // MOSTAverage() = default;
     ~MOSTAverage ()
-    {
-        for (int lev(0); lev<m_maxlev; ++lev){
-            for (int iavg(0); iavg<m_navg; ++iavg) delete m_averages[lev][iavg];
-
-            delete m_x_pos[lev];
-            delete m_y_pos[lev];
-            delete m_z_pos[lev];
-
-            delete m_i_indx[lev];
-            delete m_j_indx[lev];
-            delete m_k_indx[lev];
-        }
-    }
+    {}
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
@@ -93,7 +82,7 @@ public:
     void write_averages (int lev);
 
     // Get pointer to the 2D mf of averages
-    [[nodiscard]] const amrex::MultiFab* get_average (int lev, int comp) const { return m_averages[lev][comp]; }
+    [[nodiscard]] const amrex::MultiFab* get_average (int lev, int comp) const { return m_averages[lev][comp].get(); }
 
     // Get z_ref (may be computed from specified k_indx)
     [[nodiscard]] amrex::Real get_zref () const { return m_zref; }
@@ -177,13 +166,13 @@ protected:
     int m_policy{0};                                                 // Policy for type of averaging
     amrex::Real m_zref{-1.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
-    amrex::Vector<amrex::MultiFab*> m_x_pos;                         // Ptr to 2D mf to hold x position (maxlev)
-    amrex::Vector<amrex::MultiFab*> m_y_pos;                         // Ptr to 2D mf to hold y position (maxlev)
-    amrex::Vector<amrex::MultiFab*> m_z_pos;                         // Ptr to 2D mf to hold z position (maxlev)
-    amrex::Vector<amrex::iMultiFab*> m_i_indx;                       // Ptr to 2D imf to hold i indices (maxlev)
-    amrex::Vector<amrex::iMultiFab*> m_j_indx;                       // Ptr to 2D imf to hold j indices (maxlev)
-    amrex::Vector<amrex::iMultiFab*> m_k_indx;                       // Ptr to 2D imf to hold k indices (maxlev)
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_averages;       // Ptr to 2D mf to hold averages (maxlev,navg)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_y_pos;         // Ptr to 2D mf to hold y position (maxlev)
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_z_pos;         // Ptr to 2D mf to hold z position (maxlev)
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_i_indx;       // Ptr to 2D imf to hold i indices (maxlev)
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_j_indx;       // Ptr to 2D imf to hold j indices (maxlev)
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> m_k_indx;       // Ptr to 2D imf to hold k indices (maxlev)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> m_averages; // Ptr to 2D mf to hold averages (maxlev,navg)
 
     // Vars for planar average policy
     //--------------------------------------------

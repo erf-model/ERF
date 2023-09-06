@@ -65,8 +65,8 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int ncomp   = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][0] = mfp;
-        m_averages[lev][0] = new MultiFab(ba2d,dm,ncomp,ng);
+          m_fields[lev][0]   = mfp;
+          m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][0]->setVal(1.E34);
       }
       { // Nodal in y
@@ -82,7 +82,7 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
           m_fields[lev][1] = mfp;
-        m_averages[lev][1] = new MultiFab(ba2d,dm,ncomp,ng);
+        m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][1]->setVal(1.E34);
       }
       { // CC vars
@@ -99,26 +99,26 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
           m_fields[lev][2] = mfp;
-        m_averages[lev][2] = new MultiFab(ba2d,dm,ncomp,ng);
+        m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][2]->setVal(1.E34);
 
-        m_averages[lev][3] = new MultiFab(ba2d,dm,ncomp,ng);
+        m_averages[lev][3] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][3]->setVal(1.E34);
 
         if (m_z_phys_nd[0] && m_norm_vec && m_interp) {
-            m_x_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
-            m_y_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
-            m_z_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
+            m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+            m_y_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+            m_z_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         } else if (m_z_phys_nd[0] && m_interp) {
-            m_x_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
-            m_y_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
-            m_z_pos[lev] = new MultiFab(ba2d,dm,ncomp,ng);
+            m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+            m_y_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+            m_z_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         } else if (m_z_phys_nd[0] && m_norm_vec) {
-            m_i_indx[lev] = new iMultiFab(ba2d,dm,incomp,ng);
-            m_j_indx[lev] = new iMultiFab(ba2d,dm,incomp,ng);
-            m_k_indx[lev] = new iMultiFab(ba2d,dm,incomp,ng);
+            m_i_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            m_j_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
+            m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
         } else {
-            m_k_indx[lev] = new iMultiFab(ba2d,dm,incomp,ng);
+            m_k_indx[lev] = std::make_unique<iMultiFab>(ba2d,dm,incomp,ng);
         }
       }
     } // lev

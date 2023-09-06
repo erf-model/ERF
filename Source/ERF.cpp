@@ -522,7 +522,7 @@ ERF::InitData ()
         // If not restarting we need to fill qmoist given qt and qp.
         if (restart_chkfile.empty()) {
             micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                       grids_[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+                       grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
             micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
         }
     }

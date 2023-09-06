@@ -23,7 +23,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         Real beta_s = 0.1;
 
         // Moving terrain
-        MultiFab* z_t_pert = nullptr;
+        std::unique_ptr<MultiFab> z_t_pert;
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
@@ -40,7 +40,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
             Real inv_dt   = 1./dtau;
 
-            z_t_pert = new MultiFab(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
+            z_t_pert = std::make_unique<MultiFab>(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
 
             for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -77,7 +77,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega, z_t_rk[level], z_t_pert,
+                                Omega, z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -88,7 +88,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
-                                Omega, z_t_rk[level], z_t_pert,
+                                Omega, z_t_rk[level], z_t_pert.get(),
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
@@ -140,11 +140,6 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             }
         }
 
-        // Moving terrain
-        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
-        {
-            delete z_t_pert;
-        }
 
         // TODO: DELETE ALL OF THIS; FILL BCs PICKS THIS UP W/O G2E
         /*
