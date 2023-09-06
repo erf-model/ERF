@@ -37,6 +37,9 @@ function(build_erf_lib erf_lib_name)
   endif()
 
   if(ERF_ENABLE_PARTICLES)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Particles/TerrainFittedPC.cpp)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
 
