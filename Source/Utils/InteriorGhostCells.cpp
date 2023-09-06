@@ -750,14 +750,6 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            if (mask_y_found) {
                                Real mag = sqrt( amrex::Real(dj_min*dj_min + ii*ii) );
                                n_ind = std::min(mag,width-1.0) + 1.0;
-                               /*
-                               amrex::Print() << "X CORNER FOUND: "
-                                              << IntVect(i,j,k) << ' '
-                                              << vbx << ' '
-                                              << dj_min << ' '
-                                              << ii << ' '
-                                              << n_ind << "\n";
-                               */
                            } else {
                                amrex::Abort("Mask not found near x wall!");
                            }
@@ -775,14 +767,6 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            if (mask_x_found) {
                                Real mag = sqrt( amrex::Real(di_min*di_min + jj*jj) );
                                n_ind = std::min(mag,width-1.0) + 1.0;
-                               /*
-                               amrex::Print() << "Y CORNER FOUND: "
-                                              << IntVect(i,j,k) << ' '
-                                              << vbx << ' '
-                                              << di_min << ' '
-                                              << jj << ' '
-                                              << n_ind << "\n";
-                               */
                            } else {
                                amrex::Abort("Mask not found near y wall!");
                            }
@@ -790,14 +774,6 @@ fine_compute_interior_ghost_rhs (const Real& time,
                            amrex::Abort("Relaxation cell must be near a wall!");
                        }
                    }
-
-                   /*
-                   if(n_ind<2 || n_ind>4) {
-                       amrex::Print() << "SHIT: " << ivar_idx << ' ' << IntVect(i,j,k) << ' '
-                                      << vbx << ' ' << n_ind << "\n";
-                       exit(0);
-                   }
-                   */
 
                    amrex::Real Factor   = (num - n_ind)/denom;
                    amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
@@ -813,26 +789,6 @@ fine_compute_interior_ghost_rhs (const Real& time,
                    amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                    amrex::Real HOLD = rhs_arr(i,j,k,n);
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-
-                   /*
-                   Real eps = std::numeric_limits<Real>::epsilon();
-                   if (delta   /(fine_arr(i  ,j  ,k,n)+eps)    > 0.1 ||
-                       delta_xp/(fine_arr(i+1,j  ,k,n)+eps) > 0.1 ||
-                       delta_xm/(fine_arr(i-1,j  ,k,n)+eps) > 0.1 ||
-                       delta_yp/(fine_arr(i  ,j+1,k,n)+eps) > 0.1 ||
-                       delta_ym/(fine_arr(i  ,j-1,k,n)+eps) > 0.1 ) {
-                       amrex::Print() << "ERROR: " << ivar_idx << ' ' << n << ' ' << vbx << ' ' << IntVect(i,j,k) << ' ' << delta << ' ' << delta_xp << ' '
-                                      << delta_xm << ' ' << delta_yp << ' ' << delta_ym << ' ' << Factor << ' ' << n_ind << ' ' << (F1*delta - F2*Laplacian) * Factor << ' ' << HOLD << "\n";
-                       amrex::Print() << fine_arr(i  ,j  ,k,n) << ' ' << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << d     << ' ' << rhs_arr(i  , j  , k  ,n+icomp) << "\n";
-                       amrex::Print() << fine_arr(i+1,j  ,k,n) << ' ' << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << d_ip1 << ' ' << rhs_arr(i+1, j  , k  ,n+icomp) << "\n";
-                       amrex::Print() << fine_arr(i-1,j  ,k,n) << ' ' << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << d_im1 << ' ' << rhs_arr(i-1, j  , k  ,n+icomp) << "\n";
-                       amrex::Print() << fine_arr(i  ,j+1,k,n) << ' ' << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << d_jp1 << ' ' << rhs_arr(i  , j+1, k  ,n+icomp) << "\n";
-                       amrex::Print() << fine_arr(i  ,j-1,k,n) << ' ' << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << d_jm1 << ' ' << rhs_arr(i  , j-1, k  ,n+icomp) << "\n";
-                       amrex::Print() << "\n";
-                       //exit(0);
-                   }
-                   */
-
                }
            });
         } // mfi
