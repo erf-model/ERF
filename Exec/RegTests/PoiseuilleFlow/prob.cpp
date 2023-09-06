@@ -19,6 +19,8 @@ Problem::Problem()
   pp.query("T_0", parms.T_0);
 
   pp.query("prob_type", parms.prob_type);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void

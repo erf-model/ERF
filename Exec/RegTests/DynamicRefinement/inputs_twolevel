@@ -75,8 +75,6 @@ prob.beta  = 1.1088514254079065 # non-dimensional max perturbation strength [-]
 prob.R     = 1.0  # characteristic length scale for grid [m]
 prob.sigma = 1.0  # Gaussian standard deviation [-]
 
-erf.init_type = "uniform"
-
 # PROBLEM PARAMETERS - STATIONARY
 #prob.M_inf = 0.0  # freestream Mach number [-]
 #prob.alpha = 0.0  # inflow angle, 0 --> x-aligned [rad]

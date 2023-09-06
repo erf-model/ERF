@@ -19,4 +19,6 @@ Problem::Problem()
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }

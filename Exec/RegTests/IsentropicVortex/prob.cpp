@@ -1,5 +1,6 @@
 #include "prob.H"
 #include "prob_common.H"
+#include "EOS.H"
 
 using namespace amrex;
 
@@ -54,6 +55,7 @@ Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
                  << parms.M_inf * std::sin(parms.alpha)
                  << std::endl;
 
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 AMREX_GPU_DEVICE
@@ -80,8 +82,8 @@ Problem::init_custom_pert(
     Array4<Real> const& x_vel,
     Array4<Real> const& y_vel,
     Array4<Real> const& z_vel,
-    Array4<Real> const&,
-    Array4<Real> const&,
+    Array4<Real> const& r_hse,
+    Array4<Real> const& p_hse,
     Array4<Real const> const&,
     Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
@@ -118,16 +120,15 @@ Problem::init_custom_pert(
     const Real deltaT = -(parms.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
 
     // Set the perturbation density
-    //const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    const Real rho_norm_pert = std::pow(1.0 + deltaT, parms.inv_gm1) - 1.0;
-    state(i, j, k, Rho_comp) = rho_norm_pert * parms.rho_0;
+    const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
+    state(i, j, k, Rho_comp) = rho_norm * parms.rho_0 - r_hse(i,j,k);
 
     // Initial _potential_ temperature
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                           * parms.rho_0*parms.a_inf*parms.a_inf;
-    const Real rho_theta = state(i, j, k, Rho_comp) * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
-    state(i, j, k, RhoTheta_comp) = rho_theta - parms.rho_0 * parms.T_0; // Set the perturbation rho*theta
+    const Real rho_theta = parms.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
+    state(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
     // Set scalar = 0 -- unused
     state(i, j, k, RhoScalar_comp) = 0.0;

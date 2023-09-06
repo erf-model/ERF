@@ -18,6 +18,8 @@ Problem::Problem()
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -31,7 +33,7 @@ Problem::init_custom_pert(
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
     Array4<Real      > const&,
-    Array4<Real      > const&,
+    Array4<Real      > const& p_hse,
     Array4<Real const> const&,
     Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
@@ -50,15 +52,13 @@ Problem::init_custom_pert(
 {
   const int khi = geomdata.Domain().bigEnd()[2];
 
-  const Real rhotheta_0 = parms.rho_0 * parms.T_0;
-
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // Geometry (note we must include these here to get the data on device)
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // This version perturbs rho but not p -- TODO: CHECK THIS
-    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - rhotheta_0;
+    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

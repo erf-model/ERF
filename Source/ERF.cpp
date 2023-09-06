@@ -823,7 +823,7 @@ ERF::init_only (int lev, Real time)
         // background field to be equal to the base state, calculated from the
         // problem-specific erf_init_dens_hse
         initHSE(lev);
-        //TODO: init_from_hse(lev);
+        init_from_hse(lev);
     }
 
 #if defined(ERF_USE_MOISTURE)

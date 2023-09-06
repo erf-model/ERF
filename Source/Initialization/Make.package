@@ -1,4 +1,5 @@
 CEXE_sources += ERF_init_uniform.cpp
+CEXE_sources += ERF_init_from_hse.cpp
 CEXE_sources += ERF_init_custom.cpp
 CEXE_sources += ERF_init_from_input_sounding.cpp
 

@@ -78,8 +78,6 @@ public:
 #include "Prob/init_rayleigh_damping.H"
 
 protected:
-    const ProbParm& get_parms() override { return parms; }
-
     std::string name() override { return "Bubble"; }
 
 private:
@@ -140,38 +138,16 @@ perturb_rho_theta (const amrex::Real x,
     if (pp.perturb_rho)
     {
         // this version perturbs rho but not p (i.e., rho*theta)
-        // - hydrostatic rebalance is needed
+        // - hydrostatic rebalance is needed (TODO: is this true?)
         // - this is the approach taken in the density current problem
-
-        if (pp.T_0 > 0)
-        {
-            // background field has not been initialized, update full state,
-            // need to calculate HSE later
-            rhotheta = getRhoThetagivenP(p_hse);
-            rho = rhotheta / theta_perturbed;
-        } else {
-            // already have a background field initialized, need to
-            // return rho and rhotheta as deviations from the base state
-            rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
-            rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
-        }
+        rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
+        rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
     }
     else
     {
         // this version perturbs rho*theta (i.e., p) but not rho
-
-        if (pp.T_0 > 0)
-        {
-            // background field has not been initialized, update full state,
-            // need to calculate HSE later
-            rho = r_hse;
-            rhotheta = r_hse * theta_perturbed;
-        } else {
-            // already have a background field initialized, need to
-            // return rho and rhotheta as deviations from the base state
-            rho = 0.0; // i.e., hydrostatically balanced density stays const
-            rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
-        }
+        rho = 0.0; // i.e., hydrostatically balanced density stays const
+        rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
     }
 }
 

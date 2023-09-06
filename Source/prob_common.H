@@ -4,6 +4,7 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_MultiFab.H>
 #include <DataStruct.H>
 
 struct ProbParmDefaults {
@@ -142,9 +143,17 @@ public:
      * Function to set uniform background density and pressure fields
     */
     void
-    init_state (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state);
+    init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state);
 
 protected:
+    // Struct to store problem parameters
+    ProbParmDefaults base_parms;
+
+    void init_base_parms(amrex::Real rho_0, amrex::Real T_0) {
+        base_parms.rho_0 = rho_0;
+        base_parms.T_0 = T_0;
+    }
+
     /**
      * Function to calculate the hydrostatic density and pressure
      *
@@ -187,7 +196,6 @@ protected:
                                  const amrex::Array4<amrex::Real const> z_cc,
                                  const int& khi);
 
-    virtual const ProbParmDefaults& get_parms() = 0;
     virtual std::string name() = 0;
 
 private:

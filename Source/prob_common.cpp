@@ -4,12 +4,15 @@
 using namespace amrex;
 
 void
-ProblemBase::init_state(
+ProblemBase::init_uniform(
     const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)
 {
-    ProbParmDefaults parms = get_parms();
-    amrex::Real rho_0 = parms.rho_0;
-    amrex::Real T_0 = parms.T_0;
+    amrex::Real rho_0 = base_parms.rho_0;
+    amrex::Real T_0 = base_parms.T_0;
+    amrex::Print() << "Initializing uniform fields"
+        << " rho=" << rho_0 << " theta=" << T_0
+        << " -- this probably only makes sense with gravity turned off"
+        << std::endl;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {

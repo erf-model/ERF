@@ -20,6 +20,8 @@ Problem::Problem()
   pp.query("u_0", parms.u_0);
   pp.query("v_0", parms.v_0);
   pp.query("w_0", parms.w_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void

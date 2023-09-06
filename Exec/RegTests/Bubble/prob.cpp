@@ -33,6 +33,8 @@ Problem::Problem()
   pp.query("perturb_rho", parms.perturb_rho);
   pp.query("dampcoef", parms.dampcoef);
   pp.query("zdamp", parms.zdamp);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -73,12 +75,14 @@ Problem::init_custom_pert(
     const Real prob_lo_z = geomdata.ProbLo()[2];
     const Real rdOcp     = sc.rdOcp;
 
+#if 0
     // These are at cell centers (unstaggered)
     Vector<Real> h_r(khi+1);
     Vector<Real> h_p(khi+1);
 
     amrex::Gpu::DeviceVector<Real> d_r(khi+1);
     amrex::Gpu::DeviceVector<Real> d_p(khi+1);
+#endif
 
     amrex::Print() << "Bubble delta T = " << parms.T_pert << " K" << std::endl;
     amrex::Print() << "  centered at ("

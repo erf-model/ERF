@@ -19,13 +19,10 @@ Problem::Problem()
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
+  pp.query("rho_0", parms.rho_0);
   pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -38,8 +35,8 @@ Problem::init_custom_pert(
     Array4<Real      > const& x_vel,
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
-    Array4<Real      > const& r_hse,
-    Array4<Real      > const& p_hse,
+    Array4<Real      > const&,
+    Array4<Real      > const&,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
 #if defined(ERF_USE_MOISTURE)
@@ -60,35 +57,6 @@ Problem::init_custom_pert(
 
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
-//const Real z0 = (0.5) * dx[2] + prob_lo[2];
-//const Real Tbar = parms.T_0 - z0 * CONST_GRAV / parms.C_p;
-//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, R_d/parms.C_p); // from Straka1993
-//const Real pbar = p_0 * std::pow(Tbar/parms.T_0, parms.C_p/R_d); // isentropic relation, consistent with exner pressure def
-//const Real rhobar = pbar / (R_d*Tbar); // UNUSED
-
-  const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real thetabar  = parms.T_0;
-
-  // Create a flat box with same horizontal extent but only one cell in vertical
-  Box b2d = surroundingNodes(bx); // Copy constructor
-  b2d.setRange(2,0);
-
-  ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-  {
-     Array1D<Real,0,255> r;;
-     Array1D<Real,0,255> p;;
-
-     init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
-
-     for (int k = 0; k <= khi; k++) {
-        r_hse(i,j,k) = r(k);
-        p_hse(i,j,k) = p(k);
-     }
-     r_hse(i,j,   -1) = r_hse(i,j,0);
-     r_hse(i,j,khi+1) = r_hse(i,j,khi);
-  });
-
   // Geometry (note we must include these here to get the data on device)
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -96,28 +64,6 @@ Problem::init_custom_pert(
     const auto dx       = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real z = z_cc(i,j,k);
-
-    // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
-    const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
-
-    Real L = std::sqrt(
-        std::pow((x - parms.x_c)/parms.x_r, 2) +
-        std::pow((z - parms.z_c)/parms.z_r, 2)
-    );
-    Real dT;
-    if (L > 1.0) {
-        dT = 0.0;
-    }
-    else {
-        dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
-    }
-
-    // Note: dT is T perturbation, theta_perturbed is theta PLUS perturbation in theta
-    Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
-
-    // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = std::pow(p_hse(i,j,k)/p_0,1.0/Gamma) * p_0 / R_d;
-    state(i, j, k, Rho_comp) = parms.rho_0;
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

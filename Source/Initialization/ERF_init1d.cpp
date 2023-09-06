@@ -133,7 +133,7 @@ ERF::initHSE(int lev)
     prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 
     // This integrates up through column to update p_hse, pi_hse;
-    // FillBoundary is called at the end for r_hse and p_hse
+    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
     erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
 }
 

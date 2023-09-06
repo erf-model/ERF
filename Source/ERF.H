@@ -335,6 +335,8 @@ private:
 
     void init_uniform (int lev);
 
+    void init_from_hse (int lev);
+
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
 #ifdef ERF_USE_NETCDF

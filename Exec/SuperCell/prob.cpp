@@ -24,6 +24,8 @@ Problem::Problem()
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -92,8 +94,8 @@ Problem::init_custom_pert(
     Array4<Real      > const& x_vel,
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
-    Array4<Real      > const& /*r_hse*/,
-    Array4<Real      > const& /*p_hse*/,
+    Array4<Real      > const& r_hse,
+    Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
 #if defined(ERF_USE_MOISTURE)
@@ -180,8 +182,8 @@ Problem::init_custom_pert(
     amrex::Real theta = getThgivenRandT(rho, temp+deltaT, rdOcp);
 
     // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = rho*theta;
-    state(i, j, k, Rho_comp)      = rho;
+    state(i, j, k, RhoTheta_comp) = rho*theta - getRhoThetagivenP(p_hse(i,j,k));
+    state(i, j, k, Rho_comp)      = rho - r_hse(i,j,k);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;

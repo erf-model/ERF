@@ -74,8 +74,6 @@ public:
         amrex::Geometry      const& geom) override;
 
 protected:
-    const ProbParm& get_parms() override { return parms; }
-
     std::string name() override { return "Scalar Advection/Diffusion"; }
 
 private:

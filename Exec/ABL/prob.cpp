@@ -40,6 +40,8 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 
   pp.query("dampcoef", parms.dampcoef);
   pp.query("zdamp", parms.zdamp);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void

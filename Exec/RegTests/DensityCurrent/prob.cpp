@@ -24,6 +24,8 @@ Problem::Problem()
   pp.query("x_r", parms.x_r);
   pp.query("z_r", parms.z_r);
   pp.query("T_pert", parms.T_pert);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -70,17 +72,20 @@ Problem::init_custom_pert(
   const Real l_z_c = parms.z_c;
   const Real l_Tpt = parms.T_pert;
 
+#if 0
   // These are at cell centers (unstaggered)
   Vector<Real> h_r(khi+2);
   Vector<Real> h_p(khi+2);
 
   amrex::Gpu::DeviceVector<Real> d_r(khi+2);
   amrex::Gpu::DeviceVector<Real> d_p(khi+2);
+#endif
 
   const Real rdOcp = sc.rdOcp;
 
   if (z_cc) {
 
+#if 0
     // Create a flat box with same horizontal extent but only one cell in vertical
     Box b2d = surroundingNodes(bx); // Copy constructor
     b2d.setRange(2,0);
@@ -99,6 +104,7 @@ Problem::init_custom_pert(
          r_hse(i,j,   -1) = r_hse(i,j,0);
          r_hse(i,j,khi+1) = r_hse(i,j,khi);
       });
+#endif
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
@@ -109,6 +115,7 @@ Problem::init_custom_pert(
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real z = z_cc(i,j,k);
 
+#if 0
         // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
         const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
@@ -130,6 +137,21 @@ Problem::init_custom_pert(
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_hse(i,j,k));
         state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+#endif
+
+        Real L = std::sqrt(
+            std::pow((x - l_x_c)/l_x_r, 2) +
+            std::pow((z - l_z_c)/l_z_r, 2));
+        if (L <= 1.0)
+        {
+            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
+            Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+
+            // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
+            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+
+            state(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+        }
 
         // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;
@@ -144,6 +166,7 @@ Problem::init_custom_pert(
       });
   } else {
 
+#if 0
       init_isentropic_hse(rho_sfc,thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
       amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
@@ -151,6 +174,7 @@ Problem::init_custom_pert(
 
       Real* r = d_r.data();
       Real* p = d_p.data();
+#endif
 
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
@@ -161,6 +185,7 @@ Problem::init_custom_pert(
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
+#if 0
         // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)
         const Real Tbar_hse = p[k] / (R_d * r[k]);
 
@@ -182,6 +207,29 @@ Problem::init_custom_pert(
         // This version perturbs rho but not p
         state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p[k]);
         state(i, j, k, Rho_comp) = state(i, j, k, RhoTheta_comp) / theta_perturbed;
+
+        if ((i==0) && (j==0))
+        {
+            amrex::Print() << "init_custom_pert("<<i<<","<<j<<","<<k<<")"
+                << " r["<<k<<"]=" << r[k] << " r_hse=" << r_hse(i,j,k) << " diff: " << r[k] - r_hse(i,j,k)
+                << " p["<<k<<"]=" << p[k] << " p_hse=" << p_hse(i,j,k) << " diff: " << p[k] - p_hse(i,j,k)
+                << std::endl;
+        }
+#endif
+
+        Real L = std::sqrt(
+            std::pow((x - l_x_c)/l_x_r, 2) +
+            std::pow((z - l_z_c)/l_z_r, 2));
+        if (L <= 1.0)
+        {
+            Real dT = l_Tpt * (std::cos(PI*L) + 1.0)/2.0;
+            Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
+
+            // Note: dT is a perturbation in temperature, theta_perturbed is base state + perturbation
+            Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), rdOcp);
+
+            state(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+        }
 
         // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;

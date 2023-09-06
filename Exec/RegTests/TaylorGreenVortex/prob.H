@@ -8,8 +8,7 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 0.0;
-  amrex::Real T_0   = 1.0;
+  amrex::Real rho_0 = 1.0;
   amrex::Real M_0   = 1.0;
   amrex::Real V_0   = 1.0;
 }; // namespace ProbParm
@@ -54,8 +53,6 @@ public:
         const amrex::Real& time) override;
 
 protected:
-    const ProbParm& get_parms() override { return parms; }
-
     std::string name() override { return "Taylor-Green Vortex"; }
 
 private:

@@ -22,6 +22,8 @@ Problem::Problem()
   amrex::ParmParse pp("prob");
   pp.query("Ampl", parms.Ampl);
   pp.query("T_0" , parms.T_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -60,27 +62,6 @@ Problem::init_custom_pert(
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
   const Real thetabar = T_sfc;
 
-  // Create a flat box with same horizontal extent but only one cell in vertical
-  Box b2d = surroundingNodes(bx); // Copy constructor
-  b2d.setRange(2,0);
-
-  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-  ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-  {
-     Array1D<Real,0,255> r;;
-     Array1D<Real,0,255> p;;
-
-     init_isentropic_hse_terrain(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
-
-     for (int k = 0; k <= khi; k++) {
-        r_hse(i,j,k) = r(k);
-        p_hse(i,j,k) = p(k);
-     }
-     r_hse(i,j,   -1) = r_hse(i,j,0);
-     r_hse(i,j,khi+1) = r_hse(i,j,khi);
-  });
-
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;
   Real wavelength  = 100.;
@@ -101,14 +82,12 @@ Problem::init_custom_pert(
       Real z_base = Ampl * std::sin(kp * x);
       z -= z_base;
 
-      state(i, j, k, Rho_comp) = r_hse(i,j,k);
-
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
       Real p_prime = -(Ampl * omega * omega / kp) * fac * std::sin(kp * x) * r_hse(i,j,k);
       Real p_total = p_hse(i,j,k) + p_prime;
 
       // Define (rho theta) given pprime
-      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
+      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
       // Set scalar = 0 everywhere
       state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);

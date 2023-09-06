@@ -19,9 +19,10 @@ Problem::Problem()
   // Parse params
   ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.T_0);
   pp.query("M_0", parms.M_0);
   pp.query("V_0", parms.V_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -35,7 +36,7 @@ Problem::init_custom_pert(
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
     Array4<Real      > const&,
-    Array4<Real      > const&,
+    Array4<Real      > const& p_hse,
     Array4<Real const> const&,
     Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
@@ -66,10 +67,10 @@ Problem::init_custom_pert(
                              1.0 / (Gamma * parms.M_0 * parms.M_0)
                           + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
                           );
-    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p) - parms.rho_0*parms.T_0;
+    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p) - getRhoThetagivenP(p_hse(i,j,k));
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 1.0 * state(i,j,k,Rho_comp);
+    state(i, j, k, RhoScalar_comp) = 1.0 * parms.rho_0;
 
 #if defined(ERF_USE_MOISTURE)
     state(i, j, k, RhoQt_comp) = 0.0;

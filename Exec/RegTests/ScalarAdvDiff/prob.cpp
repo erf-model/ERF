@@ -32,7 +32,9 @@ Problem::Problem()
     pp.query("yc_frac", parms.yc_frac);
     pp.query("zc_frac", parms.zc_frac);
 
-   pp.query("prob_type", parms.prob_type);
+    pp.query("prob_type", parms.prob_type);
+
+    init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
