@@ -8,7 +8,7 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-}; // namespace ProbParm 
+}; // namespace ProbParm
 class Problem : public ProblemBase
 {
 public:

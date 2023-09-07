@@ -15,7 +15,7 @@ struct ProbParmDefaults {
 /**
  * Class to hold problem-specific routines
 */
-class ProblemBase 
+class ProblemBase
 {
 public:
     /**
@@ -158,7 +158,7 @@ protected:
      * Function to calculate the hydrostatic density and pressure
      *
      * @param[in]  r_sfc     surface density
-     * @param[in]  theta     surface potential temperature 
+     * @param[in]  theta     surface potential temperature
      * @param[out] r         hydrostatically balanced density profile
      * @param[out] p         hydrostatically balanced pressure profile
      * @param[in]  dz        vertical grid spacing (constant)
@@ -180,7 +180,7 @@ protected:
      * @param[in]  i         x-index
      * @param[in]  j         y-index
      * @param[in]  r_sfc     surface density
-     * @param[in]  theta     surface potential temperature 
+     * @param[in]  theta     surface potential temperature
      * @param[out] r         hydrostatically balanced density profile
      * @param[out] p         hydrostatically balanced pressure profile
      * @param[in]  z_cc      cell-center heights

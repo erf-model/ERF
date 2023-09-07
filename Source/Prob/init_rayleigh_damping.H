@@ -13,11 +13,11 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
     const auto ztop = geom.ProbHi()[2];
     amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
       << ztop-parms.zdamp << " and " << ztop << std::endl;
-    
+
     const amrex::Real* prob_lo = geom.ProbLo();
     const auto dx              = geom.CellSize();
     const int khi              = geom.Domain().bigEnd()[2];
-    
+
     for (int k = 0; k <= khi; k++)
     {
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];

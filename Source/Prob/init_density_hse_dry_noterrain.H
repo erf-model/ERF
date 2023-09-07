@@ -4,7 +4,7 @@
  * Calls init_isentropic_hse(). Hydrostatic equlibrium (HSE) is satisfied
  * discretely. Note that these routines presume that qv==0 when evaluating the
  * EOS. Both density and pressure in HSE are calculated but only the density is
- * used at this point. 
+ * used at this point.
 */
 void
 erf_init_dens_hse(

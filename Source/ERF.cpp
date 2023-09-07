@@ -832,7 +832,7 @@ ERF::init_only (int lev, Real time)
 
     // Add problem-specific flow features
     //
-    // Notes: 
+    // Notes:
     // - This calls init_custom_pert that is defined for each problem
     // - This may modify the base state
     // - The fields set by init_custom_pert are **perturbations** to the

@@ -91,7 +91,7 @@ private:
  * constant and rho*theta is perturbed
  *
  * Note: the input p_hse and r_hse should be in HSE given an appropriate
- * background flow initialization. 
+ * background flow initialization.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void
