@@ -164,7 +164,7 @@ protected:
     int m_navg{4};                                                   // 4 averages for U/V/T/Umag
     int m_maxlev{0};                                                 // Total number of levels
     int m_policy{0};                                                 // Policy for type of averaging
-    amrex::Real m_zref{-1.0};                                        // Height above surface for MOST BC
+    amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
     std::string m_pp_prefix {"erf"};                                 // ParmParse prefix
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_x_pos;         // Ptr to 2D mf to hold x position (maxlev)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_y_pos;         // Ptr to 2D mf to hold y position (maxlev)
