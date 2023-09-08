@@ -263,7 +263,7 @@ struct SolverChoice {
 
     // Constants
     amrex::Real gravity;
-    amrex::Real c_p = 1004.5; // specific heat at constant pressure for dry air [J/(kg-K)]
+    amrex::Real c_p = Cp_d; // specific heat at constant pressure for dry air [J/(kg-K)]
     amrex::Real rdOcp;
 
 #if defined(ERF_USE_WARM_NO_PRECIP)

@@ -28,17 +28,17 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_src[level]);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
