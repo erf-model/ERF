@@ -1,5 +1,3 @@
-#include "TileNoZ.H"
-
 /**
  * Initialize hydrostatically balanced density -- assumes non-uniform z
  *
@@ -38,7 +36,7 @@ erf_init_dens_hse(
           amrex::Array1D<amrex::Real,0,255> r;;
           amrex::Array1D<amrex::Real,0,255> p;;
 
-          init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
+          HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
 
           for (int k = 0; k <= khi; k++) {
              rho_arr(i,j,k) = r(k);

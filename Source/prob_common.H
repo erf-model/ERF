@@ -5,7 +5,11 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
-#include <DataStruct.H>
+
+#include "DataStruct.H"
+#include "EOS.H"
+#include "HSE_utils.H"
+#include "TileNoZ.H"
 
 struct ProbParmDefaults {
     amrex::Real rho_0 = 1.0;
@@ -143,66 +147,37 @@ public:
      * Function to set uniform background density and pressure fields
     */
     void
-    init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state);
+    init_uniform (const amrex::Box& bx, amrex::Array4<amrex::Real> const& state)
+    {
+        amrex::Real rho_0 = base_parms.rho_0;
+        amrex::Real T_0 = base_parms.T_0;
+        amrex::Print() << "Initializing uniform fields"
+            << " rho=" << rho_0 << " theta=" << T_0
+            << " -- this probably only makes sense with gravity turned off"
+            << std::endl;
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            state(i, j, k, Rho_comp) = rho_0;
+            state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
+        });
+    }
 
 protected:
     // Struct to store problem parameters
     ProbParmDefaults base_parms;
 
+    /**
+     * Function to update default base parameters, currently only used for
+     * init_type=='uniform'
+     */
     void init_base_parms(amrex::Real rho_0, amrex::Real T_0) {
         base_parms.rho_0 = rho_0;
         base_parms.T_0 = T_0;
     }
 
-    /**
-     * Function to calculate the hydrostatic density and pressure
-     *
-     * @param[in]  r_sfc     surface density
-     * @param[in]  theta     surface potential temperature
-     * @param[out] r         hydrostatically balanced density profile
-     * @param[out] p         hydrostatically balanced pressure profile
-     * @param[in]  dz        vertical grid spacing (constant)
-     * @param[in]  prob_lo_z surface height
-     * @param[in]  khi       z-index corresponding to the big end of the domain
-    */
-    AMREX_GPU_HOST_DEVICE
-    void
-    init_isentropic_hse (const amrex::Real& r_sfc,
-                         const amrex::Real& theta,
-                         amrex::Real* r,
-                         amrex::Real* p,
-                         const amrex::Real& dz,
-                         const amrex::Real&  /*prob_lo_z*/,
-                         const int& khi);
-
-    /**
-     * Function to calculate the hydrostatic density and pressure over terrain
-     *
-     * @param[in]  i         x-index
-     * @param[in]  j         y-index
-     * @param[in]  r_sfc     surface density
-     * @param[in]  theta     surface potential temperature
-     * @param[out] r         hydrostatically balanced density profile
-     * @param[out] p         hydrostatically balanced pressure profile
-     * @param[in]  z_cc      cell-center heights
-     * @param[in]  khi       z-index corresponding to the big end of the domain
-    */
-    AMREX_GPU_HOST_DEVICE
-    void
-    init_isentropic_hse_terrain (int i,
-                                 int j,
-                                 const amrex::Real& r_sfc,
-                                 const amrex::Real& theta,
-                                 amrex::Real* r,
-                                 amrex::Real* p,
-                                 const amrex::Array4<amrex::Real const> z_cc,
-                                 const int& khi);
-
+    // descriptor for problem definition
     virtual std::string name() = 0;
-
-private:
-    const int MAX_ITER = 10;
-    const amrex::Real TOL = 1.e-8;
 };
 
 

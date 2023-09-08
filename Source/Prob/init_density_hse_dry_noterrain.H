@@ -28,7 +28,7 @@ erf_init_dens_hse(
     amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+2);
     amrex::Gpu::DeviceVector<amrex::Real> d_p(khi+2);
 
-    init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+    HSEutils::init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());

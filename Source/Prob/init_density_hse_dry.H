@@ -1,5 +1,3 @@
-#include "TileNoZ.H"
-
 /**
  * Initialize hydrostatically balanced density
  *
@@ -44,7 +42,7 @@ erf_init_dens_hse(
               amrex::Array1D<amrex::Real,0,255> r;;
               amrex::Array1D<amrex::Real,0,255> p;;
 
-              init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
+              HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
 
               for (int k = 0; k <= khi; k++) {
                  rho_arr(i,j,k) = r(k);
@@ -63,7 +61,7 @@ erf_init_dens_hse(
         amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+2);
         amrex::Gpu::DeviceVector<amrex::Real> d_p(khi+2);
 
-        init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
+        HSEutils::init_isentropic_hse(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,prob_lo_z,khi);
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
