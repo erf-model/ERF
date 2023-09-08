@@ -1,10 +1,6 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "EOS.H"
-#include "ERF_Constants.H"
 #include "TerrainMetrics.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -60,7 +56,7 @@ Problem::init_custom_pert(
 
   const Real T_sfc    = parms.T_0;
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real thetabar = T_sfc;
+  //const Real thetabar = T_sfc;
 
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;

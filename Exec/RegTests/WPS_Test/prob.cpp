@@ -1,7 +1,4 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "ERF_Constants.H"
 
 using namespace amrex;
 

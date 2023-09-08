@@ -1,8 +1,4 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "EOS.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -70,7 +66,7 @@ Problem::init_custom_pert(
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-    const Real thetabar  = parms.T_0;
+    //const Real thetabar  = parms.T_0;
     const Real dz        = geomdata.CellSize()[2];
     const Real prob_lo_z = geomdata.ProbLo()[2];
     const Real rdOcp     = sc.rdOcp;

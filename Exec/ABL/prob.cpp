@@ -1,6 +1,4 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "AMReX_Random.H"
 
 using namespace amrex;

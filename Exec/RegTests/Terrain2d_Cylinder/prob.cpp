@@ -1,9 +1,6 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "EOS.H"
 #include "TerrainMetrics.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 

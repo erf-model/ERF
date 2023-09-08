@@ -1,6 +1,6 @@
 #include "prob.H"
-#include "prob_common.H"
 #include "EOS.H"
+#include "ERF_Constants.H"
 
 using namespace amrex;
 
@@ -106,7 +106,7 @@ Problem::init_custom_pert(
   Real sigma = parms.sigma;
 
   const Real rdOcp = sc.rdOcp;
-  const Real T_0 = parms.T_0;
+  //const Real T_0 = parms.T_0;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {

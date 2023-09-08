@@ -1,9 +1,6 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "EOS.H"
 #include "TerrainMetrics.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 
@@ -63,7 +60,7 @@ Problem::init_custom_pert(
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   const Real rho_sfc   = p_0 / (R_d*parms.T_0);
-  const Real thetabar  = parms.T_0;
+  //const Real thetabar  = parms.T_0;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {

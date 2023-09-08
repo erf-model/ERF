@@ -6,7 +6,6 @@
 #include "AMReX_REAL.H"
 
 #include "prob_common.H"
-#include "ERF_Constants.H"
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real p_inf = p_0; //freestream pressure [Pa]
