@@ -264,6 +264,8 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    void init_from_hse (int lev);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -334,8 +336,6 @@ private:
     void init_custom (int lev);
 
     void init_uniform (int lev);
-
-    void init_from_hse (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 

@@ -165,6 +165,7 @@ protected:
      * @param[in]  prob_lo_z surface height
      * @param[in]  khi       z-index corresponding to the big end of the domain
     */
+    AMREX_GPU_HOST_DEVICE
     void
     init_isentropic_hse (const amrex::Real& r_sfc,
                          const amrex::Real& theta,
@@ -186,6 +187,7 @@ protected:
      * @param[in]  z_cc      cell-center heights
      * @param[in]  khi       z-index corresponding to the big end of the domain
     */
+    AMREX_GPU_HOST_DEVICE
     void
     init_isentropic_hse_terrain (int i,
                                  int j,
