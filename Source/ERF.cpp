@@ -6,7 +6,6 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-#include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
 
@@ -56,7 +55,7 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
+// init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type;
 
 // NetCDF wrfinput (initialization) file(s)
@@ -119,7 +118,7 @@ ERF::ERF ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 
@@ -500,18 +499,6 @@ ERF::InitData ()
         }
     }
 
-    // If we are reading initial data from wrfinput, the base state is defined there.
-    // If we are reading initial data from metgrid output, the base state is defined there and we will rebalance
-    //    after interpolation.
-    // If we are reading initial data from an input_sounding, then the base state is calculated by
-    //   InputSoundingData.calc_rho_p().
-    // If we are restarting, the base state is read from the restart file, including ghost cell data
-    if (restart_chkfile.empty()) {
-        if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
-            initHSE();
-        }
-    }
-
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
@@ -762,6 +749,10 @@ ERF::restart ()
     last_check_file_step = istep[0];
 }
 
+// This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
+//
+// If we are restarting, the base state is read from the restart file, including
+// ghost cell data.
 void
 ERF::init_only (int lev, Real time)
 {
@@ -779,13 +770,34 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
+        // The base state is initialized by integrating vertically through the
+        // input sounding, if the init_sounding_ideal flag is set; otherwise
+        // it is set by initHSE()
         init_from_input_sounding(lev);
+        if (!init_sounding_ideal) initHSE();
+
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
+        // The base state is initialized from WRF wrfinput data, output by
+        // ideal.exe or real.exe
         init_from_wrfinput(lev);
+
     } else if (init_type == "metgrid") {
+        // The base state is initialized from data output by WPS metgrid;
+        // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
+    } else if (init_type == "uniform") {
+        // Initialize a uniform background field and base state based on the
+        // problem-specified reference density and temperature
+        initHSE(lev);
+        init_uniform(lev);
+    } else {
+        // No background flow initialization specified, initialize the
+        // background field to be equal to the base state, calculated from the
+        // problem-specific erf_init_dens_hse
+        initHSE(lev);
+        init_from_hse(lev);
     }
 
 #if defined(ERF_USE_MOISTURE)
@@ -793,8 +805,12 @@ ERF::init_only (int lev, Real time)
 #endif
 
     // Add problem-specific flow features
-    // If init_type is specified, then this is a perturbation to the background
-    // flow from either input_sounding data or WRF WPS outputs (wrfinput_d0*)
+    //
+    // Notes:
+    // - This calls init_custom_pert that is defined for each problem
+    // - This may modify the base state
+    // - The fields set by init_custom_pert are **perturbations** to the
+    //   background flow set based on init_type
     init_custom(lev);
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
@@ -891,12 +907,13 @@ ERF::ReadParameters ()
         // How to initialize
         pp.query("init_type",init_type);
         if (!init_type.empty() &&
+            init_type != "uniform" &&
             init_type != "ideal" &&
             init_type != "real" &&
             init_type != "metgrid" &&
             init_type != "input_sounding")
         {
-            amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
+            amrex::Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
         }
 
         // No moving terrain with init real
@@ -1270,7 +1287,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(), geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 

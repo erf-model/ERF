@@ -128,9 +128,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
        ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
+       ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_input_sounding.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_wrfinput.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
+       ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp

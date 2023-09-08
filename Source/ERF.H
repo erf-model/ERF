@@ -30,6 +30,8 @@
 #include "TerrainFittedPC.H"
 #endif
 
+#include "prob_common.H"
+
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
@@ -262,6 +264,8 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    void init_from_hse (int lev);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -328,6 +332,8 @@ private:
     void init_bcs ();
 
     void init_custom (int lev);
+
+    void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
@@ -480,6 +486,8 @@ private:
 
     ////////////////
     // private data members
+
+    std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
     amrex::Vector<int> num_files_at_level;                   // how many wrfinput files specified at each level

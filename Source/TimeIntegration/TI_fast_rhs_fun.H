@@ -28,13 +28,13 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_substep_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_substep_time);
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
 
             // Make "new" fast geom
             if (verbose) Print() << "Making geometry for end of substep time :" << new_substep_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_substep_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_substep_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 

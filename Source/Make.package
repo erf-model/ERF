@@ -2,6 +2,7 @@ CEXE_sources += main.cpp
 CEXE_sources += ERF.cpp
 CEXE_headers += ERF.H
 CEXE_headers += prob_common.H
+CEXE_headers += HSE_utils.H
 
 CEXE_headers += IndexDefines.H
 CEXE_headers += EOS.H

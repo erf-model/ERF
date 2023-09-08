@@ -61,6 +61,8 @@ erf.les_type = "Smagorinsky"
 #erf.pbl_type = "MYNN2.5"
 erf.Cs       = 0.1
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0   = 1.0

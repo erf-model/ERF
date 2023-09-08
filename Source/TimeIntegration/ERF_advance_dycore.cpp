@@ -73,6 +73,7 @@ void ERF::advance_dycore(int level,
     MultiFab qice   (qmoist[level], make_alias, 2, 1);
 #endif
 
+    // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;

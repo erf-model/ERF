@@ -63,6 +63,8 @@ erf.dynamicViscosity = 0.1
 
 erf.use_coriolis = false
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 2.0
 prob.T_0   = 300.0

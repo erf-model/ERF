@@ -1,36 +1,25 @@
-#include "prob_common.H"
-
-#include "EOS.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "IndexDefines.H"
+#include "prob.H"
 #include "TerrainMetrics.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 
-AMREX_GPU_DEVICE
-static
-void
-init_isentropic_hse(int i, int j,
-                    const Real& r_sfc, const Real& theta,
-                          Real* r,           Real* p,
-                    const Array4<Real const> z_cc,
-                    const int& khi)
+std::unique_ptr<ProblemBase>
+amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
 {
+    return std::make_unique<Problem>(problo, probhi);
+}
+
+Problem::Problem()
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
-{
-
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -39,10 +28,10 @@ init_custom_prob(
     Array4<Real      > const& x_vel,
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
-    Array4<Real      > const& r_hse,
+    Array4<Real      > const&,
     Array4<Real      > const& p_hse,
-    Array4<Real const> const& z_nd,
-    Array4<Real const> const& z_cc,
+    Array4<Real const> const&,
+    Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
     Array4<Real      > const&,
     Array4<Real      > const&,
@@ -62,11 +51,10 @@ init_custom_prob(
   AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   // Geometry (note we must include these here to get the data on device)
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0;
-    state(i, j, k, Rho_comp) = 1.2;
+    // This version perturbs rho but not p -- TODO: CHECK THIS
+    state(i, j, k, RhoTheta_comp) = std::pow(1.0,1.0/Gamma) * 101325.0 / 287.0 - p_hse(i,j,k);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
@@ -103,27 +91,10 @@ init_custom_prob(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
-                  amrex::Vector<Real>& /*ubar*/,
-                  amrex::Vector<Real>& /*vbar*/,
-                  amrex::Vector<Real>& /*wbar*/,
-                  amrex::Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for Stokes second problem");
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-}
-
-void
-init_custom_terrain (const Geometry& geom,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
 
     // Domain valid box (z_nd is nodal)
@@ -153,7 +124,8 @@ init_custom_terrain (const Geometry& geom,
     }
 }
 
-Real compute_terrain_velocity(const Real time)
+Real
+Problem::compute_terrain_velocity(const Real time)
 {
     Real U = 10.0;
     Real omega = 2.0*M_PI*1000.0;
