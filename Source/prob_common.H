@@ -22,6 +22,12 @@ struct ProbParmDefaults {
 class ProblemBase
 {
 public:
+
+    /**
+     * Virtual destructor to avoid data leakage with derived class
+     */
+    virtual ~ProblemBase() = default;
+
     /**
      * Function to initialize the hydrostatic reference density
      *
@@ -31,10 +37,10 @@ public:
      * @param[in] geom container for geometric information
     */
     virtual void
-    erf_init_dens_hse (amrex::MultiFab& rho_hse,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                       std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                       amrex::Geometry const& geom)
+    erf_init_dens_hse (amrex::MultiFab& /*rho_hse*/,
+                       std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+                       std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                       amrex::Geometry const& /*geom*/)
     {
         amrex::Print() << "Hydrostatically balanced density was NOT set"
             << " -- an appropriate init_type should probably have been specified"
@@ -66,34 +72,32 @@ public:
      * @param[in] mf_v         map factor on y-faces
      * @param[in] sc           SolverChoice structure that carries parameters
     */
-
     virtual void
-    init_custom_pert (
-      const amrex::Box&  bx,
-      const amrex::Box& xbx,
-      const amrex::Box& ybx,
-      const amrex::Box& zbx,
-      amrex::Array4<amrex::Real      > const& state,
-      amrex::Array4<amrex::Real      > const& x_vel,
-      amrex::Array4<amrex::Real      > const& y_vel,
-      amrex::Array4<amrex::Real      > const& z_vel,
-      amrex::Array4<amrex::Real      > const& r_hse,
-      amrex::Array4<amrex::Real      > const& p_hse,
-      amrex::Array4<amrex::Real const> const& z_nd,
-      amrex::Array4<amrex::Real const> const& z_cc,
+    init_custom_pert (const amrex::Box&  /*bx*/,
+                      const amrex::Box& /*xbx*/,
+                      const amrex::Box& /*ybx*/,
+                      const amrex::Box& /*zbx*/,
+                      amrex::Array4<amrex::Real      > const& /*state*/,
+                      amrex::Array4<amrex::Real      > const& /*x_vel*/,
+                      amrex::Array4<amrex::Real      > const& /*y_vel*/,
+                      amrex::Array4<amrex::Real      > const& /*z_vel*/,
+                      amrex::Array4<amrex::Real      > const& /*r_hse*/,
+                      amrex::Array4<amrex::Real      > const& /*p_hse*/,
+                      amrex::Array4<amrex::Real const> const& /*z_nd*/,
+                      amrex::Array4<amrex::Real const> const& /*z_cc*/,
 #if defined(ERF_USE_MOISTURE)
-      amrex::Array4<amrex::Real      > const& qv,
-      amrex::Array4<amrex::Real      > const& qc,
-      amrex::Array4<amrex::Real      > const& qi,
+                      amrex::Array4<amrex::Real      > const& /*qv*/,
+                      amrex::Array4<amrex::Real      > const& /*qc*/,
+                      amrex::Array4<amrex::Real      > const& /*qi*/,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-      amrex::Array4<amrex::Real      > const& qv,
-      amrex::Array4<amrex::Real      > const& qc,
+                      amrex::Array4<amrex::Real      > const& /*qv*/,
+                      amrex::Array4<amrex::Real      > const& /*qc*/,
 #endif
-      amrex::GeometryData const& geomdata,
-      amrex::Array4<amrex::Real const> const& mf_m,
-      amrex::Array4<amrex::Real const> const& mf_u,
-      amrex::Array4<amrex::Real const> const& mf_v,
-      const SolverChoice& sc
+                      amrex::GeometryData const& /*geomdata*/,
+                      amrex::Array4<amrex::Real const> const& /*mf_m*/,
+                      amrex::Array4<amrex::Real const> const& /*mf_u*/,
+                      amrex::Array4<amrex::Real const> const& /*mf_v*/,
+                      const SolverChoice& /*sc*/
     )
     {
         amrex::Print() << "No perturbation to background fields supplied for "
@@ -108,15 +112,15 @@ public:
      * @param[in] time current time
     */
     virtual void
-    init_custom_terrain (const amrex::Geometry& geom,
-                               amrex::MultiFab& z_phys_nd,
-                         const amrex::Real& time)
+    init_custom_terrain (const amrex::Geometry& /*geom*/,
+                         amrex::MultiFab& /*z_phys_nd*/,
+                         const amrex::Real& /*time*/)
     {
         amrex::Error("Should never call init_custom_terrain for "+name()+" problem");
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
-    virtual amrex::Real compute_terrain_velocity(const amrex::Real time)
+    virtual amrex::Real compute_terrain_velocity(const amrex::Real /*time*/)
     {
         amrex::Error("Should never call compute_terrain_velocity for "+name()+" problem");
     }
@@ -133,12 +137,12 @@ public:
      * @param[in] geom container for geometric information
     */
     virtual void
-    erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
-                       amrex::Vector<amrex::Real>& ubar,
-                       amrex::Vector<amrex::Real>& vbar,
-                       amrex::Vector<amrex::Real>& wbar,
-                       amrex::Vector<amrex::Real>& thetabar,
-                       amrex::Geometry      const& geom)
+    erf_init_rayleigh (amrex::Vector<amrex::Real>& /*tau*/,
+                       amrex::Vector<amrex::Real>& /*ubar*/,
+                       amrex::Vector<amrex::Real>& /*vbar*/,
+                       amrex::Vector<amrex::Real>& /*wbar*/,
+                       amrex::Vector<amrex::Real>& /*thetabar*/,
+                       amrex::Geometry      const& /*geom*/)
     {
         amrex::Error("Should never call erf_init_rayleigh for "+name()+" problem");
     }
