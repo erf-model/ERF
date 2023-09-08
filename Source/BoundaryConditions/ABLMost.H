@@ -62,6 +62,21 @@ public:
             }
         }
 
+        // Specify how to compute the flux
+        std::string rough_string{"constant"};
+        pp.query("most.roughness_type", rough_string);
+        if (rough_string == "constant") {
+            rough_type = RoughCalcType::CONSTANT;
+        } else if (rough_string == "charnock") {
+            rough_type = RoughCalcType::CHARNOCK;
+            pp.query("most.charnock_constant",cnk_a);
+        } else if (rough_string == "modified_charnock") {
+            rough_type = RoughCalcType::MODIFIED_CHARNOCK;
+            pp.query("most.modified_charnock_depth",depth);
+        } else {
+            amrex::Abort("Undefined MOST roughness type!");
+        }
+
         int nlevs = m_geom.size();
         z_0.resize(nlevs);
         u_star.resize(nlevs);
@@ -164,13 +179,22 @@ public:
         SURFACE_TEMPERATURE ///< Surface temperature specified
     };
 
-    ThetaCalcType theta_type;
+    enum struct RoughCalcType {
+        CONSTANT = 0,      ///< Constant z0
+        CHARNOCK,
+        MODIFIED_CHARNOCK
+    };
+
     FluxCalcType  flux_type;
+    ThetaCalcType theta_type;
+    RoughCalcType rough_type;
 
 private:
     amrex::Real z0_const;
     amrex::Real surf_temp;
     amrex::Real surf_temp_flux{0};
+    amrex::Real cnk_a{0.0185};
+    amrex::Real depth{30.0};
     amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
 
