@@ -793,6 +793,7 @@ ERF::init_only (int lev, Real time)
         // The base state is initialized from WRF wrfinput data, output by
         // ideal.exe or real.exe
         init_from_wrfinput(lev);
+        if (init_type == "ideal") initHSE();
 
     } else if (init_type == "metgrid") {
         // The base state is initialized from data output by WPS metgrid;
@@ -802,13 +803,13 @@ ERF::init_only (int lev, Real time)
     } else if (init_type == "uniform") {
         // Initialize a uniform background field and base state based on the
         // problem-specified reference density and temperature
-        initHSE(lev);
         init_uniform(lev);
+        initHSE(lev);
     } else {
         // No background flow initialization specified, initialize the
         // background field to be equal to the base state, calculated from the
         // problem-specific erf_init_dens_hse
-        initHSE(lev);
+        initHSE(lev); // need to call this first
         init_from_hse(lev);
     }
 
