@@ -60,34 +60,25 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-// new updates for GPU opt July 2023
-    // compute mf_u and mf_v inverses beforehand
-    // smallest 2D box containing bxx and bxy
+    // create smallest 2D box containing bxx and bxy
     IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
     IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
     Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0);
-    box2d.grow({1,1,0}); // {3,3,0} ??
+    box2d.grow({3,3,0}); // to match the mapfactor multifabs which are also grown by 3
 
-    // now create mf_u_inv and mf_v_inv FABs/arrays
+    // now create FABs/arrays and compute mapfac inverses
     FArrayBox mf_u_invFAB(box2d); FArrayBox mf_v_invFAB(box2d);
     Elixir mf_u_inv_eli = mf_u_invFAB.elixir();
     Elixir mf_v_inv_eli = mf_v_invFAB.elixir();
     const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
     const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
 
-    // compute inverses
     ParallelFor(box2d,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         mf_u_inv(i,j,0) = 1. / mf_u(i,j,0);
         mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
     });
-
-/*
-Print() << "Orig boxes: \n" << bxx << '\n' << bxy << '\n' << bxz << "\n\n";
-Print() << "New 2D box: \n" << box2d << "\n\n";
-Print() << "Map factors: \n" << mf_u << '\n' << mf_v << "\n\n";
-*/
 
     if (!use_terrain) {
         // Inline with 2nd order for efficiency
