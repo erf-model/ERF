@@ -60,23 +60,22 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
     AMREX_ALWAYS_ASSERT(bxz.smallEnd(2) > 0);
 
-    // create smallest 2D box containing bxx and bxy
-    IntVect bx_hi = amrex::max(bxx.bigEnd(), bxy.bigEnd());
-    IntVect bx_lo = amrex::min(bxx.smallEnd(), bxy.smallEnd());
-    Box box2d(bx_lo, bx_hi);   box2d.setRange(2,0);
-    box2d.grow({3,3,0}); // to match the mapfactor multifabs which are also grown by 3
-
-    // now create FABs/arrays and compute mapfac inverses
-    FArrayBox mf_u_invFAB(box2d); FArrayBox mf_v_invFAB(box2d);
+    // compute mapfactor inverses
+    Box box2d_u(bxx);   box2d_u.setRange(2,0);   box2d_u.grow({3,3,0});
+    Box box2d_v(bxy);   box2d_v.setRange(2,0);   box2d_v.grow({3,3,0});
+    FArrayBox mf_u_invFAB(box2d_u); FArrayBox mf_v_invFAB(box2d_v);
     Elixir mf_u_inv_eli = mf_u_invFAB.elixir();
     Elixir mf_v_inv_eli = mf_v_invFAB.elixir();
     const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
     const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
 
-    ParallelFor(box2d,
+    ParallelFor(box2d_u, box2d_v,
     [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
     {
         mf_u_inv(i,j,0) = 1. / mf_u(i,j,0);
+    },
+    [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+    {
         mf_v_inv(i,j,0) = 1. / mf_v(i,j,0);
     });
 
