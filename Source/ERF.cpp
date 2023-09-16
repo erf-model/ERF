@@ -532,7 +532,8 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd);
+        int ng_for_most = ComputeGhostCells(solverChoice.advChoice,solverChoice.use_NumDiff)+1;
+        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd,ng_for_most);
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics

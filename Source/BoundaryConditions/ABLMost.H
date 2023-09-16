@@ -32,7 +32,8 @@ public:
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
-                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                      int ng)
       : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
@@ -88,8 +89,7 @@ public:
         {
             // Z0 heights
             //--------------------------------------------------------
-            // TODO: generalize the "3" for the number of ghost cells
-            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),3);
+            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
             bx.setSmall(2,0);
             bx.setBig(2,0);
             z_0[lev].resize(bx,1);
