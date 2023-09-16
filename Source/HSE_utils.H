@@ -220,6 +220,6 @@ namespace HSEutils
           //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
       }
     }
-};
+}
 
 #endif
