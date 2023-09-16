@@ -44,13 +44,19 @@ void VelocityToMomentum( const MultiFab& xvel_in,
         const Box& valid_box = amrex::grow(mfi.validbox(),IntVect(1,1,0));
         Box tbx, tby, tbz;
         if (l_use_ndiff) {
-            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow); tbx.setSmall(2,0);
-            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow); tby.setSmall(2,0);
-            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow); tbz.setSmall(2,0);
+            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow);
+            if (tbx.smallEnd(2) < 0)  tbx.setSmall(2,0);
+            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow);
+            if (tby.smallEnd(2) < 0)  tby.setSmall(2,0);
+            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow);
+            if (tbz.smallEnd(2) < 0)  tbz.setSmall(2,0);
         } else {
-            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0); tbx.setSmall(2,0);
-            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1); tby.setSmall(2,0);
-            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2); tbz.setSmall(2,0);
+            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0);
+            if (tbx.smallEnd(2) < 0)  tbx.setSmall(2,0);
+            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1);
+            if (tby.smallEnd(2) < 0)  tby.setSmall(2,0);
+            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2);
+            if (tbz.smallEnd(2) < 0)  tbz.setSmall(2,0);
         }
 
         // Conserved/state variables on cell centers -- we use this for density
