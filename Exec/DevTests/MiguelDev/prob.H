@@ -1,7 +1,9 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
-#include <AMReX_REAL.H>
+#include <string>
+
+#include "AMReX_REAL.H"
 
 #include "prob_common.H"
 
