@@ -68,7 +68,8 @@ Problem::init_custom_pert(
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       state(i, j, k, RhoQKE_comp) = QKE_0;
-      amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
+      // uncomment for CPU, not allowed for GPU
+      //amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
   });
 
 // Initialize vortex here
