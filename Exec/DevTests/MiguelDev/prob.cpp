@@ -63,18 +63,26 @@ Problem::init_custom_pert(
 {
 
 // QKE for PBL
-/*
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+
+  Real QKE_0 = parms.QKE_0;
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      // Set initial value for QKE
-      state(i, j, k, RhoQKE_comp) = 0.1; //parms.QKE_0;
+      state(i, j, k, RhoQKE_comp) = QKE_0;
+      amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
   });
-*/
 
 // Initialize vortex here
 
+  // Get vortex location
+  const Real Xc = parms.Xc_0;
+  const Real Yc = parms.Yc_0;
+  const Real v_max = parms.VMAX; // 15; // Maximum horizontal velocity in vortex
+  const Real R_max = parms.RMAX; // 100; // Radius of maximum winds
+  const Real R_0 = parms.RZERO; //800; // Radius of zero wind speed
+  const Real z_0 = parms.ZZERO; //2000; // Height of zero wind speed
+
 // u-velocity component
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -82,27 +90,14 @@ Problem::init_custom_pert(
       const Real x = prob_lo[0] + i * dx[0]; // face center
       const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
       const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
-      // const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
-
-                     //(parms.M_inf * std::cos(parms.alpha)
-                     //- (y - parms.yc)/parms.R * Omg) * parms.a_inf;
 
       // Zero-out the velocity
       x_vel(i, j, k) = 0;
         
-      // Get vortex location
-      const Real Xc = parms.Xc_0;
-      const Real Yc = parms.Yc_0;
-      // Calculate u-velocity for vortex
-      const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
-      const Real v_max = parms.VMAX; // 15; // Maximum horizontal velocity in vortex
-      const Real R_max = parms.RMAX; // 100; // Radius of maximum winds
-      const Real R_0 = parms.RZERO; //800; // Radius of zero wind speed
-      const Real z_0 = parms.ZZERO; //2000; // Height of zero wind speed
-
       if (z > z_0) {
           x_vel(i, j, k) = 0.0;
       } else {
+            const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
             if (rr > R_0) {
                   x_vel(i, j, k) = 0.0;
             } else {
@@ -116,13 +111,10 @@ Problem::init_custom_pert(
                   x_vel(i, j, k) = -1*std::abs(v_tang)*std::sin(thet_angl);
             }
       }
-
-      state(i, j, k, RhoQKE_comp) = parms.QKE_0;
-      amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
   });
 
 // v-velocity component
-  amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -130,22 +122,14 @@ Problem::init_custom_pert(
       const Real x = prob_lo[0] + (i + 0.5) * dx[0]; // cell center
       const Real y = prob_lo[1] + j * dx[1]; // face center
       const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
+
       // Zero-out the velocity
       y_vel(i, j, k) = 0;
-
-      // Get vortex location
-      const Real Xc = parms.Xc_0;
-      const Real Yc = parms.Yc_0;
-      // Calculate v-velocity for vortex
-      const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
-      const Real v_max = parms.VMAX; // 15; // Maximum horizontal velocity in vortex
-      const Real R_max = parms.RMAX; // 100; // Radius of maximum winds
-      const Real R_0 = parms.RZERO; //800; // Radius of zero wind speed
-      const Real z_0 = parms.ZZERO; //2000; // Height of zero wind speed
 
       if (z > z_0) {
           y_vel(i, j, k) = 0.0;
       } else {
+            const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
             if (rr > R_0) {
                   y_vel(i, j, k) = 0.0;
             } else {
