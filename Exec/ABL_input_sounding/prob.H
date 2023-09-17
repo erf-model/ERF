@@ -1,13 +1,17 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
-#include <AMReX_REAL.H>
+#include <string>
 
-struct ProbParm {
-  amrex::Real rho_0   = 0.0;
-  amrex::Real Theta_0 = 0.0;
-  amrex::Real A_0     = 1.0;
-  amrex::Real QKE_0   = 0.1;
+#include "AMReX_REAL.H"
+
+#include "prob_common.H"
+
+struct ProbParm : ProbParmDefaults {
+  amrex::Real rho_0 = 0.0;
+  amrex::Real T_0   = 0.0;
+  amrex::Real A_0   = 1.0;
+  amrex::Real QKE_0 = 0.1;
 
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
@@ -36,6 +40,51 @@ struct ProbParm {
   amrex::Real vfac;
 }; // namespace ProbParm
 
-extern ProbParm parms;
+class Problem : public ProblemBase
+{
+public:
+    Problem(const amrex::Real* problo, const amrex::Real* probhi);
+
+#include "Prob/init_constant_density_hse.H"
+#include "Prob/init_rayleigh_damping.H"
+
+    void init_custom_pert (
+        const amrex::Box&  bx,
+        const amrex::Box& xbx,
+        const amrex::Box& ybx,
+        const amrex::Box& zbx,
+        amrex::Array4<amrex::Real      > const& state,
+        amrex::Array4<amrex::Real      > const& x_vel,
+        amrex::Array4<amrex::Real      > const& y_vel,
+        amrex::Array4<amrex::Real      > const& z_vel,
+        amrex::Array4<amrex::Real      > const& r_hse,
+        amrex::Array4<amrex::Real      > const& p_hse,
+        amrex::Array4<amrex::Real const> const& z_nd,
+        amrex::Array4<amrex::Real const> const& z_cc,
+#if defined(ERF_USE_MOISTURE)
+        amrex::Array4<amrex::Real      > const& qv,
+        amrex::Array4<amrex::Real      > const& qc,
+        amrex::Array4<amrex::Real      > const& qi,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        amrex::Array4<amrex::Real      > const& qv,
+        amrex::Array4<amrex::Real      > const& qc,
+#endif
+        amrex::GeometryData const& geomdata,
+        amrex::Array4<amrex::Real const> const& mf_m,
+        amrex::Array4<amrex::Real const> const& mf_u,
+        amrex::Array4<amrex::Real const> const& mf_v,
+        const SolverChoice& sc) override;
+
+    void init_custom_terrain (
+        const amrex::Geometry& geom,
+        amrex::MultiFab& z_phys_nd,
+        const amrex::Real& time) override;
+
+protected:
+    std::string name() override { return "ABL with input sounding"; }
+
+private:
+    ProbParm parms;
+};
 
 #endif

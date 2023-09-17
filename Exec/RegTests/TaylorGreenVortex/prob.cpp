@@ -1,50 +1,29 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "EOS.H"
-#include "ERF_Constants.H"
-#include "IndexDefines.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 
 using namespace amrex;
 
-ProbParm parms;
-
-void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*wbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  Geometry const& /*geom*/)
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
 {
-   amrex::Error("Should never get here for TaylorGreenVortex problem");
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+  // Parse params
+  ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("M_0", parms.M_0);
+  pp.query("V_0", parms.V_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const&)
-{
-    Real rho_0 = parms.rho_0;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            rho_hse_arr(i,j,k) = rho_0;
-        });
-    }
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -54,7 +33,7 @@ init_custom_prob(
     Array4<Real      > const& y_vel,
     Array4<Real      > const& z_vel,
     Array4<Real      > const&,
-    Array4<Real      > const&,
+    Array4<Real      > const& p_hse,
     Array4<Real const> const&,
     Array4<Real const> const&,
 #if defined(ERF_USE_MOISTURE)
@@ -79,19 +58,16 @@ init_custom_prob(
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature (Actually rho*theta)
+    // Initial potential temperature (actually rho*theta) perturbation
     const Real p = parms.rho_0 * parms.V_0*parms.V_0*
                           (
                              1.0 / (Gamma * parms.M_0 * parms.M_0)
                           + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
                           );
-    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p);
+    state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p) - getRhoThetagivenP(p_hse(i,j,k));
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 1.0 * state(i,j,k,Rho_comp);
+    state(i, j, k, RhoScalar_comp) = 1.0 * parms.rho_0;
 
 #if defined(ERF_USE_MOISTURE)
     state(i, j, k, RhoQt_comp) = 0.0;
@@ -136,9 +112,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain (
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -157,17 +134,4 @@ init_custom_terrain (const Geometry& /*geom*/,
             z_arr(i,j,0) = 0.0;
         });
     }
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
-  pp.query("M_0", parms.M_0);
-  pp.query("V_0", parms.V_0);
 }

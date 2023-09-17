@@ -1,13 +1,60 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "IndexDefines.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+{
+    return std::make_unique<Problem>(problo, probhi);
+}
+
+Problem::Problem(const amrex_real* problo, const amrex_real* probhi)
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("p_inf", parms.p_inf);
+  pp.query("T_inf", parms.T_inf);
+  pp.query("M_inf", parms.M_inf);
+  pp.query("alpha", parms.alpha);
+  pp.query("gamma", parms.gamma);
+  pp.query("beta", parms.beta);
+  pp.query("sigma", parms.sigma);
+  pp.query("R", parms.R);
+  pp.query("xc", parms.xc);
+  pp.query("yc", parms.yc);
+
+  parms.xc = problo[0] + parms.xc * (probhi[0] - problo[0]);
+  parms.yc = problo[1] + parms.yc * (probhi[1] - problo[1]);
+  amrex::Print() << "  vortex initialized at ("
+                 << parms.xc << ", "
+                 << parms.yc << ")"
+                 << std::endl;
+
+  parms.inv_gm1 = 1.0 / (parms.gamma - 1.0);
+
+  amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
+  amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
+  amrex::Print() << "  reference potential temperature (not used) = " << parms.T_0 << " K" << std::endl;
+
+  parms.rho_0 = parms.p_inf / (R_d * parms.T_inf);
+  amrex::Print() << "  calculated freestream air density = "
+                 << parms.rho_0 << " kg/m^3"
+                 << std::endl;
+
+  parms.a_inf = std::sqrt(parms.gamma * R_d * parms.T_inf);
+  amrex::Print() << "  calculated speed of sound, a = "
+                 << parms.a_inf << " m/s"
+                 << std::endl;
+
+  amrex::Print() << "  freestream u/a = "
+                 << parms.M_inf * std::cos(parms.alpha)
+                 << std::endl;
+  amrex::Print() << "  freestream v/a = "
+                 << parms.M_inf * std::sin(parms.alpha)
+                 << std::endl;
+
+  init_base_parms(parms.rho_0, parms.T_0);
+}
 
 AMREX_GPU_DEVICE
 static
@@ -24,39 +71,7 @@ erf_vortex_Gaussian(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& /*tau*/,
-                  amrex::Vector<Real>& /*ubar*/,
-                  amrex::Vector<Real>& /*vbar*/,
-                  amrex::Vector<Real>& /*wbar*/,
-                  amrex::Vector<Real>& /*thetabar*/,
-                  amrex::Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for Isentropic Vortex problem");
-}
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const&)
-{
-    Real rho_inf = parms.rho_inf;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            rho_hse_arr(i,j,k) = rho_inf;
-        });
-    }
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -89,6 +104,7 @@ init_custom_prob(
   Real sigma = parms.sigma;
 
   const Real rdOcp = sc.rdOcp;
+  const Real T_0 = parms.T_0;
 
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -101,16 +117,16 @@ init_custom_prob(
     const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
     const Real deltaT = -(parms.gamma - 1.0)/(2.0*sigma*sigma) * Omg*Omg;
 
-    // Set the density
+    // Set the perturbation density
     const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    state(i, j, k, Rho_comp) = rho_norm * parms.rho_inf;
+    state(i, j, k, Rho_comp) = (rho_norm - 1.0) * parms.rho_0;
 
     // Initial _potential_ temperature
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
-                          * parms.rho_inf*parms.a_inf*parms.a_inf;
-    state(i, j, k, RhoTheta_comp) = T * std::pow(p_0 / p, rdOcp); // T --> theta
-    state(i, j, k, RhoTheta_comp) *= state(i, j, k, Rho_comp);
+                          * parms.rho_0*parms.a_inf*parms.a_inf;
+    const Real rho_theta = parms.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
+    state(i, j, k, RhoTheta_comp) = rho_theta - parms.rho_0 * parms.T_0; // Set the perturbation rho*theta
 
     // Set scalar = 0 -- unused
     state(i, j, k, RhoScalar_comp) = 1.0 + Omg;
@@ -160,8 +176,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
-                    const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     auto dx = geom.CellSizeArray();
 
@@ -180,55 +198,7 @@ init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
     z_phys_nd.FillBoundary(geom.periodicity());
 }
 
-void
-amrex_probinit(
-  const amrex_real* problo,
-  const amrex_real* probhi)
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("p_inf", parms.p_inf);
-  pp.query("T_inf", parms.T_inf);
-  pp.query("M_inf", parms.M_inf);
-  pp.query("alpha", parms.alpha);
-  pp.query("gamma", parms.gamma);
-  pp.query("beta", parms.beta);
-  pp.query("sigma", parms.sigma);
-  pp.query("R", parms.R);
-  pp.query("xc", parms.xc);
-  pp.query("yc", parms.yc);
-
-  parms.xc = problo[0] + parms.xc * (probhi[0] - problo[0]);
-  parms.yc = problo[1] + parms.yc * (probhi[1] - problo[1]);
-  amrex::Print() << "  vortex initialized at ("
-                 << parms.xc << ", "
-                 << parms.yc << ")"
-                 << std::endl;
-
-  parms.inv_gm1 = 1.0 / (parms.gamma - 1.0);
-
-  amrex::Print() << "  reference pressure = " << parms.p_inf << " Pa" << std::endl;
-  amrex::Print() << "  reference temperature = " << parms.T_inf << " K" << std::endl;
-
-  parms.rho_inf = parms.p_inf / (R_d * parms.T_inf);
-  amrex::Print() << "  calculated freestream air density = "
-                 << parms.rho_inf << " kg/m^3"
-                 << std::endl;
-
-  parms.a_inf = std::sqrt(parms.gamma * R_d * parms.T_inf);
-  amrex::Print() << "  calculated speed of sound, a = "
-                 << parms.a_inf << " m/s"
-                 << std::endl;
-
-  amrex::Print() << "  freestream u/a = "
-                 << parms.M_inf * std::cos(parms.alpha)
-                 << std::endl;
-  amrex::Print() << "  freestream v/a = "
-                 << parms.M_inf * std::sin(parms.alpha)
-                 << std::endl;
-
-}
-
+#if 0
 AMREX_GPU_DEVICE
 Real
 dhdt(int /*i*/, int /*j*/,
@@ -237,3 +207,4 @@ dhdt(int /*i*/, int /*j*/,
 {
     return 0.;
 }
+#endif

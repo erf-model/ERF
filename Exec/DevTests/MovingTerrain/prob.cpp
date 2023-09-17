@@ -1,145 +1,29 @@
 #include "prob.H"
-#include "prob_common.H"
-
 #include "EOS.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "IndexDefines.H"
-#include "ERF_Constants.H"
 #include "TerrainMetrics.H"
-#include "TileNoZ.H"
 
 using namespace amrex;
 
-ProbParm parms;
-
-AMREX_GPU_DEVICE
-static
-void
-init_isentropic_hse(int i, int j,
-                    const Real& r_sfc, const Real& theta,
-                          Real* r,           Real* p,
-                    const Array4<Real const> z_cc,
-                    const int& khi)
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
 {
-  // r_sfc / p_0 are the density / pressure at the surface
-  int k0  = 0;
-  Real hz = z_cc(i,j,k0);
+    return std::make_unique<Problem>();
+}
 
-  // Initial guess
-  r[k0] = r_sfc;
-  p[k0] = p_0 - hz * r[k0] * CONST_GRAV;
+Problem::Problem()
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("Ampl", parms.Ampl);
+  pp.query("T_0" , parms.T_0);
 
-  int MAX_ITER = 10;
-  Real TOL = 1.e-8;
-
-  {
-      // We do a Newton iteration to satisfy the EOS & HSE (with constant theta)
-      bool converged_hse = false;
-      Real p_hse;
-      Real p_eos;
-
-      for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
-      {
-          p_hse = p_0 - hz * r[k0] * CONST_GRAV;
-          p_eos = getPgivenRTh(r[k0]*theta);
-
-          Real A = p_hse - p_eos;
-
-          Real dpdr = getdPdRgivenConstantTheta(r[k0],theta);
-
-          Real drho = A / (dpdr + hz * CONST_GRAV);
-
-          r[k0] = r[k0] + drho;
-          p[k0] = getPgivenRTh(r[k0]*theta);
-
-          if (std::abs(drho) < TOL)
-          {
-              converged_hse = true;
-              break;
-          }
-      }
-  }
-
-  // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-  for (int k = 1; k <= khi; k++)
-  {
-      // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-      // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed
-      bool converged_hse = false;
-
-      r[k] = r[k-1];
-
-      Real p_eos = getPgivenRTh(r[k]*theta);
-      Real p_hse;
-
-      for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
-      {
-          Real dz_loc = (z_cc(i,j,k) - z_cc(i,j,k-1));
-          p_hse = p[k-1] -  dz_loc * 0.5 * (r[k-1]+r[k]) * CONST_GRAV;
-          p_eos = getPgivenRTh(r[k]*theta);
-
-          Real A = p_hse - p_eos;
-
-          Real dpdr = getdPdRgivenConstantTheta(r[k],theta);
-
-          Real drho = A / (dpdr + dz_loc * CONST_GRAV);
-
-          r[k] = r[k] + drho;
-          p[k] = getPgivenRTh(r[k]*theta);
-
-          if (std::abs(drho) < TOL)
-          {
-              converged_hse = true;
-              //amrex::Print() << " converged " << std::endl;
-              break;
-          }
-      }
-  }
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>& /*z_phys_nd*/,
-                  std::unique_ptr<MultiFab>& z_phys_cc,
-                  Geometry const& geom)
-{
-  const int khi        = geom.Domain().bigEnd()[2];
-
-  const Real T_sfc    = parms.T_0;
-  const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real thetabar = T_sfc;
-
-  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-  for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
-  {
-       Array4<Real      > rho_arr  = rho_hse.array(mfi);
-       Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
-
-       // Create a flat box with same horizontal extent but only one cell in vertical
-       const Box& tbz = mfi.nodaltilebox(2);
-       Box b2d = tbz; // Copy constructor
-       b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
-       b2d.setRange(2,0);
-
-       ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-         Array1D<Real,0,255> r;;
-         Array1D<Real,0,255> p;;
-
-         init_isentropic_hse(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
-
-         for (int k = 0; k <= khi; k++) {
-            rho_arr(i,j,k) = r(k);
-         }
-         rho_arr(i,j,   -1) = rho_arr(i,j,0);
-         rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
-       });
-   }
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -172,28 +56,7 @@ init_custom_prob(
 
   const Real T_sfc    = parms.T_0;
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
-  const Real thetabar = T_sfc;
-
-  // Create a flat box with same horizontal extent but only one cell in vertical
-  Box b2d = surroundingNodes(bx); // Copy constructor
-  b2d.setRange(2,0);
-
-  if (khi > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
-
-  ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
-  {
-     Array1D<Real,0,255> r;;
-     Array1D<Real,0,255> p;;
-
-     init_isentropic_hse(i,j,rho_sfc,thetabar,&(r(0)),&(p(0)),z_cc,khi);
-
-     for (int k = 0; k <= khi; k++) {
-        r_hse(i,j,k) = r(k);
-        p_hse(i,j,k) = p(k);
-     }
-     r_hse(i,j,   -1) = r_hse(i,j,0);
-     r_hse(i,j,khi+1) = r_hse(i,j,khi);
-  });
+  //const Real thetabar = T_sfc;
 
   Real H           = geomdata.ProbHi()[2];
   Real Ampl        = parms.Ampl;
@@ -215,14 +78,12 @@ init_custom_prob(
       Real z_base = Ampl * std::sin(kp * x);
       z -= z_base;
 
-      state(i, j, k, Rho_comp) = r_hse(i,j,k);
-
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
       Real p_prime = -(Ampl * omega * omega / kp) * fac * std::sin(kp * x) * r_hse(i,j,k);
       Real p_total = p_hse(i,j,k) + p_prime;
 
       // Define (rho theta) given pprime
-      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total);
+      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
       // Set scalar = 0 everywhere
       state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);
@@ -280,12 +141,13 @@ init_custom_prob(
 }
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& tau,
-                  amrex::Vector<Real>& ubar,
-                  amrex::Vector<Real>& vbar,
-                  amrex::Vector<Real>& wbar,
-                  amrex::Vector<Real>& thetabar,
-                  amrex::Geometry      const& geom)
+Problem::erf_init_rayleigh(
+    amrex::Vector<Real>& tau,
+    amrex::Vector<Real>& ubar,
+    amrex::Vector<Real>& vbar,
+    amrex::Vector<Real>& wbar,
+    amrex::Vector<Real>& thetabar,
+    amrex::Geometry      const& geom)
 {
    // amrex::Error("Should never get here for MovingTerrain problem");
    const int khi = geom.Domain().bigEnd()[2];
@@ -311,20 +173,10 @@ erf_init_rayleigh(amrex::Vector<Real>& tau,
 }
 
 void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("Ampl", parms.Ampl);
-  pp.query("T_0" , parms.T_0);
-}
-
-void
-init_custom_terrain (const Geometry& geom,
-                           MultiFab& z_phys_nd,
-                     const Real& time)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& time)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();

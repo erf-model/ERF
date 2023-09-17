@@ -130,7 +130,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                     (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
     const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
                                     solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25 );
+                                    solverChoice.pbl_type == PBLType::MYNN25      ||
+                                    solverChoice.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -153,16 +154,16 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab* expr    = nullptr;
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
+    std::unique_ptr<MultiFab> expr;
+    std::unique_ptr<MultiFab> dflux_x;
+    std::unique_ptr<MultiFab> dflux_y;
+    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,0));
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -620,7 +621,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
@@ -677,11 +678,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
@@ -801,11 +802,4 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         });
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete expr;
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }

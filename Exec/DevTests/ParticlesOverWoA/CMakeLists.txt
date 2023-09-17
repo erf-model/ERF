@@ -8,6 +8,8 @@ target_sources(${erf_exe_name}
 
 target_include_directories(${erf_exe_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(ERF_ENABLE_PARTICLES ON)
+
 include(${CMAKE_SOURCE_DIR}/CMake/BuildERFExe.cmake)
 build_erf_exe(${erf_exe_name})
 

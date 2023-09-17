@@ -58,6 +58,9 @@ void ERF::advance_dycore(int level,
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
     if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
 
+    DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+
     int nvars = cons_old.nComp();
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
@@ -70,6 +73,7 @@ void ERF::advance_dycore(int level,
     MultiFab qice   (qmoist[level], make_alias, 2, 1);
 #endif
 
+    // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
@@ -81,11 +85,11 @@ void ERF::advance_dycore(int level,
     Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
 
     bool l_use_terrain = solverChoice.use_terrain;
-    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.les_type        !=       LESType::None) ||
-                           (solverChoice.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
-                           (solverChoice.pbl_type != PBLType::None) );
+    bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
+                           (tc.les_type        !=       LESType::None) ||
+                           (tc.pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
+                           (tc.pbl_type != PBLType::None) );
 
     const BoxArray& ba            = cons_old.boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -218,7 +222,7 @@ void ERF::advance_dycore(int level,
                                   state_old[IntVar::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
-                                  solverChoice, m_most);
+                                  tc, solverChoice.gravity, m_most);
     }
 
     // ***********************************************************************************************

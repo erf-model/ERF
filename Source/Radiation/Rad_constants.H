@@ -2,7 +2,6 @@
 // This module contains constexprants that are specific to the radiative transfer
 // code used in the RRTMG model.
 //
-
 #ifndef ERF_RAD_CONSTANTS_H
 #define ERF_RAD_CONSTANTS_H
 
@@ -10,8 +9,6 @@
 
 class RadConstants {
   public:
-   // SHORTWAVE DATA
-
    // number of shorwave spectral intervals
    static constexpr int nswbands = 14;
    static constexpr int nbndsw = 14;
@@ -22,25 +19,40 @@ class RadConstants {
    // 100 cm^-1 if it is too high to cover the far-IR. Any changes meant
    // to affect IR solar variability should take note of this.
 
-   static constexpr real wavenum_low[] /*(nbndsw)*/ =  // in cm^-1
+   static constexpr real wavenum_low[] =  // in cm^-1
      {2600., 3250., 4000., 4650., 5150., 6150., 7700.,
       8050., 12850., 16000., 22650., 29000., 38000., 820.};
 
-   static constexpr real wavenum_high[] /*(nbndsw)*/ = // in cm^-1
+   static constexpr real wavenum_high[] = // in cm^-1
       {3250., 4000., 4650., 5150., 6150., 7700., 8050.,
        12850.,16000., 22650., 29000., 38000., 50000., 2600.};
 
-   // Mapping from old RRTMG sw bands to new band ordering in RRTMGP
-   static constexpr int rrtmg_to_rrtmgp_swbands[] = {
-                       14, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
-
    // Solar irradiance at 1 A.U. in W/m^2 assumed by radiation code
    // Rescaled so that sum is precisely 1368.22 and fractional amounts sum to 1.0
-   static constexpr real solar_ref_band_irradiance[] /*(nbndsw)*/ =
+   static constexpr real solar_ref_band_irradiance[] =
       {12.11,  20.3600000000001, 23.73,
        22.43,  55.63, 102.93, 24.29,
        345.74, 218.19, 347.20,
        129.49,  50.15,   3.08, 12.89};
+
+   // parameterizations related to radiation (when microphysics model doesn't provide)
+   static constexpr real icesize_table_min_temp = 180.;
+   static constexpr real retab[] = { 5.92779, 6.26422, 6.61973, 6.99539, 7.39234,
+                                     7.81177, 8.25496, 8.72323, 9.21800, 9.74075, 10.2930,
+                                     10.8765, 11.4929, 12.1440, 12.8317, 13.5581, 14.2319,
+                                     15.0351, 15.8799, 16.7674, 17.6986, 18.6744, 19.6955,
+                                     20.7623, 21.8757, 23.0364, 24.2452, 25.5034, 26.8125,
+                                     27.7895, 28.6450, 29.4167, 30.1088, 30.7306, 31.2943,
+                                     31.8151, 32.3077, 32.7870, 33.2657, 33.7540, 34.2601,
+                                     34.7892, 35.3442, 35.9255, 36.5316, 37.1602, 37.8078,
+                                     38.4720, 39.1508, 39.8442, 40.5552, 41.2912, 42.0635,
+                                     42.8876, 43.7863, 44.7853, 45.9170, 47.2165, 48.7221,
+                                     50.4710, 52.4980, 54.8315, 57.4898, 60.4785, 63.7898,
+                                     65.5604, 71.2885, 75.4113, 79.7368, 84.2351, 88.8833,
+                                     93.6658, 98.5739, 103.603, 108.752, 114.025, 119.424,
+                                     124.954, 130.630, 136.457, 142.446, 148.608, 154.956,
+                                     161.503, 168.262, 175.248, 182.473, 189.952, 197.699,
+                                     205.728, 214.055, 222.694, 231.661, 240.971, 250.639};
 
    // These are indices to the band for diagnostic output
    static constexpr int idx_sw_diag = 10; // index to sw visible band
@@ -72,11 +84,11 @@ class RadConstants {
    static constexpr int nlwbands = 16;
    static constexpr int nbndlw = 16;
 
-   static constexpr real wavenumber1_longwave[] /*(nlwbands)*/ =  // Longwave spectral band limits (cm-1)
+   static constexpr real wavenumber1_longwave[] =  // Longwave spectral band limits (cm-1)
        {10.,  350., 500.,   630.,  700.,  820.,  980., 1080.,
        1180., 1390., 1480., 1800., 2080., 2250., 2390., 2600.};
 
-   static constexpr real wavenumber2_longwave[] /*(nlwbands)*/ = // Longwave spectral band limits (cm-1)
+   static constexpr real wavenumber2_longwave[] = // Longwave spectral band limits (cm-1)
        {350.,  500.,  630.,  700.,  820.,  980., 1080., 1180.,
        1390., 1480., 1800., 2080., 2250., 2390., 2600., 3250.};
 
@@ -84,7 +96,7 @@ class RadConstants {
 
    // gasses required by radiation
    static constexpr int nradgas = 8;
-   static constexpr const char* gaslist[] /*(nradgas)*/ =
+   static constexpr const char* gaslist[] =
              {"H2O","O3", "O2", "CO2", "N2O", "CH4", "CFC11", "CFC12"};
 
    // use enum unit
@@ -232,9 +244,7 @@ class RadConstants {
   inline
   static int rad_gas_index(std::string gasname) {
      for(auto igas = 0; igas < nradgas; ++igas) {
-        if (gaslist[igas] == gasname) {
-           return igas;
-        }
+        if (gaslist[igas] == gasname) return igas;
      }
      amrex::Print() << "rad_gas_index: can not find gas with name" << gasname << std::endl;
   }

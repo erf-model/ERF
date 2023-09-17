@@ -51,7 +51,7 @@ erf.dynamicViscosity = 0.1
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-// NOTE: this u_0 should match the zhi.velocity specified above
+# NOTE: this u_0 should match the zhi.velocity specified above
 prob.u_0 = 2.0
 prob.v_0 = 0.0
 prob.w_0 = 0.0

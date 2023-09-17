@@ -122,6 +122,10 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
+| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+|                           | on the grids?   |                 |             |
+|                           |                 |                 |             |
++---------------------------+-----------------+-----------------+-------------+
 
 Note: if **amr.max_level** = 0 then you do not need to set
 **amr.ref_ratio** or **amr.regrid_int**.
@@ -518,6 +522,11 @@ List of Parameters
 |                                  | advection type     |                     |              |
 |                                  | for moist scalars  |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
+| **erf.use_efficient_advection**  | Use efficient      | true/false          | false        |
+|                                  | advection scheme   |                     |              |
+|                                  | for scalars        |                     |              |
++----------------------------------+--------------------+---------------------+--------------+
+
 
 The allowed advection types for the dycore variables are
 "Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th" and "Centered_6th".
@@ -528,6 +537,16 @@ The allowed advection types for the dry and moist scalars are
 
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
+
+The efficient advection schemes for dry and moist scalars exploit the substages of the
+time advancing RK3 scheme by using lower order schemes in the first two substages and the
+solver's choice of scheme in the final stage. Based on CPU-only runtimes on Perlmutter for
+the scalar advection routine, the approximate computational savings for the scalar advection
+schemes are as follows when using efficient advection option: roughly 30% for Centered_4th
+and Centered_6th, 35% for Upwind_5th, roughly 45% for WENO5 and WENOZ5, and roughly 60% for
+Upwind_3rd, WENO3, WENOZ3, and WENOMZQ3.
+
+
 
 Diffusive Physics
 =================

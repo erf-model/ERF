@@ -36,8 +36,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
-    int ngrow_state = ComputeGhostCells(solverChoice) + 1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice);
+    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
@@ -77,21 +77,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     update_arrays(lev, ba, dm);
 
     // ********************************************************************************************
-    // Metric terms
-    // ********************************************************************************************
-    z_phys_nd.resize(lev+1);
-    z_phys_cc.resize(lev+1);
-    detJ_cc.resize(lev+1);
-
-    z_phys_nd_new.resize(lev+1);
-    detJ_cc_new.resize(lev+1);
-
-    z_phys_nd_src.resize(lev+1);
-    detJ_cc_src.resize(lev+1);
-
-    z_t_rk.resize(lev+1);
-
-    // ********************************************************************************************
     // Map factors
     // ********************************************************************************************
     BoxList bl2d = ba.boxList();
@@ -100,13 +85,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     }
     BoxArray ba2d(std::move(bl2d));
 
-    mapfac_m.resize(lev+1);
-    mapfac_u.resize(lev+1);
-    mapfac_v.resize(lev+1);
     mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
     mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
     mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if(solverChoice.test_mapfactor) {
+    if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
         mapfac_v[lev]->setVal(0.5);
@@ -120,12 +102,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
     // ********************************************************************************************
-    base_state.resize(lev+1);
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
 
     if (solverChoice.use_terrain && solverChoice.terrain_type > 0) {
-        base_state_new.resize(lev+1);
         base_state_new[lev].define(ba,dm,3,1);
         base_state_new[lev].setVal(0.);
     }
@@ -144,7 +124,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         ba_nd.surroundingNodes();
 
         // We need this to be one greater than the ghost cells to handle levels > 0
-        int ngrow = ComputeGhostCells(solverChoice) + 2;
+        int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
         z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
         if (solverChoice.terrain_type > 0) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
@@ -168,7 +148,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
     // ********************************************************************************************
-    Theta_prim.resize(lev+1);
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
       Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
     } else {
@@ -276,8 +255,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     Vector<MultiFab> temp_lev_new(Vars::NumTypes);
     Vector<MultiFab> temp_lev_old(Vars::NumTypes);
 
-    int ngrow_state = ComputeGhostCells(solverChoice) + 1;
-    int ngrow_vels  = ComputeGhostCells(solverChoice);
+    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
     temp_lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     temp_lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
@@ -337,7 +316,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Update the base state at this level
     // ********************************************************************************************
-    base_state.resize(lev+1);
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
     initHSE(lev);
@@ -351,13 +329,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
     BoxArray ba2d(std::move(bl2d));
 
-    mapfac_m.resize(lev+1);
-    mapfac_u.resize(lev+1);
-    mapfac_v.resize(lev+1);
     mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
     mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
     mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if(solverChoice.test_mapfactor) {
+    if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
         mapfac_v[lev]->setVal(0.5);
@@ -379,27 +354,16 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
     // Diffusive terms
     // ********************************************************************************************
     bool l_use_terrain = solverChoice.use_terrain;
-    bool l_use_diff    = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                           (solverChoice.les_type        !=       LESType::None) ||
-                           (solverChoice.pbl_type        !=       PBLType::None) );
-    bool l_use_kturb   = ( (solverChoice.les_type != LESType::None)   ||
-                           (solverChoice.pbl_type != PBLType::None) );
-    bool l_use_ddorf   = (solverChoice.les_type == LESType::Deardorff);
+    bool l_use_diff    = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
+                           (solverChoice.turbChoice[lev].les_type        !=       LESType::None) ||
+                           (solverChoice.turbChoice[lev].pbl_type        !=       PBLType::None) );
+    bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
+                           (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
+    bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
-
-    Tau11_lev.resize(lev+1); Tau22_lev.resize(lev+1); Tau33_lev.resize(lev+1);
-    Tau12_lev.resize(lev+1); Tau21_lev.resize(lev+1);
-    Tau13_lev.resize(lev+1); Tau31_lev.resize(lev+1);
-    Tau23_lev.resize(lev+1); Tau32_lev.resize(lev+1);
-
-    SFS_hfx1_lev.resize(lev+1); SFS_hfx2_lev.resize(lev+1); SFS_hfx3_lev.resize(lev+1);
-    SFS_diss_lev.resize(lev+1);
-
-    eddyDiffs_lev.resize(lev+1);
-    SmnSmn_lev.resize(lev+1);
 
     if (l_use_diff) {
         Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
@@ -448,7 +412,7 @@ ERF::update_terrain_arrays (int lev, Real time)
 {
     if (solverChoice.use_terrain) {
         if (init_type != "real" && init_type != "metgrid") {
-            init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
+            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
             init_terrain_grid(geom[lev],*z_phys_nd[lev]);
         }
         if (lev>0 && (init_type == "real" || init_type == "metgrid")) {

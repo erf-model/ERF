@@ -1,6 +1,8 @@
 #include "AMReX_PhysBCFunct.H"
 #include <ERF_PhysBCFunct.H>
 
+#include "prob_common.H"
+
 using namespace amrex;
 
 /*
@@ -149,7 +151,8 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                const Box& bx, const Box& domain,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int bccomp)
+                                               int bccomp,
+                                               const Real time)
 {
     BL_PROFILE_VAR("impose_vertical_xvel_bcs()",impose_vertical_xvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -186,7 +189,11 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
             bx_zlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int kflip = dom_lo.z - 1 - k;
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
+                    #ifdef ERF_USE_TERRAIN_VELOCITY
+                        dest_arr(i,j,k) = prob->compute_terrain_velocity(time);
+                    #else
+                        dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
+                    #endif
                 } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {

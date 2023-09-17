@@ -1,22 +1,47 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
-#include "ERF_Constants.H"
-#include "IndexDefines.H"
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+    // Parse params
+    amrex::ParmParse pp("prob");
+    pp.query("rho_0", parms.rho_0);
+    pp.query("T_0", parms.T_0);
+    pp.query("A_0", parms.A_0);
+    pp.query("B_0", parms.B_0);
+    pp.query("u_0", parms.u_0);
+    pp.query("v_0", parms.v_0);
+    pp.query("rad_0", parms.rad_0);
+    pp.query("z0", parms.z0);
+    pp.query("zRef", parms.zRef);
+    pp.query("uRef", parms.uRef);
+
+    pp.query("xc_frac", parms.xc_frac);
+    pp.query("yc_frac", parms.yc_frac);
+    pp.query("zc_frac", parms.zc_frac);
+
+    pp.query("prob_type", parms.prob_type);
+
+    init_base_parms(parms.rho_0, parms.T_0);
+}
 
 void
-erf_init_rayleigh(amrex::Vector<Real>& tau,
-                  amrex::Vector<Real>& ubar,
-                  amrex::Vector<Real>& vbar,
-                  amrex::Vector<Real>& wbar,
-                  amrex::Vector<Real>& thetabar,
-                  amrex::Geometry      const& geom)
+Problem::erf_init_rayleigh(
+    amrex::Vector<Real>& tau,
+    amrex::Vector<Real>& ubar,
+    amrex::Vector<Real>& vbar,
+    amrex::Vector<Real>& wbar,
+    amrex::Vector<Real>& thetabar,
+    amrex::Geometry      const& geom)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
@@ -27,33 +52,12 @@ erf_init_rayleigh(amrex::Vector<Real>& tau,
       ubar[k] = 2.0;
       vbar[k] = 1.0;
       wbar[k] = 0.0;
-      thetabar[k] = parms.Theta_0;
+      thetabar[k] = parms.T_0;
   }
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  amrex::Geometry const&)
-{
-    Real rho_0 = parms.rho_0;
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(rho_hse,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        const Box& bx = mfi.growntilebox(1);
-        const Array4<Real> rho_hse_arr = rho_hse[mfi].array();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            rho_hse_arr(i,j,k) = rho_0;
-        });
-    }
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -102,12 +106,6 @@ init_custom_prob(
     const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
     const Real r2d_xz = std::sqrt((x-xc)*(x-xc) + (z-zc)*(z-zc));
 
-    // Set the density
-    state(i, j, k, Rho_comp) = parms.rho_0;
-
-    // Initial potential temperature
-    state(i, j, k, RhoTheta_comp) = parms.rho_0 * parms.Theta_0;
-
     if (parms.prob_type == 10)
     {
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
@@ -122,6 +120,8 @@ init_custom_prob(
         const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
         const Real r2d_xz = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z)); //ellipse for mapfac shear validation
         state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0_z) / r0_z));
+    } else if (parms.prob_type == 14) {
+        state(i, j, k, RhoScalar_comp) = std::cos(PI*x);
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
@@ -172,8 +172,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
-                    const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& geom,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     auto dx = geom.CellSizeArray();
 
@@ -192,31 +194,7 @@ init_custom_terrain(const Geometry& geom, MultiFab& z_phys_nd,
     z_phys_nd.FillBoundary(geom.periodicity());
 }
 
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-    // Parse params
-    amrex::ParmParse pp("prob");
-    pp.query("rho_0", parms.rho_0);
-    pp.query("T_0", parms.Theta_0);
-    pp.query("A_0", parms.A_0);
-    pp.query("B_0", parms.B_0);
-    pp.query("u_0", parms.u_0);
-    pp.query("v_0", parms.v_0);
-    pp.query("rad_0", parms.rad_0);
-    pp.query("z0", parms.z0);
-    pp.query("zRef", parms.zRef);
-    pp.query("uRef", parms.uRef);
-
-    pp.query("xc_frac", parms.xc_frac);
-    pp.query("yc_frac", parms.yc_frac);
-    pp.query("zc_frac", parms.zc_frac);
-
-   pp.query("prob_type", parms.prob_type);
-}
-
+#if 0
 AMREX_GPU_DEVICE
 Real
 dhdt(int /*i*/, int /*j*/,
@@ -225,3 +203,4 @@ dhdt(int /*i*/, int /*j*/,
 {
     return 0.;
 }
+#endif

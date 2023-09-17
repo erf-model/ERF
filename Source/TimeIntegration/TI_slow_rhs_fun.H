@@ -28,17 +28,17 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_src[level]);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
@@ -104,8 +104,8 @@
 
             // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
             //    discretize the vertical pressure gradient in perturbational form.
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             Real dt_base  = (new_stage_time - old_step_time);
 
@@ -194,7 +194,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type=="real" && level==0 && nrk==0) {
+        if (init_type=="real" && level==0) {
             wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
@@ -203,7 +203,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && coupling_type=="OneWay" && cf_width>0 && nrk==0) {
+        if (level>0 && coupling_type=="OneWay" && cf_width>0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             cf_width-1, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -269,7 +269,7 @@
 
         // Moving terrain
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
-            erf_slow_rhs_post(level, slow_dt,
+            erf_slow_rhs_post(level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
@@ -284,7 +284,7 @@
 #endif
                               );
         } else {
-            erf_slow_rhs_post(level, slow_dt,
+            erf_slow_rhs_post(level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
@@ -342,7 +342,7 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
-        if (init_type=="real" && level==0 && nrk==0) {
+        if (init_type=="real" && level==0) {
             wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
@@ -351,7 +351,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && coupling_type=="OneWay" && cf_width>0 && nrk==0) {
+        if (level>0 && coupling_type=="OneWay" && cf_width>0) {
             fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
                                             cf_width-1, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],

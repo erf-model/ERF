@@ -1,45 +1,27 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "IndexDefines.H"
-#include "ERF_Constants.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 
 using namespace amrex;
 
-ProbParm parms;
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  Geometry const&)
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
 {
-    Real R0 = parms.rho_0;
-    for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-       const Box& gbx = mfi.growntilebox(1);
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = R0;
-       });
-    }
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+  // Parse params
+  ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
+
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
-erf_init_rayleigh(Vector<Real>& /*tau*/,
-                  Vector<Real>& /*ubar*/,
-                  Vector<Real>& /*vbar*/,
-                  Vector<Real>& /*wbar*/,
-                  Vector<Real>& /*thetabar*/,
-                  Geometry      const& /*geom*/)
-{
-   amrex::Error("Should never get here for WPS tests problem");
-}
-
-void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& /*bx*/,
     const Box& /*xbx*/,
     const Box& /*ybx*/,
@@ -70,9 +52,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -94,15 +77,4 @@ init_custom_terrain (const Geometry& /*geom*/,
             z_arr(i,j,k0) = 0.0;
         });
     }
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
 }
