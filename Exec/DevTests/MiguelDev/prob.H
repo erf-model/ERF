@@ -27,7 +27,7 @@ struct ProbParm : ProbParmDefaults {
   // rayleigh damping
   amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
   amrex::Real zdamp = 500.0; // damping depth [m] from model top
-      
+
 }; // namespace ProbParm
 
 class Problem : public ProblemBase

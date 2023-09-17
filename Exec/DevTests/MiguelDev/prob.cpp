@@ -86,14 +86,14 @@ Problem::init_custom_pert(
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
-       
+
       const Real x = prob_lo[0] + i * dx[0]; // face center
       const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
       const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
 
       // Zero-out the velocity
       x_vel(i, j, k) = 0;
-        
+
       if (z > z_0) {
           x_vel(i, j, k) = 0.0;
       } else {
@@ -142,10 +142,9 @@ Problem::init_custom_pert(
                   const Real thet_angl = std::atan2(y-Yc,x-Xc);
                   y_vel(i, j, k) = std::abs(v_tang)*std::cos(thet_angl);
             }
-      } 
+      }
 
   });
-
 
 }
 
