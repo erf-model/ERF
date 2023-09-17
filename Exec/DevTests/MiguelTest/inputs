@@ -1,0 +1,83 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step  = 10000 
+stop_time = 10000.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 200000. 200000. 5000.
+amr.n_cell           = 40      40      200 # 40 40 300
+
+geometry.is_periodic = 1 1 0
+
+zlo.type = "Most" # "Most" # "NoSlipWall"
+#erf.most.average_policy = 0
+#erf.most.use_normal_vector = false
+#erf.most.time_average      = false
+erf.most.z0                = 0.001
+erf.most.zref              = 15.0 # >=dz/2
+#erf.most.surf_temp         = 303.0
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.no_substepping = 0
+erf.fixed_dt       = 1     # fixed time step
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1 #1       # verbosity in ERF.cpp
+amr.v              = 1 #1      # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       =-100        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plotfile_type   = "hdf5"  #"netcdf"     # file type for plotfile
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 100         # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta pres_hse
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 1.0
+erf.use_gravity = true
+
+erf.pbl_type = "MYNN2.5"
+erf.les_type         = "None" # "none"
+erf.molec_diff_type  = "Constant"
+erf.dynamicViscosity = 0.0 # 5.0
+erf.Cs = 0.16
+
+erf.dycore_horiz_adv_type = "Upwind_3rd"
+erf.dycore_vert_adv_type = "Upwind_5th"
+
+erf.use_coriolis = true
+erf.abl_driver_type = "GeostrophicWind"
+erf.latitude = 90.
+erf.abl_geo_wind = 15.0 0.0 0.0
+erf.rotational_time_period = 86164.0900027328
+erf.use_rayleigh_damping = true #true
+
+# PROBLEM PARAMETERS (optional)
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
+prob.Xc_0 = 100000
+prob.Yc_0 = 100000
+prob.VMAX = 15
+prob.RMAX = 20000
+prob.RZERO = 80000
+prob.ZZERO = 3000
+prob.dampcoef = 0.2
+prob.zdamp = 1500
+prob.QKE_0 = 0.5
+
+# INITIALIZATION WITH ATM DATA
+erf.init_type = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_meso"
