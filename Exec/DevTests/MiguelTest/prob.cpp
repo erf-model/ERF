@@ -1,72 +1,36 @@
 #include "prob.H"
-#include "prob_common.H"
-
-#include "IndexDefines.H"
-#include "ERF_Constants.H"
-#include "AMReX_ParmParse.H"
-#include "AMReX_MultiFab.H"
 
 using namespace amrex;
 
-ProbParm parms;
-
-void
-erf_init_dens_hse(MultiFab& rho_hse,
-                  std::unique_ptr<MultiFab>&,
-                  std::unique_ptr<MultiFab>&,
-                  Geometry const&)
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
 {
-    Real R0 = parms.rho_0;
-    for ( MFIter mfi(rho_hse, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-       Array4<Real> rho_arr = rho_hse.array(mfi);
-       const Box& gbx = mfi.growntilebox(1);
-       ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           rho_arr(i,j,k) = R0;
-       });
-    }
+    return std::make_unique<Problem>();
 }
 
-void
-erf_init_rayleigh(Vector<Real>& tau,
-                  Vector<Real>& ubar,
-                  Vector<Real>& vbar,
-                  Vector<Real>& wbar,
-                  Vector<Real>& thetabar,
-                  amrex::Geometry const& geom)
+Problem::Problem()
 {
-  const auto ztop = geom.ProbHi()[2];
-  amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
-    << ztop-parms.zdamp << " and " << ztop << std::endl;
+  // Parse params
+  ParmParse pp("prob");
+  pp.query("rho_0", parms.rho_0);
+  pp.query("T_0", parms.T_0);
 
-  const int khi = geom.Domain().bigEnd()[2];
-  const auto prob_lo = geom.ProbLo();
-  const auto dx = geom.CellSize();
+  pp.query("Xc_0", parms.Xc_0);
+  pp.query("Yc_0", parms.Yc_0);
+  pp.query("VMAX", parms.VMAX);
+  pp.query("RMAX", parms.RMAX);
+  pp.query("RZERO", parms.RZERO);
+  pp.query("ZZERO", parms.ZZERO);
 
-  for (int k = 0; k <= khi; k++)
-  {
-   // WRF's vertical velocity damping layer structure, which is based
-   // on Durran and Klemp 1983
-      const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-      const Real zfrac = 1 - (ztop - z) / parms.zdamp;
-      if (zfrac >= 0)
-      {
-          const Real sinefac = std::sin(PIoTwo*zfrac);
-          tau[k]      = parms.dampcoef * sinefac * sinefac;
-          ubar[k]     = parms.U_0;
-          vbar[k]     = parms.V_0;
-          wbar[k]     = parms.W_0; //0.0;
-          thetabar[k] = parms.T_0;
-      }
-      else
-      {
-          tau[k]      = 0.0;
-          ubar[k]     = 0.0;
-          vbar[k]     = 0.0;
-          wbar[k]     = 0.0;
-          thetabar[k] = 0.0;
-      }
-  }
+  pp.query("QKE_0", parms.QKE_0);
+  pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
+  init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void
@@ -202,9 +166,10 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
-                           MultiFab& z_phys_nd,
-                     const Real& /*time*/)
+Problem::init_custom_terrain(
+    const Geometry& /*geom*/,
+    MultiFab& z_phys_nd,
+    const Real& /*time*/)
 {
     // Number of ghost cells
     int ngrow = z_phys_nd.nGrow();
@@ -226,30 +191,4 @@ init_custom_terrain (const Geometry& /*geom*/,
             z_arr(i,j,k0) = 0.0;
         });
     }
-}
-
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("T_0", parms.Theta_0);
-
-  pp.query("Xc_0", parms.Xc_0);
-  pp.query("Yc_0", parms.Yc_0);
-  pp.query("VMAX", parms.VMAX);
-  pp.query("RMAX", parms.RMAX);
-  pp.query("RZERO", parms.RZERO);
-  pp.query("ZZERO", parms.ZZERO);
-
-
-  pp.query("QKE_0", parms.QKE_0);
-//  pp.query("U_0", parms.U_0);
-//  pp.query("V_0", parms.V_0);
-//  pp.query("W_0", parms.W_0);
-  pp.query("dampcoef", parms.dampcoef);
-  pp.query("zdamp", parms.zdamp);
 }
