@@ -8,7 +8,7 @@ Particles
 =========
 
 ERF has the option to include Lagrangian particles in addition to the mesh-based solution.  Currently the
-particle functionality is very simple -- the particles are initialized randomly, one per mesh cell
+particle functionality is very simple -- the particles are initialized one per mesh cell
 in a particular plane, and are advected by the velocity field.
 
 However, the AMReX particle data structure is very general and particles may take on a number of
