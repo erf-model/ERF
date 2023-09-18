@@ -242,7 +242,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
@@ -312,7 +312,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
@@ -378,7 +378,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
@@ -441,7 +441,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 GradCz = dz_inv * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                         + 3. * cell_prim(i, j, k  , prim_index)
