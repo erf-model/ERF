@@ -44,7 +44,7 @@ when using netcdf.  Writing particles into the netcdf files is a WIP.
 
 To see an example of using the particle functionality, build the executable using gmake in Exec/DevTests/ParticlesOverWoA.
 
-To visualize the number of paritcles per cell as a mesh-based variable, add ``particle_count`` to the line in the inputs file
+To visualize the number of particles per cell as a mesh-based variable, add ``particle_count`` to the line in the inputs file
 
 ::
 

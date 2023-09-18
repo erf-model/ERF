@@ -63,6 +63,8 @@ public:
 
     void AdvectWithUmac (amrex::MultiFab* umac, int level, amrex::Real dt,
                          const amrex::MultiFab& a_z_height);
+
+    void Increment (amrex::MultiFab& mf, int level);
 };
 
 #endif
