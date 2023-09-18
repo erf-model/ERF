@@ -54,7 +54,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/DNSvsLES.rst
    theory/PBLschemes.rst
    theory/Forcings.rst
-   theory/Particles.rst
+   Particles.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::
