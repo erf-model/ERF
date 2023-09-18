@@ -662,6 +662,9 @@ private:
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
+#ifdef ERF_USE_PARTICLES
+                                                    ,"particle_count"
+#endif
                                                    };
 
     // algorithm choices

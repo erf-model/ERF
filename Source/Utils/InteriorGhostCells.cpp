@@ -568,7 +568,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
-                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
 
@@ -617,7 +616,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
-                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
 
@@ -665,7 +663,6 @@ fine_compute_interior_ghost_RHS(const Real& time,
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 Box tbx = mfi.tilebox();
-                const Array4<Real>& rhs_arr  = rhs.array(mfi);
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
                 const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
 

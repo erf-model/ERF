@@ -34,27 +34,29 @@ InitParticles (const MultiFab& a_z_height)
 #endif
         Gpu::HostVector<ParticleType> host_particles;
         for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-            Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
-            Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
+            if (iv[0] == 3) {
+                Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
+                Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
-            Real x = plo[0] + (iv[0] + r[0])*dx[0];
-            Real y = plo[1] + (iv[1] + r[1])*dx[1];
-            Real z = (*height_ptr)(iv) + r[2]*((*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1))) - (*height_ptr)(iv));
+                Real x = plo[0] + (iv[0] + r[0])*dx[0];
+                Real y = plo[1] + (iv[1] + r[1])*dx[1];
+                Real z = (*height_ptr)(iv) + r[2]*((*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1))) - (*height_ptr)(iv));
 
-            ParticleType p;
-            p.id()  = ParticleType::NextID();
-            p.cpu() = ParallelDescriptor::MyProc();
-            p.pos(0) = x;
-            p.pos(1) = y;
-            p.pos(2) = z;
+                ParticleType p;
+                p.id()  = ParticleType::NextID();
+                p.cpu() = ParallelDescriptor::MyProc();
+                p.pos(0) = x;
+                p.pos(1) = y;
+                p.pos(2) = z;
 
-            p.rdata(RealIdx::vx) = v[0];
-            p.rdata(RealIdx::vy) = v[1];
-            p.rdata(RealIdx::vz) = v[2];
+                p.rdata(RealIdx::vx) = v[0];
+                p.rdata(RealIdx::vy) = v[1];
+                p.rdata(RealIdx::vz) = v[2];
 
-            p.idata(IntIdx::k) = iv[2];  // particles carry their z-index
+                p.idata(IntIdx::k) = iv[2];  // particles carry their z-index
 
-            host_particles.push_back(p);
+                host_particles.push_back(p);
+           }
         }
 
         auto& particles = GetParticles(lev);
