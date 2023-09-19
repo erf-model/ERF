@@ -57,7 +57,7 @@ ComputeQKESourceTerms (int i, int j, int k,
   // Dissipation
   amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
   if (std::abs(qke) > 0.0) {
-    source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,3.0) /
+    source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
       (pbl_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
   }
 
