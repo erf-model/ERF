@@ -187,7 +187,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
           K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM * 0.5;
           K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
-          K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * 3.0 * SQ;
+          K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * SQ;
 
           K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
           // TODO: How should this be done for other components (scalars, moisture)

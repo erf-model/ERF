@@ -43,7 +43,7 @@ Problem::init_custom_pert(
     Array4<Real> const& x_vel,
     Array4<Real> const& y_vel,
     Array4<Real> const& z_vel,
-    Array4<Real> const&,
+    Array4<Real> const& r_hse,
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
@@ -67,7 +67,7 @@ Problem::init_custom_pert(
   Real QKE_0 = parms.QKE_0;
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      state(i, j, k, RhoQKE_comp) = QKE_0;
+      state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * QKE_0;
       // uncomment for CPU, not allowed for GPU
       //amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
   });
