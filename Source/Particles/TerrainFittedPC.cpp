@@ -199,30 +199,3 @@ TerrainFittedPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFa
 #endif
     }
 }
-
-/*
-  /brief Uses midpoint method to advance particles using umac.
-*/
-void
-TerrainFittedPC::Increment (MultiFab& mf, int lev)
-{
-    AMREX_ASSERT(OK());
-    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
-
-    const auto& geom = Geom(lev);
-    const auto plo = geom.ProbLoArray();
-    const auto dxi = geom.InvCellSizeArray();
-    const auto domain = geom.Domain();
-    amrex::ParticleToMesh(*this, mf, lev,
-        [=] AMREX_GPU_DEVICE (const typename ParticleTileType::ConstParticleTileDataType& ptd, int ip,
-                              amrex::Array4<amrex::Real> const& count)
-        {
-            const auto& p = make_particle<ConstParticleType>{}(ptd, ip);
-            // auto iv = getParticleCell(p, plo, dxi, domain);
-            IntVect iv(
-                  AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
-                               int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                               p.idata(0)));
-            amrex::Gpu::Atomic::AddNoRet(&count(iv), 1.0_rt);
-        }, false);
-}
