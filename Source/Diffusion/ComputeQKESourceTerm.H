@@ -48,16 +48,16 @@ ComputeQKESourceTerms (int i, int j, int k,
     dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
   }
 
-  // Bouyancy
-  source_term += 2*CONST_GRAV/theta_mean*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
-
   // Production
   source_term += K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+
+  // Bouyancy
+  source_term -= 2*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
   // Dissipation
   amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
   if (std::abs(qke) > 0.0) {
-    source_term += 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+    source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,3.0) /
       (pbl_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
   }
 
