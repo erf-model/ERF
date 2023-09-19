@@ -154,7 +154,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Third Length Scale
           amrex::Real l_B;
           if (dthetadz > 0) {
-              amrex::Real N_brunt_vaisala = CONST_GRAV/theta0 * std::sqrt(dthetadz);
+              amrex::Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetadz);
               if (zeta < 0) {
                   amrex::Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T;
                   qc = std::pow(qc,1.0/3.0);
@@ -172,7 +172,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Compute non-dimensional parameters
           amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
           amrex::Real GM = l2_over_q2 * (dudz*dudz + dvdz*dvdz);
-          amrex::Real GH = -l2_over_q2 / theta0 * dthetadz;
+          amrex::Real GH = -l2_over_q2 * (CONST_GRAV/theta0) * dthetadz;
           amrex::Real E1 = 1.0 + 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH;
           amrex::Real E2 = -3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH;
           amrex::Real E3 = 6.0*A2*A1*GM;
