@@ -33,7 +33,7 @@ public:
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                      int ng)
+                      int ng_in)
       : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
@@ -89,7 +89,7 @@ public:
         {
             // Z0 heights
             //--------------------------------------------------------
-            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
+            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng_in);
             bx.setSmall(2,0);
             bx.setBig(2,0);
             z_0[lev].resize(bx,1);

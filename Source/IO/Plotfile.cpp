@@ -595,6 +595,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("qc",          derived::erf_derQc);
 #endif
 
+#ifdef ERF_USE_PARTICLES
+        if (containerHasElement(plot_var_names, "particle_count"))
+        {
+            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+            temp_dat.setVal(0);
+            tracer_particles->Increment(temp_dat, lev);
+            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+#endif
+
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
         if (containerHasElement(plot_var_names, "xvel_err") ||

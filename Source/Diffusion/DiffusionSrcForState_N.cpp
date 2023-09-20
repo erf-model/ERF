@@ -214,7 +214,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -260,7 +260,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                            + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                        + 3. * cell_prim(i, j, k  , prim_index)
@@ -303,7 +303,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -343,7 +343,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             Real Alpha = d_alpha_eff[prim_index];
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                        + 3. * cell_prim(i, j, k  , prim_index)
