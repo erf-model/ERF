@@ -736,9 +736,6 @@ fine_compute_interior_ghost_rhs (const Real& time,
                        n_ind = jj + 1.0;
                    // Pesky corner cell
                    } else {
-                       if ((near_x_lo_wall || near_x_hi_wall) && (near_y_lo_wall || near_y_hi_wall))
-                           amrex::Abort("Mask must be found if you are near a corner!");
-
                        if (near_x_lo_wall || near_x_hi_wall) {
                            Real dj_min{width-1.0};
                            int j_lb = std::max(vbx_lo.y,j-width);

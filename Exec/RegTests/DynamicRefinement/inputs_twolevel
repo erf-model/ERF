@@ -10,11 +10,11 @@ geometry.prob_lo     = -12  -12  -1
 geometry.prob_hi     =  12   12   1
 amr.n_cell           =  96   96   4
 
-geometry.prob_lo     =  -6  -6  -1
-geometry.prob_hi     =   6   6   1
-amr.n_cell           =  96  96   4
+geometry.prob_lo     =  -6  -6  -3
+geometry.prob_hi     =   6   6   3
+amr.n_cell           =  96  96   16
 
-amr.blocking_factor = 32 32 4
+amr.blocking_factor = 16  16  16
 
 geometry.is_periodic = 1 1 0
 
@@ -53,7 +53,7 @@ erf.check_int       = -100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1        # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta temp scalar pres_hse dens_hse pert_pres pert_dens mapfac
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure theta temp scalar pres_hse dens_hse pert_pres pert_dens mapfac
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0

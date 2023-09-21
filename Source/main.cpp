@@ -37,7 +37,9 @@ void add_par () {
    pp.add("n_proper",2);
 
    pp.add("max_grid_size",2048);
-   pp.add("blocking_factor",1);
+
+   int bf=1;
+   pp.queryAdd("blocking_factor",bf);
    pp.add("n_error_buf",0);
 }
 
