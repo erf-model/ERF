@@ -282,7 +282,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // This will fill the temporary MultiFabs with data from vars_new
     // ********************************************************************************************
     FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]});
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]}, false);
 
     // ********************************************************************************************
     // Copy from new into old just in case

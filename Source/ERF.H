@@ -347,7 +347,7 @@ private:
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
+    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
 
 #if defined(ERF_USE_MOISTURE)
     // Compute a new MultiFab by copying from valid region and filling ghost cells -

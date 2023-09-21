@@ -99,24 +99,6 @@ fine_compute_interior_ghost_rhs (const amrex::Real& time,
                                  amrex::Vector<amrex::MultiFab>& S_rhs_f,
                                  amrex::Vector<amrex::MultiFab>& S_data_f);
 
-// TODO: DELETE ALL OF THIS
-/*
- * Update the variables in the relaxation/set region
- */
-/*
-void update_interior_ghost (const int& lev,
-                            const amrex::Real& delta_t,
-                            const int& width,
-                            amrex::Vector<amrex::Box>& boxes_at_level,
-                            amrex::Vector<amrex::MultiFab>& S_rhs,
-                            const amrex::Vector<amrex::MultiFab>& S_old,
-                            amrex::Vector<amrex::MultiFab>& S_data,
-                            ERFFillPatcher* FPr_c = nullptr,
-                            ERFFillPatcher* FPr_u = nullptr,
-                            ERFFillPatcher* FPr_v = nullptr,
-                            ERFFillPatcher* FPr_w = nullptr);
-*/
-
 /**
  * Zero RHS in the set region
  *
