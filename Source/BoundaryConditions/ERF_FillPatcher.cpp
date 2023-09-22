@@ -102,201 +102,55 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
 
     // Integer masking array
     m_cf_mask = std::make_unique<iMultiFab> (fba, fdm, 1, 0);
-    m_cf_mask->setVal(0);
+    m_cf_mask->setVal(m_relax_mask);
 
     // Populate mask array
-    BuildMask(fba,nghost,m_relax_mask);
-    if (nghost_set < 0) BuildMask(fba,nghost_set,m_set_mask);
+    if (nghost_set < 0) {
+        m_cf_mask->setVal(m_set_mask);
+        BuildMask(fba,nghost_set,m_set_mask-1);
+    }
+    BuildMask(fba,nghost,m_relax_mask-1);
 }
 
 void ERFFillPatcher::BuildMask (BoxArray const& fba,
                                 int nghost,
                                 int mask_val)
 {
-    // Index type for the BA
-    IndexType m_ixt = fba.ixType();
+    // Minimal bounding box of fine BA plus a halo cell
+    Box fba_bnd = amrex::grow(fba.minimalBox(), IntVect(1,1,0));
 
-    // Convert FBA to cell centered so boxes do no overlap
-    IndexType m_ixt_cc(IntVect(0));
-    BoxArray fba_cc = amrex::convert(fba, m_ixt_cc);
+    // BoxList and BoxArray to store complement
+    BoxList com_bl; BoxArray com_ba;
 
-    // Get interior halo cells for every box in fine ba
-    Vector<BoxList> halo_v; halo_v.resize(fba_cc.size());
-    for (int ibox(0); ibox<halo_v.size(); ++ibox) {
-        BoxList& halo = halo_v[ibox];
-        halo.set(m_ixt_cc);
-        Box vbx = fba_cc[ibox];
-        Box sbx = amrex::grow(vbx, IntVect(nghost,nghost,0));
-        BoxList const& bndry = amrex::boxDiff(vbx, sbx);
-        if (bndry.isNotEmpty()) {
-            halo.join(bndry);
+    // Compute the complement
+    fba.complementIn(com_bl,fba_bnd);
+
+    // com_bl cannot be null since we grew with halo cells
+    AMREX_ALWAYS_ASSERT(com_bl.size() > 0);
+
+    // Grow the complement boxes and trim with the bounding box
+    Vector<Box>& com_bl_v = com_bl.data();
+    for (int i(0); i<com_bl.size(); ++i) {
+        Box& bx = com_bl_v[i];
+        bx.grow(IntVect(-nghost,-nghost,0));
+        for (int idim(0); idim<AMREX_SPACEDIM; ++idim) {
+            if (bx.bigEnd(idim) > fba_bnd.bigEnd(idim)) bx.setBig(idim,fba_bnd.bigEnd(idim));
+            if (bx.smallEnd(idim) < fba_bnd.smallEnd(idim)) bx.setSmall(idim,fba_bnd.smallEnd(idim));
         }
     }
 
-    // Get interface unions (extend into boxes by nghost in normal dir)
-    Vector<Vector<Box>> fba_un;
-    fba_un.resize(fba_cc.size());
-    for (int ibox(0); ibox<fba_un.size()-1; ++ibox) {
-        const Box& src_bx = fba_cc[ibox];
-        const IntVect& src_se = src_bx.smallEnd();
-        const IntVect& src_be = src_bx.bigEnd();
-        for (int jbox(ibox+1); jbox<fba_un.size(); ++jbox) {
-            const Box& dst_bx = fba_cc[jbox];
-            const IntVect& dst_se = dst_bx.smallEnd();
-            const IntVect& dst_be = dst_bx.bigEnd();
-            for (int idim(0); idim < AMREX_SPACEDIM-1; ++idim) {
-                Box src_gbx_lo = amrex::growLo(src_bx, idim, 1);
-                Box src_gbx_hi = amrex::growHi(src_bx, idim, 1);
-                if (src_gbx_lo.intersects(dst_bx)) {
-                    IntVect src_u_se = src_se; IntVect src_u_be = src_be;
-                    IntVect dst_u_se = dst_se; IntVect dst_u_be = dst_be;
+    // Do second complement with the grown boxes
+    com_ba.define(com_bl);
+    com_ba.complementIn(com_bl, fba_bnd);
 
-                    int jdim = (idim==0) ? 1 : 0;
-                    src_u_be[idim] = src_u_se[idim] - nghost - 1; // nghost is negative
-                    src_u_se[jdim] = std::max(src_se[jdim], dst_se[jdim]);
-                    src_u_be[jdim] = std::min(src_be[jdim], dst_be[jdim]);
-
-                    dst_u_se[idim] = dst_u_be[idim] + nghost + 1; // nghost is negative
-                    dst_u_se[jdim] = src_u_se[jdim];
-                    dst_u_be[jdim] = src_u_be[jdim];
-
-                    // Test if end points lie in any other box
-                    bool src_lo_found = false; bool src_hi_found = false;
-                    bool dst_lo_found = false; bool dst_hi_found = false;
-                    IntVect src_u_gse = src_u_se; src_u_gse[jdim] -= 1;
-                    IntVect src_u_gbe = src_u_be; src_u_gbe[jdim] += 1;
-                    IntVect dst_u_gse = dst_u_se; dst_u_gse[jdim] -= 1;
-                    IntVect dst_u_gbe = dst_u_be; dst_u_gbe[jdim] += 1;
-                    for (int kbox(0); kbox<fba_cc.size(); ++kbox) {
-                        Box test_bx = fba_cc[kbox];
-                        if (test_bx.contains(src_u_gse)) src_lo_found = true;
-                        if (test_bx.contains(dst_u_gse)) dst_lo_found = true;
-                        if (test_bx.contains(src_u_gbe)) src_hi_found = true;
-                        if (test_bx.contains(dst_u_gbe)) dst_hi_found = true;
-                    }
-                    if (!src_lo_found || !dst_lo_found) {src_u_se[jdim] -= nghost; dst_u_se[jdim] -= nghost;}
-                    if (!src_hi_found || !dst_hi_found) {src_u_be[jdim] += nghost; dst_u_be[jdim] += nghost;}
-
-                    // Build the face union box and add to BL
-                    Box src_u_bx(src_u_se,src_u_be,m_ixt_cc);
-                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt_cc);
-                    fba_un[ibox].push_back(src_u_bx);
-                    fba_un[jbox].push_back(dst_u_bx);
-
-                } else if (src_gbx_hi.intersects(dst_bx)) {
-                    IntVect src_u_se = src_se; IntVect src_u_be = src_be;
-                    IntVect dst_u_se = dst_se; IntVect dst_u_be = dst_be;
-
-                    int jdim = (idim==0) ? 1 : 0;
-                    src_u_se[idim] = src_u_be[idim] + nghost + 1; // nghost is negative
-                    src_u_se[jdim] = std::max(src_se[jdim], dst_se[jdim]);
-                    src_u_be[jdim] = std::min(src_be[jdim], dst_be[jdim]);
-
-                    dst_u_be[idim] = dst_u_se[idim] - nghost - 1; // nghost is negative
-                    dst_u_se[jdim] = src_u_se[jdim];
-                    dst_u_be[jdim] = src_u_be[jdim];
-
-                    // Test if end points lie in any other box
-                    bool src_lo_found = false; bool src_hi_found = false;
-                    bool dst_lo_found = false; bool dst_hi_found = false;
-                    IntVect src_u_gse = src_u_se; src_u_gse[jdim] -= 1;
-                    IntVect src_u_gbe = src_u_be; src_u_gbe[jdim] += 1;
-                    IntVect dst_u_gse = dst_u_se; dst_u_gse[jdim] -= 1;
-                    IntVect dst_u_gbe = dst_u_be; dst_u_gbe[jdim] += 1;
-                    for (int kbox(0); kbox<fba_cc.size(); ++kbox) {
-                        Box test_bx = fba_cc[kbox];
-                        if (test_bx.contains(src_u_gse)) src_lo_found = true;
-                        if (test_bx.contains(dst_u_gse)) dst_lo_found = true;
-                        if (test_bx.contains(src_u_gbe)) src_hi_found = true;
-                        if (test_bx.contains(dst_u_gbe)) dst_hi_found = true;
-                    }
-                    if (!src_lo_found || !dst_lo_found) {src_u_se[jdim] -= nghost; dst_u_se[jdim] -= nghost;}
-                    if (!src_hi_found || !dst_hi_found) {src_u_be[jdim] += nghost; dst_u_be[jdim] += nghost;}
-
-                    // Build the face union box and add to BL
-                    Box src_u_bx(src_u_se,src_u_be,m_ixt_cc);
-                    Box dst_u_bx(dst_u_se,dst_u_be,m_ixt_cc);
-                    fba_un[ibox].push_back(src_u_bx);
-                    fba_un[jbox].push_back(dst_u_bx);
-                } // intersects
-            } // idim
-        } // jbox
-    } // ibox
-
-    // Subtract off the interface regions from interior halo cells
-    Vector<BoxList> mod_halo_v; mod_halo_v.resize(fba_cc.size());
-    for (int i(0); i<mod_halo_v.size(); ++i) { mod_halo_v[i].set(m_ixt_cc); }
-
-    for (int ibox(0); ibox<halo_v.size(); ++ibox) {
-        Vector<Box>& m_halo = halo_v[ibox].data();
-        BoxList&   mod_halo = mod_halo_v[ibox];
-        for (int ihalo(0); ihalo<m_halo.size(); ++ihalo) {
-            Box& halo_bx = m_halo[ihalo];
-            BoxList tmp; tmp.set(m_ixt_cc); tmp.push_back(halo_bx);
-            Vector<Box>& m_tmp = tmp.data();
-            for (int ubox(0); ubox<fba_un[ibox].size(); ++ubox) {
-                Box& src_u_bx = fba_un[ibox][ubox];
-                for (int dbox(0); dbox<m_tmp.size(); ++dbox) {
-                    Box test = m_tmp[dbox];
-                    if (test.intersects(src_u_bx)) {
-                        Box halo_u_bx = test & src_u_bx;
-                        BoxList const& bndry = amrex::boxDiff(test, halo_u_bx);
-                        m_tmp.erase(m_tmp.begin() + dbox);
-                        if (bndry.isNotEmpty()) tmp.join(bndry);
-                    } // intersects
-                } // dbox
-            } // ubox
-            mod_halo.join(tmp);
-        } // ihalo
-    } // ibox
-
-    // Fill mask based upon the mod_halo BoxList
+    // Fill mask based upon the com_bl BoxList
     for (MFIter mfi(*m_cf_mask); mfi.isValid(); ++mfi) {
         const Box& vbx = mfi.validbox();
         const Array4<int>& mask_arr = m_cf_mask->array(mfi);
-        BoxList& mod_halo = mod_halo_v[mfi.index()];
-        const Vector<Box>& m_halo = mod_halo.data();
 
-        for (int ibox(0); ibox<m_halo.size(); ++ibox) {
-
-            // Correct the halo box since it's built with a CC BA
-            Box vbx_cc = amrex::convert(vbx, IntVect(0));
-            IntVect vbx_be  = vbx_cc.bigEnd();
-            IntVect vbx_se  = vbx_cc.smallEnd();
-            IntVect halo_be = m_halo[ibox].bigEnd();
-            IntVect halo_se = m_halo[ibox].smallEnd();
-
-            // Grow BE if we coincide with upper face. (X & Y halo)
-            // Grow SE if we don't coincide with lower face. (chopped Y halo OR untouched X halo)
-            if (m_ixt[0] == 1) {
-                if (vbx_be[0] == halo_be[0]) {
-                    halo_be[0] += 1;
-                    if (vbx_se[0] != halo_se[0]) {
-                        halo_se[0] += 1;
-                    }
-                }
-
-            // Grow BE and SE if we coincide with upper face. (Y halo)
-            // Grow BE if we don't coincide with lower or upper face. (X halo)
-            // Grow SE if we don't coincide with lower + nghost. (chopped X halo)
-            } else if (m_ixt[1] == 1) {
-                if (vbx_be[1] == halo_be[1]) {
-                    halo_be[1] += 1; halo_se[1] += 1;
-                } else if (vbx_se[1] != halo_se[1] && vbx_be[1] != halo_be[1]) {
-                    halo_be[1] += 1;
-                    if (vbx_se[1]-nghost != halo_se[1]) {
-                        halo_se[1] += 1;
-                    }
-                }
-
-            // Grow the BE. (X & Y halo)
-            } else if (m_ixt[2] == 1) {
-                halo_be[2] += 1;
-            }
-            Box m_halo_ixt(halo_se,halo_be,m_ixt);
-
-            Box mbx = vbx & m_halo_ixt;
-            amrex::ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        for (auto const& b : com_bl) {
+            Box com_bx = vbx & b;
+            amrex::ParallelFor(com_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 mask_arr(i,j,k) = mask_val;
             });
