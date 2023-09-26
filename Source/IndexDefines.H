@@ -35,8 +35,8 @@
   #define PrimQt_comp    (RhoQt_comp-1)
   #define PrimQp_comp    (RhoQp_comp-1)
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  #define PrimQv_comp    RhoQv_comp-1
-  #define PrimQc_comp    RhoQc_comp-1
+  #define PrimQv_comp    (RhoQv_comp-1)
+  #define PrimQc_comp    (RhoQc_comp-1)
 #endif
 #define NUM_PRIM         (NVAR-1)
 
