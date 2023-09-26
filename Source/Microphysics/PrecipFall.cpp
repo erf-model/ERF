@@ -31,9 +31,9 @@ void Microphysics::PrecipFall(int hydro_type) {
   Real gams3 = erf_gammafff(4.0+b_snow      );
   Real gamg3 = erf_gammafff(4.0+b_grau      );
 
-  Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),crain);
-  Real vsnow = a_snow*gams3/6.0/pow((PI*rhos*nzeros),csnow);
-  Real vgrau = a_grau*gamg3/6.0/pow((PI*rhog*nzerog),cgrau);
+  Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),-crain);
+  Real vsnow = a_snow*gams3/6.0/pow((PI*rhos*nzeros),-csnow);
+  Real vgrau = a_grau*gamg3/6.0/pow((PI*rhog*nzerog),-cgrau);
 
   Real dt_advance = dt;
   int nz = nlev;

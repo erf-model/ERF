@@ -163,13 +163,13 @@ amrex::Real term_vel_qp(int /*i*/, int /*j*/, int /*k*/, amrex::Real qploc, amre
   if(qploc > qp_threshold) {
     amrex::Real omp = std::max(0.0,std::min(1.0,(tabs-tprmin)*a_pr));
     if(omp == 1.0) {
-      term_vel = vrain*std::pow(rho*qploc,crain);
+      term_vel = vrain*std::pow(rho*qploc,1.0+crain);
     }
     else if(omp == 0.0) {
       amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
       amrex::Real qgg = omg*qploc;
       amrex::Real qss = qploc-qgg;
-      term_vel = (omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow));
+      term_vel = (omg*vgrau*std::pow(rho*qgg,1.0+cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,1.0+csnow));
     }
     else {
       amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
@@ -177,7 +177,7 @@ amrex::Real term_vel_qp(int /*i*/, int /*j*/, int /*k*/, amrex::Real qploc, amre
       amrex::Real qss = qploc-qrr;
       amrex::Real qgg = omg*qss;
       qss = qss-qgg;
-      term_vel = (omp*vrain*std::pow(rho*qrr,crain) + (1.0-omp)*(omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow)));
+      term_vel = (omp*vrain*std::pow(rho*qrr,1.0+crain) + (1.0-omp)*(omg*vgrau*std::pow(rho*qgg,1.0+cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,1.0+csnow)));
     }
   }
   return term_vel;
