@@ -101,12 +101,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
 
     // Integer masking array
     m_cf_mask = std::make_unique<iMultiFab> (fba, fdm, 1, 0);
-    m_cf_mask->setVal(m_relax_mask);
 
     // Populate mask array
     if (nghost_set < 0) {
         m_cf_mask->setVal(m_set_mask);
         BuildMask(fba,nghost_set,m_set_mask-1);
+    } else {
+        m_cf_mask->setVal(m_relax_mask);
     }
     BuildMask(fba,nghost,m_relax_mask-1);
 }
