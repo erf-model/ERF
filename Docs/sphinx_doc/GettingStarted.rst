@@ -24,6 +24,9 @@ type:
 
              git clone --recursive https://github.com/erf-model/ERF.git
 
+.. include:: submodule.rst
+
+
 .. include:: building.rst
 
 
