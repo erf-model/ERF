@@ -94,7 +94,6 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
 
     // Box arrays for the coarse data
     BoxArray cf_cba(std::move(cbl));
-    DistributionMapping cf_dm(cf_cba);
 
     // Two coarse patches to hold the data to be interpolated
     m_cf_crse_data_old = std::make_unique<MultiFab> (cf_cba, fdm, m_ncomp, 0);
