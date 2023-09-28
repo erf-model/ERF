@@ -186,7 +186,7 @@ void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_dat
 
 
 void ERFFillPatcher::InterpFace (MultiFab& fine,
-                                 MultiFab& crse,
+                                 MultiFab const& crse,
                                  int mask_val)
 {
   int ncomp = m_ncomp;
@@ -219,7 +219,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
 }
 
 void ERFFillPatcher::InterpCell (MultiFab& fine,
-                                 MultiFab& crse,
+                                 MultiFab const& crse,
                                  Vector<BCRec> const& bcr,
                                  int mask_val)
 {
