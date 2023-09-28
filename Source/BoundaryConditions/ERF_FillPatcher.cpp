@@ -133,10 +133,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     for (int i(0); i<com_bl.size(); ++i) {
         Box& bx = com_bl_v[i];
         bx.grow(IntVect(-nghost,-nghost,0));
-        for (int idim(0); idim<AMREX_SPACEDIM; ++idim) {
-            if (bx.bigEnd(idim) > fba_bnd.bigEnd(idim)) bx.setBig(idim,fba_bnd.bigEnd(idim));
-            if (bx.smallEnd(idim) < fba_bnd.smallEnd(idim)) bx.setSmall(idim,fba_bnd.smallEnd(idim));
-        }
+        bx &= fba_bnd;
     }
 
     // Do second complement with the grown boxes
