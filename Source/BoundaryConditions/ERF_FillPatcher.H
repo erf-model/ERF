@@ -9,15 +9,15 @@ class ERFFillPatcher
 {
 public:
 
-    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
+    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
                     amrex::Geometry const& fgeom,
-                    amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
+                    amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                     amrex::Geometry const& cgeom,
                     int nghost, int nghost_set, int ncomp, amrex::InterpBase* interp);
 
-    void Define (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
+    void Define (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
                  amrex::Geometry const& fgeom,
-                 amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
+                 amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                  amrex::Geometry const& cgeom,
                  int nghost, int nghost_sset, int ncomp,
                  amrex::InterpBase* interp);

@@ -16,9 +16,9 @@ using namespace amrex;
  * @param[in] interp interpolation operator to be used
  */
 
-ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
+ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& fdm,
                                 Geometry const& fgeom,
-                                BoxArray  cba, DistributionMapping  cdm,
+                                BoxArray const& cba, DistributionMapping const& cdm,
                                 Geometry const& cgeom,
                                 int nghost, int nghost_set,
                                 int ncomp, InterpBase* interp)
@@ -53,9 +53,9 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping  fdm,
  * @param[in] ncomp  number of components to be filled
  * @param[in] interp interpolation operator to be used
  */
-void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping  fdm,
+void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm,
                              Geometry const& fgeom,
-                             BoxArray  cba, DistributionMapping  cdm,
+                             BoxArray const& cba, DistributionMapping const& cdm,
                              Geometry const& cgeom,
                              int nghost, int nghost_set,
                              int ncomp, InterpBase* interp)
