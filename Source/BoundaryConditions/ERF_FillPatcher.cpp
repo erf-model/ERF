@@ -140,7 +140,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     }
 
     // Do second complement with the grown boxes
-    com_ba.define(com_bl);
+    com_ba.define(std::move(com_bl));
     com_ba.complementIn(com_bl, fba_bnd);
 
     // Fill mask based upon the com_bl BoxList
