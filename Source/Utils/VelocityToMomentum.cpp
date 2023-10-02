@@ -41,22 +41,15 @@ void VelocityToMomentum( const MultiFab& xvel_in,
     for ( MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We need momentum in the interior ghost cells (init == real)
-        const Box& valid_box = amrex::grow(mfi.validbox(),IntVect(1,1,0));
         Box tbx, tby, tbz;
         if (l_use_ndiff) {
-            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow);
-            if (tbx.smallEnd(2) < 0)  tbx.setSmall(2,0);
-            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow);
-            if (tby.smallEnd(2) < 0)  tby.setSmall(2,0);
-            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow);
-            if (tbz.smallEnd(2) < 0)  tbz.setSmall(2,0);
+            tbx = mfi.tilebox(IntVect(1,0,0),xvel_ngrow);
+            tby = mfi.tilebox(IntVect(0,1,0),yvel_ngrow);
+            tbz = mfi.tilebox(IntVect(0,0,1),zvel_ngrow);
         } else {
-            tbx = amrex::grow(mfi.nodaltilebox(0),xvel_ngrow) & surroundingNodes(valid_box,0);
-            if (tbx.smallEnd(2) < 0)  tbx.setSmall(2,0);
-            tby = amrex::grow(mfi.nodaltilebox(1),yvel_ngrow) & surroundingNodes(valid_box,1);
-            if (tby.smallEnd(2) < 0)  tby.setSmall(2,0);
-            tbz = amrex::grow(mfi.nodaltilebox(2),zvel_ngrow) & surroundingNodes(valid_box,2);
-            if (tbz.smallEnd(2) < 0)  tbz.setSmall(2,0);
+            tbx = mfi.tilebox(IntVect(1,0,0),IntVect(1,1,0));
+            tby = mfi.tilebox(IntVect(0,1,0),IntVect(1,1,0));
+            tbz = mfi.tilebox(IntVect(0,0,1),IntVect(1,1,0));
         }
 
         // Conserved/state variables on cell centers -- we use this for density
