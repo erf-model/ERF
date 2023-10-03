@@ -4,7 +4,7 @@
  * Computes diagnostic quantities like cloud ice/liquid and precipitation ice/liquid
  * from the existing Microphysics variables.
  */
-void Microphysics::Diagnose() {
+void Microphysics::Diagnose () {
 
   auto qt   = mic_fab_vars[MicVar::qt];
   auto qp   = mic_fab_vars[MicVar::qp];
@@ -44,7 +44,7 @@ void Microphysics::Diagnose() {
 /**
  * Wrapper for the PrecipFall, Cloud, Precipitation, and Diagnostics routines.
  */
-void Microphysics::Proc() {
+void Microphysics::Proc () {
 
     MicroPrecipFall();
 

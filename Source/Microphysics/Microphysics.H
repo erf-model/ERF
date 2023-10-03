@@ -55,10 +55,10 @@ class Microphysics {
 
  public:
   // constructor
-  Microphysics() {}
+  Microphysics () {}
 
   // Set up for first time
-  void define(SolverChoice& sc)
+  void define (SolverChoice& sc)
   {
       docloud = sc.do_cloud;
       doprecip = sc.do_precip;
@@ -70,39 +70,39 @@ class Microphysics {
   }
 
   // destructor
-  ~Microphysics() = default;
+  ~Microphysics () = default;
 
   // cloud physics
-  void Cloud();
+  void Cloud ();
 
   // ice physics
-  void IceFall();
+  void IceFall ();
 
   // precip
-  void Precip();
+  void Precip ();
 
   // precip fall
-  void PrecipFall(int hydro_type);
+  void PrecipFall (int hydro_type);
 
   // micro interface for precip fall
-  void MicroPrecipFall();
+  void MicroPrecipFall ();
 
   // init
-  void Init(const amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist,
-            const amrex::BoxArray& grids_to_evolve,
-            const amrex::Geometry& geom,
-            const amrex::Real& dt_advance);
+  void Init (const amrex::MultiFab& cons_in,
+             amrex::MultiFab& qmoist,
+             const amrex::BoxArray& grids_to_evolve,
+             const amrex::Geometry& geom,
+             const amrex::Real& dt_advance);
 
   // update ERF variables
-  void Update(amrex::MultiFab& cons_in,
-              amrex::MultiFab& qmoist);
+  void Update (amrex::MultiFab& cons_in,
+               amrex::MultiFab& qmoist);
 
   // diagnose
-  void Diagnose();
+  void Diagnose ();
 
   // process microphysics
-  void Proc();
+  void Proc ();
 
  private:
   // geometry

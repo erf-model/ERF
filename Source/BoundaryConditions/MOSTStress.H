@@ -15,7 +15,6 @@ public:
     amrex::Real kappa{KAPPA};        ///< von Karman constant
     amrex::Real gravity{CONST_GRAV}; ///< Acceleration due to gravity (m/s^2)
     amrex::Real surf_temp_flux{0.0}; ///< Heat flux
-    amrex::Real surf_temp;           ///< Surface temperature
     amrex::Real Cnk_a{0.0185};       ///< Standard Charnock constant https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_b1{1.0/30.0};    ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
     amrex::Real Cnk_b2{1260.0};      ///< Modified Charnock Eq (4) https://doi.org/10.1175/JAMC-D-17-0137.1
@@ -70,11 +69,9 @@ private:
 struct adiabatic
 {
     adiabatic (amrex::Real zref,
-               amrex::Real temp,
                amrex::Real flux)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
     }
 
@@ -110,12 +107,10 @@ private:
 struct adiabatic_charnock
 {
     adiabatic_charnock (amrex::Real zref,
-                        amrex::Real temp,
                         amrex::Real flux,
                         amrex::Real cnk_a)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
     }
@@ -164,12 +159,10 @@ private:
 struct adiabatic_mod_charnock
 {
     adiabatic_mod_charnock (amrex::Real zref,
-                            amrex::Real temp,
                             amrex::Real flux,
                             amrex::Real depth)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
@@ -219,11 +212,9 @@ private:
 struct surface_flux
 {
     surface_flux (amrex::Real zref,
-                  amrex::Real temp,
                   amrex::Real flux)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
     }
 
@@ -279,12 +270,10 @@ private:
 struct surface_flux_charnock
 {
     surface_flux_charnock (amrex::Real zref,
-                           amrex::Real temp,
                            amrex::Real flux,
                            amrex::Real cnk_a)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
     }
@@ -339,17 +328,15 @@ private:
 
 
 /**
- * Surface flux with charnock roughness
+ * Surface flux with modified charnock roughness
  */
 struct surface_flux_mod_charnock
 {
     surface_flux_mod_charnock (amrex::Real zref,
-                               amrex::Real temp,
                                amrex::Real flux,
                                amrex::Real depth)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
@@ -410,11 +397,9 @@ private:
 struct surface_temp
 {
     surface_temp (amrex::Real zref,
-                  amrex::Real temp,
                   amrex::Real flux)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
     }
 
@@ -467,17 +452,15 @@ private:
 
 
 /**
- * Surface temperature with constant roughness
+ * Surface temperature with charnock roughness
  */
 struct surface_temp_charnock
 {
     surface_temp_charnock (amrex::Real zref,
-                           amrex::Real temp,
                            amrex::Real flux,
                            amrex::Real cnk_a)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
     }
@@ -534,17 +517,15 @@ private:
 
 
 /**
- * Surface temperature with constant roughness
+ * Surface temperature with modified charnock roughness
  */
 struct surface_temp_mod_charnock
 {
     surface_temp_mod_charnock (amrex::Real zref,
-                               amrex::Real temp,
                                amrex::Real flux,
                                amrex::Real depth)
     {
         mdata.zref = zref;
-        mdata.surf_temp = temp;
         mdata.surf_temp_flux = flux;
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
@@ -606,7 +587,7 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux(int l_zlo,
+    moeng_flux (int l_zlo,
                amrex::Real l_dz)
       :  zlo(l_zlo), dz(l_dz) {}
 
@@ -809,7 +790,7 @@ private:
  */
 struct donelan_flux
 {
-    donelan_flux(int l_zlo,
+    donelan_flux (int l_zlo,
                amrex::Real l_dz)
       :  zlo(l_zlo), dz(l_dz) {}
 

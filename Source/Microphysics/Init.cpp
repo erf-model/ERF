@@ -19,10 +19,10 @@ using namespace amrex;
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
-void Microphysics::Init(const MultiFab& cons_in, MultiFab& qmoist,
-                        const BoxArray& grids_to_evolve,
-                        const Geometry& geom,
-                        const Real& dt_advance)
+void Microphysics::Init (const MultiFab& cons_in, MultiFab& qmoist,
+                         const BoxArray& grids_to_evolve,
+                         const Geometry& geom,
+                         const Real& dt_advance)
  {
   m_geom = geom;
   m_gtoe = grids_to_evolve;

@@ -20,35 +20,35 @@ ABLMost::update_fluxes (int lev,
     if (flux_type == FluxCalcType::MOENG) {
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
             if (rough_type == RoughCalcType::CONSTANT) {
-                surface_flux most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux);
+                surface_flux most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             } else if (rough_type == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, cnk_a);
+                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
             } else {
-                surface_flux_mod_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, depth);
+                surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             if (rough_type == RoughCalcType::CONSTANT) {
-                surface_temp most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux);
+                surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             } else if (rough_type == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, cnk_a);
+                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
             } else {
-                surface_temp_mod_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, depth);
+                surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else {
             if (rough_type == RoughCalcType::CONSTANT) {
-                adiabatic most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux);
+                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             } else if (rough_type == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, cnk_a);
+                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
             } else {
-                adiabatic_mod_charnock most_flux(m_ma.get_zref(),surf_temp, surf_temp_flux, depth);
+                adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } // theta flux
