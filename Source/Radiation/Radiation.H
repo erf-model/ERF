@@ -36,52 +36,52 @@ class Radiation {
    ~Radiation() = default;
 
    // init
-   void initialize(const amrex::MultiFab& cons_in,
-                   const amrex::MultiFab& qc_in,
-                   const amrex::MultiFab& qv_in,
-                   const amrex::MultiFab& qi_in,
-                   const amrex::BoxArray& grids_to_evolve,
-                   const amrex::Geometry& geom,
-                   const amrex::Real& dt_advance,
-                   const bool& do_sw_rad,
-                   const bool& do_lw_rad,
-                   const bool& do_aero_rad,
-                   const bool& do_snow_opt,
-                   const bool& is_cmip6_volcano);
+   void initialize (const amrex::MultiFab& cons_in,
+                    const amrex::MultiFab& qc_in,
+                    const amrex::MultiFab& qv_in,
+                    const amrex::MultiFab& qi_in,
+                    const amrex::BoxArray& grids,
+                    const amrex::Geometry& geom,
+                    const amrex::Real& dt_advance,
+                    const bool& do_sw_rad,
+                    const bool& do_lw_rad,
+                    const bool& do_aero_rad,
+                    const bool& do_snow_opt,
+                    const bool& is_cmip6_volcano);
 
    // run radiation model
-   void run();
+   void run ();
 
    // call back
-   void on_complete();
+   void on_complete ();
 
-   void radiation_driver_lw(int ncol, int nlev,
-                            real3d& gas_vmr,
-                            real2d& pmid, real2d& pint, real2d& tmid, real2d& tint,
-                            real3d& cld_tau_gpt, real3d& aer_tau_bnd,
-                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                            real2d& qrl, real2d& qrlc);
+   void radiation_driver_lw (int ncol, int nlev,
+                             real3d& gas_vmr,
+                             real2d& pmid, real2d& pint, real2d& tmid, real2d& tint,
+                             real3d& cld_tau_gpt, real3d& aer_tau_bnd,
+                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+                             real2d& qrl, real2d& qrlc);
 
-   void radiation_driver_sw(int ncol,
-                            real3d& gas_vmr, real2d& pmid, real2d& pint, real2d& tmid,
-                            real2d& albedo_dir, real2d& albedo_dif, real1d& coszrs,
-                            real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
-                            real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
-                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                            real2d& qrs, real2d& qrsc);
+   void radiation_driver_sw (int ncol,
+                             real3d& gas_vmr, real2d& pmid, real2d& pint, real2d& tmid,
+                             real2d& albedo_dir, real2d& albedo_dif, real1d& coszrs,
+                             real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
+                             real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
+                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+                             real2d& qrs, real2d& qrsc);
 
-   void set_daynight_indices(real1d& coszrs,
-                             int1d& day_indices,
-                             int1d& night_indices);
+   void set_daynight_indices (real1d& coszrs,
+                              int1d& day_indices,
+                              int1d& night_indices);
 
-   void get_gas_vmr(std::vector<std::string>& gas_names,
-                    real3d& gas_vmr);
+   void get_gas_vmr (std::vector<std::string>& gas_names,
+                     real3d& gas_vmr);
 
-   void calculate_heating_rate(real2d& flux_up,
-                               real2d& flux_dn,
-                               real2d& pint,
-                               real2d& heating_rate);
-  private:
+   void calculate_heating_rate (real2d& flux_up,
+                                real2d& flux_dn,
+                                real2d& pint,
+                                real2d& heating_rate);
+private:
    // geometry
    amrex::Geometry m_geom;
 

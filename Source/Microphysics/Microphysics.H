@@ -90,7 +90,7 @@ class Microphysics {
   // init
   void Init (const amrex::MultiFab& cons_in,
              amrex::MultiFab& qmoist,
-             const amrex::BoxArray& grids_to_evolve,
+             const amrex::BoxArray& grids,
              const amrex::Geometry& geom,
              const amrex::Real& dt_advance);
 

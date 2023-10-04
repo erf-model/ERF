@@ -74,13 +74,13 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0_new);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -170,13 +170,13 @@
         } else {
 
             // If not moving_terrain
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -195,7 +195,7 @@
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
         if (init_type=="real" && level==0) {
-            wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+            wrfbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                               bdy_data_ylo, bdy_data_yhi);
@@ -204,11 +204,10 @@
 
         // Compute RHS for fine interior ghost
         if (level>0 && coupling_type=="OneWay" && cf_width>0) {
-            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
-                                            cf_width-1, cf_set_width, fine_geom,
+            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
+                                            cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
-                                            boxes_at_level[level], domain_bcs_type,
-                                            S_rhs, S_data);
+                                            domain_bcs_type, S_rhs, S_data);
         }
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
@@ -318,13 +317,13 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         // If not moving_terrain
-        make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+        make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                       qmoist[level], qv_d, qc_d, qi_d,
 #endif
                       fine_geom, solverChoice, r0);
 
-        erf_slow_rhs_inc(level, nrk, slow_dt, grids_to_evolve[level],
+        erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
@@ -343,7 +342,7 @@
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones
         if (init_type=="real" && level==0) {
-            wrfbdy_compute_interior_ghost_RHS(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+            wrfbdy_compute_interior_ghost_rhs(bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               wrfbdy_width-1, wrfbdy_set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                               bdy_data_ylo, bdy_data_yhi);
@@ -352,8 +351,8 @@
 
         // Compute RHS for fine interior ghost
         if (level>0 && coupling_type=="OneWay" && cf_width>0) {
-            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
-                                            cf_width-1, cf_set_width,
+            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
+                                            cf_width, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);

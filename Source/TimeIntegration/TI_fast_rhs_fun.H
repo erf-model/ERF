@@ -2,15 +2,15 @@
  *  Wrapper for calling the routine that creates the fast RHS
  */
 auto fast_rhs_fun = [&](int fast_step, int n_sub,
-                            Vector<MultiFab>& S_slow_rhs,
-                            const Vector<MultiFab>& S_old,
-                            Vector<MultiFab>& S_stage,
-                            Vector<MultiFab>& S_data,
-                            Vector<MultiFab>& S_scratch,
-                            const Real dtau,
-                            const Real inv_fac,
-                            const Real old_substep_time,
-                            const Real new_substep_time)
+                        Vector<MultiFab>& S_slow_rhs,
+                        const Vector<MultiFab>& S_old,
+                        Vector<MultiFab>& S_stage,
+                        Vector<MultiFab>& S_data,
+                        Vector<MultiFab>& S_scratch,
+                        const Real dtau,
+                        const Real inv_fac,
+                        const Real old_substep_time,
+                        const Real new_substep_time)
     {
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
@@ -67,13 +67,13 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
-            make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+            make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s);
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_MT(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_MT(fast_step, level,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
@@ -84,7 +84,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_MT(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_MT(fast_step, level,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
@@ -98,19 +98,19 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                                  solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_T(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_T(fast_step, level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_T(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_T(fast_step, level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
@@ -120,19 +120,19 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
-                make_fast_coeffs(level, grids_to_evolve[level], fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
+                make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                                  solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_N(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_N(fast_step, level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_N(fast_step, level, grids_to_evolve[level],
+                erf_fast_rhs_N(fast_step, level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
@@ -141,13 +141,15 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         }
 
 
+        // TODO: DELETE ALL OF THIS; FILL BCs PICKS THIS UP W/O G2E
+        /*
 #ifdef ERF_USE_NETCDF
         // Update vars in set zone (relaxation already updated)
         if (init_type=="real" && level==0 && wrfbdy_set_width>0) {
             if (fast_step == 0 ) {
-                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
+                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
             } else {
-                update_interior_ghost(dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
+                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
             }
         }
 #endif
@@ -155,11 +157,12 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         // Update vars in set zone (relaxation already updated)
         if (level>0 && cf_set_width>0) {
             if (fast_step == 0 ) {
-                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
+                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
             } else {
-                update_interior_ghost(dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
+                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
             }
         }
+        */
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep

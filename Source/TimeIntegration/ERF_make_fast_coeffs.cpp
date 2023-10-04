@@ -12,7 +12,6 @@ using namespace amrex;
  * integrator (the acoustic substepping).
  *
  * @param[in]  level level of refinement
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
  * @param[in]  S_stage_data solution at the last stage
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
@@ -28,7 +27,6 @@ using namespace amrex;
  */
 
 void make_fast_coeffs (int /*level*/,
-                       BoxArray& grids_to_evolve,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                        const MultiFab& S_stage_prim,
@@ -73,11 +71,7 @@ void make_fast_coeffs (int /*level*/,
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
-
+        Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);

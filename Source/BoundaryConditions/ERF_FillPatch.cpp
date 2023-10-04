@@ -17,7 +17,7 @@ PhysBCFunctNoOp null_bc;
  */
 
 void
-ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
+ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 {
     BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
     int bccomp;
@@ -73,11 +73,11 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
-        FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
-        FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
-        FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
-        FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
+    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0 && fillset) {
+        FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
+        FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
+        FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
+        FPr_w[lev-1].FillSet(*mfs[Vars::zvel], time, null_bc, domain_bcs_type);
     }
 
     // ***************************************************************************
@@ -228,10 +228,14 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     // Coarse-Fine set region
     if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
-        FPr_c[lev-1].fill(*mfs[Vars::cons], time, null_bc, domain_bcs_type, true);
-        FPr_u[lev-1].fill(*mfs[Vars::xvel], time, null_bc, domain_bcs_type, true);
-        FPr_v[lev-1].fill(*mfs[Vars::yvel], time, null_bc, domain_bcs_type, true);
-        FPr_w[lev-1].fill(*mfs[Vars::zvel], time, null_bc, domain_bcs_type, true);
+        if (cons_only) {
+            FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
+        } else {
+            FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
+            FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
+            FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
+            FPr_w[lev-1].FillSet(*mfs[Vars::zvel], time, null_bc, domain_bcs_type);
+        }
     }
 
     // ***************************************************************************
@@ -251,10 +255,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
     // ***************************************************************************
 
-    //
-    // It is important that we apply the MOST bcs after we have imposed all the others
-    //    so that we have enough information in the ghost cells to calculate the viscosity
-    //
+    // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
         m_most->impose_most_bcs(lev,mfs,eddyDiffs);
 }

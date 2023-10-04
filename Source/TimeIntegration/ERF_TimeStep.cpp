@@ -39,6 +39,10 @@ ERF::timeStep (int lev, Real time, int iteration)
                 if (coupling_type=="OneWay" && cf_width>0) {
                     Define_ERFFillPatchers(lev+1);
                     Register_ERFFillPatchers(lev+1);
+                    if (lev < max_level-1) {
+                        Define_ERFFillPatchers(lev+2);
+                        Register_ERFFillPatchers(lev+2);
+                    }
                 }
 
                 // mark that we have regridded this level already
