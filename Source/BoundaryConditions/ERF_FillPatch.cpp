@@ -92,7 +92,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs,time);
+    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
@@ -245,8 +245,11 @@ ERF::FillIntermediatePatch (int lev, Real time,
     IntVect ngvect_vels = IntVect(ng_vel ,ng_vel ,ng_vel);
 
 #ifdef ERF_USE_NETCDF
+    // NOTE: This routine needs to be aware of what FillIntermediatePatch is operating on
+    //       --- i.e., cons_only and which cons indices (icomp_cons & ncomp_cons)
+
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs,time);
+    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time, cons_only, icomp_cons, ncomp_cons);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);

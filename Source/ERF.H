@@ -297,7 +297,10 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time);
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
 #endif
 
 #ifdef ERF_USE_PARTICLES
