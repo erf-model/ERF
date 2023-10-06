@@ -53,8 +53,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
 
     // End of vars loop
-    int var_idx_end = Vars::NumTypes;
-    if (cons_only) var_idx_end = Vars::cons + 1;
+    int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
 
     // Loop over all variable types
     for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
@@ -70,8 +69,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
         const auto& dom_hi = amrex::ubound(domain);
 
         // Offset only applys to cons (we may fill a subset of these vars)
-        int offset = 0;
-        if (var_idx == Vars::cons) offset = icomp_cons;
+        int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
