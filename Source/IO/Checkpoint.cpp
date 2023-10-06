@@ -126,23 +126,26 @@ ERF::WriteCheckpointFile () const
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
+       IntVect ng;
 #ifdef ERF_USE_MOISTURE
-       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
-       MultiFab::Copy(moist_vars,qmoist[lev],0,0,qmoist[lev].nComp(),0);
+       // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
+       ng = qmoist[lev].nGrowVect();
+       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),ng);
+       MultiFab::Copy(moist_vars,qmoist[lev],0,0,qmoist[lev].nComp(),ng);
        VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
 #endif
 
        // Note that we write the ghost cells of the base state (unlike above)
-       IntVect ngvect_base = base_state[lev].nGrowVect();
-       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
-       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ngvect_base);
+       ng = base_state[lev].nGrowVect();
+       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
+       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ng);
        VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
        if (solverChoice.use_terrain)  {
            // Note that we also write the ghost cells of z_phys_nd
-           IntVect ngvect = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
-           MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ngvect);
+           ng = z_phys_nd[lev]->nGrowVect();
+           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
+           MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ng);
            VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
        }
 
@@ -153,19 +156,19 @@ ERF::WriteCheckpointFile () const
        }
        BoxArray ba2d(std::move(bl2d));
 
-       IntVect ngvect_mf = mapfac_m[lev]->nGrowVect();
-       MultiFab mf_m(ba2d,dmap[lev],1,ngvect_mf);
-       MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ngvect_mf);
+       ng = mapfac_m[lev]->nGrowVect();
+       MultiFab mf_m(ba2d,dmap[lev],1,ng);
+       MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
        VisMF::Write(mf_m, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
 
-       ngvect_mf = mapfac_u[lev]->nGrowVect();
-       MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ngvect_mf);
-       MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ngvect_mf);
+       ng = mapfac_u[lev]->nGrowVect();
+       MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
+       MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
        VisMF::Write(mf_u, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
 
-       ngvect_mf = mapfac_v[lev]->nGrowVect();
-       MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ngvect_mf);
-       MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ngvect_mf);
+       ng = mapfac_v[lev]->nGrowVect();
+       MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
+       MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
        VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
    }
 
@@ -327,25 +330,27 @@ ERF::ReadCheckpointFile ()
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
+        IntVect ng;
 #ifdef ERF_USE_MOISTURE
-       MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),0);
-       VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
-       MultiFab::Copy(qmoist[lev],moist_vars,0,0,qmoist[lev].nComp(),0);
+        ng = qmoist[lev].nGrowVect();
+        MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),ng);
+        VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+        MultiFab::Copy(qmoist[lev],moist_vars,0,0,qmoist[lev].nComp(),ng);
 #endif
 
         // Note that we read the ghost cells of the base state (unlike above)
-        IntVect ngvect_base = base_state[lev].nGrowVect();
-        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ngvect_base);
+        ng = base_state[lev].nGrowVect();
+        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
         VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
-        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),ngvect_base);
+        MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),ng);
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         if (solverChoice.use_terrain)  {
            // Note that we also read the ghost cells of z_phys_nd
-           IntVect ngvect = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ngvect);
+           ng = z_phys_nd[lev]->nGrowVect();
+           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
-           MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ngvect);
+           MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev, t_new[lev]);
         }
 
@@ -356,20 +361,20 @@ ERF::ReadCheckpointFile ()
         }
         BoxArray ba2d(std::move(bl2d));
 
-        IntVect ngvect_mf = mapfac_m[lev]->nGrowVect();
-        MultiFab mf_m(ba2d,dmap[lev],1,ngvect_mf);
+        ng = mapfac_m[lev]->nGrowVect();
+        MultiFab mf_m(ba2d,dmap[lev],1,ng);
         VisMF::Read(mf_m, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
-        MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ngvect_mf);
+        MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ng);
 
-        ngvect_mf = mapfac_u[lev]->nGrowVect();
-        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ngvect_mf);
+        ng = mapfac_u[lev]->nGrowVect();
+        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
         VisMF::Read(mf_u, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
-        MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ngvect_mf);
+        MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ng);
 
-        ngvect_mf = mapfac_v[lev]->nGrowVect();
-        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ngvect_mf);
+        ng = mapfac_v[lev]->nGrowVect();
+        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
         VisMF::Read(mf_v, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
-        MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ngvect_mf);
+        MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
     }
 
 #ifdef ERF_USE_PARTICLES
