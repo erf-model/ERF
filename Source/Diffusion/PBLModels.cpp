@@ -120,7 +120,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           }
 
           // Spatially varying MOST
-          amrex::Real surface_heat_flux = u_star_arr(i,j,0) * t_star_arr(i,j,0);
+          amrex::Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
           amrex::Real theta0            = tm_arr(i,j,0); // TODO: IS THIS ACTUALLY RHOTHETA
           amrex::Real l_obukhov;
           if (std::abs(surface_heat_flux) > eps) {
