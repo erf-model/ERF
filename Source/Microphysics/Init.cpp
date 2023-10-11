@@ -77,9 +77,6 @@ void Microphysics::Init (const MultiFab& cons_in, MultiFab& qmoist,
      // output
      qifall.resize({zlo}, {zhi});
      tlatqi.resize({zlo}, {zhi});
-
-     qpsrc.resize({zlo}, {zhi});
-     qpevp.resize({zlo}, {zhi});
   }
 
   auto accrrc_t = accrrc.table();
@@ -98,8 +95,6 @@ void Microphysics::Init (const MultiFab& cons_in, MultiFab& qmoist,
   auto rho1d_t  = rho1d.table();
   auto pres1d_t = pres1d.table();
   auto tabs1d_t = tabs1d.table();
-  auto qpsrc_t  = qpsrc.table();
-  auto qpevp_t  = qpevp.table();
 
   auto gamaz_t  = gamaz.table();
   auto zmid_t   = zmid.table();
@@ -194,11 +189,6 @@ void Microphysics::Init (const MultiFab& cons_in, MultiFab& qmoist,
     mkdiff(l,k) = 0.0;
   });
 #endif
-
-  amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept {
-    qpsrc_t(k) = 0.0;
-    qpevp_t(k) = 0.0;
-  });
 
   if(round(gam3) != 2) {
     std::cout << "cannot compute gamma-function in Microphysics::Init" << std::endl;

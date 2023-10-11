@@ -99,21 +99,28 @@ ERF::init_custom (int lev)
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
-                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
+                               r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
-                         qv_pert_arr, qc_pert_arr, qi_pert_arr,
+                               qv_pert_arr, qc_pert_arr, qi_pert_arr,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-                         qv_pert_arr, qc_pert_arr,
+                               qv_pert_arr, qc_pert_arr,
 #endif
-                         geom[lev].data(), mf_m, mf_u, mf_v,
-                         solverChoice);
+                               geom[lev].data(), mf_m, mf_u, mf_v,
+                               solverChoice);
     } //mfi
 
     // Add problem-specific perturbation to background flow
     MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
+
+    // RhoQKE is only relevant if using MYNN2.5 or YSU
+    if (solverChoice.turbChoice[lev].pbl_type == PBLType::None) {
+        lev_new[Vars::cons].setVal(0.0,RhoQKE_comp,1);
+    } else {
+        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
+    }
+
 #if defined(ERF_USE_MOISTURE)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());
