@@ -107,6 +107,9 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
+    DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
@@ -121,15 +124,13 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     AMREX_ALWAYS_ASSERT (!l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                    (solverChoice.les_type        !=       LESType::None) ||
-                                    (solverChoice.pbl_type        !=       PBLType::None) );
-    const bool cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
-                                    solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25      ||
-                                    solverChoice.pbl_type == PBLType::YSU );
+    const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
+                                    (tc.les_type        !=       LESType::None) ||
+                                    (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
+                                    tc.les_type == LESType::Deardorff   ||
+                                    tc.pbl_type == PBLType::MYNN25      ||
+                                    tc.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();

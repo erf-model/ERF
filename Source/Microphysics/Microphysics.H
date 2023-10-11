@@ -159,8 +159,5 @@ class Microphysics {
   // data (output)
   amrex::TableData<amrex::Real, 1> qifall;
   amrex::TableData<amrex::Real, 1> tlatqi;
-
-  amrex::TableData<amrex::Real, 1> qpsrc; // source of precipitation microphysical processes
-  amrex::TableData<amrex::Real, 1> qpevp; // sink of precipitating water due to evaporation
 };
 #endif
