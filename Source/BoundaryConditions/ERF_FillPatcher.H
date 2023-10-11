@@ -2,37 +2,57 @@
 #define ERF_FILLPATCHER_H_
 
 #include <AMReX_FillPatchUtil.H>
+#include <AMReX_Interp_C.H>
+#include <AMReX_MFInterp_C.H>
 
 class ERFFillPatcher
 {
 public:
 
-    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
+    ERFFillPatcher (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
                     amrex::Geometry const& fgeom,
-                    amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
+                    amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                     amrex::Geometry const& cgeom,
-                    int nghost, int nghost_subset, int ncomp, amrex::InterpBase* interp);
+                    int nghost, int nghost_set, int ncomp, amrex::InterpBase* interp);
 
-    ~ERFFillPatcher ( )
-    {
-        delete m_cf_fine_data;
-        delete m_cf_fine_subset_data;
-        delete m_cf_crse_data[0];
-        delete m_cf_crse_data[1];
-    }
-
-    void Define (amrex::BoxArray const& fba, amrex::DistributionMapping  fdm,
+    void Define (amrex::BoxArray const& fba, amrex::DistributionMapping const& fdm,
                  amrex::Geometry const& fgeom,
-                 amrex::BoxArray  cba, amrex::DistributionMapping  cdm,
+                 amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                  amrex::Geometry const& cgeom,
-                 int nghost, int nghost_subset, int ncomp, amrex::InterpBase* interp);
+                 int nghost, int nghost_sset, int ncomp,
+                 amrex::InterpBase* interp);
 
-    void registerCoarseData (amrex::Vector<amrex::MultiFab const*> const& crse_data,
+    void BuildMask (amrex::BoxArray const& fba, int nghost, int nghost_set);
+
+    void RegisterCoarseData (amrex::Vector<amrex::MultiFab const*> const& crse_data,
                              amrex::Vector<amrex::Real> const& crse_time);
 
+    void InterpFace (amrex::MultiFab& fine,
+                     amrex::MultiFab const& crse,
+                     int mask_val);
+
+    void InterpCell (amrex::MultiFab& fine,
+                     amrex::MultiFab const& crse,
+                     amrex::Vector<amrex::BCRec> const& bcr,
+                     int mask_val);
+
+    int GetSetMaskVal () { return m_set_mask; }
+
+    int GetRelaxMaskVal () { return m_relax_mask; }
+
+    amrex::iMultiFab* GetMask () { return m_cf_mask.get(); }
+
     template <typename BC>
-    void fill (amrex::MultiFab& mf, amrex::Real time,
-              BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset=false);
+    void FillSet (amrex::MultiFab& mf, amrex::Real time,
+                  BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
+
+    template <typename BC>
+    void FillRelax (amrex::MultiFab& mf, amrex::Real time,
+                    BC& cbc, amrex::Vector<amrex::BCRec> const& bcs);
+
+    template <typename BC>
+    void Fill (amrex::MultiFab& mf, amrex::Real time,
+               BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val);
 
 private:
 
@@ -47,15 +67,17 @@ private:
     int m_ncomp;
     amrex::InterpBase* m_interp;
     amrex::IntVect m_ratio;
-    amrex::Vector<amrex::MultiFab*> m_cf_crse_data;
-    amrex::MultiFab* m_cf_fine_data;
-    amrex::MultiFab* m_cf_fine_subset_data;
+    std::unique_ptr<amrex::MultiFab> m_cf_crse_data_old;
+    std::unique_ptr<amrex::MultiFab> m_cf_crse_data_new;
+    std::unique_ptr<amrex::iMultiFab> m_cf_mask;
     amrex::Vector<amrex::Real> m_crse_times;
     amrex::Real m_dt_crse;
+    int m_set_mask{2};
+    int m_relax_mask{1};
 };
 
 /*
- * Fill data at the coarse-fine boundary
+ * Fill fine data in the set region
  *
  * @param[out] mf    MultiFab to be filled
  * @param[in]  time  Time at which to fill data
@@ -64,8 +86,41 @@ private:
  */
 template <typename BC>
 void
-ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
-                      BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, bool fill_subset)
+ERFFillPatcher::FillSet (amrex::MultiFab& mf, amrex::Real time,
+                         BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
+{
+    Fill(mf,time,cbc,bcs,m_set_mask);
+}
+
+/*
+ * Fill fine data in the relax region
+ *
+ * @param[out] mf    MultiFab to be filled
+ * @param[in]  time  Time at which to fill data
+ * @param[in]  cbc   Coarse boundary condition
+ * @param[in]  bcs   Vector of boundary conditions
+ */
+template <typename BC>
+void
+ERFFillPatcher::FillRelax (amrex::MultiFab& mf, amrex::Real time,
+                           BC& cbc, amrex::Vector<amrex::BCRec> const& bcs)
+{
+    Fill(mf,time,cbc,bcs,m_relax_mask);
+}
+
+/*
+ * Fill fine data in the relax region
+ *
+ * @param[out] mf    MultiFab to be filled
+ * @param[in]  time  Time at which to fill data
+ * @param[in]  cbc   Coarse boundary condition
+ * @param[in]  bcs   Vector of boundary conditions
+ * @param[in]  mask_val Value to assign mask array
+ */
+template <typename BC>
+void
+ERFFillPatcher::Fill (amrex::MultiFab& mf, amrex::Real time,
+                      BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val)
 {
     constexpr amrex::Real eps = std::numeric_limits<float>::epsilon();
     AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
@@ -75,32 +130,28 @@ ERFFillPatcher::fill (amrex::MultiFab& mf, amrex::Real time,
     amrex::Real fac_old = 1.0 - fac_new;
 
     // Boundary condition operator
-    cbc(*(m_cf_crse_data[0]), 0, m_ncomp, amrex::IntVect(0), time, 0);
+    cbc(*(m_cf_crse_data_old), 0, m_ncomp, amrex::IntVect(0), time, 0);
 
     // Coarse MF to hold time interpolated data
-    amrex::MultiFab crse_data_time_interp(m_cf_crse_data[0]->boxArray(), m_cf_crse_data[0]->DistributionMap(),
+    amrex::MultiFab crse_data_time_interp(m_cf_crse_data_old->boxArray(),
+                                          m_cf_crse_data_old->DistributionMap(),
                                           m_ncomp, amrex::IntVect{0});
 
     // Time interpolate the coarse data
     amrex::MultiFab::LinComb(crse_data_time_interp,
-                             fac_old, *(m_cf_crse_data[0]), 0,
-                             fac_new, *(m_cf_crse_data[1]), 0,
+                             fac_old, *(m_cf_crse_data_old), 0,
+                             fac_new, *(m_cf_crse_data_new), 0,
                              0, m_ncomp, amrex::IntVect{0});
 
-    // Ensure fine domain box is correct index type
-    amrex::Box fdest_dom = amrex::convert(m_fgeom.Domain(),m_cf_fine_data->boxArray().ixType());
-
-    // Spatially interpolate the time-interpolated coarse data
-    amrex::FillPatchInterp(*m_cf_fine_data, 0, crse_data_time_interp, 0, m_ncomp, amrex::IntVect(0),
-                           m_cgeom, m_fgeom, fdest_dom, m_ratio, m_interp, bcs, 0);
-
-    // Fill whole region or subset?
-    if (fill_subset) {
-        //amrex::MultiFab::Copy(m_cf_fine_subset_data, m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0});
-        m_cf_fine_subset_data->ParallelCopy(*m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
-        mf.ParallelCopy(*m_cf_fine_subset_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
+    // Call correct spatial interpolation type
+    amrex::IndexType m_ixt = mf.boxArray().ixType();
+    int ixt_sum = m_ixt[0]+m_ixt[1]+m_ixt[2];
+    if (ixt_sum == 0) {
+        InterpCell(mf,crse_data_time_interp,bcs,mask_val);
+    } else if (ixt_sum == 1) {
+        InterpFace(mf,crse_data_time_interp,mask_val);
     } else {
-        mf.ParallelCopy(*m_cf_fine_data, 0, 0, m_ncomp, amrex::IntVect{0}, amrex::IntVect{0});
+        amrex::Abort("ERF_FillPatcher only supports face linear and cell cons linear interp!");
     }
 }
 #endif

@@ -19,18 +19,17 @@ PhysBCFunctNoOp void_bc;
  * @param[in] ng_vect number of ghost cells in each direction
  * @param[in] get_int_ng flag to get ghost cells inside the domain
  */
-
 void
-compute_interior_ghost_bxs_xy(const Box& bx,
-                              const Box& domain,
-                              const int& width,
-                              const int& set_width,
-                              Box& bx_xlo,
-                              Box& bx_xhi,
-                              Box& bx_ylo,
-                              Box& bx_yhi,
-                              const IntVect& ng_vect,
-                              const bool get_int_ng)
+compute_interior_ghost_bxs_xy (const Box& bx,
+                               const Box& domain,
+                               const int& width,
+                               const int& set_width,
+                               Box& bx_xlo,
+                               Box& bx_xhi,
+                               Box& bx_ylo,
+                               Box& bx_yhi,
+                               const IntVect& ng_vect,
+                               const bool get_int_ng)
 {
     AMREX_ALWAYS_ASSERT(bx.ixType() == domain.ixType());
 
@@ -105,19 +104,19 @@ compute_interior_ghost_bxs_xy(const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
-                                  const Real& start_bdy_time,
-                                  const Real& time,
-                                  const Real& delta_t,
-                                  const int&  width,
-                                  const int&  set_width,
-                                  const Geometry& geom,
-                                  Vector<MultiFab>& S_rhs,
-                                  Vector<MultiFab>& S_data,
-                                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                  Vector<Vector<FArrayBox>>& bdy_data_yhi)
+wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+                                   const Real& start_bdy_time,
+                                   const Real& time,
+                                   const Real& delta_t,
+                                   const int&  width,
+                                   const int&  set_width,
+                                   const Geometry& geom,
+                                   Vector<MultiFab>& S_rhs,
+                                   Vector<MultiFab>& S_data,
+                                   Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                                   Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
 
@@ -389,7 +388,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
+            wrfbdy_zero_rhs_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
         }
 
         {
@@ -400,7 +399,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
         }
 
         {
@@ -411,7 +410,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
 
         {
@@ -422,7 +421,7 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
             compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
-            zero_RHS_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
         }
     } // mfi
 
@@ -480,10 +479,10 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
                 continue;
             }
 
-            compute_Laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
-                                         tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                         arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                         data_arr, rhs_arr);
+            wrfbdy_compute_laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
+                                                tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+                                                arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                                data_arr, rhs_arr);
         } // mfi
     } // ivar
 }
@@ -505,19 +504,18 @@ wrfbdy_compute_interior_ghost_RHS(const Real& bdy_time_interval,
  * @param[in]  S_data    current value of the solution
  */
 void
-fine_compute_interior_ghost_RHS(const Real& time,
-                                const Real& delta_t,
-                                const int& width,
-                                const int& set_width,
-                                const Geometry& geom,
-                                ERFFillPatcher* FPr_c,
-                                ERFFillPatcher* FPr_u,
-                                ERFFillPatcher* FPr_v,
-                                ERFFillPatcher* FPr_w,
-                                Vector<Box>& boxes_at_level,
-                                Vector<BCRec>& domain_bcs_type,
-                                Vector<MultiFab>& S_rhs_f,
-                                Vector<MultiFab>& S_data_f)
+fine_compute_interior_ghost_rhs (const Real& time,
+                                 const Real& delta_t,
+                                 const int& width,
+                                 const int& set_width,
+                                 const Geometry& geom,
+                                 ERFFillPatcher* FPr_c,
+                                 ERFFillPatcher* FPr_u,
+                                 ERFFillPatcher* FPr_v,
+                                 ERFFillPatcher* FPr_w,
+                                 Vector<BCRec>& domain_bcs_type,
+                                 Vector<MultiFab>& S_rhs_f,
+                                 Vector<MultiFab>& S_data_f)
 {
     BL_PROFILE_REGION("fine_compute_interior_ghost_RHS()");
 
@@ -552,152 +550,99 @@ fine_compute_interior_ghost_RHS(const Real& time,
         MultiFab& fmf_p = fmf_p_v[ivar_idx];
         amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
 
+        // Integer mask MF
+        int set_mask_val;
+        int relax_mask_val;
+        iMultiFab* mask;
+
         // Fill fine patch on interior halo region
         //==========================================================
         if (ivar_idx == IntVar::cons)
         {
-            FPr_c->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_c->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
+            mask           = FPr_c->GetMask();
+            set_mask_val   = FPr_c->GetSetMaskVal();
+            relax_mask_val = FPr_c->GetRelaxMaskVal();
         }
         else if (ivar_idx == IntVar::xmom)
         {
-            FPr_u->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_u->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
+            mask           = FPr_u->GetMask();
+            set_mask_val   = FPr_u->GetSetMaskVal();
+            relax_mask_val = FPr_u->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box tbx = mfi.tilebox();
+                Box vbx = mfi.validbox();
+
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
-                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
+                const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Box domain  = boxes_at_level[g_ind];
-                    domain.convert(fmf.boxArray().ixType());
-
-                    // NOTE:: width+1 to get halo interior cell from fill
-                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi);
-
-                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-
-                } // g_ind
+                    }
+                });
             } // mfi
         }
         else if (ivar_idx == IntVar::ymom)
         {
-            FPr_v->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_v->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
+            mask           = FPr_v->GetMask();
+            set_mask_val   = FPr_v->GetSetMaskVal();
+            relax_mask_val = FPr_v->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box tbx = mfi.tilebox();
+                Box vbx = mfi.validbox();
+
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
-                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
+                const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Box domain  = boxes_at_level[g_ind];
-                    domain.convert(fmf.boxArray().ixType());
-
-                    // NOTE:: width+1 to get halo interior cell from fill
-                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi);
-
-                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-                } // g_ind
+                    }
+                });
             } // mfi
         }
         else if (ivar_idx == IntVar::zmom)
         {
-            FPr_w->fill(fmf_p, time, void_bc, domain_bcs_type);
+            FPr_w->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
+            mask           = FPr_w->GetMask();
+            set_mask_val   = FPr_w->GetSetMaskVal();
+            relax_mask_val = FPr_w->GetRelaxMaskVal();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
-                Box tbx = mfi.tilebox();
+                Box vbx = mfi.validbox();
+
                 const Array4<Real>& prim_arr = fmf_p.array(mfi);
-                const Array4<const Real>& rho_arr = fmf_p_v[0].const_array(mfi);
+                const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
+                const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    Box domain = boxes_at_level[g_ind];
-                    domain.convert(fmf.boxArray().ixType());
-
-                    // NOTE:: width+1 to get halo interior cell from fill
-                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                    compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
-                                                  bx_xlo, bx_xhi,
-                                                  bx_ylo, bx_yhi);
-
-                    amrex::ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
+                    if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
                         prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-                    amrex::ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                    {
-                        Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
-                        prim_arr(i,j,k) *= rho_interp;
-                    });
-                } // g_ind
+                    }
+                });
             } // mfi
         } else {
             amrex::Abort("Dont recognize this variable type in fine_compute_interior_ghost_RHS");
@@ -711,24 +656,21 @@ fine_compute_interior_ghost_RHS(const Real& time,
 #endif
         for ( MFIter mfi(rhs,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box tbx = mfi.tilebox();
+            Box vbx = mfi.validbox();
             const Array4<Real>& rhs_arr  = rhs.array(mfi);
-            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
+            const Array4<const int>& mask_arr = mask->const_array(mfi);
+
+            amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Box domain  = boxes_at_level[g_ind];
-                domain.convert(fmf.boxArray().ixType());
-
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-
-                zero_RHS_in_set_region(0, num_var, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_arr);
-            } // g_ind
+                if (mask_arr(i,j,k) == set_mask_val) {
+                    rhs_arr(i,j,k) = 0.0;
+                }
+            });
         } // mfi
 
         // For Laplacian stencil
         rhs.FillBoundary(geom.periodicity());
+
 
         // Compute RHS in relaxation region
         //==========================================================
@@ -737,98 +679,118 @@ fine_compute_interior_ghost_RHS(const Real& time,
 #endif
         for ( MFIter mfi(fmf_p,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Box tbx = mfi.tilebox();
+            Box vbx = mfi.validbox();
+            const Array4<Real>&        rhs_arr = rhs.array(mfi);
             const Array4<const Real>& fine_arr = fmf_p.const_array(mfi);
             const Array4<const Real>& data_arr = fmf.const_array(mfi);
-            const Array4<Real>& rhs_arr        = rhs.array(mfi);
+            const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
-            {
-                Box domain = boxes_at_level[g_ind];
-                domain.convert(fmf.boxArray().ixType());
-                const auto& dom_hi = ubound(domain);
-                const auto& dom_lo = lbound(domain);
+            const auto& vbx_lo = lbound(vbx);
+            const auto& vbx_hi = ubound(vbx);
 
-                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                              tbx_xlo, tbx_xhi,
-                                              tbx_ylo, tbx_yhi);
+            int icomp = 0;
 
-                compute_Laplacian_relaxation(delta_t, 0, num_var, width, set_width, dom_lo, dom_hi, F1, F2,
-                                             tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
-                                             fine_arr, fine_arr, fine_arr, fine_arr,
-                                             data_arr, rhs_arr);
-            } // g_ind
+            int Spec_z  = set_width;
+            int Relax_z = width - Spec_z;
+            amrex::Real num   = amrex::Real(Spec_z + Relax_z);
+            amrex::Real denom = amrex::Real(Relax_z - 1);
+            amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+           {
+               if (mask_arr(i,j,k) == relax_mask_val) {
+
+                   // Indices
+                   Real n_ind;
+                   int ii{width-1}; int jj{width-1};
+                   bool near_x_lo_wall{false}; bool near_x_hi_wall{false};
+                   bool near_y_lo_wall{false}; bool near_y_hi_wall{false};
+                   bool mask_x_found{false};   bool mask_y_found{false};
+
+                   // Near x-wall
+                   if ((i-vbx_lo.x) < width) {
+                       near_x_lo_wall = true;
+                       ii = i-vbx_lo.x;
+                       if (mask_arr(vbx_lo.x,j,k) == 2) mask_x_found = true;
+                   } else if ((vbx_hi.x-i) < width) {
+                       near_x_hi_wall = true;
+                       ii = vbx_hi.x-i;
+                       if (mask_arr(vbx_hi.x,j,k) == 2) mask_x_found = true;
+                   }
+
+                   // Near y-wall
+                   if ((j-vbx_lo.y) < width) {
+                       near_y_lo_wall = true;
+                       jj = j-vbx_lo.y;
+                       if (mask_arr(i,vbx_lo.y,k) == 2) mask_y_found = true;
+                   } else if ((vbx_hi.y-j) < width) {
+                       near_y_hi_wall = true;
+                       jj = vbx_hi.y-j;
+                       if (mask_arr(i,vbx_hi.y,k) == 2) mask_y_found = true;
+                   }
+
+                   // Found a nearby masked cell (valid n_ind)
+                   if (mask_x_found && mask_y_found) {
+                       n_ind = std::min(ii,jj) + 1.0;
+                   } else if (mask_x_found) {
+                       n_ind = ii + 1.0;
+                   } else if (mask_y_found) {
+                       n_ind = jj + 1.0;
+                   // Pesky corner cell
+                   } else {
+                       if (near_x_lo_wall || near_x_hi_wall) {
+                           Real dj_min{width-1.0};
+                           int j_lb = std::max(vbx_lo.y,j-width);
+                           int j_ub = std::min(vbx_hi.y,j+width);
+                           int li   = (near_x_lo_wall) ? vbx_lo.x : vbx_hi.x;
+                           for (int lj(j_lb); lj<=j_ub; ++lj) {
+                               if (mask_arr(li,lj,k) == 2) {
+                                   mask_y_found = true;
+                                   dj_min = std::min(dj_min,(Real) std::abs(lj-j));
+                               }
+                           }
+                           if (mask_y_found) {
+                               Real mag = sqrt( amrex::Real(dj_min*dj_min + ii*ii) );
+                               n_ind = std::min(mag,width-1.0) + 1.0;
+                           } else {
+                               amrex::Abort("Mask not found near x wall!");
+                           }
+                       } else if (near_y_lo_wall || near_y_hi_wall) {
+                           Real di_min{width-1.0};
+                           int i_lb = std::max(vbx_lo.x,i-width);
+                           int i_ub = std::min(vbx_hi.x,i+width);
+                           int lj   = (near_y_lo_wall) ? vbx_lo.y : vbx_hi.y;
+                           for (int li(i_lb); li<=i_ub; ++li) {
+                               if (mask_arr(li,lj,k) == 2) {
+                                   mask_x_found = true;
+                                   di_min = std::min(di_min,(Real) std::abs(li-i));
+                               }
+                           }
+                           if (mask_x_found) {
+                               Real mag = sqrt( amrex::Real(di_min*di_min + jj*jj) );
+                               n_ind = std::min(mag,width-1.0) + 1.0;
+                           } else {
+                               amrex::Abort("Mask not found near y wall!");
+                           }
+                       } else {
+                           amrex::Abort("Relaxation cell must be near a wall!");
+                       }
+                   }
+
+                   amrex::Real Factor   = (num - n_ind)/denom;
+                   amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
+                   amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
+                   amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
+                   amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
+                   amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
+                   amrex::Real delta    = fine_arr(i  ,j  ,k,n) - d;
+                   amrex::Real delta_xp = fine_arr(i+1,j  ,k,n) - d_ip1;
+                   amrex::Real delta_xm = fine_arr(i-1,j  ,k,n) - d_im1;
+                   amrex::Real delta_yp = fine_arr(i  ,j+1,k,n) - d_jp1;
+                   amrex::Real delta_ym = fine_arr(i  ,j-1,k,n) - d_jm1;
+                   amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
+                   rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
+               }
+           });
         } // mfi
     } // ivar_idx
 }
 
-/**
- * Update the solution in the relaxation zone
- *
- * @param[in]  delta_t timestep
- * @param[in]  width   number of cells in (relaxation+specified) zone
- * @param[in]  geom    container for geometric information
- * @param[in]  S_rhs  RHS to be added here
- * @param[in]  S_old  previous value of the solution
- * @param[out] S_data new value of the solution defined here
- */
-
-void
-update_interior_ghost(const Real& delta_t,
-                      const int&  width,
-                      Vector<Box>& boxes_at_level,
-                      Vector<MultiFab>& S_rhs,
-                      const Vector<MultiFab>& S_old,
-                      Vector<MultiFab>& S_data)
-{
-    BL_PROFILE_REGION("update_interior_ghost()");
-
-    Vector<int> ncomp_map = {2, 1, 1, 1};
-    for (int ivar(IntVar::cons); ivar < IntVar::NumVars; ivar++)
-    {
-        int ncomp = ncomp_map[ivar];
-        IndexType m_ixt = S_data[ivar].boxArray().ixType();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for ( MFIter mfi(S_data[ivar],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-            Array4<Real> rhs_arr       = S_rhs[ivar].array(mfi);
-            Array4<const Real> old_arr = S_old[ivar].array(mfi);
-            Array4<Real> new_arr       = S_data[ivar].array(mfi);
-
-            for (int g_ind(0); g_ind<boxes_at_level.size(); ++g_ind)
-            {
-                Box domain = boxes_at_level[g_ind];
-                domain.convert(m_ixt);
-                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                              tbx_xlo, tbx_xhi,
-                                              tbx_ylo, tbx_yhi);
-
-                amrex::ParallelFor(tbx_xlo, ncomp,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                },
-                tbx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                });
-
-                amrex::ParallelFor(tbx_ylo, ncomp,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                },
-                tbx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-                {
-                    new_arr(i,j,k,n) = old_arr(i,j,k,n) + delta_t * rhs_arr(i,j,k,n);
-                });
-            } // boxes_at_level
-        } // mfi
-    } // ivar
-}

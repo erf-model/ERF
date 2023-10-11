@@ -297,7 +297,10 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time);
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
 #endif
 
 #ifdef ERF_USE_PARTICLES
@@ -320,8 +323,6 @@ private:
     void update_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void update_terrain_arrays (int lev, amrex::Real time);
-
-    void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -349,7 +350,7 @@ private:
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
+    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
 
 #if defined(ERF_USE_MOISTURE)
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
@@ -512,9 +513,6 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
-
-    // BoxArray at each level to define where we actually evolve the solution
-    amrex::Vector<amrex::BoxArray> grids_to_evolve;
 
     // Store Theta variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;

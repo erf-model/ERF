@@ -397,7 +397,7 @@ void erf_slow_rhs_post (int level,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
             icomp = RhoQv_comp;
 #endif
-            zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
+            wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
         }
 #endif
 

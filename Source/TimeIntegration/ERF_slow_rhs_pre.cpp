@@ -23,7 +23,6 @@ using namespace amrex;
  * @param[in]  level level of resolution
  * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[out]  S_rhs RHS computed here
  * @param[in]  S_data current solution
  * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
@@ -71,7 +70,6 @@ using namespace amrex;
 void erf_slow_rhs_pre (int level,
                        int nrk,
                        amrex::Real dt,
-                       BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
@@ -170,9 +168,8 @@ void erf_slow_rhs_pre (int level,
 #endif
         for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            // Construct intersection of current tilebox and valid region for updating
-            const Box& valid_bx = grids_to_evolve[mfi.index()];
-            Box bx = mfi.tilebox() & valid_bx;
+            const Box& bx = mfi.tilebox();
+            const Box& valid_bx = mfi.validbox();
 
             // Velocities
             const Array4<const Real> & u = xvel.array(mfi);
@@ -211,12 +208,11 @@ void erf_slow_rhs_pre (int level,
             //-------------------------------------------------------------------------------
 
             // Strain/Stress tile boxes
-            Box vbx   = valid_bx;
-            Box bxcc  = mfi.tilebox() & valid_bx;
-            Box tbxxy = mfi.tilebox(IntVect(1,1,0)) & vbx.convert(IntVect(1,1,0));
-            Box tbxxz = mfi.tilebox(IntVect(1,0,1)) & vbx.convert(IntVect(1,0,1));
-            Box tbxyz = mfi.tilebox(IntVect(0,1,1)) & vbx.convert(IntVect(0,1,1));
-            // We need a halo cells for terrain
+            Box bxcc  = mfi.tilebox();
+            Box tbxxy = mfi.tilebox(IntVect(1,1,0));
+            Box tbxxz = mfi.tilebox(IntVect(1,0,1));
+            Box tbxyz = mfi.tilebox(IntVect(0,1,1));
+            // We need a halo cell for terrain
              bxcc.grow(IntVect(1,1,0));
             tbxxy.grow(IntVect(1,1,0));
             tbxxz.grow(IntVect(1,1,0));
@@ -468,14 +464,11 @@ void erf_slow_rhs_pre (int level,
 #endif
     for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
-
-        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
-        Box tbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box bx  = mfi.tilebox();
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
+        Box valid_bx = mfi.validbox();
 
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
@@ -532,7 +525,7 @@ void erf_slow_rhs_pre (int level,
         //-----------------------------------------
         // Perturbational pressure field
         //-----------------------------------------
-        Box gbx = mfi.tilebox() & grids_to_evolve[mfi.index()]; gbx.grow(IntVect(1,1,0));
+        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real> & pp_arr  = pprime.array();

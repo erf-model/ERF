@@ -17,7 +17,6 @@ using namespace amrex;
  *
  * @param[in]  step  which fast time step
  * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
  * @param[in]  S_prev previous solution
  * @param[in]  S_stg_data solution            at previous RK stage
@@ -47,7 +46,6 @@ using namespace amrex;
  */
 
 void erf_fast_rhs_MT (int step, int /*level*/,
-                      BoxArray& grids_to_evolve,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
                       Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
@@ -117,10 +115,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     //        will require additional changes
     for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box       bx = mfi.tilebox() & valid_bx;
-
+        Box bx  = mfi.tilebox();
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
@@ -129,7 +124,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         const Array4<const Real> & stg_xmom = S_stg_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stg_ymom = S_stg_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stg_zmom = S_stg_data[IntVar::zmom].const_array(mfi);
-        const Array4<const Real> & prim       = S_stg_prim.const_array(mfi);
+        const Array4<const Real> & prim     = S_stg_prim.const_array(mfi);
 
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
@@ -175,9 +170,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
         // Note: it is important to grow the tilebox rather than use growntilebox because
         //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox() & valid_bx;  gbx.grow(1);
-        Box gtbx  = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(1); gtby.setSmall(2,0);
+        Box gbx   = mfi.tilebox();  gbx.grow(1);
+        Box gtbx  = mfi.nodaltilebox(0); gtbx.grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1); gtby.grow(1); gtby.setSmall(2,0);
 
         {
         BL_PROFILE("fast_rhs_copies_0");
@@ -326,7 +321,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // This must be done before we set cur_xmom and cur_ymom, since those
         //      in fact point to the same array as prev_xmom and prev_ymom
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box gbxo = mfi.nodaltilebox(2);
         {
         BL_PROFILE("fast_MT_making_omega");
         Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
@@ -549,10 +544,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-
-        // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        // const auto& vbx_hi = amrex::ubound(valid_bx);
-
         {
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
