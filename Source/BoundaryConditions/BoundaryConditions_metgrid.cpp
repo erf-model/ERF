@@ -26,12 +26,19 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
     amrex::Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    // See IndexDefines.H
+#if defined(ERF_USE_MOISTURE)
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQt RhoQp NumVars]
+    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
+    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQv RhoQc NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
     Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
 # else
-    Vector<int> cons_read = {1, 1, 0, 0, 0}; // R, RT, RKE, RQKE, RS
-    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0}; // R, RT, RKE, RQKE, RS
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar NumVars]
+    Vector<int> cons_read = {1, 1, 0, 0, 0};
+    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0};
 #endif
 
     Vector<Vector<int>> is_read;
@@ -74,6 +81,20 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, const Real time)
                 width = metgrid_bdy_width;
                 int ivar  = ind_map[var_idx][comp_idx];
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
+
+                if (ivar == MetGridBdyVars::U) {
+                    amrex::Print() << "fill_from_metgrid U   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+                } else if (ivar == MetGridBdyVars::V) {
+                    amrex::Print() << "fill_from_metgrid V   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+                } else if (ivar == MetGridBdyVars::R) {
+                    amrex::Print() << "fill_from_metgrid R   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+                } else if (ivar == MetGridBdyVars::T) {
+                    amrex::Print() << "fill_from_metgrid T   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+                } else if (ivar == MetGridBdyVars::QV) {
+                    amrex::Print() << "fill_from_metgrid QV  var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+                } else {
+                    amrex::Print() << "fill_from_metgrid UNKNOWN" << std::endl;
+                }
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)

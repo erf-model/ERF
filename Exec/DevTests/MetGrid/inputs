@@ -40,7 +40,7 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1          # number of timesteps between plotfiles
-erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres KE QKE
+erf.plot_vars_1     = RhoQv density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres KE QKE
 
 # SOLVER CHOICE
 erf.alpha_T = 1.0
