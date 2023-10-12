@@ -1,15 +1,20 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
-#include "EOS.H"
+#include <string>
+
 #include "AMReX_REAL.H"
 
-struct ProbParm {
+#include "prob_common.H"
+#include "EOS.H"
+
+struct ProbParm : ProbParmDefaults {
   // background conditions
   // if init_type != "" then these are perturbations and should be 0
   amrex::Real T_0 = 300.0;
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
+  amrex::Real W_0 = 0.0;
 
   // center of thermal perturbation
   amrex::Real x_c = 0.0;
@@ -31,11 +36,62 @@ struct ProbParm {
   amrex::Real zdamp = 5000.0; // damping depth [m] from model top
 }; // namespace ProbParm
 
-extern ProbParm parms;
+class Problem : public ProblemBase
+{
+public:
+    Problem();
+
+#include "Prob/init_density_hse_dry.H"
+
+    void init_custom_pert (
+        const amrex::Box&  bx,
+        const amrex::Box& xbx,
+        const amrex::Box& ybx,
+        const amrex::Box& zbx,
+        amrex::Array4<amrex::Real      > const& state,
+        amrex::Array4<amrex::Real      > const& x_vel,
+        amrex::Array4<amrex::Real      > const& y_vel,
+        amrex::Array4<amrex::Real      > const& z_vel,
+        amrex::Array4<amrex::Real      > const& r_hse,
+        amrex::Array4<amrex::Real      > const& p_hse,
+        amrex::Array4<amrex::Real const> const& z_nd,
+        amrex::Array4<amrex::Real const> const& z_cc,
+#if defined(ERF_USE_MOISTURE)
+        amrex::Array4<amrex::Real      > const& qv,
+        amrex::Array4<amrex::Real      > const& qc,
+        amrex::Array4<amrex::Real      > const& qi,
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        amrex::Array4<amrex::Real      > const& qv,
+        amrex::Array4<amrex::Real      > const& qc,
+#endif
+        amrex::GeometryData const& geomdata,
+        amrex::Array4<amrex::Real const> const& mf_m,
+        amrex::Array4<amrex::Real const> const& mf_u,
+        amrex::Array4<amrex::Real const> const& mf_v,
+        const SolverChoice& sc) override;
+
+    void init_custom_terrain (
+        const amrex::Geometry& geom,
+        amrex::MultiFab& z_phys_nd,
+        const amrex::Real& time) override;
+
+#include "Prob/init_rayleigh_damping.H"
+
+protected:
+    std::string name() override { return "Bubble"; }
+
+private:
+    ProbParm parms;
+};
 
 /*
- * Calculate perturbation to potential temperature and density at a
- * given (x,y,z). Note that pressure is not perturbed.
+ * Calculate perturbation to potential temperature or density at a
+ * given (x,y,z). If the perturb_rho flag is set, then rho is perturbed,
+ * and pressure is not (rho*theta is constant); otherwise, rho is
+ * constant and rho*theta is perturbed
+ *
+ * Note: the input p_hse and r_hse should be in HSE given an appropriate
+ * background flow initialization.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void
@@ -82,40 +138,17 @@ perturb_rho_theta (const amrex::Real x,
     if (pp.perturb_rho)
     {
         // this version perturbs rho but not p (i.e., rho*theta)
-        // - hydrostatic rebalance is needed
+        // - hydrostatic rebalance is needed (TODO: is this true?)
         // - this is the approach taken in the density current problem
-
-        if (pp.T_0 > 0)
-        {
-            // background field has not been initialized, update full state,
-            // need to calculate HSE later
-            rhotheta = getRhoThetagivenP(p_hse);
-            rho = rhotheta / theta_perturbed;
-        } else {
-            // already have a background field initialized, need to
-            // return rho and rhotheta as deviations from the base state
-            rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
-            rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
-        }
+        rhotheta = 0.0; // i.e., hydrostatically balanced pressure stays const
+        rho = getRhoThetagivenP(p_hse) / theta_perturbed - r_hse;
     }
     else
     {
         // this version perturbs rho*theta (i.e., p) but not rho
-
-        if (pp.T_0 > 0)
-        {
-            // background field has not been initialized, update full state,
-            // need to calculate HSE later
-            rho = r_hse;
-            rhotheta = r_hse * theta_perturbed;
-        } else {
-            // already have a background field initialized, need to
-            // return rho and rhotheta as deviations from the base state
-            rho = 0.0; // i.e., hydrostatically balanced density stays const
-            rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
-        }
+        rho = 0.0; // i.e., hydrostatically balanced density stays const
+        rhotheta = r_hse * theta_perturbed - getRhoThetagivenP(p_hse);
     }
 }
 
 #endif
-

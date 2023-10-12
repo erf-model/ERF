@@ -44,7 +44,7 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  */
 
-void erf_slow_rhs_post (int /*level*/,
+void erf_slow_rhs_post (int level,
                         int nrk,
                         Real dt,
                         Vector<MultiFab>& S_rhs,
@@ -86,6 +86,10 @@ void erf_slow_rhs_post (int /*level*/,
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
+    AdvChoice  ac = solverChoice.advChoice;
+    DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
@@ -94,14 +98,15 @@ void erf_slow_rhs_post (int /*level*/,
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool l_use_QKE        = solverChoice.use_QKE && solverChoice.advect_QKE;
-    const bool l_use_deardorff  = (solverChoice.les_type == LESType::Deardorff);
-    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                    (solverChoice.les_type        !=       LESType::None) ||
-                                    (solverChoice.pbl_type        !=       PBLType::None) );
-    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
-                                    solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25 );
+    const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
+    const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
+    const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
+                                   (tc.les_type        !=       LESType::None) ||
+                                   (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
+                                    tc.les_type == LESType::Deardorff   ||
+                                    tc.pbl_type == PBLType::MYNN25      ||
+                                    tc.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -121,14 +126,18 @@ void erf_slow_rhs_post (int /*level*/,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
+    std::unique_ptr<MultiFab> dflux_x;
+    std::unique_ptr<MultiFab> dflux_y;
+    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+    } else {
+        dflux_x = nullptr;
+        dflux_y = nullptr;
+        dflux_z = nullptr;
     }
 
     // *************************************************************************
@@ -228,12 +237,12 @@ void erf_slow_rhs_post (int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        AdvType horiz_adv_type = solverChoice.dryscal_horiz_adv_type;
-        AdvType  vert_adv_type = solverChoice.dryscal_vert_adv_type;
+        AdvType horiz_adv_type = ac.dryscal_horiz_adv_type;
+        AdvType  vert_adv_type = ac.dryscal_vert_adv_type;
 
-        if (solverChoice.use_efficient_advection){
-             horiz_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_horiz_adv_type);
-              vert_adv_type = EfficientAdvType(nrk,solverChoice.dryscal_vert_adv_type);
+        if (ac.use_efficient_advection){
+             horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
+              vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
         }
 
         int start_comp;
@@ -258,7 +267,6 @@ void erf_slow_rhs_post (int /*level*/,
         // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
         num_comp = 1;
-
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                               horiz_adv_type, vert_adv_type,
@@ -268,12 +276,12 @@ void erf_slow_rhs_post (int /*level*/,
         start_comp = RhoQt_comp;
           num_comp = 2;
 
-        AdvType moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
-        AdvType  moist_vert_adv_type = solverChoice.moistscal_vert_adv_type;
+        AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
+        AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
 
-        if (solverChoice.use_efficient_advection){
-             moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
-             moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
+        if (ac.use_efficient_advection){
+             moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
+             moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
         }
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
@@ -284,10 +292,10 @@ void erf_slow_rhs_post (int /*level*/,
         start_comp = RhoQv_comp;
           num_comp = 2;
 
-        AdvType moist_horiz_adv_type = solverChoice.moistscal_horiz_adv_type;
-        AdvType  moist_vert_adv_type = solverChoice.moistscal_vert_adv_type;
+        AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
+        AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
 
-        if (solverChoice.use_efficient_advection){
+        if (ac.use_efficient_advection){
              moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
              moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
         }
@@ -317,17 +325,17 @@ void erf_slow_rhs_post (int /*level*/,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
@@ -340,17 +348,17 @@ void erf_slow_rhs_post (int /*level*/,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_ndiff) {
-                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
+                    NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
@@ -362,17 +370,17 @@ void erf_slow_rhs_post (int /*level*/,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
             } else {
                 DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
             }
             if (l_use_ndiff) {
-                NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice,
+                NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                    new_cons, cell_rhs, mf_u, mf_v, false, false);
             }
         }
@@ -389,7 +397,7 @@ void erf_slow_rhs_post (int /*level*/,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
             icomp = RhoQv_comp;
 #endif
-            zero_RHS_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
+            wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
         }
 #endif
 
@@ -403,7 +411,8 @@ void erf_slow_rhs_post (int /*level*/,
 
         if (l_moving_terrain)
         {
-            num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            start_comp = RhoScalar_comp;
+            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -432,11 +441,19 @@ void erf_slow_rhs_post (int /*level*/,
                 // NOTE: we don't include additional source terms when terrain is moving
                 Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                 cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
+#ifndef AMREX_USE_GPU
+                if (cur_cons(i,j,k,n) < Real(0.)) {
+                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
+                        cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
+                    amrex::Abort();
+                }
+#endif
               });
             }
         } else {
             auto const& src_arr = source.const_array(mfi);
-            num_comp = S_data[IntVar::cons].nComp() - start_comp;
+            start_comp = RhoScalar_comp;
+            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -465,6 +482,13 @@ void erf_slow_rhs_post (int /*level*/,
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
+#ifndef AMREX_USE_GPU
+                if (cur_cons(i,j,k,n) < Real(0.)) {
+                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
+                        cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
+                    amrex::Abort();
+                }
+#endif
               });
             }
         }
@@ -498,10 +522,4 @@ void erf_slow_rhs_post (int /*level*/,
         });
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }

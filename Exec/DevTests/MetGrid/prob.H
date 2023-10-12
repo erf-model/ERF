@@ -1,14 +1,24 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
-#include <AMReX_REAL.H>
+#include <string>
 
-struct ProbParm {
-  amrex::Real rho_0 = 1.0;
-  amrex::Real Theta_0 = 300.0;
-  amrex::Real V_0 = 1.0;
+#include "AMReX_REAL.H"
+
+#include "prob_common.H"
+
+struct ProbParm : ProbParmDefaults {
 }; // namespace ProbParm
+class Problem : public ProblemBase
+{
+public:
+    Problem();
 
-extern ProbParm parms;
+protected:
+    std::string name() override { return "Metgrid"; }
+
+private:
+    ProbParm parms;
+};
 
 #endif

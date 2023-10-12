@@ -293,36 +293,25 @@ ERF::volWgtSumMF(int lev,
 amrex::MultiFab&
 ERF::build_fine_mask(int level)
 {
-  // Mask for zeroing covered cells
-  AMREX_ASSERT(level > 0);
+    // Mask for zeroing covered cells
+    AMREX_ASSERT(level > 0);
 
-  const amrex::BoxArray& cba = grids[level-1];
-  const amrex::DistributionMapping& cdm = dmap[level-1];
+    const amrex::BoxArray& cba = grids[level-1];
+    const amrex::DistributionMapping& cdm = dmap[level-1];
 
-  // TODO -- we should make a vector of these a member of ERF class
-  fine_mask.define(cba, cdm, 1, 0, amrex::MFInfo());
-  fine_mask.setVal(1.0);
+    // TODO -- we should make a vector of these a member of ERF class
+    fine_mask.define(cba, cdm, 1, 0, amrex::MFInfo());
+    fine_mask.setVal(1.0);
 
-  amrex::BoxArray fba = grids[level];
-  amrex::iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
+    amrex::BoxArray fba = grids[level];
+    amrex::iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
 
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-    for (amrex::MFIter mfi(fine_mask, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    const auto  fma =  fine_mask.arrays();
+    const auto ifma = ifine_mask.arrays();
+    amrex::ParallelFor(fine_mask, [=] AMREX_GPU_DEVICE(int bno, int i, int j, int k) noexcept
     {
-        auto& fab = fine_mask[mfi];
-        auto& ifab = ifine_mask[mfi];
-        const auto arr = fab.array();
-        const auto iarr = ifab.array();
-        amrex::ParallelFor(
-          fab.box(), [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-#ifdef _OPENMP
-#pragma omp atomic write
-#endif
-            arr(i, j, k) = iarr(i, j, k);
-          });
-    }
+       fma[bno](i,j,k) = ifma[bno](i,j,k);
+    });
 
     return fine_mask;
 }

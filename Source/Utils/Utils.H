@@ -13,9 +13,9 @@
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
-void make_J   (const amrex::Geometry& geom,
-               amrex::MultiFab& z_phys_nd,
-               amrex::MultiFab& detJ_cc);
+void make_J (const amrex::Geometry& geom,
+             amrex::MultiFab& z_phys_nd,
+             amrex::MultiFab& detJ_cc);
 
 /*
  * Average z_phys_nd on nodes to cell centers
@@ -65,6 +65,39 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
                                     const amrex::IntVect& ng_vect=amrex::IntVect(0,0,0),
                                     const bool get_int_ng=false);
 
+/*
+ * Compute relaxation region RHS with wrfbdy
+ */
+void wrfbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
+                                        const amrex::Real& start_bdy_time,
+                                        const amrex::Real& time,
+                                        const amrex::Real& delta_t,
+                                        const int& width,
+                                        const int& set_width,
+                                        const amrex::Geometry& geom,
+                                        amrex::Vector<amrex::MultiFab>& S_rhs,
+                                        amrex::Vector<amrex::MultiFab>& S_data,
+                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+
+/*
+ * Compute relaxation region RHS at fine-crse interface
+ */
+void
+fine_compute_interior_ghost_rhs (const amrex::Real& time,
+                                 const amrex::Real& delta_t,
+                                 const int& width,
+                                 const int& set_width,
+                                 const amrex::Geometry& geom,
+                                 ERFFillPatcher* FPr_c,
+                                 ERFFillPatcher* FPr_u,
+                                 ERFFillPatcher* FPr_v,
+                                 ERFFillPatcher* FPr_w,
+                                 amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                                 amrex::Vector<amrex::MultiFab>& S_rhs_f,
+                                 amrex::Vector<amrex::MultiFab>& S_data_f);
 
 /**
  * Zero RHS in the set region
@@ -80,13 +113,13 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-zero_RHS_in_set_region (const int& icomp,
-                        const int& num_var,
-                        const amrex::Box& bx_xlo,
-                        const amrex::Box& bx_xhi,
-                        const amrex::Box& bx_ylo,
-                        const amrex::Box& bx_yhi,
-                        const amrex::Array4<amrex::Real>& rhs_arr)
+wrfbdy_zero_rhs_in_set_region (const int& icomp,
+                               const int& num_var,
+                               const amrex::Box& bx_xlo,
+                               const amrex::Box& bx_xhi,
+                               const amrex::Box& bx_ylo,
+                               const amrex::Box& bx_yhi,
+                               const amrex::Array4<amrex::Real>& rhs_arr)
 {
   amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
   {
@@ -106,7 +139,6 @@ zero_RHS_in_set_region (const int& icomp,
       rhs_arr(i,j,k,n+icomp) = 0.0;
   });
 }
-
 
 /**
  * Compute the Laplacian RHS in the relaxation zone
@@ -134,25 +166,25 @@ zero_RHS_in_set_region (const int& icomp,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-compute_Laplacian_relaxation (const amrex::Real& delta_t,
-                              const int& icomp,
-                              const int& num_var,
-                              const int& width,
-                              const int& set_width,
-                              const amrex::Dim3& dom_lo,
-                              const amrex::Dim3& dom_hi,
-                              const amrex::Real& F1,
-                              const amrex::Real& F2,
-                              const amrex::Box& bx_xlo,
-                              const amrex::Box& bx_xhi,
-                              const amrex::Box& bx_ylo,
-                              const amrex::Box& bx_yhi,
-                              const amrex::Array4<const amrex::Real>& arr_xlo,
-                              const amrex::Array4<const amrex::Real>& arr_xhi,
-                              const amrex::Array4<const amrex::Real>& arr_ylo,
-                              const amrex::Array4<const amrex::Real>& arr_yhi,
-                              const amrex::Array4<const amrex::Real>& data_arr,
-                              const amrex::Array4<amrex::Real>& rhs_arr)
+wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
+                                     const int& icomp,
+                                     const int& num_var,
+                                     const int& width,
+                                     const int& set_width,
+                                     const amrex::Dim3& dom_lo,
+                                     const amrex::Dim3& dom_hi,
+                                     const amrex::Real& F1,
+                                     const amrex::Real& F2,
+                                     const amrex::Box& bx_xlo,
+                                     const amrex::Box& bx_xhi,
+                                     const amrex::Box& bx_ylo,
+                                     const amrex::Box& bx_yhi,
+                                     const amrex::Array4<const amrex::Real>& arr_xlo,
+                                     const amrex::Array4<const amrex::Real>& arr_xhi,
+                                     const amrex::Array4<const amrex::Real>& arr_ylo,
+                                     const amrex::Array4<const amrex::Real>& arr_yhi,
+                                     const amrex::Array4<const amrex::Real>& data_arr,
+                                     const amrex::Array4<amrex::Real>& rhs_arr)
 {
     // RHS computation
     int Spec_z  = set_width;
@@ -255,70 +287,4 @@ compute_Laplacian_relaxation (const amrex::Real& delta_t,
         }
     });
 }
-
-/*
- * Compute relaxation region RHS with wrfbdy or metgrid forcing
- */
-void wrfbdy_compute_interior_ghost_RHS(const std::string& init_type,
-                                       const amrex::Real& bdy_time_interval,
-                                       const amrex::Real& start_bdy_time,
-                                       const amrex::Real& time,
-                                       const amrex::Real& delta_t,
-                                       const int& width,
-                                       const int& set_width,
-                                       const amrex::Geometry& geom,
-                                       amrex::Vector<amrex::MultiFab>& S_rhs,
-                                       amrex::Vector<amrex::MultiFab>& S_data,
-                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
-
-/*
- * Compute moist relaxation region RHS with wrfbdy
- */
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-void wrfbdy_compute_moist_interior_ghost_RHS (amrex::Box tbx,
-                                              const amrex::Real& bdy_time_interval,
-                                              const amrex::Real& start_bdy_time,
-                                              const amrex::Real& time,
-                                              const amrex::Real& delta_t,
-                                              const int& width,
-                                              const int& set_width,
-                                              const amrex::Geometry& geom,
-                                              const amrex::Array4<amrex::Real>& rhs_arr,
-                                              const amrex::Array4<amrex::Real>& data_arr,
-                                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
-#endif
-
-/*
- * Compute relaxation region RHS at fine-crse interface
- */
-void
-fine_compute_interior_ghost_RHS (const amrex::Real& time,
-                                 const amrex::Real& delta_t,
-                                 const int& width,
-                                 const int& set_width,
-                                 const amrex::Geometry& geom,
-                                 ERFFillPatcher* FPr_c,
-                                 ERFFillPatcher* FPr_u,
-                                 ERFFillPatcher* FPr_v,
-                                 ERFFillPatcher* FPr_w,
-                                 amrex::Vector<amrex::Box>& boxes_at_level,
-                                 amrex::Vector<amrex::BCRec>& domain_bcs_type,
-                                 amrex::Vector<amrex::MultiFab>& S_rhs_f,
-                                 amrex::Vector<amrex::MultiFab>& S_data_f);
-
-/*
- * Update the variables in the relaxation/set region
- */
-void update_interior_ghost (const amrex::Real& delta_t,
-                            const int& width,
-                            amrex::Vector<amrex::Box>& boxes_at_level,
-                            amrex::Vector<amrex::MultiFab>& S_rhs,
-                            const amrex::Vector<amrex::MultiFab>& S_old,
-                            amrex::Vector<amrex::MultiFab>& S_data);
 #endif

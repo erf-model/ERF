@@ -23,7 +23,6 @@ using namespace amrex;
  * @param[in]  level level of resolution
  * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[out]  S_rhs RHS computed here
  * @param[in]  S_old  old-time solution
  * @param[in]  S_data current solution
@@ -71,7 +70,6 @@ using namespace amrex;
 
 void erf_slow_rhs_inc (int /*level*/, int nrk,
                        amrex::Real dt,
-                       BoxArray& grids_to_evolve,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -109,6 +107,9 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
+    DiffChoice dc = solverChoice.diffChoice;
+    TurbChoice tc = solverChoice.turbChoice[level];
+
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
@@ -123,14 +124,13 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     AMREX_ALWAYS_ASSERT (!l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
-    const bool l_use_diff       = ( (solverChoice.molec_diff_type != MolecDiffType::None) ||
-                                    (solverChoice.les_type        !=       LESType::None) ||
-                                    (solverChoice.pbl_type        !=       PBLType::None) );
-    const bool cons_visc        = ( (solverChoice.molec_diff_type == MolecDiffType::Constant) ||
-                                    (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha) );
-    const bool l_use_turb       = ( solverChoice.les_type == LESType::Smagorinsky ||
-                                    solverChoice.les_type == LESType::Deardorff   ||
-                                    solverChoice.pbl_type == PBLType::MYNN25 );
+    const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
+                                    (tc.les_type        !=       LESType::None) ||
+                                    (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
+                                    tc.les_type == LESType::Deardorff   ||
+                                    tc.pbl_type == PBLType::MYNN25      ||
+                                    tc.pbl_type == PBLType::YSU );
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -153,25 +153,24 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     const BoxArray& ba            = S_data[IntVar::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
 
-    MultiFab* expr    = nullptr;
-    MultiFab* dflux_x = nullptr;
-    MultiFab* dflux_y = nullptr;
-    MultiFab* dflux_z = nullptr;
+    std::unique_ptr<MultiFab> expr;
+    std::unique_ptr<MultiFab> dflux_x;
+    std::unique_ptr<MultiFab> dflux_y;
+    std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        expr    = new MultiFab(ba  , dm, 1, IntVect(1,1,0));
-        dflux_x = new MultiFab(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
-        dflux_y = new MultiFab(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
-        dflux_z = new MultiFab(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
+        expr    = std::make_unique<MultiFab>(ba  , dm, 1, IntVect(1,1,0));
+        dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
+        dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
+        dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
         for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
-            // Construct intersection of current tilebox and valid region for updating
-            const Box& valid_bx = grids_to_evolve[mfi.index()];
-            Box bx = mfi.tilebox() & valid_bx;
+            const Box& bx = mfi.tilebox();
+            const Box& valid_bx = mfi.validbox();
 
             // Velocities
             const Array4<const Real> & u = xvel.array(mfi);
@@ -210,11 +209,10 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             //-------------------------------------------------------------------------------
 
             // Strain/Stress tile boxes
-            Box vbx   = valid_bx;
-            Box bxcc  = mfi.tilebox() & valid_bx;
-            Box tbxxy = mfi.tilebox(IntVect(1,1,0)) & vbx.convert(IntVect(1,1,0));
-            Box tbxxz = mfi.tilebox(IntVect(1,0,1)) & vbx.convert(IntVect(1,0,1));
-            Box tbxyz = mfi.tilebox(IntVect(0,1,1)) & vbx.convert(IntVect(0,1,1));
+            Box bxcc  = mfi.tilebox();
+            Box tbxxy = mfi.tilebox(IntVect(1,1,0));
+            Box tbxxz = mfi.tilebox(IntVect(1,0,1));
+            Box tbxyz = mfi.tilebox(IntVect(0,1,1));
             // We need a halo cells for terrain
              bxcc.grow(IntVect(1,1,0));
             tbxxy.grow(IntVect(1,1,0));
@@ -469,14 +467,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 #endif
     for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
-
-        Box tbx = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0);
-        Box tby = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1);
-        Box tbz = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box bx  = mfi.tilebox();
+        Box tbx = mfi.nodaltilebox(0);
+        Box tby = mfi.nodaltilebox(1);
+        Box tbz = mfi.nodaltilebox(2);
+        Box valid_bx = mfi.validbox();
 
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
@@ -620,7 +615,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice,
+            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
                                cell_data, cell_rhs, mf_u, mf_v, false, false);
         }
 
@@ -677,11 +672,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice,
+            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
                                rho_w, rho_w_rhs, mf_u, mf_v, false, false);
         }
 
@@ -801,11 +796,4 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         });
         } // end profile
     } // mfi
-
-    if (l_use_diff) {
-        delete expr;
-        delete dflux_x;
-        delete dflux_y;
-        delete dflux_z;
-    }
 }

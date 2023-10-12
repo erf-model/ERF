@@ -28,17 +28,17 @@
             // aka old_stage_time
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
             init_terrain_grid  (fine_geom,*z_phys_nd[level]);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_src[level]);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
-            init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
+            prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (fine_geom,*z_phys_nd_new[level]);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
@@ -74,13 +74,13 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0_new);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -104,8 +104,8 @@
 
             // Remember this does NOT maintain dp_0 / dz = -rho_0 g, so we can no longer
             //    discretize the vertical pressure gradient in perturbational form.
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
-            AMREX_ALWAYS_ASSERT(solverChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_horiz_adv_type == AdvType::Centered_2nd);
+            AMREX_ALWAYS_ASSERT(solverChoice.advChoice.dycore_vert_adv_type  == AdvType::Centered_2nd);
 
             Real dt_base  = (new_stage_time - old_step_time);
 
@@ -170,13 +170,13 @@
         } else {
 
             // If not moving_terrain
-            make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+            make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                           qmoist[level], qv_d, qc_d, qi_d,
 #endif
                           fine_geom, solverChoice, r0);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, grids_to_evolve[level], S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -203,7 +203,7 @@
                 width = metgrid_bdy_width;
                 set_width = metgrid_bdy_set_width;
             }
-            wrfbdy_compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+            wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               width-1, set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                               bdy_data_ylo, bdy_data_yhi);
@@ -212,11 +212,10 @@
 
         // Compute RHS for fine interior ghost
         if (level>0 && coupling_type=="OneWay" && cf_width>0) {
-            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
-                                            cf_width-1, cf_set_width, fine_geom,
+            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
+                                            cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
-                                            boxes_at_level[level], domain_bcs_type,
-                                            S_rhs, S_data);
+                                            domain_bcs_type, S_rhs, S_data);
         }
 
         // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
@@ -326,13 +325,13 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         // If not moving_terrain
-        make_buoyancy(grids_to_evolve[level], S_data, S_prim, buoyancy,
+        make_buoyancy(S_data, S_prim, buoyancy,
 #if defined(ERF_USE_MOISTURE)
                       qmoist[level], qv_d, qc_d, qi_d,
 #endif
                       fine_geom, solverChoice, r0);
 
-        erf_slow_rhs_inc(level, nrk, slow_dt, grids_to_evolve[level],
+        erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
@@ -360,7 +359,7 @@
                 set_width = metgrid_bdy_set_width;
             }
             amrex::Print() << " DJW[TI_slow_rhs_fun.H]: start_bdy_time \t" << start_bdy_time << std::endl;
-            wrfbdy_compute_interior_ghost_RHS(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+            wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               width-1, set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                               bdy_data_ylo, bdy_data_yhi);
@@ -369,8 +368,8 @@
 
         // Compute RHS for fine interior ghost
         if (level>0 && coupling_type=="OneWay" && cf_width>0) {
-            fine_compute_interior_ghost_RHS(new_stage_time, slow_dt,
-                                            cf_width-1, cf_set_width,
+            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
+                                            cf_width, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);

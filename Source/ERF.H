@@ -30,6 +30,8 @@
 #include "TerrainFittedPC.H"
 #endif
 
+#include "prob_common.H"
+
 #include <IndexDefines.H>
 #include <TimeInterpolatedData.H>
 #include <DataStruct.H>
@@ -262,6 +264,8 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    void init_from_hse (int lev);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -293,7 +297,10 @@ public:
 
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time);
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
     void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time);
 #endif
@@ -319,8 +326,6 @@ private:
 
     void update_terrain_arrays (int lev, amrex::Real time);
 
-    void define_grids_to_evolve (int lev, const amrex::BoxArray& ba); // NOLINT
-
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
@@ -332,6 +337,8 @@ private:
     void init_bcs ();
 
     void init_custom (int lev);
+
+    void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
@@ -345,7 +352,7 @@ private:
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf);
+    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
 
 #if defined(ERF_USE_MOISTURE)
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
@@ -485,6 +492,8 @@ private:
     ////////////////
     // private data members
 
+    std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
+
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
     amrex::Vector<int> num_files_at_level;                   // how many wrfinput files specified at each level
     amrex::Vector<amrex::Vector<amrex::Box>> boxes_at_level; //      the boxes specified at each level by tagging criteria
@@ -506,9 +515,6 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
-
-    // BoxArray at each level to define where we actually evolve the solution
-    amrex::Vector<amrex::BoxArray> grids_to_evolve;
 
     // Store Theta variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
@@ -656,6 +662,9 @@ private:
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
+#ifdef ERF_USE_PARTICLES
+                                                    ,"particle_count"
+#endif
                                                    };
 
     // algorithm choices
@@ -766,43 +775,43 @@ private:
 
     static AMREX_FORCE_INLINE
     int
-    ComputeGhostCells (const SolverChoice& solverChoice)
+    ComputeGhostCells (const AdvChoice& advChoice, bool use_num_diff)
     {
-        if (solverChoice.use_NumDiff)
+        if (use_num_diff)
         {
             return 3;
         } else {
             if (
-                 (solverChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
-              || (solverChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
 #endif
-              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
-              || (solverChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
             { return 3; }
             else if (
-                 (solverChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
-              || (solverChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
+                 (advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
+              || (advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-              || (solverChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
+              || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
 #endif
-              || (solverChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
-              || (solverChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
+              || (advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
+              || (advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
             { return 3; }
             else if (
-                  (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
-               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
+                  (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
 #if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
-               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
-               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
-               || (solverChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
-               || (solverChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
+               || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
+               || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
 #endif
-               || (solverChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
-               || (solverChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
+               || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
+               || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }
             else
             { return 2; }

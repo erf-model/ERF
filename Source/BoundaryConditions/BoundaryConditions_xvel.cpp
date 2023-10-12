@@ -152,7 +152,11 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                int bccomp,
+#ifdef ERF_USE_TERRAIN_VELOCITY
                                                const Real time)
+#else
+                                               const Real /*time*/)
+#endif
 {
     BL_PROFILE_VAR("impose_vertical_xvel_bcs()",impose_vertical_xvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -190,7 +194,7 @@ void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
                 int kflip = dom_lo.z - 1 - k;
                 if (bc_ptr[n].lo(2) == ERFBCType::ext_dir) {
                     #ifdef ERF_USE_TERRAIN_VELOCITY
-                        dest_arr(i,j,k) = compute_terrain_velocity(time);
+                        dest_arr(i,j,k) = prob->compute_terrain_velocity(time);
                     #else
                         dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
                     #endif

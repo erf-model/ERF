@@ -53,7 +53,9 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
      int nblocks = grids[lev].size();
      auto dm = plotMF[lev]->DistributionMap();
      offset.reserve(nproc);
-     offset[0] = 0;
+     for(auto n = 0; n < nproc; n++) {
+         offset[n] = 0;
+     }
      for(auto ib=0; ib<nblocks; ib++) {
         auto npts_per_block = grids[lev][ib].length(0)*grids[lev][ib].length(1)*grids[lev][ib].length(2);
         offset[dm[ib]] = offset[dm[ib]] + npts_per_block;
@@ -226,6 +228,7 @@ ERF::writeNCPlotFile(int lev, int which_subdomain, const std::string& dir,
    size_t nfai = 0;
    long unsigned numpts = 0;
    const int ncomp = plotMF[lev]->nComp();
+
    for (amrex::MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
        auto box = fai.validbox();
        if (subdomain.contains(box)) {

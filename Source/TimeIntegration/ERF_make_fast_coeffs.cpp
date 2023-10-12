@@ -12,27 +12,28 @@ using namespace amrex;
  * integrator (the acoustic substepping).
  *
  * @param[in]  level level of refinement
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
  * @param[in]  S_stage_data solution at the last stage
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
  * @param[in]  geom   Container for geometric informaiton
- * @param[in]  solverChoice  Container for solver parameters
- * @param[in]  r0     Reference (hydrostatically stratified) density
- * @param[in]  pi0     Reference (hydrostatically stratified) Exner function
- * @param[in]  dtau    Fast time step
- * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  l_use_terrain Are we using terrain-fitted coordinates
+ * @param[in]  gravity       Magnitude of gravity
+ * @param[in]  c_p           Coefficient at constant pressure
+ * @param[in]  r0            Reference (hydrostatically stratified) density
+ * @param[in]  pi0           Reference (hydrostatically stratified) Exner function
+ * @param[in]  dtau          Fast time step
+ * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
  */
 
 void make_fast_coeffs (int /*level*/,
-                       BoxArray& grids_to_evolve,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                        const MultiFab& S_stage_prim,
                        const MultiFab& pi_stage,                       // Exner function evaluted at least stage
                        const amrex::Geometry geom,
-                       const SolverChoice& solverChoice,
+                       bool l_use_terrain,
+                       Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
                        Real dtau, Real beta_s)
@@ -41,9 +42,7 @@ void make_fast_coeffs (int /*level*/,
 
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
-    Real c_v = solverChoice.c_p - R_d;
-
-    bool l_use_terrain    = solverChoice.use_terrain;
+    Real c_v = c_p - R_d;
 
     const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
@@ -59,7 +58,7 @@ void make_fast_coeffs (int /*level*/,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *************************************************************************
@@ -72,11 +71,7 @@ void make_fast_coeffs (int /*level*/,
 
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        const Box& valid_bx = grids_to_evolve[mfi.index()];
-
-        // Construct intersection of current tilebox and valid region for updating
-        Box bx = mfi.tilebox() & valid_bx;
-
+        Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
         const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);

@@ -12,7 +12,7 @@
 #define Rho_comp       0
 #define RhoTheta_comp  1
 #define RhoKE_comp     2 // for Deardorff LES Model
-#define RhoQKE_comp    3 // for MYNN PBL Model
+#define RhoQKE_comp    3 // for MYNN or YSU PBL Model
 #define RhoScalar_comp 4
 #if defined(ERF_USE_MOISTURE)
   #define RhoQt_comp   5
@@ -35,8 +35,8 @@
   #define PrimQt_comp    (RhoQt_comp-1)
   #define PrimQp_comp    (RhoQp_comp-1)
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-  #define PrimQv_comp    RhoQv_comp-1
-  #define PrimQc_comp    RhoQc_comp-1
+  #define PrimQv_comp    (RhoQv_comp-1)
+  #define PrimQc_comp    (RhoQc_comp-1)
 #endif
 #define NUM_PRIM         (NVAR-1)
 

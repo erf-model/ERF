@@ -153,10 +153,16 @@ ERF::writeToNCColumnFile(const int lev,
         const int idx_vec = k - kstart;
         const int ialpha = i - iloc;
         const int jalpha = j - jloc;
-        ucol[idx_vec] += velx(i+iloc_shift,j,k) * alpha_u(ialpha, jalpha);
-        vcol[idx_vec] += vely(i,j+jloc_shift,k) * alpha_v(ialpha, jalpha);
-        thetacol[idx_vec] += state(i,j,k,RhoTheta_comp) / state(i,j,k,Rho_comp)
-          * alpha_theta(ialpha, jalpha);
+
+        auto tmpx = velx(i+iloc_shift,j,k) * alpha_u(ialpha, jalpha);
+        Gpu::Atomic::Add(&(ucol[idx_vec]), tmpx);
+
+        auto tmpy = vely(i,j+jloc_shift,k) * alpha_v(ialpha, jalpha);
+        Gpu::Atomic::Add(&(vcol[idx_vec]), tmpy);
+
+        auto tmpt = state(i,j,k,RhoTheta_comp) / state(i,j,k,Rho_comp)
+                  * alpha_theta(ialpha, jalpha);
+        Gpu::Atomic::Add(&(thetacol[idx_vec]), tmpt);
       });
     }
   }

@@ -12,7 +12,11 @@ using namespace amrex;
  */
 
 void
-ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
+ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
+                       const Real time,
+                       bool cons_only,
+                       int icomp_cons,
+                       int ncomp_cons)
 {
     int lev = 0;
 
@@ -46,10 +50,13 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
     ind_map.push_back( {0} );             // zvel
 
     // Nvars to loop over
-    Vector<int> comp_var = {NVAR, 1, 1, 1};
+    Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
+
+    // End of vars loop
+    int var_idx_end = (cons_only) ? Vars::cons + 1 : Vars::NumTypes;
 
     // Loop over all variable types
-    for (int var_idx = Vars::cons; var_idx < Vars::NumTypes; ++var_idx)
+    for (int var_idx = Vars::cons; var_idx < var_idx_end; ++var_idx)
     {
         MultiFab& mf = *mfs[var_idx];
 
@@ -61,16 +68,18 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
         const auto& dom_lo = amrex::lbound(domain);
         const auto& dom_hi = amrex::ubound(domain);
 
+        // Offset only applys to cons (we may fill a subset of these vars)
+        int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
+
         // Loop over each component
-        for (int comp_idx(0); comp_idx < comp_var[var_idx]; ++comp_idx)
+        for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width;
+            int width = wrfbdy_set_width;;
 
             // Variable can be read from wrf bdy
             //------------------------------------
             if (is_read[var_idx][comp_idx])
             {
-                width = wrfbdy_set_width;
                 int ivar  = ind_map[var_idx][comp_idx];
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
@@ -138,7 +147,6 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
-                width = wrfbdy_width - 1;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
@@ -158,14 +166,14 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs, const Real time)
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y);
-                            jj = std::min(jj, dom_hi.y);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y);
-                            jj = std::min(jj, dom_hi.y);
+                        int jj = std::max(j , dom_lo.y+width);
+                            jj = std::min(jj, dom_hi.y-width);
                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
                     });
 

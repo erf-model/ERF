@@ -58,6 +58,8 @@ erf.dycore_vert_adv_type   = Centered_2nd
 erf.dryscal_horiz_adv_type = WENOMZQ3
 erf.dryscal_vert_adv_type  = WENOMZQ3
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0

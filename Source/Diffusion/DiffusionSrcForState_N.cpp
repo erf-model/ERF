@@ -27,7 +27,8 @@ using namespace amrex;
  * @param[in]  hfx_z heat flux in z-dir
  * @param[in]  diss dissipation of TKE
  * @param[in]  mu_turb turbulent viscosity
- * @param[in]  solverChoice container of solver params
+ * @param[in]  diffChoice container of diffusion parameters
+ * @param[in]  turbChoice container of turbulence parameters
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
@@ -51,7 +52,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                               Array4<      Real>& hfx_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
-                        const SolverChoice &solverChoice,
+                        const DiffChoice &diffChoice,
+                        const TurbChoice &turbChoice,
                         const Array4<const Real>& tm_arr,
                         const amrex::GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
                         const amrex::BCRec* bc_ptr)
@@ -64,15 +66,15 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
     const auto& dom_hi = amrex::ubound(domain);
 
-    bool l_use_QKE       = solverChoice.use_QKE && solverChoice.advect_QKE;
-    bool l_use_deardorff = (solverChoice.les_type == LESType::Deardorff);
-    Real l_inv_theta0    = 1.0 / solverChoice.theta_ref;
+    bool l_use_QKE       = turbChoice.use_QKE && turbChoice.advect_QKE;
+    bool l_use_deardorff = (turbChoice.les_type == LESType::Deardorff);
+    Real l_inv_theta0    = 1.0 / turbChoice.theta_ref;
     Real l_abs_g         = std::abs(grav_gpu[2]);
 
-    bool l_consA  = (solverChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
-    bool l_turb   = ( (solverChoice.les_type == LESType::Smagorinsky) ||
-                      (solverChoice.les_type == LESType::Deardorff  ) ||
-                      (solverChoice.pbl_type == PBLType::MYNN25     ) );
+    bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
+    bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
+                      (turbChoice.les_type == LESType::Deardorff  ) ||
+                      (turbChoice.pbl_type == PBLType::MYNN25     ) );
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
@@ -87,24 +89,24 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         for (int i = 0; i < NUM_PRIM; ++i) {
            switch (i) {
                case PrimTheta_comp:
-                    alpha_eff[PrimTheta_comp] = solverChoice.alpha_T;
+                    alpha_eff[PrimTheta_comp] = diffChoice.alpha_T;
                     break;
                case PrimScalar_comp:
-                    alpha_eff[PrimScalar_comp] = solverChoice.alpha_C;
+                    alpha_eff[PrimScalar_comp] = diffChoice.alpha_C;
                     break;
 #if defined(ERF_USE_MOISTURE)
                case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = solverChoice.alpha_C;
+                    alpha_eff[PrimQt_comp] = diffChoice.alpha_C;
                     break;
                case PrimQp_comp:
-                    alpha_eff[PrimQp_comp] = solverChoice.alpha_C;
+                    alpha_eff[PrimQp_comp] = diffChoice.alpha_C;
                     break;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                case PrimQv_comp:
-                    alpha_eff[PrimQv_comp] = solverChoice.alpha_C;
+                    alpha_eff[PrimQv_comp] = diffChoice.alpha_C;
                     break;
                case PrimQc_comp:
-                    alpha_eff[PrimQc_comp] = solverChoice.alpha_C;
+                    alpha_eff[PrimQc_comp] = diffChoice.alpha_C;
                     break;
 #endif
                default:
@@ -116,24 +118,24 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         for (int i = 0; i < NUM_PRIM; ++i) {
            switch (i) {
                case PrimTheta_comp:
-                    alpha_eff[PrimTheta_comp] = solverChoice.rhoAlpha_T;
+                    alpha_eff[PrimTheta_comp] = diffChoice.rhoAlpha_T;
                     break;
                case PrimScalar_comp:
-                    alpha_eff[PrimScalar_comp] = solverChoice.rhoAlpha_C;
+                    alpha_eff[PrimScalar_comp] = diffChoice.rhoAlpha_C;
                     break;
 #if defined(ERF_USE_MOISTURE)
                case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = solverChoice.rhoAlpha_C;
+                    alpha_eff[PrimQt_comp] = diffChoice.rhoAlpha_C;
                     break;
                case PrimQp_comp:
-                    alpha_eff[PrimQp_comp] = solverChoice.rhoAlpha_C;
+                    alpha_eff[PrimQp_comp] = diffChoice.rhoAlpha_C;
                     break;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                case PrimQv_comp:
-                    alpha_eff[PrimQv_comp] = solverChoice.rhoAlpha_C;
+                    alpha_eff[PrimQv_comp] = diffChoice.rhoAlpha_C;
                     break;
                case PrimQc_comp:
-                    alpha_eff[PrimQc_comp] = solverChoice.rhoAlpha_C;
+                    alpha_eff[PrimQc_comp] = diffChoice.rhoAlpha_C;
                     break;
 #endif
                default:
@@ -212,7 +214,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -258,7 +260,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                            + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                        + 3. * cell_prim(i, j, k  , prim_index)
@@ -301,7 +303,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -341,7 +343,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             Real Alpha = d_alpha_eff[prim_index];
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
-            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z);
+            bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = Alpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                        + 3. * cell_prim(i, j, k  , prim_index)
@@ -401,11 +403,11 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
     // Using Deardorff
     if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
         int qty_index = RhoQKE_comp;
-        auto solverChoice_pbl_B1 = solverChoice.pbl_B1;
+        auto pbl_B1_l = turbChoice.pbl_B1;
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,solverChoice_pbl_B1,tm_arr(i,j,0));
+                                                                  mu_turb,cellSizeInv,domain,pbl_B1_l,tm_arr(i,j,0));
         });
     }
 

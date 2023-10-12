@@ -12,8 +12,8 @@ using namespace amrex;
 /**
  * Wrapper for custom problem-specific initialization routines that can be
  * defined by the user as they set up a new problem in ERF. This wrapper
- * handles all the overhead of defining both the background and perturbation
- * state as well as initializing the random seed.
+ * handles all the overhead of defining the perturbation as well as initializing
+ * the random seed if needed.
  *
  * This wrapper calls a user function to customize initialization on a per-Fab
  * level inside an MFIter loop, so all the MultiFab operations are hidden from
@@ -98,22 +98,29 @@ ERF::init_custom (int lev)
         const auto &qv_pert_arr = qv_pert.array(mfi);
         const auto &qc_pert_arr = qc_pert.array(mfi);
 #endif
-        init_custom_prob(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
-                         r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
+        prob->init_custom_pert(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
+                               r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
 #if defined(ERF_USE_MOISTURE)
-                         qv_pert_arr, qc_pert_arr, qi_pert_arr,
+                               qv_pert_arr, qc_pert_arr, qi_pert_arr,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
-                         qv_pert_arr, qc_pert_arr,
+                               qv_pert_arr, qc_pert_arr,
 #endif
-                         geom[lev].data(), mf_m, mf_u, mf_v,
-                         solverChoice);
+                               geom[lev].data(), mf_m, mf_u, mf_v,
+                               solverChoice);
     } //mfi
 
     // Add problem-specific perturbation to background flow
     MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
+
+    // RhoQKE is only relevant if using MYNN2.5 or YSU
+    if (solverChoice.turbChoice[lev].pbl_type == PBLType::None) {
+        lev_new[Vars::cons].setVal(0.0,RhoQKE_comp,1);
+    } else {
+        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
+    }
+
 #if defined(ERF_USE_MOISTURE)
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQt_comp,    RhoQt_comp,    1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQp_comp,    RhoQp_comp,    1, cons_pert.nGrow());

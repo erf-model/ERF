@@ -1,6 +1,8 @@
 #include "ABLMost.H"
 #include "DirectionSelector.H"
 #include "Diffusion.H"
+#include "ERF_Constants.H"
+#include "TurbStruct.H"
 
 /**
  * Function to compute turbulent viscosity with PBL.
@@ -10,7 +12,7 @@
  * @param[in] cons_in cell center conserved quantities
  * @param[out] eddyViscosity holds turbulent viscosity
  * @param[in] geom problem geometry
- * @param[in] solverChoice container with solver parameters
+ * @param[in] turbChoice container with turbulence parameters
  * @param[in] most pointer to Monin-Obukhov class if instantiated
  */
 void
@@ -19,22 +21,22 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& cons_in,
                               amrex::MultiFab& eddyViscosity,
                               const amrex::Geometry& geom,
-                              const SolverChoice& solverChoice,
+                              const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               bool /*vert_only*/)
 {
   // MYNN Level 2.5 PBL Model
-  if (solverChoice.pbl_type == PBLType::MYNN25) {
+  if (turbChoice.pbl_type == PBLType::MYNN25) {
 
-    const amrex::Real A1 = solverChoice.pbl_A1;
-    const amrex::Real A2 = solverChoice.pbl_A2;
-    //const amrex::Real B1 = solverChoice.pbl_B1;
-    const amrex::Real B2 = solverChoice.pbl_B2;
-    const amrex::Real C1 = solverChoice.pbl_C1;
-    const amrex::Real C2 = solverChoice.pbl_C2;
-    const amrex::Real C3 = solverChoice.pbl_C3;
-    //const amrex::Real C4 = solverChoice.pbl_C4;
-    const amrex::Real C5 = solverChoice.pbl_C5;
+    const amrex::Real A1 = turbChoice.pbl_A1;
+    const amrex::Real A2 = turbChoice.pbl_A2;
+    //const amrex::Real B1 = turbChoice.pbl_B1;
+    const amrex::Real B2 = turbChoice.pbl_B2;
+    const amrex::Real C1 = turbChoice.pbl_C1;
+    const amrex::Real C2 = turbChoice.pbl_C2;
+    const amrex::Real C3 = turbChoice.pbl_C3;
+    //const amrex::Real C4 = turbChoice.pbl_C4;
+    const amrex::Real C5 = turbChoice.pbl_C5;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -84,8 +86,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
       // Spatially varying MOST
       amrex::Real eps       = 1.0e-16;
-      amrex::Real d_kappa   = most->kappa;
-      amrex::Real d_gravity = most->gravity;
+      amrex::Real d_kappa   = KAPPA;
+      amrex::Real d_gravity = CONST_GRAV;
 
       const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
       const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
@@ -118,7 +120,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           }
 
           // Spatially varying MOST
-          amrex::Real surface_heat_flux = u_star_arr(i,k,0) * t_star_arr(i,j,0);
+          amrex::Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
           amrex::Real theta0            = tm_arr(i,j,0); // TODO: IS THIS ACTUALLY RHOTHETA
           amrex::Real l_obukhov;
           if (std::abs(surface_heat_flux) > eps) {
@@ -152,7 +154,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Third Length Scale
           amrex::Real l_B;
           if (dthetadz > 0) {
-              amrex::Real N_brunt_vaisala = CONST_GRAV/theta0 * std::sqrt(dthetadz);
+              amrex::Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetadz);
               if (zeta < 0) {
                   amrex::Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T;
                   qc = std::pow(qc,1.0/3.0);
@@ -170,7 +172,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Compute non-dimensional parameters
           amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
           amrex::Real GM = l2_over_q2 * (dudz*dudz + dvdz*dvdz);
-          amrex::Real GH = -l2_over_q2 / theta0 * dthetadz;
+          amrex::Real GH = -l2_over_q2 * (CONST_GRAV/theta0) * dthetadz;
           amrex::Real E1 = 1.0 + 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH;
           amrex::Real E2 = -3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH;
           amrex::Real E3 = 6.0*A2*A1*GM;
@@ -185,11 +187,13 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
           K_turb(i,j,k,EddyDiff::Mom_v)   = rho * l_comb * qvel(i,j,k) * SM * 0.5;
           K_turb(i,j,k,EddyDiff::Theta_v) = rho * l_comb * qvel(i,j,k) * SH;
-          K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * 3.0 * SQ;
+          K_turb(i,j,k,EddyDiff::QKE_v)   = rho * l_comb * qvel(i,j,k) * SQ;
 
           K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
           // TODO: How should this be done for other components (scalars, moisture)
       });
     }
+  } else if (turbChoice.pbl_type == PBLType::YSU) {
+      amrex::Error("YSU Model not implemented yet");
   }
 }

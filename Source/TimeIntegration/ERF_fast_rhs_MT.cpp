@@ -17,7 +17,6 @@ using namespace amrex;
  *
  * @param[in]  step  which fast time step
  * @param[in]  level level of resolution
- * @param[in]  grids_to_evolve the region in the domain excluding the relaxation and specified zones
  * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
  * @param[in]  S_prev previous solution
  * @param[in]  S_stg_data solution            at previous RK stage
@@ -27,7 +26,8 @@ using namespace amrex;
  * @param[out] S_data current solution
  * @param[in]  S_scratch scratch space
  * @param[in]  geom container for geometric information
- * @param[in]  solverChoice  Container for solver parameters
+ * @param[in]  gravity Magnitude of gravity
+ * @param[in]  use_lagged_delta_rt define lagged_delta_rt for our next step
  * @param[in]  Omega component of the momentum normal to the z-coordinate surface
  * @param[in]  z_t_rk rate of change of grid height -- only relevant for moving terrain
  * @param[in]  z_t_pert rate of change of grid height -- interpolated between RK stages
@@ -46,7 +46,6 @@ using namespace amrex;
  */
 
 void erf_fast_rhs_MT (int step, int /*level*/,
-                      BoxArray& grids_to_evolve,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
                       Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
@@ -55,8 +54,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
-                      const amrex::Geometry geom,
-                      const SolverChoice& solverChoice,
+                      const Geometry geom,
+                      const Real gravity,
+                      const bool use_lagged_delta_rt,
                             MultiFab& Omega,
                       std::unique_ptr<MultiFab>& z_t_rk,             // evaluated from previous RK stg to next RK stg
                       const MultiFab* z_t_pert,                      // evaluated from tau to (tau + delta tau) - z_t_rk
@@ -73,8 +73,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                       std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_fast_rhs_MT()");
-
-    AMREX_ASSERT(solverChoice.terrain_type == 1);
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -96,7 +94,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
     // *************************************************************************
     // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
+    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
@@ -117,10 +115,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
     //        will require additional changes
     for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
     {
-        // Construct intersection of current tilebox and valid region for updating
-        Box valid_bx = grids_to_evolve[mfi.index()];
-        Box       bx = mfi.tilebox() & valid_bx;
-
+        Box bx  = mfi.tilebox();
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
@@ -129,7 +124,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         const Array4<const Real> & stg_xmom = S_stg_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stg_ymom = S_stg_data[IntVar::ymom].const_array(mfi);
         const Array4<const Real> & stg_zmom = S_stg_data[IntVar::zmom].const_array(mfi);
-        const Array4<const Real> & prim       = S_stg_prim.const_array(mfi);
+        const Array4<const Real> & prim     = S_stg_prim.const_array(mfi);
 
         const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
@@ -175,9 +170,9 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
         // Note: it is important to grow the tilebox rather than use growntilebox because
         //       we need to fill the ghost cells of the tilebox so we can use them below
-        Box gbx   = mfi.tilebox() & valid_bx;  gbx.grow(1);
-        Box gtbx  = mfi.nodaltilebox(0) & surroundingNodes(valid_bx,0); gtbx.grow(1); gtbx.setSmall(2,0);
-        Box gtby  = mfi.nodaltilebox(1) & surroundingNodes(valid_bx,1); gtby.grow(1); gtby.setSmall(2,0);
+        Box gbx   = mfi.tilebox();  gbx.grow(1);
+        Box gtbx  = mfi.nodaltilebox(0); gtbx.grow(1); gtbx.setSmall(2,0);
+        Box gtby  = mfi.nodaltilebox(1); gtby.grow(1); gtby.setSmall(2,0);
 
         {
         BL_PROFILE("fast_rhs_copies_0");
@@ -193,7 +188,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
                 // We define lagged_delta_rt for our next step as the current delta_rt
                 lagged_delta_rt(i,j,k,RhoTheta_comp) = delta_rt;
             });
-        } else if (solverChoice.use_lagged_delta_rt) {
+        } else if (use_lagged_delta_rt) {
             // This is the default for cases with no or static terrain
             amrex::ParallelFor(gbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -326,7 +321,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // This must be done before we set cur_xmom and cur_ymom, since those
         //      in fact point to the same array as prev_xmom and prev_ymom
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2) & surroundingNodes(valid_bx,2);
+        Box gbxo = mfi.nodaltilebox(2);
         {
         BL_PROFILE("fast_MT_making_omega");
         Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
@@ -549,10 +544,6 @@ void erf_fast_rhs_MT (int step, int /*level*/,
         // **************************************************************************
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
-
-        // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-        // const auto& vbx_hi = amrex::ubound(valid_bx);
-
         {
         BL_PROFILE("fast_rho_final_update");
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

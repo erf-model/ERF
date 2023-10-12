@@ -6,7 +6,6 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
-#include "prob_common.H"
 #include <EOS.H>
 #include <ERF.H>
 
@@ -56,7 +55,7 @@ amrex::Real ERF::sum_per       = -1.0;
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
-// init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
+// init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type;
 
 // NetCDF wrfinput (initialization) file(s)
@@ -119,7 +118,7 @@ ERF::ERF ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 
@@ -133,8 +132,6 @@ ERF::ERF ()
     for (int lev = 1; lev <= max_level; ++lev) {
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
-
-    grids_to_evolve.resize(nlevs_max);
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);
@@ -389,10 +386,13 @@ ERF::InitData ()
     //     those types into what they mean for each variable
     init_bcs();
 
-    // Verify BCs are compatible sith solver choice
-    if (solverChoice.pbl_type == PBLType::MYNN25 &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST) {
-        amrex::Abort("MYNN2.5 PBL Model requires MOST at lower boundary");
+    // Verify BCs are compatible with solver choice
+    for (int lev(0); lev <= max_level; ++lev) {
+        if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
+               (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
+            phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
+            amrex::Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+        }
     }
 
     if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
@@ -421,34 +421,42 @@ ERF::InitData ()
             amrex::Abort("We do not currently support init_type = ideal or input_sounding with terrain");
         }
 
-        // We initialize rho_KE to be nonzero (and positive) so that we end up
+        // If using the Deardoff LES model,
+        // we initialize rho_KE to be nonzero (and positive) so that we end up
         // with reasonable values for the eddy diffusivity and the MOST fluxes
         // (~ 1/diffusivity) do not blow up
         Real RhoKE_0 = 0.1;
         ParmParse pp(pp_prefix);
         if (pp.query("RhoKE_0", RhoKE_0)) {
-            // uniform initial rho*e field
-            int lb = std::max(finest_level-1,0);
-            for (int lev(lb); lev >= 0; --lev)
-                vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+            // Uniform initial rho*e field
+            for (int lev = 0; lev <= finest_level; lev++) {
+                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                    vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
+                } else {
+                    vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
+                }
+            }
         } else {
             // default: uniform initial e field
             Real KE_0 = 0.1;
             pp.query("KE_0", KE_0);
-            for (int lev = 0; lev <= finest_level; lev++)
-            {
+            for (int lev = 0; lev <= finest_level; lev++) {
                 auto& lev_new = vars_new[lev];
-                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box &bx = mfi.tilebox();
-                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
-                    // We want to set the lateral BC values, too
-                    Box gbx = bx; // Copy constructor
-                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
-                    });
+                if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                    for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                        const Box &bx = mfi.tilebox();
+                        const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+                        // We want to set the lateral BC values, too
+                        Box gbx = bx; // Copy constructor
+                        gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+                        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
+                        });
+                    } // mfi
+                } else {
+                    lev_new[Vars::cons].setVal(0.0,RhoKE_comp,1,0);
                 }
-            }
+            } // lev
         }
 
         if (coupling_type == "TwoWay") {
@@ -478,11 +486,6 @@ ERF::InitData ()
 #endif
     }
 
-    // Define after wrfbdy_width is known
-    for (int lev = 0; lev <= finest_level; lev++) {
-        define_grids_to_evolve(lev, grids[lev]);
-    }
-
     if (input_bndry_planes) {
         // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
         amrex::Print() << "Defining r2d for the first time " << std::endl;
@@ -504,18 +507,6 @@ ERF::InitData ()
         }
     }
 
-    // If we are reading initial data from wrfinput, the base state is defined there.
-    // If we are reading initial data from metgrid output, the base state is defined there and we will rebalance
-    //    after interpolation.
-    // If we are reading initial data from an input_sounding, then the base state is calculated by
-    //   InputSoundingData.calc_rho_p().
-    // If we are restarting, the base state is read from the restart file, including ghost cell data
-    if (restart_chkfile.empty()) {
-        if ( (init_type != "real") && (init_type != "metgrid") && (!init_sounding_ideal)) {
-            initHSE();
-        }
-    }
-
 #ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
@@ -526,7 +517,7 @@ ERF::InitData ()
         // If not restarting we need to fill qmoist given qt and qp.
         if (restart_chkfile.empty()) {
             micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                       grids_to_evolve[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+                       grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
             micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
         }
     }
@@ -537,16 +528,20 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd);
+        int ng_for_most = ComputeGhostCells(solverChoice.advChoice,solverChoice.use_NumDiff)+1;
+        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd,ng_for_most);
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
-        int lev = 0; amrex::IntVect ng = IntVect(0,0,0);
-        MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
-        MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
-        MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
-        m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-        m_most->update_fluxes(lev);
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            amrex::IntVect ng = IntVect(0,0,0);
+            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+            MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+            m_most->update_fluxes(lev);
+        }
     }
 
     if (solverChoice.use_rayleigh_damping)
@@ -763,6 +758,10 @@ ERF::restart ()
     last_check_file_step = istep[0];
 }
 
+// This is called only if starting from scratch (from ERF::MakeNewLevelFromScratch)
+//
+// If we are restarting, the base state is read from the restart file, including
+// ghost cell data.
 void
 ERF::init_only (int lev, Real time)
 {
@@ -780,13 +779,35 @@ ERF::init_only (int lev, Real time)
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
+        // The base state is initialized by integrating vertically through the
+        // input sounding, if the init_sounding_ideal flag is set; otherwise
+        // it is set by initHSE()
         init_from_input_sounding(lev);
+        if (!init_sounding_ideal) initHSE();
+
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
+        // The base state is initialized from WRF wrfinput data, output by
+        // ideal.exe or real.exe
         init_from_wrfinput(lev);
+        if (init_type == "ideal") initHSE();
+
     } else if (init_type == "metgrid") {
+        // The base state is initialized from data output by WPS metgrid;
+        // we will rebalance after interpolation
         init_from_metgrid(lev);
 #endif
+    } else if (init_type == "uniform") {
+        // Initialize a uniform background field and base state based on the
+        // problem-specified reference density and temperature
+        init_uniform(lev);
+        initHSE(lev);
+    } else {
+        // No background flow initialization specified, initialize the
+        // background field to be equal to the base state, calculated from the
+        // problem-specific erf_init_dens_hse
+        initHSE(lev); // need to call this first
+        init_from_hse(lev);
     }
 
 #if defined(ERF_USE_MOISTURE)
@@ -794,8 +815,12 @@ ERF::init_only (int lev, Real time)
 #endif
 
     // Add problem-specific flow features
-    // If init_type is specified, then this is a perturbation to the background
-    // flow from either input_sounding data or WRF WPS outputs (wrfinput_d0*)
+    //
+    // Notes:
+    // - This calls init_custom_pert that is defined for each problem
+    // - This may modify the base state
+    // - The fields set by init_custom_pert are **perturbations** to the
+    //   background flow set based on init_type
     init_custom(lev);
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.
@@ -838,7 +863,6 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
-
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -893,12 +917,13 @@ ERF::ReadParameters ()
         // How to initialize
         pp.query("init_type",init_type);
         if (!init_type.empty() &&
+            init_type != "uniform" &&
             init_type != "ideal" &&
             init_type != "real" &&
             init_type != "metgrid" &&
             init_type != "input_sounding")
         {
-            amrex::Error("if specified, init_type must be ideal, real, metgrid or input_sounding");
+            amrex::Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
         }
 
         // No moving terrain with init real
@@ -1007,7 +1032,10 @@ ERF::ReadParameters ()
     solverChoice.pp_prefix = pp_prefix;
 #endif
 
-    solverChoice.init_params();
+    solverChoice.init_params(max_level);
+    if (verbose > 0) {
+        solverChoice.display();
+    }
 }
 
 // Create horizontal average quantities for 5 variables:
@@ -1174,50 +1202,6 @@ ERF::AverageDownTo (int crse_lev) // NOLINT
 }
 
 void
-ERF::define_grids_to_evolve (int lev, const BoxArray& ba) // NOLINT
-{
-
-    Box domain(geom[lev].Domain());
-    if (lev == 0 && ( init_type == "real" || init_type == "metgrid" ) )
-    {
-        int width = wrfbdy_set_width;
-        Box shrunk_domain(domain);
-        shrunk_domain.grow(0,-width);
-        shrunk_domain.grow(1,-width);
-        BoxList bl;
-        int N = static_cast<int>(ba.size());
-        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-        grids_to_evolve[lev].define(std::move(bl));
-    } else if (lev == 1 && regrid_int < 0) {
-        int width = cf_set_width;
-        Box shrunk_domain(boxes_at_level[lev][0]);
-        shrunk_domain.grow(0,-width);
-        shrunk_domain.grow(1,-width);
-        BoxList bl;
-        int N = static_cast<int>(ba.size());
-        for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-        grids_to_evolve[lev].define(std::move(bl));
-#if 0
-        if (num_boxes_at_level[lev] > 1) {
-            for (int i = 1; i < num_boxes_at_level[lev]; i++) {
-                int width = cf_set_width;
-                Box shrunk_domain(boxes_at_level[lev][i]);
-                shrunk_domain.grow(0,-width);
-                shrunk_domain.grow(1,-width);
-                BoxList bl;
-                int N = static_cast<int>(ba.size());
-                for (int i = 0; i < N; ++i) bl.push_back(ba[i] & shrunk_domain);
-                grids_to_evolve[lev].define(std::move(bl));
-            }
-        }
-#endif
-    } else {
-        // Just copy grids...
-        grids_to_evolve[lev] = ba;
-    }
-}
-
-void
 ERF::Construct_ERFFillPatchers (int lev)
 {
     auto& fine_new = vars_new[lev];
@@ -1272,10 +1256,10 @@ ERF::Register_ERFFillPatchers (int lev)
 {
     auto& lev_new = vars_new[lev-1];
     auto& lev_old = vars_old[lev-1];
-    FPr_c[lev-1].registerCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_u[lev-1].registerCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_v[lev-1].registerCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_w[lev-1].registerCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_c[lev-1].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_u[lev-1].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_v[lev-1].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
+    FPr_w[lev-1].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
 }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1313,7 +1297,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    prob = amrex_probinit(geom[0].ProbLo(), geom[0].ProbHi());
 
     // Geometry on all levels has been defined already.
 
@@ -1327,8 +1311,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     for (int lev = 1; lev <= max_level; ++lev) {
         nsubsteps[lev] = MaxRefRatio(lev-1);
     }
-
-    grids_to_evolve.resize(nlevs_max);
 
     t_new.resize(nlevs_max, 0.0);
     t_old.resize(nlevs_max, -1.e100);

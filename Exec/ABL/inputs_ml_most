@@ -24,7 +24,7 @@ erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
+amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -35,7 +35,7 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 4         # number of timesteps between plotfiles
+erf.plot_int_1      = 1         # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
@@ -46,10 +46,12 @@ erf.use_gravity = false
 erf.les_type = "Smagorinsky"
 erf.Cs       = 0.1
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
-prob.A_0 = 1.0
-prob.T_0 = 1.0
+prob.A_0   = 1.0
+prob.T_0   = 1.0
 
 prob.U_0 = 10.0
 prob.V_0 = 0.0
@@ -62,11 +64,11 @@ prob.V_0_Pert_Mag = 0.08 #
 prob.W_0_Pert_Mag = 0.0
 
 amr.max_level = 1
-amr.ref_ratio_vect = 2 2 1
+amr.ref_ratio_vect = 20 20 1
 erf.refinement_indicators = box1
 
 erf.box1.max_level = 1
-erf.box1.in_box_lo =  256 256
-erf.box1.in_box_hi =  768 768
+erf.box1.in_box_lo =  400 400
+erf.box1.in_box_hi =  480 480
 
-erf.coupling_type = "TwoWay"
+erf.coupling_type = "OneWay"

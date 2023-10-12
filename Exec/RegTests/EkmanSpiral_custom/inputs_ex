@@ -51,6 +51,8 @@ erf.latitude = 90.
 erf.abl_geo_wind = 15.0 0.0 0.0
 erf.rotational_time_period = 86164.0900027328
 
+erf.init_type = "uniform"
+
 # PROBLEM PARAMETERS (optional)
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
