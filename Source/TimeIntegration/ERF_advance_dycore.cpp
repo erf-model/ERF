@@ -216,13 +216,14 @@ void ERF::advance_dycore(int level,
     // *************************************************************************
     if (l_use_kturb)
     {
+        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
                                   state_old[IntVar::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
-                                  tc, solverChoice.gravity, m_most);
+                                  tc, solverChoice.gravity, m_most, bc_ptr_d);
     }
 
     // ***********************************************************************************************
