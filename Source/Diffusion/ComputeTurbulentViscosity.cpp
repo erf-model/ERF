@@ -15,6 +15,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              const amrex::BCRec* bc_ptr,
                               bool /*vert_only*/);
 
 /**
@@ -373,6 +374,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
+                                const amrex::BCRec* bc_ptr,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -412,6 +414,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
 
     if (turbChoice.pbl_type != PBLType::None) {
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, vert_only);
+                                     geom, turbChoice, most, bc_ptr, vert_only);
     }
 }
