@@ -392,6 +392,7 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
 
     if (l_use_kturb) {
       eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+      eddyDiffs_lev[lev]->setVal(0.0);
       if(l_use_ddorf) {
           SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
       } else {
