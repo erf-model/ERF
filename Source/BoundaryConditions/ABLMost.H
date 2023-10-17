@@ -54,8 +54,15 @@ public:
         auto erf_st = pp.query("most.surf_temp", surf_temp);
         if (erf_st) {
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+            pp.query("most.surf_heating_rate", surf_heating_rate);
+            if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
+                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+            }
         } else {
             pp.query("most.surf_temp_flux", surf_temp_flux);
+            if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
+                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+            }
             if (std::abs(surf_temp_flux) > std::numeric_limits<amrex::Real>::epsilon()) {
                 theta_type = ThetaCalcType::HEAT_FLUX;
             } else {
@@ -192,6 +199,7 @@ public:
 private:
     amrex::Real z0_const;
     amrex::Real surf_temp;
+    amrex::Real surf_heating_rate{0};
     amrex::Real surf_temp_flux{0};
     amrex::Real cnk_a{0.0185};
     amrex::Real depth{30.0};
