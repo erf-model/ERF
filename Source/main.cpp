@@ -47,7 +47,7 @@ void add_par () {
  * Main driver -- creates the ERF object, calls ERF.InitData() and ERF.Evolve()
  * Also includes the multiblock interface in the case where there is more than one ERF object
 */
-int main(int argc, char* argv[])
+int main (int argc, char* argv[])
 {
     // Check to see if the command line contains --describe
     if (argc >= 2) {
