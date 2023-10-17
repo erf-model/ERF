@@ -540,7 +540,7 @@ ERF::InitData ()
             MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-            m_most->update_fluxes(lev);
+            m_most->update_fluxes(lev,t_new[lev]);
         }
     }
 

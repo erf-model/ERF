@@ -54,7 +54,8 @@ public:
         auto erf_st = pp.query("most.surf_temp", surf_temp);
         if (erf_st) {
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-            pp.query("most.surf_heating_rate", surf_heating_rate);
+            pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
+            surf_heating_rate = surf_heating_rate / 3600.0; // [K/s]
             if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
                 amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
             }
@@ -137,6 +138,22 @@ public:
     }
 
     void
+    update_surf_temp (amrex::Real cur_time)
+    {
+        if (surf_heating_rate != 0) {
+            int nlevs = m_geom.size();
+            for (int lev = 0; lev < nlevs; lev++)
+            {
+               t_surf[lev]->setVal(surf_temp + surf_heating_rate*cur_time);
+               amrex::Print() << "Surface temp at t=" << cur_time
+                   << ": "
+                   << surf_temp + surf_heating_rate*cur_time
+                   << std::endl;
+            }
+        }
+    }
+
+    void
     impose_most_bcs (const int lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
                      amrex::MultiFab* eddyDiffs);
@@ -149,7 +166,9 @@ public:
                       const FluxCalc& flux_comp);
 
     void
-    update_fluxes (int lev, int max_iters = 25);
+    update_fluxes (int lev,
+                   amrex::Real cur_time,
+                   int max_iters = 25);
 
     template <typename FluxIter>
     void
