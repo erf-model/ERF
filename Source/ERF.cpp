@@ -459,6 +459,24 @@ ERF::InitData ()
             } // lev
         }
 
+        Real QKE_0;
+        if (pp.query("QKE_0", QKE_0)) {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                auto& lev_new = vars_new[lev];
+                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box &bx = mfi.tilebox();
+                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+                    // We want to set the lateral BC values, too
+                    Box gbx = bx; // Copy constructor
+                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        cons_arr(i,j,k,RhoQKE_comp) = cons_arr(i,j,k,Rho_comp) * QKE_0;
+                    });
+                } // mfi
+            }
+        }
+
+
         if (coupling_type == "TwoWay") {
             AverageDown();
         }
