@@ -46,7 +46,7 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
 erf.plot_int_1      = 1        # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta
 
 
 # SOLVER CHOICE
@@ -54,15 +54,15 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = true
 
-# Coriolis (Cuxart et al. 2006)
+# Geostrophic wind (Cuxart et al. 2006)
 # f = 1.39e-4 s^-1
 erf.use_coriolis = true
-erf.latitude = 73.0
-erf.rotational_time_period = 86455.2516813368
-
-# Geostrophic wind (Cuxart et al. 2006)
-erf.abl_driver_type = "GeostrophicWind"
-erf.abl_geo_wind = 8.0 0.0 0.0
+#erf.latitude = 73.0
+#erf.rotational_time_period = 86455.2516813368
+#erf.abl_driver_type = "GeostrophicWind"
+#erf.abl_geo_wind = 8.0 0.0 0.0
+# manually calculate:
+erf.abl_geo_forcing = 0.0 0.001112 0.0  # neglect vertical component
 
 # Turbulence closure
 erf.molec_diff_type = "None"
