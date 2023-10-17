@@ -25,6 +25,7 @@ zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
 # INITIALIZATION (Cuxart et al. 2006)
 erf.init_type           = "input_sounding"
 erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_GABLS1"
 
 # TIME STEP CONTROL
 erf.fixed_dt        = 10.0  # fixed time step (Cuxart et al. 2006)
