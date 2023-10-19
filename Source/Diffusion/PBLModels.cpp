@@ -203,28 +203,29 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // NOTE: Level 2 limiting from balance of production and dissipation.
           //       K_turb has a setval of 0.0 when the MF is created (NOT EACH STEP).
           //       We do this inline to avoid storing qe^2 at each cell.
-          amrex::Real shearProd = dudz*dudz + dvdz*dvdz;
-          amrex::Real buoyProd  = -(CONST_GRAV/theta0) * dthetadz;
-          amrex::Real lSM       = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel_old(i,j,k) + eps);
-          amrex::Real lSH       = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps);
-          amrex::Real qe2       = B1 * l_comb * ( lSM * shearProd + lSH * buoyProd );
-          amrex::Real qe        = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
-
-          // Compute non-dimensional parameters
+          amrex::Real l_comb_old   = K_turb(i,j,k,EddyDiff::PBL_lengthscale);
+          amrex::Real shearProd    = dudz*dudz + dvdz*dvdz;
+          amrex::Real buoyProd     = -(CONST_GRAV/theta0) * dthetadz;
+          amrex::Real lSM          = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel_old(i,j,k) + eps);
+          amrex::Real lSH          = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps);
+          amrex::Real qe2          = B1 * l_comb_old * ( lSM * shearProd + lSH * buoyProd );
+          amrex::Real qe           = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
           amrex::Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
           amrex::Real one_m_alpha2 = one_m_alpha * one_m_alpha;
+
+          // Compute non-dimensional parameters
           amrex::Real l2_over_q2   = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
           amrex::Real GM = l2_over_q2 * shearProd;
           amrex::Real GH = l2_over_q2 * buoyProd;
           amrex::Real E1 = 1.0 + one_m_alpha2 * ( 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH );
           amrex::Real E2 = one_m_alpha2 * ( -3.0*A1*(4.0*A1 + 3.0*A2*(1.0-C5))*(1.0-C2)*GH );
-          amrex::Real E3 = one_m_alpha2 * ( 6.0*A2*A1*GM );
-          amrex::Real E4 = 1.0 + one_m_alpha2 * ( -12.0*A2*A1*(1.0-C2)*GH - 3.0*A2*B2*(1.0-C3)*GH );
+          amrex::Real E3 = one_m_alpha2 * ( 6.0*A1*A2*GM );
+          amrex::Real E4 = 1.0 + one_m_alpha2 * ( -12.0*A1*A2*(1.0-C2)*GH - 3.0*A2*B2*(1.0-C3)*GH );
           amrex::Real R1 = one_m_alpha * ( A1*(1.0-3.0*C1) );
           amrex::Real R2 = one_m_alpha * A2;
 
           amrex::Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
-          amrex::Real SH = (R1*E3 - A2*E1)/(E2*E3 - E1*E4);
+          amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
           amrex::Real SQ = 3.0 * SM;
 
           // Finally, compute the eddy viscosity/diffusivities
