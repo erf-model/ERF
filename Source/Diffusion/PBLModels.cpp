@@ -57,15 +57,15 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
       const amrex::Box &bx = mfi.growntilebox(1);
-      const amrex::Array4<amrex::Real const > &cell_data     = cons_in.array(mfi);
-      const amrex::Array4<amrex::Real const > &cell_data_old = cons_old.array(mfi);
-      const amrex::Array4<amrex::Real> &K_turb = eddyViscosity.array(mfi);
+      const amrex::Array4<amrex::Real const> &cell_data     = cons_in.array(mfi);
+      const amrex::Array4<amrex::Real const> &cell_data_old = cons_old.array(mfi);
+      const amrex::Array4<amrex::Real      > &K_turb = eddyViscosity.array(mfi);
       const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
       const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
 
       // Compute some quantities that are constant in each column
       // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
-      // NOTE: Here we requite that sbx covers the entire vertical domain
+      // Box includes one ghost cell in each direction
       const amrex::Box &dbx = geom.Domain();
       amrex::Box sbx(bx.smallEnd(), bx.bigEnd());
       sbx.grow(2,-1);
@@ -163,7 +163,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
           // First Length Scale
           AMREX_ASSERT(l_obukhov != 0);
-          const amrex::Real zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+          int lk = amrex::max(k,0);
+          const amrex::Real zval = gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
           const amrex::Real zeta = zval/l_obukhov;
           amrex::Real l_S;
           if (zeta >= 1.0) {
