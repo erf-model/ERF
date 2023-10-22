@@ -441,7 +441,8 @@ void erf_slow_rhs_post (int level,
                 // NOTE: we don't include additional source terms when terrain is moving
                 Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                 cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-#ifndef AMREX_USE_GPU
+                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+#if 0
                 if (cur_cons(i,j,k,n) < Real(0.)) {
                     amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
@@ -482,7 +483,8 @@ void erf_slow_rhs_post (int level,
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-#ifndef AMREX_USE_GPU
+                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+#if 0
                 if (cur_cons(i,j,k,n) < Real(0.)) {
                     amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
