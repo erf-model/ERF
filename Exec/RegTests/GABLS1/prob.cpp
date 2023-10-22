@@ -97,6 +97,7 @@ Problem::init_custom_pert(
 
     // Set an initial value for QKE = 2*e
     if (z < 250) {
+        // Following Cuxart et al. 2006
         state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * 0.8 * std::pow(1 - z/250, 3);
     } else {
         state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
