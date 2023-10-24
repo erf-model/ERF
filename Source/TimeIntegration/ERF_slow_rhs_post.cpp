@@ -7,6 +7,7 @@
 #include <TileNoZ.H>
 #include <ERF.H>
 #include <Utils.H>
+#include <ComputeQKESourceTerm.H>
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
@@ -60,6 +61,7 @@ void erf_slow_rhs_post (int level,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         MultiFab* Hfx3, MultiFab* Diss,
+                        MultiFab* QKE_equil,
                         const amrex::Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
@@ -107,6 +109,7 @@ void erf_slow_rhs_post (int level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool l_use_mynn       =  (tc.pbl_type == PBLType::MYNN25);
 
     const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
 
@@ -162,6 +165,8 @@ void erf_slow_rhs_post (int level,
 
         const Box& tbx = mfi.tilebox();
 
+        const Box& gbx_QKE = mfi.tilebox(IntVect(0,0,0),IntVect(1,1,1));
+
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
 
@@ -197,6 +202,9 @@ void erf_slow_rhs_post (int level,
 
         // SmnSmn for KE src with Deardorff
         const Array4<const Real>& SmnSmn_a = l_use_deardorff ? SmnSmn->const_array(mfi) : Array4<const Real>{};
+
+        // Equilibrium QKE for PBL model
+        Array4<Real> QKE_equil_arr = (l_use_QKE) ? QKE_equil->array(mfi) : Array4<Real>{};
 
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
@@ -356,6 +364,11 @@ void erf_slow_rhs_post (int level,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
                                            mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                }
+                if (l_use_mynn) {
+                    ComputeEquilibriumQKE(gbx_QKE, u, v, cur_cons, cur_prim,
+                                          tm_arr, mu_turb, QKE_equil_arr,
+                                          dxInv, domain, tc.pbl_B1);
                 }
                 if (l_use_ndiff) {
                     NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,

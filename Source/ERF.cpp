@@ -172,6 +172,7 @@ ERF::ERF ()
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+    QKE_equil_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);
@@ -1361,6 +1362,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+    QKE_equil_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);

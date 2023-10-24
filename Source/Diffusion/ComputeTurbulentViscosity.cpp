@@ -13,10 +13,10 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& cons_in,
                               const amrex::MultiFab& cons_old,
                               amrex::MultiFab& eddyViscosity,
+                              amrex::MultiFab* QKE_equil,
                               const amrex::Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
-                              const amrex::BCRec* bc_ptr,
                               bool /*vert_only*/);
 
 /**
@@ -372,6 +372,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const amrex::MultiFab& cons_old,
                                 amrex::MultiFab& eddyViscosity,
                                 amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
+                                amrex::MultiFab* QKE_equil,
                                 const amrex::Geometry& geom,
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                 const TurbChoice& turbChoice, const Real const_grav,
@@ -413,6 +414,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
     if (turbChoice.pbl_type != PBLType::None) {
         // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, cons_old, eddyViscosity,
-                                     geom, turbChoice, most, bc_ptr, vert_only);
+                                     QKE_equil, geom, turbChoice, most, vert_only);
     }
 }
