@@ -196,14 +196,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
           amrex::Real SQ = 3.0 * SM;
 
-          if (SM < 0.0 || SH < 0.0) {
-              amrex::Print() << "K_turb err: " << amrex::IntVect(i,j,k) << ' '
-                             << SM << ' ' << SH << ' '
-                             << qe << ' ' << qvel(i,j,k) << ' ' << one_m_alpha << "\n";
-              amrex::Print() << "Grads: " << dthetadz << ' ' << dudz << ' ' << dvdz << ' '
-                             << -GH/(GM + 1.0e-16) << "\n";
-              exit(0);
-          }
           AMREX_ASSERT_WITH_MESSAGE(SM > 0.0, "PBL Error: momentum transport coeff must be positive!");
           AMREX_ASSERT_WITH_MESSAGE(SH > 0.0, "PBL Error: theta transport coeff must be positive!");
 
