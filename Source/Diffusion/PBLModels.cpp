@@ -19,7 +19,6 @@ void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,
                               const amrex::MultiFab& cons_in,
-                              const amrex::MultiFab& cons_old,
                               amrex::MultiFab& eddyViscosity,
                               amrex::MultiFab* QKE_equil,
                               const amrex::Geometry& geom,
@@ -32,7 +31,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
     const amrex::Real A1 = turbChoice.pbl_A1;
     const amrex::Real A2 = turbChoice.pbl_A2;
-    const amrex::Real B1 = turbChoice.pbl_B1;
+    //const amrex::Real B1 = turbChoice.pbl_B1;
     const amrex::Real B2 = turbChoice.pbl_B2;
     const amrex::Real C1 = turbChoice.pbl_C1;
     const amrex::Real C2 = turbChoice.pbl_C2;
@@ -50,7 +49,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
       const amrex::Box &bx = mfi.growntilebox(1);
       const amrex::Array4<amrex::Real const> &cell_data     = cons_in.array(mfi);
-      const amrex::Array4<amrex::Real const> &cell_data_old = cons_old.array(mfi);
       const amrex::Array4<amrex::Real      > &K_turb = eddyViscosity.array(mfi);
       const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
       const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
@@ -69,18 +67,15 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
       const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
       amrex::FArrayBox qintegral(xybx,2);
       qintegral.setVal<amrex::RunOn::Device>(0.0);
-      amrex::FArrayBox qturb(bx,1); amrex::FArrayBox qturb_old(bx,1);
+      amrex::FArrayBox qturb(bx,1);
       const amrex::Array4<amrex::Real> qint = qintegral.array();
       const amrex::Array4<amrex::Real> qvel = qturb.array();
-      const amrex::Array4<amrex::Real> qvel_old = qturb_old.array();
 
       amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
                          [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
       {
           qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-          qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
           AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
-          AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
           const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
           if (sbx.contains(i,j,k)) {

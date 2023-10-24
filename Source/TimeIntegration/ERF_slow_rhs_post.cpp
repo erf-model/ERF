@@ -366,7 +366,7 @@ void erf_slow_rhs_post (int level,
                                            mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
                 }
                 if (l_use_mynn) {
-                    ComputeEquilibriumQKE(gbx_QKE, u, v, cur_cons, cur_prim,
+                    ComputeEquilibriumQKE(gbx_QKE, u, v, cur_prim,
                                           tm_arr, mu_turb, QKE_equil_arr,
                                           dxInv, domain, tc.pbl_B1);
                 }

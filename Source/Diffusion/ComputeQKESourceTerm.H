@@ -25,7 +25,6 @@ void
 ComputeEquilibriumQKE (amrex::Box bx_QKE,
                        const amrex::Array4<const amrex::Real>& uvel,
                        const amrex::Array4<const amrex::Real>& vvel,
-                       const amrex::Array4<const amrex::Real>& cell_data,
                        const amrex::Array4<const amrex::Real>& cell_prim,
                        const amrex::Array4<const amrex::Real>& tm_arr,
                        const amrex::Array4<const amrex::Real>& K_turb,
@@ -57,14 +56,11 @@ ComputeQKESourceTerms (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& cell_prim,
                        const amrex::Array4<const amrex::Real>& K_turb,
                        const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                       const amrex::Box& domain,
                        amrex::Real pbl_B1_l,
                        const amrex::Real theta_mean)
 {
   // Compute some relevant derivatives
   amrex::Real dz_inv = cellSizeInv[2];
-  int izmin = domain.smallEnd(2);
-  int izmax = domain.bigEnd(2);
   amrex::Real source_term = 0.0;
 
   amrex::Real dthetadz = 0.5*(cell_prim(i,j,k+1,PrimTheta_comp) - cell_prim(i,j,k-1,PrimTheta_comp))*dz_inv;

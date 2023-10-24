@@ -4,7 +4,6 @@ void
 ComputeEquilibriumQKE (amrex::Box bx_QKE,
                        const amrex::Array4<const amrex::Real>& uvel,
                        const amrex::Array4<const amrex::Real>& vvel,
-                       const amrex::Array4<const amrex::Real>& cell_data,
                        const amrex::Array4<const amrex::Real>& cell_prim,
                        const amrex::Array4<const amrex::Real>& tm_arr,
                        const amrex::Array4<const amrex::Real>& K_turb,
