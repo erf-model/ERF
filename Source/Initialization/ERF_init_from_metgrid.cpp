@@ -103,7 +103,7 @@ ERF::init_from_metgrid(int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys);
+    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
 
     // This makes the Jacobian.
     make_J  (geom[lev],*z_phys,  *detJ_cc[lev]);
