@@ -27,13 +27,19 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
         // Create stretched grid based on initial dz and stretching ratio
         zlevels_stag[0] = zsurf;
         amrex::Real dz = dz0;
+        amrex::Print() << "Stretched grid levels: " << zsurf;
         for (int k = 1; k < nz; k++)
         {
             zlevels_stag[k] = zlevels_stag[k-1] + dz;
+            amrex::Print() << " " << zlevels_stag[k];
             dz *= grid_stretching_ratio;
         }
+        amrex::Print() << std::endl;
     }
 
+    // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
+    // levels to be specified and will take precedence over the
+    // grid_stretching_ratio parameter
     ParmParse pp("erf");
     int n_zlevels = pp.countval("terrain_z_levels");
     if (n_zlevels > 0)
