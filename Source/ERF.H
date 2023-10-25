@@ -369,7 +369,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs,
                                 int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                amrex::MultiFab* eddyDiffs, bool allow_most_bcs = true);
+                                bool allow_most_bcs = true);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
