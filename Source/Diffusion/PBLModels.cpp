@@ -176,7 +176,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // NOTE: Level 2 limiting from balance of production and dissipation.
           //       QKE_equil must be computed in post with filled ghost cells.
           amrex::Real qe           = std::sqrt(QKE_equil_arr(i,j,k));
-          amrex::Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
+          amrex::Real one_m_alpha  = (qvel(i,j,k) > qe) ? 0.99 : qvel(i,j,k) / (qe + eps);
           amrex::Real one_m_alpha2 = one_m_alpha * one_m_alpha;
 
           // Compute non-dimensional parameters
@@ -195,6 +195,15 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           amrex::Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
           amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
           amrex::Real SQ = 3.0 * SM;
+
+          if (SH < 0.0 || SM < 0.0) {
+              const amrex::Real lrho = cell_data(i,j,k,Rho_comp);
+              amrex::Print() << "K_turb error: " << amrex::IntVect(i,j,k) << ' '
+                             << lrho * l_comb * qvel(i,j,k) * SM << ' '
+                             << lrho * l_comb * qvel(i,j,k) * SH << ' '
+                             << qe << ' ' << qvel(i,j,k) << ' '
+                             << shearProd << ' ' << buoyProd << ' ' << one_m_alpha << "\n";
+          }
 
           AMREX_ASSERT_WITH_MESSAGE(SM > 0.0, "PBL Error: momentum transport coeff must be positive!");
           AMREX_ASSERT_WITH_MESSAGE(SH > 0.0, "PBL Error: theta transport coeff must be positive!");

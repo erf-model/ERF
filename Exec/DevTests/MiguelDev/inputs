@@ -1,7 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step  = 10000 
-stop_time = 100.0
-
+stop_time = 500.0
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -18,8 +17,8 @@ zlo.type = "Most" # "Most" # "NoSlipWall"
 #erf.most.time_average      = false
 erf.most.z0                = 0.001
 erf.most.zref              = 15.0 # >=dz/2
-erf.most.surf_temp_flux    = 0.05
-#erf.most.surf_temp         = 303.0
+#erf.most.surf_temp_flux    = 0.05
+erf.most.surf_temp         = 303.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
@@ -36,12 +35,12 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       =-100        # number of timesteps between checkpoints
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 #erf.plotfile_type   = netcdf
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 10        # number of timesteps between plotfiles
+erf.plot_int_1      = 100        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta rhoQKE x_velocity y_velocity z_velocity pressure temp theta QKE pres_hse
 
 # SOLVER CHOICE
