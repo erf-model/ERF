@@ -649,7 +649,8 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = (theta-theta_mean)*wsp_mean;
         amrex::Real num2    = (theta_mean-theta_surf)*wsp;
-        amrex::Real moflux  = tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean);
+        amrex::Real moflux  = (std::abs(tstar) > EPS) ?
+                              tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
@@ -783,6 +784,7 @@ struct moeng_flux
 
 private:
     int zlo;
+    static constexpr amrex::Real EPS = 1e-16;
 };
 
 

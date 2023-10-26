@@ -11,8 +11,9 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    amrex::Geometry      const& geom) override
 {
     const auto ztop = geom.ProbHi()[2];
-    amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<") between "
-      << ztop-parms.zdamp << " and " << ztop << std::endl;
+    amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<" s^-1)"
+        << " between " << ztop-parms.zdamp << " and " << ztop << " m"
+        << std::endl;
 
     const amrex::Real* prob_lo = geom.ProbLo();
     const auto dx              = geom.CellSize();

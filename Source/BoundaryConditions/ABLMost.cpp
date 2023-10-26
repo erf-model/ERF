@@ -11,6 +11,7 @@ using namespace amrex;
  */
 void
 ABLMost::update_fluxes (int lev,
+                        Real cur_time,
                         int max_iters)
 {
     // Compute plane averages for all vars (regardless of flux type)
@@ -30,6 +31,7 @@ ABLMost::update_fluxes (int lev,
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+            update_surf_temp(cur_time);
             if (rough_type == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);

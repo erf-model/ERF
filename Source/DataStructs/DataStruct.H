@@ -124,8 +124,14 @@ struct SolverChoice {
         for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_pressure_grad[i] = abl_pressure_grad_in[i];
 
         amrex::Vector<amrex::Real> abl_geo_forcing_in = {0.0, 0.0, 0.0};
-        pp.queryarr("abl_geo_forcing",abl_geo_forcing_in);
-        for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_geo_forcing[i] = abl_geo_forcing_in[i];
+        if(pp.queryarr("abl_geo_forcing",abl_geo_forcing_in)) {
+            amrex::Print() << "Specified abl_geo_forcing: (";
+            for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+                abl_geo_forcing[i] = abl_geo_forcing_in[i];
+                amrex::Print() << abl_geo_forcing[i] << " ";
+            }
+            amrex::Print() << ")" << std::endl;
+        }
 
         if (use_coriolis)
         {

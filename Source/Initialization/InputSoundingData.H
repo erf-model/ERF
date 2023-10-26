@@ -129,10 +129,9 @@ public:
          * density and pressure, then back down to get the dry density and
          * pressure.
          *
-         * This deviates from that code slightly because we calculate the
-         * correct moist theta, equal to virtual potential temperature, and
-         * also remove the factor (1+qv) for consistency with the the surface
-         * density.
+         * This deviates from that code slightly because we calculate a moist
+         * theta that is equal to virtual potential temperature, and also
+         * remove the factor of (1+qv) for consistency with the surface density.
          */
         const int maxiter = 10;
         const int Ninp = size();
@@ -158,6 +157,18 @@ public:
 
         // integrate from surface to domain top
         amrex::Real qvf, dz;
+#if 0
+        // In this absence of moisture, this moist profile will match the
+        // following dry profile
+        amrex::Print() << "z  p_m  rho_m  theta  U  V" << std::endl;
+        amrex::Print() << z_inp_sound[0]
+            << " " << pm_integ[0]
+            << " " << rhom_integ[0]
+            << " " << theta_inp_sound[0]
+            << " " << U_inp_sound[0]
+            << " " << V_inp_sound[0]
+            << std::endl;
+#endif
         for (int k=1; k < size(); ++k)
         {
             qvf = 1 + (R_v/R_d-1) * qv_inp_sound[k];
@@ -171,9 +182,18 @@ public:
                 rhom_integ[k] = 1 / (
                     R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
             }
+#if 0
+            amrex::Print() << z_inp_sound[k]
+                << " " << pm_integ[k]
+                << " " << rhom_integ[k]
+                << " " << theta_inp_sound[k]
+                << " " << U_inp_sound[k]
+                << " " << V_inp_sound[k]
+                << std::endl;
+#endif
         }
 
-        // now, integrate from the top of the sounding (where it's dry) back
+        // now, integrate from the top of the sounding (where it's assumed dry) back
         // down to get the dry air column properties
         pd_integ[Ninp-1] = pm_integ[Ninp-1];
         rhod_integ[Ninp-1] = 1 / (

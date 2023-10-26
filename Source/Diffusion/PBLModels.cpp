@@ -227,7 +227,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
           amrex::Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
           amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
-          amrex::Real SQ = 3.0 * SM;
+          amrex::Real SQ = 3.0 * SM; // Nakanishi & Niino 2009
 
           // Finally, compute the eddy viscosity/diffusivities
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
