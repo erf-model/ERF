@@ -132,13 +132,16 @@ public:
     void
     impose_most_bcs (const int lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
-                     amrex::MultiFab* eddyDiffs);
+                     amrex::MultiFab* eddyDiffs,
+                     amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
                       amrex::MultiFab* eddyDiffs,
+                      amrex::MultiFab* z_phys,
+                      const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
 
     void
