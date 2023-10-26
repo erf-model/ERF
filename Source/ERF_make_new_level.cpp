@@ -410,7 +410,7 @@ ERF::update_terrain_arrays (int lev, Real time)
     if (solverChoice.use_terrain) {
         if (init_type != "real" && init_type != "metgrid") {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(geom[lev],*z_phys_nd[lev]);
+            init_terrain_grid(geom[lev],*z_phys_nd[lev],zlevels_stag);
         }
         if (lev>0 && (init_type == "real" || init_type == "metgrid")) {
             PhysBCFunctNoOp empty_bc;

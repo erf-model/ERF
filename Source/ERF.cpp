@@ -122,6 +122,14 @@ ERF::ERF ()
 
     // Geometry on all levels has been defined already.
 
+    if (solverChoice.use_terrain) {
+        init_zlevels(zlevels_stag,
+                     geom[0],
+                     solverChoice.grid_stretching_ratio,
+                     solverChoice.zsurf,
+                     solverChoice.dz0);
+    }
+
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
 
