@@ -80,7 +80,7 @@
 
             FillIntermediatePatch(level, time_for_fp,
                                   {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
-                                  ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons, eddyDiffs);
+                                  ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons);
 
             // Here we don't use include any of the ghost region because we have only updated
             //      momentum on valid faces
@@ -132,7 +132,7 @@
         FillIntermediatePatch(level, time_for_fp,
                               {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
-                              eddyDiffs, allow_most_bcs);
+                              allow_most_bcs);
 
         // Now we can convert back to momentum on valid+ghost since we have
         //     filled the ghost regions for both velocity and density

@@ -587,9 +587,8 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    moeng_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -600,6 +599,7 @@ struct moeng_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -664,6 +664,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -726,6 +727,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -782,7 +784,6 @@ struct moeng_flux
 
 private:
     int zlo;
-    amrex::Real dz;
     static constexpr amrex::Real EPS = 1e-16;
 };
 
@@ -792,9 +793,8 @@ private:
  */
 struct donelan_flux
 {
-    donelan_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    donelan_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -805,6 +805,7 @@ struct donelan_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -851,6 +852,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -917,6 +919,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -977,6 +980,5 @@ struct donelan_flux
 
 private:
     int zlo;
-    amrex::Real dz;
 };
 #endif
