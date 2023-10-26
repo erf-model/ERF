@@ -107,16 +107,19 @@ public:
     /**
      * Function to perform custom initialization of terrain
      *
+     * Note: Terrain functionality can also be used to provide grid stretching.
+     *
      * @param[in] geom container for geometric information
      * @param[out] z_phys_nd height coordinate at nodes
      * @param[in] time current time
     */
     virtual void
     init_custom_terrain (const amrex::Geometry& /*geom*/,
-                         amrex::MultiFab& /*z_phys_nd*/,
+                         amrex::MultiFab& z_phys_nd,
                          const amrex::Real& /*time*/)
     {
-        amrex::Error("Should never call init_custom_terrain for "+name()+" problem");
+        amrex::Print() << "Initialized flat terrain at z=0" << std::endl;
+        z_phys_nd.setVal(0.0);
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY

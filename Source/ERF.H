@@ -550,6 +550,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
 
+    // Terrain / grid stretching
+    amrex::Vector<amrex::Real> zlevels_stag;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
