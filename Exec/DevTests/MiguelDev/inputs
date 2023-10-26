@@ -18,13 +18,13 @@ zlo.type = "Most" # "Most" # "NoSlipWall"
 #erf.most.time_average      = false
 erf.most.z0                = 0.001
 erf.most.zref              = 15.0 # >=dz/2
-erf.most.surf_temp_flux    = 0.05
-#erf.most.surf_temp         = 303.0
+#erf.most.surf_temp_flux    = 0.05
+erf.most.surf_temp         = 303.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.no_substepping = 0
-erf.fixed_dt       = 0.5     # fixed time step
+erf.fixed_dt       = 0.1     # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -36,7 +36,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       =-100        # number of timesteps between checkpoints
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 #erf.plotfile_type   = netcdf

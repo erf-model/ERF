@@ -195,6 +195,22 @@ struct TurbChoice {
 
             pp.query("theta_ref", theta_ref, lev);
         }
+
+        // MYNN level 2 limiting (Nakanishi & Niino 09 DOI:10.2151/jmsj.87.895; Appendix A)
+        if (pbl_type == PBLType::MYNN25) {
+            pbl_G1  = 0.235;
+            pbl_G2  = (2.0*pbl_A1*(3.0 - 2.0*pbl_C2) + pbl_B2*(1.0 - pbl_C3)) / pbl_B1;
+            pbl_F1  = pbl_B1*(pbl_G1 - pbl_C1)
+                     + 2.0*pbl_A1*(3.0 - 2.0*pbl_C2)
+                     + 3.0*pbl_A2*(1.0 - pbl_C2)*(1.0 - pbl_C5);
+            pbl_F2  = pbl_B1*(pbl_G1 + pbl_G2) - 3.0*pbl_A1*(1.0 - pbl_C2);
+            pbl_Rf1 = pbl_B1*(pbl_G1 - pbl_C1) / pbl_F1;
+            pbl_Rf2 = pbl_B1*(pbl_G1/pbl_F2);
+            pbl_Rfc = pbl_G1/(pbl_G1+pbl_G2);
+            pbl_Ri1 = (pbl_A2*pbl_F2) / (2.0*pbl_A1*pbl_F1);
+            pbl_Ri2 = pbl_Rf1 / (2.0*pbl_Ri1);
+            pbl_Ri3 = (2.0*pbl_Rf2 - pbl_Rf1) / pbl_Ri1;
+        }
     }
 
     void display(int lev)
@@ -280,6 +296,18 @@ struct TurbChoice {
     amrex::Real pbl_C3 = 0.352;
     amrex::Real pbl_C4 = 0.0;
     amrex::Real pbl_C5 = 0.2;
+
+    // MYNN2.5 Limiting (Nakanishi & Niino 09 DOI:10.2151/jmsj.87.895; Appendix A)
+    amrex::Real pbl_G1;
+    amrex::Real pbl_G2;
+    amrex::Real pbl_F1;
+    amrex::Real pbl_F2;
+    amrex::Real pbl_Rf1;
+    amrex::Real pbl_Rf2;
+    amrex::Real pbl_Rfc;
+    amrex::Real pbl_Ri1;
+    amrex::Real pbl_Ri2;
+    amrex::Real pbl_Ri3;
 
     // QKE stuff - default is not to use it, if MYNN2.5 or YSU PBL is used default is turb transport in Z-direction only
     bool use_QKE = false;
