@@ -50,13 +50,13 @@ erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.pbl_type = "MYNN2.5"
-erf.les_type         = "None" # "none"
+erf.les_type = "Smagorinsky" # "none"
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 0.0 # 5.0
 erf.Cs = 0.16
 
-erf.dycore_horiz_adv_type = "Upwind_3rd"
-erf.dycore_vert_adv_type  = "Upwind_5th"
+#erf.dycore_horiz_adv_type = "Upwind_3rd"
+#erf.dycore_vert_adv_type  = "Upwind_5th"
 
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"

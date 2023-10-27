@@ -100,6 +100,7 @@ void ERF::advance_dycore(int level,
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
+    MultiFab* QKE_equil = QKE_equil_lev[level].get();
 
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
@@ -219,7 +220,7 @@ void ERF::advance_dycore(int level,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
                                   state_old[IntVar::cons],
-                                  *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
+                                  *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, QKE_equil, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   tc, solverChoice.gravity, m_most);
     }

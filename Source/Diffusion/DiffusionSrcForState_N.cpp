@@ -407,7 +407,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
-                                                                  mu_turb,cellSizeInv,domain,
+                                                                  mu_turb,cellSizeInv,
                                                                   pbl_B1_l,tm_arr(i,j,0));
         });
     }

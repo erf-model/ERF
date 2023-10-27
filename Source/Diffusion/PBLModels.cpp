@@ -20,6 +20,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,
                               const amrex::MultiFab& cons_in,
                               amrex::MultiFab& eddyViscosity,
+                              amrex::MultiFab* QKE_equil,
                               const amrex::Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
@@ -30,24 +31,13 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
     const amrex::Real A1 = turbChoice.pbl_A1;
     const amrex::Real A2 = turbChoice.pbl_A2;
-    const amrex::Real B1 = turbChoice.pbl_B1;
+    //const amrex::Real B1 = turbChoice.pbl_B1;
     const amrex::Real B2 = turbChoice.pbl_B2;
     const amrex::Real C1 = turbChoice.pbl_C1;
     const amrex::Real C2 = turbChoice.pbl_C2;
     const amrex::Real C3 = turbChoice.pbl_C3;
     //const amrex::Real C4 = turbChoice.pbl_C4;
     const amrex::Real C5 = turbChoice.pbl_C5;
-
-    const amrex::Real G1  = turbChoice.pbl_G1;
-    const amrex::Real G2  = turbChoice.pbl_G2;
-    const amrex::Real F1  = turbChoice.pbl_F1;
-    const amrex::Real F2  = turbChoice.pbl_F2;
-    const amrex::Real Rf1 = turbChoice.pbl_Rf1;
-    const amrex::Real Rf2 = turbChoice.pbl_Rf2;
-    const amrex::Real Rfc = turbChoice.pbl_Rfc;
-    const amrex::Real Ri1 = turbChoice.pbl_Ri1;
-    const amrex::Real Ri2 = turbChoice.pbl_Ri2;
-    const amrex::Real Ri3 = turbChoice.pbl_Ri3;
 
     // Epsilon
     amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
@@ -62,6 +52,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
       const amrex::Array4<amrex::Real      > &K_turb = eddyViscosity.array(mfi);
       const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
       const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
+      const amrex::Array4<amrex::Real const> &QKE_equil_arr = QKE_equil->const_array(mfi);
 
       // Compute some quantities that are constant in each column
       // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
@@ -184,24 +175,14 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
           // MYNN2 Limiting (Nakanishi & Niino 09 DOI:10.2151/jmsj.87.895; Appendix A)
           //=========================================================================
-          amrex::Real shearProd = dudz*dudz + dvdz*dvdz;
-          amrex::Real buoyProd  = -(CONST_GRAV/theta0) * dthetadz;
-          // Gradient Richardson number
-          amrex::Real Ri = -buoyProd / (shearProd + eps);
-          // Flux Richardson number
-          amrex::Real Rf = Ri1 * (Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2));
-          // Stability functions
-          amrex::Real SH2 = 3.0*A2*(G1 + G2)*(Rfc - Rf)/(1.0 - Rf);
-          amrex::Real SM2 = ( (A1*F1)/(A2*F2) ) * ( (Rf1 - Rf)/(Rf2 - Rf) ) * SH2;
-          // Equilibrium QKE
-          amrex::Real qe2 = amrex::max(B1*l_comb*l_comb*SM2*(1.0-Rf)*shearProd, 0.0);
-          amrex::Real qe  = std::sqrt(qe2);
-          // Limiting factor
-          amrex::Real one_m_alpha  = (qe > qvel(i,j,k)) ?  qvel(i,j,k) / (qe + eps) : 1.0;
+          amrex::Real qe           = std::sqrt(QKE_equil_arr(i,j,k));
+          amrex::Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
           amrex::Real one_m_alpha2 = one_m_alpha * one_m_alpha;
 
           // MYNN2.5 non-dimensional parameters
           //=========================================================================
+          amrex::Real shearProd  = dudz*dudz + dvdz*dvdz;
+          amrex::Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
           amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
           amrex::Real GM = l2_over_q2 * shearProd;
           amrex::Real GH = l2_over_q2 * buoyProd;
@@ -215,15 +196,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           amrex::Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
           amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
           amrex::Real SQ = 3.0 * SM; // Nakanishi & Niino 2009
-
-          if (SH < 0.0 || SM < 0.0) {
-              const amrex::Real lrho = cell_data(i,j,k,Rho_comp);
-              amrex::AllPrint() << "K_turb error: " << amrex::IntVect(i,j,k) << ' '
-                             << lrho * l_comb * qvel(i,j,k) * SM << ' '
-                             << lrho * l_comb * qvel(i,j,k) * SH << ' '
-                             << qe << ' ' << qvel(i,j,k) << ' '
-                             << shearProd << ' ' << buoyProd << ' ' << one_m_alpha << "\n";
-          }
 
           AMREX_ASSERT_WITH_MESSAGE(SM > 0.0, "PBL Error: momentum transport coeff must be positive!");
           AMREX_ASSERT_WITH_MESSAGE(SH > 0.0, "PBL Error: theta transport coeff must be positive!");

@@ -356,6 +356,7 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
     bool l_use_kturb   = ( (solverChoice.turbChoice[lev].les_type        != LESType::None)   ||
                            (solverChoice.turbChoice[lev].pbl_type        != PBLType::None) );
     bool l_use_ddorf   = (  solverChoice.turbChoice[lev].les_type        == LESType::Deardorff);
+    bool l_use_mynn    =   (solverChoice.turbChoice[lev].pbl_type   == PBLType::MYNN25);
 
     BoxArray ba12 = convert(ba, IntVect(1,1,0));
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
@@ -397,6 +398,12 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
           SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
       } else {
           SmnSmn_lev[lev] = nullptr;
+      }
+      if(l_use_mynn) {
+          QKE_equil_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 1 );
+          QKE_equil_lev[lev]->setVal(0.0);
+      } else {
+          QKE_equil_lev[lev] = nullptr;
       }
     } else {
       eddyDiffs_lev[lev] = nullptr;

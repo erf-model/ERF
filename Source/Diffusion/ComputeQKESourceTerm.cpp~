@@ -1,0 +1,119 @@
+#include <ComputeQKESourceTerm.H>
+
+void
+ComputeEquilibriumQKE (amrex::Box bx_QKE,
+                       const amrex::Array4<const amrex::Real>& uvel,
+                       const amrex::Array4<const amrex::Real>& vvel,
+                       const amrex::Array4<const amrex::Real>& cell_prim,
+                       const amrex::Array4<const amrex::Real>& tm_arr,
+                       const amrex::Array4<const amrex::Real>& K_turb,
+                       amrex::Array4<amrex::Real>& QKE_equil_arr,
+                       const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                       const amrex::Box& domain,
+                       const TurbChoice& turbChoice)
+{
+    // Constants
+    const int izmin = domain.smallEnd(2);
+    const amrex::Real dz_inv = cellSizeInv[2];
+    
+    const amrex::Real A1 = turbChoice.pbl_A1;
+    const amrex::Real A2 = turbChoice.pbl_A2;
+    const amrex::Real B1 = turbChoice.pbl_B1;
+    const amrex::Real B2 = turbChoice.pbl_B2;
+    const amrex::Real C1 = turbChoice.pbl_C1;
+    const amrex::Real C2 = turbChoice.pbl_C2;
+    const amrex::Real C3 = turbChoice.pbl_C3;
+    const amrex::Real C4 = turbChoice.pbl_C4;
+    const amrex::Real C5 = turbChoice.pbl_C5;
+
+    const amrex::Real G1  = turbChoice.pbl_G1;
+    const amrex::Real G2  = turbChoice.pbl_G2;
+    const amrex::Real F1  = turbChoice.pbl_F1;
+    const amrex::Real F2  = turbChoice.pbl_F2;
+    const amrex::Real Rf1 = turbChoice.pbl_Rf1;
+    const amrex::Real Rf2 = turbChoice.pbl_Rf2;
+    const amrex::Real Rfc = turbChoice.pbl_Rfc;
+    const amrex::Real Ri1 = turbChoice.pbl_Ri1;
+    const amrex::Real Ri2 = turbChoice.pbl_Ri2;
+    const amrex::Real Ri3 = turbChoice.pbl_Ri3;
+    
+    // Store QKE equilibrium for Level 2 limiting of MYNN2.5 model    
+    amrex::ParallelFor(bx_QKE,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        // Gradients (ghost cells have been filled)
+        int lk = amrex::max(k,izmin);
+        amrex::Real dthetadz = 0.5*(cell_prim(i,j,lk+1,PrimTheta_comp) - cell_prim(i,j,lk-1,PrimTheta_comp))*dz_inv;
+        amrex::Real dudz = 0.25*(uvel(i,j,lk+1) - uvel(i,j,lk-1) + uvel(i+1,j,lk+1) - uvel(i+1,j,lk-1))*dz_inv;
+        amrex::Real dvdz = 0.25*(vvel(i,j,lk+1) - vvel(i,j,lk-1) + vvel(i,j+1,lk+1) - vvel(i,j+1,lk-1))*dz_inv;
+
+        amrex::Real OLD_QE;
+        amrex::Real l_comb    = K_turb(i,j,k,EddyDiff::PBL_lengthscale);
+        amrex::Real shearProd = dudz*dudz + dvdz*dvdz;
+        amrex::Real buoyProd  = -(CONST_GRAV/tm_arr(i,j,0)) * dthetadz;
+        {
+            // Balance relation
+            amrex::Real qke       = cell_prim(i,j,k,PrimQKE_comp);
+            amrex::Real qvel      = std::sqrt(qke);
+            amrex::Real lSM       = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel + 1.0e-16);
+            amrex::Real lSH       = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel + 1.0e-16);
+            OLD_QE    = amrex::max(B1 * l_comb * ( lSM * shearProd + lSH * buoyProd ), 0.0);
+            //QKE_equil_arr(i,j,k)  = amrex::max(pbl_B1_l * l_comb * ( lSM * shearProd + lSH * buoyProd ), 0.0);
+        }
+       
+
+        amrex::Real NEW_QE;
+        {
+            // NN 09 Appendix A
+            amrex::Real g1  = 0.235;
+            amrex::Real g2  = ( 2.0*A1*(3.0 - 2.0*C2) + B2*(1.0 - C3) ) / B1;
+            
+            amrex::Real f1  = B1*(g1 - C1) + 2.0*A1*(3.0 - 2.0*C2) + 3.0*A2*(1.0 - C2)*(1.0 - C5);
+            amrex::Real f2  = B1*(g1 + g2) - 3.0*A1*(1.0 - C2);
+            
+            amrex::Real Rf1 = B1*(g1 - C1) / f1;
+            amrex::Real Rf2 = B1*(g1/f2);
+            amrex::Real Rfc = g1/(g1+g2);
+
+            amrex::Real Ri1 = (A2*f2) / (2.0*A1*f1);
+            amrex::Real Ri2 = Rf1 / (2.0*Ri1);
+            amrex::Real Ri3 = (2.0*Rf2 - Rf1) / Ri1;
+
+            // Gradient Richardson number
+            amrex::Real Ri = -buoyProd / (shearProd + 1.0e-16);
+
+            // Flux Richardson number
+            amrex::Real CHK = Ri*Ri - Ri3*Ri + Ri2*Ri2;
+            if (CHK < 0.0) {
+                amrex::Print() << "RI error: " << amrex::IntVect(i,j,k) << ' '
+                               << CHK << ' ' << Ri << "\n";
+                exit(0);
+            }
+            amrex::Real Rf = Ri1 * (Ri + Ri2 - std::sqrt(Ri*Ri - Ri3*Ri + Ri2*Ri2));
+
+            // Stability functions
+            amrex::Real SH2 = 3.0*A2*(g1 + g2)*(Rfc - Rf)/(1.0 - Rf);
+            amrex::Real SM2 = ( (A1*f1)/(A2*f2) ) * ( (Rf1 - Rf)/(Rf2 - Rf) ) * SH2;
+
+            // Equilibrium solution
+            NEW_QE = B1*l_comb*l_comb*SM2*(1.0-Rf)*shearProd;
+        }
+
+        /*
+        if (OLD_QE < NEW_QE) {
+            amrex::Print() << "NICE: " << amrex::IntVect(i,j,k) << ' '
+                           << OLD_QE << ' ' << NEW_QE << "\n";
+        }
+        */
+        QKE_equil_arr(i,j,k) = amrex::max(NEW_QE,0.0);
+
+        /*
+        if (NEW_QE < 0.0) {
+            amrex::Print() << "BALANCE error: " << amrex::IntVect(i,j,k) << ' '
+                           << NEW_QE << "\n";
+            exit(0);
+        }
+        */
+        
+        
+    });
+}
