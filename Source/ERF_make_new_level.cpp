@@ -437,7 +437,7 @@ ERF::update_terrain_arrays (int lev, Real time)
 }
 
 void
-ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
+ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 {
     const BoxArray& ba(cons_mf.boxArray());
     const DistributionMapping& dm(cons_mf.DistributionMap());
