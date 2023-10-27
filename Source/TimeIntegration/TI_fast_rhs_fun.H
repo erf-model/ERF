@@ -140,30 +140,6 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
             }
         }
 
-
-        // TODO: DELETE ALL OF THIS; FILL BCs PICKS THIS UP W/O G2E
-        /*
-#ifdef ERF_USE_NETCDF
-        // Update vars in set zone (relaxation already updated)
-        if (init_type=="real" && level==0 && wrfbdy_set_width>0) {
-            if (fast_step == 0 ) {
-                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);
-            } else {
-                update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data);
-            }
-        }
-#endif
-
-        // Update vars in set zone (relaxation already updated)
-        if (level>0 && cf_set_width>0) {
-            if (fast_step == 0 ) {
-                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
-            } else {
-                update_interior_ghost(level, dtau, cf_set_width, boxes_at_level[level], S_slow_rhs, S_data, S_data, &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1]);
-            }
-        }
-        */
-
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
         bool fast_only          = true;

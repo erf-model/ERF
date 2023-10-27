@@ -96,17 +96,17 @@ public:
     // constructor - reads in parameters from inputs file
     //             - sizes multilevel arrays and data structures
     ERF ();
-    ~ERF() override;
+    ~ERF () override;
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    ERF(ERF&&)  noexcept = delete;
+    ERF (ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
     ERF& operator=(ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
-    ERF(const ERF& other) = delete;
+    ERF (const ERF& other) = delete;
     //
     // Delete the copy assignment operator
     ERF& operator=(const ERF& other) = delete;
@@ -315,7 +315,7 @@ private:
     ///////////////////////////
 
     // read in some parameters from inputs file
-    void ReadParameters();
+    void ReadParameters ();
 
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
@@ -755,7 +755,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
 #endif
 
-    void refinement_criteria_setup();
+    void refinement_criteria_setup ();
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;

@@ -13,82 +13,82 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 
 void
-read_from_wrfinput(int lev, const Box& domain, const std::string& fname,
-                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
-                   FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
-                   FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
-                   FArrayBox& NC_MUB_fab ,
-                   FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
-                   FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
-                   FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
-                   FArrayBox& NC_RDNW_fab,
+read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
+                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
+                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
+                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
+                    FArrayBox& NC_MUB_fab ,
+                    FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
+                    FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
+                    FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
+                    FArrayBox& NC_RDNW_fab,
 #if defined(ERF_USE_MOISTURE)
-                   FArrayBox& NC_QVAPOR_fab,
-                   FArrayBox& NC_QCLOUD_fab,
-                   FArrayBox& NC_QRAIN_fab,
+                    FArrayBox& NC_QVAPOR_fab,
+                    FArrayBox& NC_QCLOUD_fab,
+                    FArrayBox& NC_QRAIN_fab,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                   FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
-                   FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab);
+                    FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
+                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab);
 
 Real
-read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
-                 Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                 Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                 Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int& width, amrex::Real& start_bdy_time);
+read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
+                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                  int& width, amrex::Real& start_bdy_time);
 
 void
-convert_wrfbdy_data(int which, const Box& domain,
-                    Vector<Vector<FArrayBox>>& bdy_data,
-                    const FArrayBox& NC_MUB_fab,
-                    const FArrayBox& NC_MSFU_fab,
-                    const FArrayBox& NC_MSFV_fab,
-                    const FArrayBox& NC_MSFM_fab,
-                    const FArrayBox& NC_PH_fab,
-                    const FArrayBox& NC_PHB_fab,
-                    const FArrayBox& NC_C1H_fab,
-                    const FArrayBox& NC_C2H_fab,
-                    const FArrayBox& NC_RDNW_fab,
-                    const FArrayBox& NC_xvel_fab,
-                    const FArrayBox& NC_yvel_fab,
-                    const FArrayBox& NC_rho_fab,
-                    const FArrayBox& NC_rhoth_fab);
+convert_wrfbdy_data (int which, const Box& domain,
+                     Vector<Vector<FArrayBox>>& bdy_data,
+                     const FArrayBox& NC_MUB_fab,
+                     const FArrayBox& NC_MSFU_fab,
+                     const FArrayBox& NC_MSFV_fab,
+                     const FArrayBox& NC_MSFM_fab,
+                     const FArrayBox& NC_PH_fab,
+                     const FArrayBox& NC_PHB_fab,
+                     const FArrayBox& NC_C1H_fab,
+                     const FArrayBox& NC_C2H_fab,
+                     const FArrayBox& NC_RDNW_fab,
+                     const FArrayBox& NC_xvel_fab,
+                     const FArrayBox& NC_yvel_fab,
+                     const FArrayBox& NC_rho_fab,
+                     const FArrayBox& NC_rhoth_fab);
 
 void
-init_state_from_wrfinput(int lev, FArrayBox& state_fab,
-                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                         FArrayBox& z_vel_fab,
+init_state_from_wrfinput (int lev, FArrayBox& state_fab,
+                          FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                          FArrayBox& z_vel_fab,
 #if defined(ERF_USE_MOISTURE)
-                         const Vector<FArrayBox>& NC_QVAPOR_fab,
-                         const Vector<FArrayBox>& NC_QCLOUD_fab,
-                         const Vector<FArrayBox>& NC_QRAIN_fab,
+                          const Vector<FArrayBox>& NC_QVAPOR_fab,
+                          const Vector<FArrayBox>& NC_QCLOUD_fab,
+                          const Vector<FArrayBox>& NC_QRAIN_fab,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                         const Vector<FArrayBox>& NC_xvel_fab,
-                         const Vector<FArrayBox>& NC_yvel_fab,
-                         const Vector<FArrayBox>& NC_zvel_fab,
-                         const Vector<FArrayBox>& NC_rho_fab,
-                         const Vector<FArrayBox>& NC_rhotheta_fab);
+                          const Vector<FArrayBox>& NC_xvel_fab,
+                          const Vector<FArrayBox>& NC_yvel_fab,
+                          const Vector<FArrayBox>& NC_zvel_fab,
+                          const Vector<FArrayBox>& NC_rho_fab,
+                          const Vector<FArrayBox>& NC_rhotheta_fab);
 
 void
-init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
-                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
-                        const Vector<FArrayBox>& NC_MSFU_fab,
-                        const Vector<FArrayBox>& NC_MSFV_fab,
-                        const Vector<FArrayBox>& NC_MSFM_fab);
+init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
+                         FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                         const Vector<FArrayBox>& NC_MSFU_fab,
+                         const Vector<FArrayBox>& NC_MSFV_fab,
+                         const Vector<FArrayBox>& NC_MSFM_fab);
 void
-init_terrain_from_wrfinput(int lev, const Box& domain, FArrayBox& z_phys,
-                           const Vector<FArrayBox>& NC_PH_fab,
-                           const Vector<FArrayBox>& NC_PHB_fab);
+init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
+                            const Vector<FArrayBox>& NC_PH_fab,
+                            const Vector<FArrayBox>& NC_PHB_fab);
 
 void
-init_base_state_from_wrfinput(int lev, const Box& bx, Real l_rdOcp,
-                              FArrayBox& p_hse, FArrayBox& pi_hse,
-                              FArrayBox& r_hse,
-                              const Vector<FArrayBox>& NC_ALB_fab,
-                              const Vector<FArrayBox>& NC_PB_fab);
+init_base_state_from_wrfinput (int lev, const Box& bx, Real l_rdOcp,
+                               FArrayBox& p_hse, FArrayBox& pi_hse,
+                               FArrayBox& r_hse,
+                               const Vector<FArrayBox>& NC_ALB_fab,
+                               const Vector<FArrayBox>& NC_PB_fab);
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -96,7 +96,7 @@ init_base_state_from_wrfinput(int lev, const Box& bx, Real l_rdOcp,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_wrfinput(int lev)
+ERF::init_from_wrfinput (int lev)
 {
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<FArrayBox> NC_xvel_fab ; NC_xvel_fab.resize(num_boxes_at_level[lev]);
@@ -271,22 +271,22 @@ ERF::init_from_wrfinput(int lev)
  * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
-init_state_from_wrfinput(int lev,
-                         FArrayBox& state_fab,
-                         FArrayBox& x_vel_fab,
-                         FArrayBox& y_vel_fab,
-                         FArrayBox& z_vel_fab,
+init_state_from_wrfinput (int lev,
+                          FArrayBox& state_fab,
+                          FArrayBox& x_vel_fab,
+                          FArrayBox& y_vel_fab,
+                          FArrayBox& z_vel_fab,
 #if defined(ERF_USE_MOISTURE)
-                         const Vector<FArrayBox>& NC_QVAPOR_fab,
-                         const Vector<FArrayBox>& NC_QCLOUD_fab,
-                         const Vector<FArrayBox>& NC_QRAIN_fab,
+                          const Vector<FArrayBox>& NC_QVAPOR_fab,
+                          const Vector<FArrayBox>& NC_QCLOUD_fab,
+                          const Vector<FArrayBox>& NC_QRAIN_fab,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                         const Vector<FArrayBox>& NC_xvel_fab,
-                         const Vector<FArrayBox>& NC_yvel_fab,
-                         const Vector<FArrayBox>& NC_zvel_fab,
-                         const Vector<FArrayBox>& NC_rho_fab,
-                         const Vector<FArrayBox>& NC_rhotheta_fab)
+                          const Vector<FArrayBox>& NC_xvel_fab,
+                          const Vector<FArrayBox>& NC_yvel_fab,
+                          const Vector<FArrayBox>& NC_zvel_fab,
+                          const Vector<FArrayBox>& NC_rho_fab,
+                          const Vector<FArrayBox>& NC_rhotheta_fab)
 {
     int nboxes = NC_xvel_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
@@ -337,11 +337,11 @@ init_state_from_wrfinput(int lev,
  * @param NC_MSFM_fab Vector of FArrayBoxes holding WRF data specifying z-velocity map factors
  */
 void
-init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
-                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
-                        const Vector<FArrayBox>& NC_MSFU_fab,
-                        const Vector<FArrayBox>& NC_MSFV_fab,
-                        const Vector<FArrayBox>& NC_MSFM_fab)
+init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
+                         FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                         const Vector<FArrayBox>& NC_MSFU_fab,
+                         const Vector<FArrayBox>& NC_MSFV_fab,
+                         const Vector<FArrayBox>& NC_MSFM_fab)
 {
     int nboxes = NC_MSFU_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
@@ -374,10 +374,10 @@ init_msfs_from_wrfinput(int lev, FArrayBox& msfu_fab,
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
  */
 void
-init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
-                              FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
-                              const Vector<FArrayBox>& NC_ALB_fab,
-                              const Vector<FArrayBox>& NC_PB_fab)
+init_base_state_from_wrfinput (int lev, const Box& valid_bx, const Real l_rdOcp,
+                               FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
+                               const Vector<FArrayBox>& NC_ALB_fab,
+                               const Vector<FArrayBox>& NC_PB_fab)
 {
     int nboxes = NC_ALB_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
@@ -409,9 +409,9 @@ init_base_state_from_wrfinput(int lev, const Box& valid_bx, const Real l_rdOcp,
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
 void
-init_terrain_from_wrfinput(int lev, const Box& domain, FArrayBox& z_phys,
-                           const Vector<FArrayBox>& NC_PH_fab,
-                           const Vector<FArrayBox>& NC_PHB_fab)
+init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
+                            const Vector<FArrayBox>& NC_PH_fab,
+                            const Vector<FArrayBox>& NC_PHB_fab)
 {
     int nboxes = NC_PH_fab.size();
     for (int idx = 0; idx < nboxes; idx++)

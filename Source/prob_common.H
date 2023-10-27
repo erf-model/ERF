@@ -26,7 +26,7 @@ public:
     /**
      * Virtual destructor to avoid data leakage with derived class
      */
-    virtual ~ProblemBase() = default;
+    virtual ~ProblemBase () = default;
 
     /**
      * Function to initialize the hydrostatic reference density
