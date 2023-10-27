@@ -19,10 +19,10 @@
  */
 struct InputSoundingData {
 public:
-    InputSoundingData() {}
+    InputSoundingData () {}
 
-    void read_from_file(const std::string input_sounding_file,
-                        amrex::Geometry const &geom)
+    void read_from_file (const std::string input_sounding_file,
+                         amrex::Geometry const &geom)
     {
         const amrex::Real zbot = geom.ProbLo(AMREX_SPACEDIM-1);
         AMREX_ALWAYS_ASSERT(zbot == 0);
@@ -121,7 +121,7 @@ public:
         host_to_device();
     }
 
-    void calc_rho_p()
+    void calc_rho_p ()
     {
         /* Calculate density and pressure, roughly following the procedure in
          * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
@@ -233,7 +233,7 @@ public:
         host_to_device();
     }
 
-    void host_to_device()
+    void host_to_device ()
     {
         z_inp_sound_d.resize(size());
         theta_inp_sound_d.resize(size());
@@ -271,7 +271,7 @@ public:
         }
     }
 
-    int size() const
+    int size () const
     {
         AMREX_ALWAYS_ASSERT(z_inp_sound.size() == theta_inp_sound.size());
         AMREX_ALWAYS_ASSERT(z_inp_sound.size() == qv_inp_sound.size());

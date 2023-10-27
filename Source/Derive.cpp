@@ -13,7 +13,7 @@ namespace derived {
  * @params[in] datfab array of data used to construct derived quantity
  * @params[in] scalar_index index of quantity to be divided by density
 */
-void erf_derrhodivide(
+void erf_derrhodivide (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   const amrex::FArrayBox& datfab,
@@ -34,7 +34,7 @@ void erf_derrhodivide(
  * Placeholder function that does nothing
 */
 void
-erf_dernull(
+erf_dernull (
   const amrex::Box& /*bx*/,
   amrex::FArrayBox& /*derfab*/,
   int /*dcomp*/,
@@ -54,7 +54,7 @@ erf_dernull(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derpres(
+erf_derpres (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -92,7 +92,7 @@ erf_derpres(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dersoundspeed(
+erf_dersoundspeed (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -125,7 +125,7 @@ erf_dersoundspeed(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertemp(
+erf_dertemp (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -155,7 +155,7 @@ erf_dertemp(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertheta(
+erf_dertheta (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -177,7 +177,7 @@ erf_dertheta(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derscalar(
+erf_derscalar (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -199,7 +199,7 @@ erf_derscalar(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derKE(
+erf_derKE (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -221,7 +221,7 @@ erf_derKE(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQKE(
+erf_derQKE (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -244,7 +244,7 @@ erf_derQKE(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQt(
+erf_derQt (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -266,7 +266,7 @@ erf_derQt(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQp(
+erf_derQp (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -288,7 +288,7 @@ erf_derQp(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQv(
+erf_derQv (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,
@@ -309,7 +309,7 @@ erf_derQv(
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQc(
+erf_derQc (
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int /*dcomp*/,

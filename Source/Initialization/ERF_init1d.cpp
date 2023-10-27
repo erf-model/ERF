@@ -14,7 +14,7 @@ using namespace amrex;
  * the effects of Rayleigh Damping.
  */
 void
-ERF::initRayleigh()
+ERF::initRayleigh ()
 {
     AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
 
@@ -68,7 +68,7 @@ ERF::initRayleigh()
                          we are currently restarting from a checkpoint file.
  */
 void
-ERF::setRayleighRefFromSounding(bool restarting)
+ERF::setRayleighRefFromSounding (bool restarting)
 {
     // If we are restarting then we haven't read the input_sounding file yet
     //    so we need to read it here
@@ -123,7 +123,7 @@ ERF::setRayleighRefFromSounding(bool restarting)
  * hydrostatic equilibrium.
  */
 void
-ERF::initHSE(int lev)
+ERF::initHSE (int lev)
 {
     MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0  is first  component
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
@@ -138,7 +138,7 @@ ERF::initHSE(int lev)
 }
 
 void
-ERF::initHSE()
+ERF::initHSE ()
 {
     AMREX_ALWAYS_ASSERT(!init_sounding_ideal);
     for (int lev = 0; lev <= finest_level; lev++)
@@ -158,10 +158,10 @@ ERF::initHSE()
  * @param[in]  z_nd Pointer to MultiFab storing node centered z-coordinates
  */
 void
-ERF::erf_enforce_hse(int lev,
-                     MultiFab& dens, MultiFab& pres, MultiFab& pi,
-                     std::unique_ptr<MultiFab>& z_cc,
-                     std::unique_ptr<MultiFab>& z_nd)
+ERF::erf_enforce_hse (int lev,
+                      MultiFab& dens, MultiFab& pres, MultiFab& pi,
+                      std::unique_ptr<MultiFab>& z_cc,
+                      std::unique_ptr<MultiFab>& z_nd)
 {
     amrex::Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;

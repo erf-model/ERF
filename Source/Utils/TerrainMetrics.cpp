@@ -425,9 +425,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
  * Computation of detJ at cell-center
  */
 void
-make_J(const amrex::Geometry& geom,
-       amrex::MultiFab& z_phys_nd,
-       amrex::MultiFab& detJ_cc)
+make_J (const amrex::Geometry& geom,
+        amrex::MultiFab& z_phys_nd,
+        amrex::MultiFab& detJ_cc)
 {
     const auto *dx = geom.CellSize();
     amrex::Real dzInv = 1.0/dx[2];
@@ -461,9 +461,9 @@ make_J(const amrex::Geometry& geom,
  * Computation of z_phys at cell-center
  */
 void
-make_zcc(const amrex::Geometry& geom,
-         amrex::MultiFab& z_phys_nd,
-         amrex::MultiFab& z_phys_cc)
+make_zcc (const amrex::Geometry& geom,
+          amrex::MultiFab& z_phys_nd,
+          amrex::MultiFab& z_phys_cc)
 {
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();
