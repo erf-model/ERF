@@ -251,7 +251,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     // We call this here because it is an ERF routine
     if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time, cons_only, icomp_cons, ncomp_cons);
-    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time, cons_only, icomp_cons, ncomp_cons);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);

@@ -435,6 +435,8 @@ ERF::init_from_metgrid(int lev)
     // the lateral boundary arrays using the info set aside earlier.
     for (int it(0); it < ntimes; it++) {
 
+        const Array4<Real const>& R_bcs_arr = fabs_for_bcs[it][MetGridBdyVars::R].const_array();
+
         for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
 
             auto xlo_arr = bdy_data_xlo[it][ivar].array();
@@ -523,18 +525,22 @@ ERF::init_from_metgrid(int lev)
                 // mixing ratio at west boundary
                 amrex::ParallelFor(xlo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    xlo_arr(i,j,k,0) *= R_bcs_arr(i,j,k);
                 });
                 // mixing ratio at east boundary
                 amrex::ParallelFor(xhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    xhi_arr(i,j,k,0) *= R_bcs_arr(i,j,k);
                 });
                 // mixing ratio at south boundary
                 amrex::ParallelFor(ylo_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    ylo_arr(i,j,k,0) *= R_bcs_arr(i,j,k);
                 });
                 // mixing ratio at north boundary
                 amrex::ParallelFor(yhi_plane_no_stag, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k);
+                    yhi_arr(i,j,k,0) *= R_bcs_arr(i,j,k);
                 });
             } // MetGridBdyVars::QV
 
@@ -784,7 +790,6 @@ init_state_from_metgrid(const Real l_rdOcp,
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
-//                mxrat(i,j,k) = 0.0; // TODO: Remove when not needed. Force a dry atmosphere for debugging.
             });
         }
 
@@ -946,7 +951,7 @@ calc_rho_p(const int& kmax,
     // calculate virtual potential temperature at the surface.
     {
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        Real qvf = 1.0+(R_v/R_d-1.0)*Q_vec[0];
+        Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[0];
 #else
         Real qvf = 1.0;
 #endif
@@ -960,7 +965,7 @@ calc_rho_p(const int& kmax,
     for (int k=1; k < kmax; k++) {
         Real dz = z_vec[k]-z_vec[k-1];
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        Real qvf = 1.0+(R_v/R_d-1.0)*Q_vec[k];
+        Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[k];
 #else
         Real qvf = 1.0;
 #endif
@@ -975,14 +980,14 @@ calc_rho_p(const int& kmax,
 
     // integrate from the top back down to get dry pressure and density.
     Pd_vec[kmax-1] = Pm_vec[kmax-1];
-    Rhod_vec[kmax-1] = 1.0/(R_d/p_0*Theta_vec[kmax-1]*std::pow(Pd_vec[kmax-1]/p_0, -iGamma));
+    Rhod_vec[kmax-1] = 1.0/(R_d/p_0*theta_v[kmax-1]*std::pow(Pd_vec[kmax-1]/p_0, -iGamma));
     for (int k=kmax-2; k >= 0; k--) {
         Real dz = z_vec[k+1]-z_vec[k];
         Rhod_vec[k] = Rhod_vec[k+1]; // an initial guess.
         for (int it=0; it < maxiter; it++) {
             Pd_vec[k] = Pd_vec[k+1]+0.5*dz*(Rhod_vec[k]+Rhod_vec[k+1])*CONST_GRAV;
             if (Pd_vec[k] < 0.0) Pd_vec[k] = 0.0;
-            Rhod_vec[k] = 1.0/(R_d/p_0*Theta_vec[k]*std::pow(Pd_vec[k]/p_0, -iGamma));
+            Rhod_vec[k] = 1.0/(R_d/p_0*theta_v[k]*std::pow(Pd_vec[k]/p_0, -iGamma));
         } // it
     } // k
 }
@@ -1137,8 +1142,8 @@ init_base_state_from_metgrid(const Real l_rdOcp,
             Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
             new_data(i,j,k,RhoQ_comp) = RhoQ;
 #endif
-//            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
+            pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
+//            pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
     }
 

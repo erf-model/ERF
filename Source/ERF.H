@@ -302,7 +302,10 @@ public:
                            int icomp_cons = 0,
                            int ncomp_cons = NVAR);
     void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time);
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
 #endif
 
 #ifdef ERF_USE_PARTICLES
@@ -697,8 +700,8 @@ private:
     int wrfbdy_set_width{0};
 
     // NetCDF initialization (met_em) file
-    int metgrid_bdy_width = 5;
-    int metgrid_bdy_set_width{1};
+    int metgrid_bdy_width{0};
+    int metgrid_bdy_set_width{0};
 
     // Text input_sounding file
     static std::string input_sounding_file;

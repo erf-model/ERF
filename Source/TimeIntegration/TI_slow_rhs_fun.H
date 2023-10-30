@@ -272,6 +272,7 @@
         // Flag for moisture relaxation zone
         bool moist_zero = false;
         if (init_type=="real" && level==0 && wrfbdy_set_width>0)  moist_zero = true;
+        if (init_type=="metgrid" && level==0 && metgrid_bdy_set_width > 0) moist_zero = true;
 #endif
 
         // Moving terrain
@@ -358,7 +359,6 @@
                 width = metgrid_bdy_width;
                 set_width = metgrid_bdy_set_width;
             }
-            amrex::Print() << " DJW[TI_slow_rhs_fun.H]: start_bdy_time \t" << start_bdy_time << std::endl;
             wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                               width-1, set_width, fine_geom,
                                               S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,

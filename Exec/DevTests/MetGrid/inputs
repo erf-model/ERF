@@ -55,6 +55,8 @@ erf.Cs              = 0.1
 #erf.terrain_z_levels = 0 130 354 583 816 1054 1549 2068 2615 3193 3803 4450 5142 5892 6709 7603 8591 9702 10967 12442 14230 16610 18711 20752 22133 23960 26579 28493 31236 33699 36068 40000
 
 # INITIALIZATION WITH ATM DATA
+erf.metgrid_bdy_width = 5
+erf.metgrid_bdy_set_width = 1
 erf.init_type      = "metgrid"
 erf.nc_init_file_0 = "met_em.d01.2022-06-18_00:00:00.nc" "met_em.d01.2022-06-18_06:00:00.nc" "met_em.d01.2022-06-18_12:00:00.nc" "met_em.d01.2022-06-18_18:00:00.nc"
 

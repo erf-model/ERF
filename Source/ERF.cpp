@@ -1015,6 +1015,13 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
         AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
 
+        // Query the set and total widths for metgrid_bdy interior ghost cells
+        pp.query("metgrid_bdy_width", metgrid_bdy_width);
+        pp.query("metgrid_bdy_set_width", metgrid_bdy_set_width);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= metgrid_bdy_set_width);
+
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);

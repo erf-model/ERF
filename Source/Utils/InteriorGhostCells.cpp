@@ -128,21 +128,19 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = time;
-    if (init_type == "real") time_since_start = (time - start_bdy_time) / 1.e10;
+    Real time_since_start = (time - start_bdy_time) / 1.e10;
+    if (init_type == "metgrid") time_since_start = time;
     int n_time = static_cast<int>( time_since_start / dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
+//    amrex::Print() << "time: " << time << "    start_bdy_time: " << start_bdy_time << "    dT: " << dT << "    n_time: " << n_time << "    alpha: " << alpha << std::endl;
 
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
     FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
     FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    FArrayBox Q_xlo, Q_xhi, Q_ylo, Q_yhi;
-#endif
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
@@ -151,40 +149,19 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
-//#if defined(ERF_USE_MOISTURE)
-//     var_map.push_back( Vars::cons );
-//    ivar_map.push_back( IntVar::cons );
-//    comp_map.push_back( RhoQt_comp );
-//#elif defined(ERF_USE_WARM_NO_PRECIP)
-//     var_map.push_back( Vars::cons );
-//    ivar_map.push_back( IntVar::cons );
-//    comp_map.push_back( RhoQv_comp );
-//#endif
-
     int BdyEnd, ivarU, ivarV, ivarR, ivarT;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    int ivarQV;
-#endif
     if (init_type == "real") {
         BdyEnd = WRFBdyVars::NumTypes-3;
         ivarU = WRFBdyVars::U;
         ivarV = WRFBdyVars::V;
         ivarR = WRFBdyVars::R;
         ivarT = WRFBdyVars::T;
-//#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-//        BdyEnd += 1;
-//        ivarQV = WRFBdyVars::QV;
-//#endif
     } else if (init_type == "metgrid") {
         BdyEnd = MetGridBdyVars::NumTypes-1;
         ivarU = MetGridBdyVars::U;
         ivarV = MetGridBdyVars::V;
         ivarR = MetGridBdyVars::R;
         ivarT = MetGridBdyVars::T;
-//#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-//        BdyEnd += 1;
-//        ivarQV = MetGridBdyVars::QV;
-//#endif
     }
 
     // Size the FABs
@@ -218,11 +195,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         } else if (ivar  == ivarT){
             T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
             T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == ivarQV ) {
-            Q_xlo.resize(bx_xlo,1); Q_xhi.resize(bx_xhi,1);
-            Q_ylo.resize(bx_ylo,1); Q_yhi.resize(bx_yhi,1);
-#endif
         } else {
             continue;
         }
@@ -240,11 +212,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
 
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
-
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    Elixir Q_xlo_eli = Q_xlo.elixir(); Elixir Q_xhi_eli = Q_xhi.elixir();
-    Elixir Q_ylo_eli = Q_ylo.elixir(); Elixir Q_yhi_eli = Q_yhi.elixir();
-#endif
 
     // Populate FABs from boundary interpolation
     //==========================================================
@@ -280,11 +247,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         } else if (ivar  == ivarT){
             arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
             arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        } else if (ivar  == ivarQV ) {
-            arr_xlo = Q_xlo.array(); arr_xhi = Q_xhi.array();
-            arr_ylo = Q_ylo.array(); arr_yhi = Q_yhi.array();
-#endif
         } else {
             continue;
         }
@@ -477,6 +439,8 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         }
     } // mfi
 
+//    return; // DJW debugging return statement to shut off relaxation zone.
+
     // Compute RHS in relaxation region
     //==========================================================
     for (int ivar(ivarU); ivar < BdyEnd; ivar++)
@@ -526,13 +490,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-            } else if (ivar  == ivarQV ) {
-                arr_xlo  = Q_xlo.array(); arr_xhi = Q_xhi.array();
-                arr_ylo  = Q_ylo.array(); arr_yhi = Q_yhi.array();
-                rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                data_arr = S_data[IntVar::cons].array(mfi);
-#endif
             } else {
                 continue;
             }
