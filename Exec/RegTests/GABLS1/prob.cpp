@@ -70,6 +70,9 @@ Problem::init_custom_pert(
     amrex::Array4<amrex::Real const> const& /*mf_v*/,
     const SolverChoice& /*sc*/)
 {
+  if (state.nComp() > RhoQKE_comp) {
+    amrex::Print() << "Initializing QKE" << std::endl;
+  }
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -96,11 +99,13 @@ Problem::init_custom_pert(
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
     // Set an initial value for QKE = 2*e
-    if (z < 250) {
-        // Following Cuxart et al. 2006
-        state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * 0.8 * std::pow(1 - z/250, 3);
-    } else {
-        state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
+    if (state.nComp() > RhoQKE_comp) {
+        if (z < 250) {
+            // Following Cuxart et al. 2006
+            state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * 0.8 * std::pow(1 - z/250, 3);
+        } else {
+            state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
+        }
     }
 
 #if defined(ERF_USE_MOISTURE)
