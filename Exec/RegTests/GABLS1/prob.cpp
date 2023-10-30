@@ -154,7 +154,7 @@ Problem::init_custom_pert(
     if (parms.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
-        const amrex::Real zl = z / parms.pert_ref_height;
+        const amrex::Real zl = z / (parms.pert_ref_height/2);
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
         x_vel(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
     }
