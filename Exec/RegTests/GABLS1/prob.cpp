@@ -73,6 +73,25 @@ Problem::init_custom_pert(
   if (state.nComp() > RhoQKE_comp) {
     amrex::Print() << "Initializing QKE" << std::endl;
   }
+
+  if (parms.pert_ref_height > 0) {
+    if (parms.pert_deltaU != 0.0) {
+      amrex::Print() << "Adding divergence-free x-velocity perturbations" << std::endl;
+    }
+    if (parms.pert_deltaV != 0.0) {
+      amrex::Print() << "Adding divergence-free y-velocity perturbations" << std::endl;
+    }
+    if (parms.T_0_Pert_Mag != 0.0) {
+      amrex::Print() << "Adding random theta perturbations" << std::endl;
+    }
+    if (parms.U_0_Pert_Mag != 0.0) {
+      amrex::Print() << "Adding random x-velocity perturbations" << std::endl;
+    }
+    if (parms.V_0_Pert_Mag != 0.0) {
+      amrex::Print() << "Adding random y-velocity perturbations" << std::endl;
+    }
+  }
+
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -92,7 +111,7 @@ Problem::init_custom_pert(
     // Add temperature perturbations
     if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        state(i, j, k, RhoTheta_comp) = r_hse(i,j,k) * (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
