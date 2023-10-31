@@ -209,6 +209,22 @@ Output Options
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
+| **Kmv**                     | Vertical         |
+|                             | Eddy Diffusivity |
+|                             | of Momentum      |
++-----------------------------+------------------+
+| **Kmh**                     | Horizontal       |
+|                             | Eddy Diffusivity |
+|                             | of Momentum      |
++-----------------------------+------------------+
+| **Khv**                     | Vertical         |
+|                             | Eddy Diffusivity |
+|                             | of Heat          |
++-----------------------------+------------------+
+| **Khh**                     | Horizontal       |
+|                             | Eddy Diffusivity |
+|                             | of Heat          |
++-----------------------------+------------------+
 | **qt**                      | Nonprecipitating |
 |                             | water (qv + qc + |
 |                             | qi)              |

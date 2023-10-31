@@ -158,7 +158,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
                             int ng_cons, int ng_vel, bool cons_only,
                             int icomp_cons, int ncomp_cons,
-                            MultiFab* eddyDiffs,
                             bool allow_most_bcs)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
@@ -260,7 +259,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
-        m_most->impose_most_bcs(lev,mfs,eddyDiffs);
+        m_most->impose_most_bcs(lev,mfs,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
 }
 
 //

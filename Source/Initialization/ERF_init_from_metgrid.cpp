@@ -11,42 +11,42 @@
 using namespace amrex;
 
 void
-read_from_metgrid(int lev, const Box& domain, const std::string& fname,
-                  FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
-                  FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
-                  FArrayBox& NC_pres_fab, FArrayBox& NC_hgt_fab,
-                  FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
-                  FArrayBox& NC_msfm_fab);
+read_from_metgrid (int lev, const Box& domain, const std::string& fname,
+                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
+                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
+                   FArrayBox& NC_pres_fab, FArrayBox& NC_hgt_fab,
+                   FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
+                   FArrayBox& NC_msfm_fab);
 void
-interpolate_column(int i, int j, int src_comp, int dest_comp,
-                   const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                   const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
+interpolate_column (int i, int j, int src_comp, int dest_comp,
+                    const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                    const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
 
 void
-init_terrain_from_metgrid(int lev, FArrayBox& z_phys_nd_fab,
-                          const Vector<FArrayBox>& NC_hgt_fab);
+init_terrain_from_metgrid (int lev, FArrayBox& z_phys_nd_fab,
+                           const Vector<FArrayBox>& NC_hgt_fab);
 
 void
-init_state_from_metgrid(int lev, FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                        FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
-                        const Vector<FArrayBox>& NC_hgt_fab,
-                        const Vector<FArrayBox>& NC_xvel_fab,
-                        const Vector<FArrayBox>& NC_yvel_fab,
-                        const Vector<FArrayBox>& NC_zvel_fab,
-                        const Vector<FArrayBox>& NC_rho_fab,
-                        const Vector<FArrayBox>& NC_rhotheta_fab);
+init_state_from_metgrid (int lev, FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
+                         const Vector<FArrayBox>& NC_hgt_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_zvel_fab,
+                         const Vector<FArrayBox>& NC_rho_fab,
+                         const Vector<FArrayBox>& NC_rhotheta_fab);
 void
-init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
-                       FArrayBox& msfv_fab, FArrayBox& msfm_fab,
-                       const Vector<FArrayBox>& NC_MSFU_fab,
-                       const Vector<FArrayBox>& NC_MSFV_fab,
-                       const Vector<FArrayBox>& NC_MSFM_fab);
+init_msfs_from_metgrid (int lev, FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab);
 void
-init_base_state_from_metgrid(int lev, const Box& valid_bx, Real l_rdOcp,
-                             FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
-                             const Vector<FArrayBox>& NC_ALB_fab,
-                             const Vector<FArrayBox>& NC_PB_fab);
+init_base_state_from_metgrid (int lev, const Box& valid_bx, Real l_rdOcp,
+                              FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
+                              const Vector<FArrayBox>& NC_ALB_fab,
+                              const Vector<FArrayBox>& NC_PB_fab);
 
 #ifdef ERF_USE_NETCDF
 /**
@@ -55,7 +55,7 @@ init_base_state_from_metgrid(int lev, const Box& valid_bx, Real l_rdOcp,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_metgrid(int lev)
+ERF::init_from_metgrid (int lev)
 {
     // *** FArrayBox's at this level for holding the INITIAL data
     Vector<FArrayBox> NC_xvel_fab ; NC_xvel_fab.resize(num_boxes_at_level[lev]);
@@ -103,7 +103,7 @@ ERF::init_from_metgrid(int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys);
+    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
 
     // This makes the Jacobian.
     make_J  (geom[lev],*z_phys,  *detJ_cc[lev]);
@@ -175,8 +175,8 @@ ERF::init_from_metgrid(int lev)
  * @param NC_hgt_fab Vector of FArrayBox objects holding height data read from NetCDF files for metgrid data
  */
 void
-init_terrain_from_metgrid(int lev, FArrayBox& z_phys_nd_fab,
-                          const Vector<FArrayBox>& NC_hgt_fab)
+init_terrain_from_metgrid (int lev, FArrayBox& z_phys_nd_fab,
+                           const Vector<FArrayBox>& NC_hgt_fab)
 {
    int nboxes = NC_hgt_fab.size();
 
@@ -241,15 +241,15 @@ init_terrain_from_metgrid(int lev, FArrayBox& z_phys_nd_fab,
  * @param NC_rhotheta_fab Vector of FArrayBox obects holding metgrid data for (density * potential temperature)
  */
 void
-init_state_from_metgrid(int lev, FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                        FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
-                        const Vector<FArrayBox>& NC_hgt_fab,
-                        const Vector<FArrayBox>& NC_xvel_fab,
-                        const Vector<FArrayBox>& NC_yvel_fab,
-                        const Vector<FArrayBox>& NC_zvel_fab,
-                        const Vector<FArrayBox>& NC_rho_fab,
-                        const Vector<FArrayBox>& NC_rhotheta_fab)
+init_state_from_metgrid (int lev, FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
+                         const Vector<FArrayBox>& NC_hgt_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_zvel_fab,
+                         const Vector<FArrayBox>& NC_rho_fab,
+                         const Vector<FArrayBox>& NC_rhotheta_fab)
 {
     int nboxes = NC_hgt_fab.size();
 
@@ -351,11 +351,11 @@ init_state_from_metgrid(int lev, FArrayBox& state_fab,
  * @param NC_MSFM_fab Vector of FArrayBox objects holding metgrid data for z-velocity map factors
  */
 void
-init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
-                       FArrayBox& msfv_fab, FArrayBox& msfm_fab,
-                       const Vector<FArrayBox>& NC_MSFU_fab,
-                       const Vector<FArrayBox>& NC_MSFV_fab,
-                       const Vector<FArrayBox>& NC_MSFM_fab)
+init_msfs_from_metgrid (int lev, FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab, FArrayBox& msfm_fab,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab)
 {
     int nboxes = NC_MSFU_fab.size();
 
@@ -389,10 +389,10 @@ init_msfs_from_metgrid(int lev, FArrayBox& msfu_fab,
  * @param NC_PB_fab Vector of FArrayBox objects holding metgrid data specifying pressure
  */
 void
-init_base_state_from_metgrid(int lev, const Box& valid_bx, const Real l_rdOcp,
-                             FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
-                             const Vector<FArrayBox>& NC_ALB_fab,
-                             const Vector<FArrayBox>& NC_PB_fab)
+init_base_state_from_metgrid (int lev, const Box& valid_bx, const Real l_rdOcp,
+                              FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
+                              const Vector<FArrayBox>& NC_ALB_fab,
+                              const Vector<FArrayBox>& NC_PB_fab)
 {
     int nboxes = NC_ALB_fab.size();
 
@@ -433,9 +433,9 @@ init_base_state_from_metgrid(int lev, const Box& valid_bx, const Real l_rdOcp,
  */
 AMREX_GPU_DEVICE
 void
-interpolate_column(int i, int j, int src_comp, int dest_comp,
-                   const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                   const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
+interpolate_column (int i, int j, int src_comp, int dest_comp,
+                    const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                    const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
 {
     // CAVEAT: we only consider interpolation here - if we go past end of array this won't work for now
 

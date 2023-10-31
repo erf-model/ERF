@@ -42,7 +42,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         // NOTE: std::swap above causes the field ptrs to be out of date.
         //       Reassign the field ptrs for MAC avg computation.
         m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
-        m_most->update_fluxes(lev);
+        m_most->update_fluxes(lev, time);
       }
     }
 

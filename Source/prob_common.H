@@ -26,7 +26,7 @@ public:
     /**
      * Virtual destructor to avoid data leakage with derived class
      */
-    virtual ~ProblemBase() = default;
+    virtual ~ProblemBase () = default;
 
     /**
      * Function to initialize the hydrostatic reference density
@@ -107,16 +107,19 @@ public:
     /**
      * Function to perform custom initialization of terrain
      *
+     * Note: Terrain functionality can also be used to provide grid stretching.
+     *
      * @param[in] geom container for geometric information
      * @param[out] z_phys_nd height coordinate at nodes
      * @param[in] time current time
     */
     virtual void
     init_custom_terrain (const amrex::Geometry& /*geom*/,
-                         amrex::MultiFab& /*z_phys_nd*/,
+                         amrex::MultiFab& z_phys_nd,
                          const amrex::Real& /*time*/)
     {
-        amrex::Error("Should never call init_custom_terrain for "+name()+" problem");
+        amrex::Print() << "Initialized flat terrain at z=0" << std::endl;
+        z_phys_nd.setVal(0.0);
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
@@ -175,13 +178,13 @@ protected:
      * Function to update default base parameters, currently only used for
      * init_type=='uniform'
      */
-    void init_base_parms(amrex::Real rho_0, amrex::Real T_0) {
+    void init_base_parms (amrex::Real rho_0, amrex::Real T_0) {
         base_parms.rho_0 = rho_0;
         base_parms.T_0 = T_0;
     }
 
     // descriptor for problem definition
-    virtual std::string name() = 0;
+    virtual std::string name () = 0;
 };
 
 
@@ -189,8 +192,7 @@ protected:
  * Function to init the physical bounds of the domain
  * and instantiate a Problem derived from ProblemBase
 */
-std::unique_ptr<ProblemBase> amrex_probinit (
-    const amrex_real* problo,
-    const amrex_real* probhi);
+std::unique_ptr<ProblemBase> amrex_probinit (const amrex_real* problo,
+                                             const amrex_real* probhi);
 
 #endif

@@ -11,12 +11,12 @@
 using namespace amrex;
 
 void
-init_bx_scalars_from_input_sounding( const amrex::Box &bx,
+init_bx_scalars_from_input_sounding (const amrex::Box &bx,
                                      amrex::Array4<amrex::Real> const &state,
                                      amrex::GeometryData const &geomdata,
                                      InputSoundingData const &inputSoundingData);
 void
-init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
+init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
                                          amrex::Array4<amrex::Real> const &state,
                                          amrex::Array4<amrex::Real> const &r_hse_arr,
                                          amrex::Array4<amrex::Real> const &p_hse_arr,
@@ -26,7 +26,7 @@ init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
                                          InputSoundingData const &inputSoundingData);
 
 void
-init_bx_velocities_from_input_sounding( const amrex::Box &bx,
+init_bx_velocities_from_input_sounding (const amrex::Box &bx,
                                         amrex::Array4<amrex::Real> const &x_vel,
                                         amrex::Array4<amrex::Real> const &y_vel,
                                         amrex::Array4<amrex::Real> const &z_vel,
@@ -40,7 +40,7 @@ init_bx_velocities_from_input_sounding( const amrex::Box &bx,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_input_sounding(int lev)
+ERF::init_from_input_sounding (int lev)
 {
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
@@ -108,7 +108,7 @@ ERF::init_from_input_sounding(int lev)
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding( const amrex::Box &bx,
+init_bx_scalars_from_input_sounding (const amrex::Box &bx,
                                      amrex::Array4<amrex::Real> const &state,
                                      amrex::GeometryData const &geomdata,
                                      InputSoundingData const &inputSoundingData)
@@ -167,7 +167,7 @@ init_bx_scalars_from_input_sounding( const amrex::Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
+init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
                                          amrex::Array4<amrex::Real> const &state,
                                          amrex::Array4<amrex::Real> const &r_hse_arr,
                                          amrex::Array4<amrex::Real> const &p_hse_arr,
@@ -255,7 +255,7 @@ init_bx_scalars_from_input_sounding_hse( const amrex::Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_velocities_from_input_sounding( const amrex::Box &bx,
+init_bx_velocities_from_input_sounding (const amrex::Box &bx,
                                         amrex::Array4<amrex::Real> const &x_vel,
                                         amrex::Array4<amrex::Real> const &y_vel,
                                         amrex::Array4<amrex::Real> const &z_vel,

@@ -37,6 +37,18 @@ struct SolverChoice {
         // Do we have terrain (or grid stretching)?
         pp.query("use_terrain", use_terrain);
 
+        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 0.),
+                                  "The grid stretching ratio must be greater than 0");
+        if (grid_stretching_ratio > 0) {
+            if (!use_terrain) {
+                amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
+                use_terrain = true;
+            }
+            pp.query("zsurface", zsurf);
+            pp.get("initial_dz", dz0);
+        }
+
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -112,8 +124,14 @@ struct SolverChoice {
         for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_pressure_grad[i] = abl_pressure_grad_in[i];
 
         amrex::Vector<amrex::Real> abl_geo_forcing_in = {0.0, 0.0, 0.0};
-        pp.queryarr("abl_geo_forcing",abl_geo_forcing_in);
-        for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_geo_forcing[i] = abl_geo_forcing_in[i];
+        if(pp.queryarr("abl_geo_forcing",abl_geo_forcing_in)) {
+            amrex::Print() << "Specified abl_geo_forcing: (";
+            for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+                abl_geo_forcing[i] = abl_geo_forcing_in[i];
+                amrex::Print() << abl_geo_forcing[i] << " ";
+            }
+            amrex::Print() << ")" << std::endl;
+        }
 
         if (use_coriolis)
         {
@@ -265,6 +283,11 @@ struct SolverChoice {
     amrex::Real gravity;
     amrex::Real c_p = Cp_d; // specific heat at constant pressure for dry air [J/(kg-K)]
     amrex::Real rdOcp;
+
+    // Staggered z levels for vertical grid stretching
+    amrex::Real grid_stretching_ratio   = 0;
+    amrex::Real zsurf                   = 0.0;
+    amrex::Real dz0;
 
 #if defined(ERF_USE_WARM_NO_PRECIP)
     amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray

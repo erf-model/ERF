@@ -11,10 +11,12 @@ void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,
                               const amrex::MultiFab& cons_in,
+                              const amrex::MultiFab& cons_old,
                               amrex::MultiFab& eddyViscosity,
                               const amrex::Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              const amrex::BCRec* bc_ptr,
                               bool /*vert_only*/);
 
 /**
@@ -367,12 +369,14 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                                 const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                                 const amrex::MultiFab& cons_in,
+                                const amrex::MultiFab& cons_old,
                                 amrex::MultiFab& eddyViscosity,
                                 amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                 const amrex::Geometry& geom,
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
+                                const amrex::BCRec* bc_ptr,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -385,10 +389,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
     // ComputeTurbulentViscosityLES populates the LES viscosity for both horizontal and vertical components.
     // ComputeTurbulentViscosityPBL computes the PBL viscosity just for the vertical component.
     //
-
-    // We must initialize all the components to 0 because we may not set all of them below
-    //    (which ones depends on which LES / PBL scheme we are using)
-    eddyViscosity.setVal(0.0);
 
     if (most) {
         bool l_use_turb = ( turbChoice.les_type == LESType::Smagorinsky ||
@@ -411,7 +411,8 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
     }
 
     if (turbChoice.pbl_type != PBLType::None) {
-        ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, vert_only);
+        // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
+        ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, cons_old, eddyViscosity,
+                                     geom, turbChoice, most, bc_ptr, vert_only);
     }
 }
