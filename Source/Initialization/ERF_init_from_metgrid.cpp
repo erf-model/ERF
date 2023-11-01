@@ -11,90 +11,92 @@
 using namespace amrex;
 
 void
-read_from_metgrid(int lev, const Box& domain, const std::string& fname,
-                  std::string& NC_dateTime, Real& NC_epochTime,
-                  int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
-                  int& flag_hgt,  int& NC_nx,     int& NC_ny,
-                  Real& NC_dx,    Real& NC_dy,
-                  FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
-                  FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
-                  FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
-                  FArrayBox& NC_hgt_fab,  FArrayBox& NC_psfc_fab, 
-                  FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
-                  FArrayBox& NC_msfm_fab);
+read_from_metgrid (int lev, const Box& domain, const std::string& fname,
+                   std::string& NC_dateTime, Real& NC_epochTime,
+                   int& flag_psfc, int& flag_msfu, int& flag_msfv, int& flag_msfm,
+                   int& flag_hgt,  int& flag_sst,  int& flag_lmask,
+                   int& NC_nx,     int& NC_ny,
+                   Real& NC_dx,    Real& NC_dy,
+                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
+                   FArrayBox& NC_temp_fab, FArrayBox& NC_rhum_fab,
+                   FArrayBox& NC_pres_fab, FArrayBox& NC_ght_fab,
+                   FArrayBox& NC_hgt_fab,  FArrayBox& NC_psfc_fab,
+                   FArrayBox& NC_msfu_fab, FArrayBox& NC_msfv_fab,
+                   FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
+                   IArrayBox& NC_lmask_iab);
 
 void
-interpolate_column(int i, int j, int src_comp, int dest_comp,
-                   const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                   const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
+interpolate_column (int i, int j, int src_comp, int dest_comp,
+                    const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                    const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
 
 void
-interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,
-                           const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                           const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
+interpolate_column_metgrid (int i, int j, char stag, int src_comp, int dest_comp,
+                            const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                            const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
 
 void
-init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
-                          const Vector<FArrayBox>& NC_hgt_fab);
+init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
+                           const Vector<FArrayBox>& NC_hgt_fab);
 
 void
-init_state_from_metgrid(const Real l_rdOcp,
-                        FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
-                        FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
-                        const Vector<FArrayBox>& NC_hgt_fab,
-                        const Vector<FArrayBox>& NC_ght_fab,
-                        const Vector<FArrayBox>& NC_xvel_fab,
-                        const Vector<FArrayBox>& NC_yvel_fab,
-                        const Vector<FArrayBox>& NC_zvel_fab,
-                        const Vector<FArrayBox>& NC_temp_fab,
-                        const Vector<FArrayBox>& NC_rhum_fab,
-                              Vector<FArrayBox>& theta_fab,
-                              Vector<FArrayBox>& mxrat_fab,
-                        amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs);
+init_state_from_metgrid (const Real l_rdOcp,
+                         FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab, FArrayBox& z_phys_nd_fab,
+                         const Vector<FArrayBox>& NC_hgt_fab,
+                         const Vector<FArrayBox>& NC_ght_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_zvel_fab,
+                         const Vector<FArrayBox>& NC_temp_fab,
+                         const Vector<FArrayBox>& NC_rhum_fab,
+                         Vector<FArrayBox>& theta_fab,
+                         Vector<FArrayBox>& mxrat_fab,
+                         amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs);
 
 void
-init_msfs_from_metgrid(FArrayBox& msfu_fab,
-                       FArrayBox& msfv_fab,
-                       FArrayBox& msfm_fab,
-                       const int& flag_msfu,
-                       const int& flag_msfv,
-                       const int& flag_msfm,
-                       const Vector<FArrayBox>& NC_MSFU_fab,
-                       const Vector<FArrayBox>& NC_MSFV_fab,
-                       const Vector<FArrayBox>& NC_MSFM_fab);
+init_msfs_from_metgrid (FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab,
+                        FArrayBox& msfm_fab,
+                        const int& flag_msfu,
+                        const int& flag_msfv,
+                        const int& flag_msfm,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab);
 
 void
-init_base_state_from_metgrid(const Real l_rdOcp,
-                             const Box& valid_bx,
-                             const Vector<int>& flag_psfc,
-                             FArrayBox& state,
-                             FArrayBox& r_hse_fab,
-                             FArrayBox& p_hse_fab,
-                             FArrayBox& pi_hse_fab,
-                             FArrayBox& z_phys_nd_fab,
-                             const Vector<FArrayBox>& NC_ght_fab,
-                             const Vector<FArrayBox>& NC_psfc_fab,
-                             amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs);
+init_base_state_from_metgrid (const Real l_rdOcp,
+                              const Box& valid_bx,
+                              const Vector<int>& flag_psfc,
+                              FArrayBox& state,
+                              FArrayBox& r_hse_fab,
+                              FArrayBox& p_hse_fab,
+                              FArrayBox& pi_hse_fab,
+                              FArrayBox& z_phys_nd_fab,
+                              const Vector<FArrayBox>& NC_ght_fab,
+                              const Vector<FArrayBox>& NC_psfc_fab,
+                              amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs);
 
 void
-rh_to_mxrat(int i, int j, int k,
-            const Array4<Real const>& rhum,
-            const Array4<Real const>& temp,
-            const Array4<Real const>& pres,
-            const Array4<Real>& mxrat);
+rh_to_mxrat (int i, int j, int k,
+             const Array4<Real const>& rhum,
+             const Array4<Real const>& temp,
+             const Array4<Real const>& pres,
+             const Array4<Real>& mxrat);
 
 void
-calc_rho_p(const int& kmax,
-           const int& flag_psfc,
-           const Real& psfc,
-           const Vector<Real>& Theta_vec,
+calc_rho_p (const int& kmax,
+            const int& flag_psfc,
+            const Real& psfc,
+            const Vector<Real>& Theta_vec,
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-           const Vector<Real>& Q_vec,
+            const Vector<Real>& Q_vec,
 #endif
-           const Vector<Real>& z_vec,
-                 Vector<Real>& Rhod_vec,
-                 Vector<Real>& Pd_vec);
+            const Vector<Real>& z_vec,
+            Vector<Real>& Rhod_vec,
+            Vector<Real>& Pd_vec);
 
 #ifdef ERF_USE_NETCDF
 /**
@@ -103,7 +105,7 @@ calc_rho_p(const int& kmax,
  * @param lev Integer specifying the current level
  */
 void
-ERF::init_from_metgrid(int lev)
+ERF::init_from_metgrid (int lev)
 {
 #ifndef AMREX_USE_GPU
 #if defined(ERF_USE_MOISTURE)
@@ -128,17 +130,21 @@ ERF::init_from_metgrid(int lev)
     AMREX_ALWAYS_ASSERT(ntimes >= 2);
 
     // *** FArrayBox's at this level for holding the metgrid data
-    Vector<FArrayBox> NC_xvel_fab;  NC_xvel_fab.resize(ntimes);
-    Vector<FArrayBox> NC_yvel_fab;  NC_yvel_fab.resize(ntimes);
-    Vector<FArrayBox> NC_temp_fab;  NC_temp_fab.resize(ntimes);
-    Vector<FArrayBox> NC_rhum_fab;  NC_rhum_fab.resize(ntimes);
-    Vector<FArrayBox> NC_pres_fab;  NC_pres_fab.resize(ntimes);
-    Vector<FArrayBox> NC_ght_fab;   NC_ght_fab.resize( ntimes);
-    Vector<FArrayBox> NC_hgt_fab;   NC_hgt_fab.resize( ntimes);
-    Vector<FArrayBox> NC_psfc_fab;  NC_psfc_fab.resize(ntimes);
-    Vector<FArrayBox> NC_MSFU_fab;  NC_MSFU_fab.resize(ntimes);
-    Vector<FArrayBox> NC_MSFV_fab;  NC_MSFV_fab.resize(ntimes);
-    Vector<FArrayBox> NC_MSFM_fab;  NC_MSFM_fab.resize(ntimes);
+    Vector<FArrayBox> NC_xvel_fab;   NC_xvel_fab.resize(ntimes);
+    Vector<FArrayBox> NC_yvel_fab;   NC_yvel_fab.resize(ntimes);
+    Vector<FArrayBox> NC_temp_fab;   NC_temp_fab.resize(ntimes);
+    Vector<FArrayBox> NC_rhum_fab;   NC_rhum_fab.resize(ntimes);
+    Vector<FArrayBox> NC_pres_fab;   NC_pres_fab.resize(ntimes);
+    Vector<FArrayBox> NC_ght_fab;    NC_ght_fab.resize( ntimes);
+    Vector<FArrayBox> NC_hgt_fab;    NC_hgt_fab.resize( ntimes);
+    Vector<FArrayBox> NC_psfc_fab;   NC_psfc_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFU_fab;   NC_MSFU_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(ntimes);
+    Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(ntimes);
+    Vector<FArrayBox> NC_sst_fab;    NC_sst_fab.resize (ntimes);
+
+    // *** IArrayBox's at this level for holding mask data
+    Vector<IArrayBox> NC_lmask_iab; NC_lmask_iab.resize(ntimes);
 
     // *** Variables at this level for holding metgrid file global attributes
     Vector<int> flag_psfc;           flag_psfc.resize(   ntimes);
@@ -146,6 +152,8 @@ ERF::init_from_metgrid(int lev)
     Vector<int> flag_msfv;           flag_msfv.resize(   ntimes);
     Vector<int> flag_msfm;           flag_msfm.resize(   ntimes);
     Vector<int> flag_hgt;            flag_hgt.resize(    ntimes);
+    Vector<int> flag_sst;            flag_sst.resize(    ntimes);
+    Vector<int> flag_lmask;          flag_lmask.resize(  ntimes);
     Vector<int> NC_nx;               NC_nx.resize(       ntimes);
     Vector<int> NC_ny;               NC_ny.resize(       ntimes);
     Vector<std::string> NC_dateTime; NC_dateTime.resize( ntimes);
@@ -159,13 +167,14 @@ ERF::init_from_metgrid(int lev)
 #endif
         read_from_metgrid(lev, boxes_at_level[lev][0], nc_init_file[lev][it],
                           NC_dateTime[it], NC_epochTime[it],
-                          flag_psfc[it],   flag_msfu[it],   flag_msfv[it], flag_msfm[it],
-                          flag_hgt[it],    NC_nx[it],       NC_ny[it],
-                          NC_dx[it],       NC_dy[it],
+                          flag_psfc[it],   flag_msfu[it],   flag_msfv[it],  flag_msfm[it],
+                          flag_hgt[it],    flag_sst[it],    flag_lmask[it],
+                          NC_nx[it],       NC_ny[it],       NC_dx[it],      NC_dy[it],
                           NC_xvel_fab[it], NC_yvel_fab[it],
                           NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
-                          NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it] );
+                          NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
+                          NC_sst_fab[it],  NC_lmask_iab[it]);
 #ifndef AMREX_USE_GPU
         amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_psfc   \t" << flag_psfc[it] << std::endl;
         amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfu   \t" << flag_msfu[it] << std::endl;
@@ -235,6 +244,39 @@ ERF::init_from_metgrid(int lev)
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     init_terrain_grid(geom[lev], *z_phys);
+
+    // Copy SST and LANDMASK data into MF and iMF data structures
+    auto& ba = lev_new[Vars::cons].boxArray();
+    auto& dm = lev_new[Vars::cons].DistributionMap();
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    if (flag_sst[0]) {
+        sst_lev[lev] = std::make_unique<MultiFab>(ba2d,dm,1,0);
+        for ( MFIter mfi(*(sst_lev[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+            Box tbx = mfi.tilebox();
+            FArrayBox& dst = (*(sst_lev[lev]))[mfi];
+            FArrayBox& src = NC_sst_fab[0];
+            dst.copy(src, tbx, 0, tbx, 0, 1);
+        }
+    } else {
+        sst_lev[lev] = nullptr;
+    }
+    if (flag_lmask[0]) {
+        lmask_lev[lev] = std::make_unique<iMultiFab>(ba2d,dm,1,0);
+        for ( MFIter mfi(*(lmask_lev[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+            Box tbx = mfi.tilebox();
+            IArrayBox& dst = (*(lmask_lev[lev]))[mfi];
+            IArrayBox& src = NC_lmask_iab[0];
+            dst.copy(src, tbx, 0, tbx, 0, 1);
+        }
+    } else {
+        lmask_lev[lev] = nullptr;
+    }
+    amrex::AllPrint() << "Copied SST and LANDMASK data. Dying now...\n";
+    exit(0);
 
     for (int it = 0; it < ntimes; it++) {
         // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).
@@ -557,8 +599,8 @@ ERF::init_from_metgrid(int lev)
  * @param NC_hgt_fab Vector of FArrayBox objects holding height data read from NetCDF files for metgrid data
  */
 void
-init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
-                          const Vector<FArrayBox>& NC_hgt_fab)
+init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
+                           const Vector<FArrayBox>& NC_hgt_fab)
 {
    int ntimes = 1; // Use terrain from the first met_em file.
 
@@ -624,22 +666,22 @@ init_terrain_from_metgrid(FArrayBox& z_phys_nd_fab,
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
-init_state_from_metgrid(const Real l_rdOcp,
-                        FArrayBox& state_fab,
-                        FArrayBox& x_vel_fab,
-                        FArrayBox& y_vel_fab,
-                        FArrayBox& z_vel_fab,
-                        FArrayBox& z_phys_nd_fab,
-                        const Vector<FArrayBox>& NC_hgt_fab,
-                        const Vector<FArrayBox>& NC_ght_fab,
-                        const Vector<FArrayBox>& NC_xvel_fab,
-                        const Vector<FArrayBox>& NC_yvel_fab,
-                        const Vector<FArrayBox>& NC_temp_fab,
-                        const Vector<FArrayBox>& NC_rhum_fab,
-                        const Vector<FArrayBox>& NC_pres_fab,
-                              Vector<FArrayBox>& theta_fab,
-                              Vector<FArrayBox>& mxrat_fab,
-                        amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs)
+init_state_from_metgrid (const Real l_rdOcp,
+                         FArrayBox& state_fab,
+                         FArrayBox& x_vel_fab,
+                         FArrayBox& y_vel_fab,
+                         FArrayBox& z_vel_fab,
+                         FArrayBox& z_phys_nd_fab,
+                         const Vector<FArrayBox>& NC_hgt_fab,
+                         const Vector<FArrayBox>& NC_ght_fab,
+                         const Vector<FArrayBox>& NC_xvel_fab,
+                         const Vector<FArrayBox>& NC_yvel_fab,
+                         const Vector<FArrayBox>& NC_temp_fab,
+                         const Vector<FArrayBox>& NC_rhum_fab,
+                         const Vector<FArrayBox>& NC_pres_fab,
+                         Vector<FArrayBox>& theta_fab,
+                         Vector<FArrayBox>& mxrat_fab,
+                         amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs)
 {
     int ntimes = NC_hgt_fab.size();
     for (int it = 0; it < ntimes; it++)
@@ -856,11 +898,11 @@ init_state_from_metgrid(const Real l_rdOcp,
  * @param mxrat Array4 object to hold the calculated vapor mixing ratio
  */
 void
-rh_to_mxrat(int i, int j, int k, 
-            const Array4<Real const>& rhum, 
-            const Array4<Real const>& temp, 
-            const Array4<Real const>& pres, 
-            const Array4<Real>& mxrat)
+rh_to_mxrat (int i, int j, int k,
+             const Array4<Real const>& rhum,
+             const Array4<Real const>& temp,
+             const Array4<Real const>& pres,
+             const Array4<Real>& mxrat)
 {
     Real qv_max_p_safe = 10000.0; // WRF default value
     Real qv_max_flag = std::pow(10.0, -5); // WRF default value
@@ -920,16 +962,16 @@ rh_to_mxrat(int i, int j, int k,
  * @param Pd_vec Vector of Real to hold dry pressure calculated within
  */
 void
-calc_rho_p(const int& kmax,
-           const int& flag_psfc,
-           const Real& psfc,
-           const Vector<Real>& Theta_vec,
+calc_rho_p (const int& kmax,
+            const int& flag_psfc,
+            const Real& psfc,
+            const Vector<Real>& Theta_vec,
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-           const Vector<Real>& Q_vec,
+            const Vector<Real>& Q_vec,
 #endif
-           const Vector<Real>& z_vec,
-                 Vector<Real>& Rhod_vec,
-                 Vector<Real>& Pd_vec)
+            const Vector<Real>& z_vec,
+            Vector<Real>& Rhod_vec,
+            Vector<Real>& Pd_vec)
 {
 
     const int maxiter = 10;
@@ -1006,15 +1048,15 @@ calc_rho_p(const int& kmax,
  * @param NC_MSFM_fab Vector of FArrayBox objects holding metgrid data for z-velocity map factors
  */
 void
-init_msfs_from_metgrid(FArrayBox& msfu_fab,
-                       FArrayBox& msfv_fab,
-                       FArrayBox& msfm_fab,
-                       const int& flag_msfu,
-                       const int& flag_msfv,
-                       const int& flag_msfm,
-                       const Vector<FArrayBox>& NC_MSFU_fab,
-                       const Vector<FArrayBox>& NC_MSFV_fab,
-                       const Vector<FArrayBox>& NC_MSFM_fab)
+init_msfs_from_metgrid (FArrayBox& msfu_fab,
+                        FArrayBox& msfv_fab,
+                        FArrayBox& msfm_fab,
+                        const int& flag_msfu,
+                        const int& flag_msfv,
+                        const int& flag_msfm,
+                        const Vector<FArrayBox>& NC_MSFU_fab,
+                        const Vector<FArrayBox>& NC_MSFV_fab,
+                        const Vector<FArrayBox>& NC_MSFM_fab)
 {
 //    int ntimes = NC_MSFU_fab.size();
     int ntimes = 1;
@@ -1073,17 +1115,17 @@ init_msfs_from_metgrid(FArrayBox& msfu_fab,
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
-init_base_state_from_metgrid(const Real l_rdOcp,
-                             const Box& valid_bx,
-                             const Vector<int>& flag_psfc,
-                             FArrayBox& state_fab,
-                             FArrayBox& r_hse_fab,
-                             FArrayBox& p_hse_fab,
-                             FArrayBox& pi_hse_fab,
-                             FArrayBox& z_phys_nd_fab,
-                             const Vector<FArrayBox>& NC_ght_fab,
-                             const Vector<FArrayBox>& NC_psfc_fab,
-                             amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs)
+init_base_state_from_metgrid (const Real l_rdOcp,
+                              const Box& valid_bx,
+                              const Vector<int>& flag_psfc,
+                              FArrayBox& state_fab,
+                              FArrayBox& r_hse_fab,
+                              FArrayBox& p_hse_fab,
+                              FArrayBox& pi_hse_fab,
+                              FArrayBox& z_phys_nd_fab,
+                              const Vector<FArrayBox>& NC_ght_fab,
+                              const Vector<FArrayBox>& NC_psfc_fab,
+                              amrex::Vector<amrex::Vector<FArrayBox>>& fabs_for_bcs)
 {
 #if defined(ERF_USE_MOISTURE)
     int RhoQ_comp = RhoQt_comp;
@@ -1120,7 +1162,7 @@ init_base_state_from_metgrid(const Real l_rdOcp,
                 Q_vec[k] = new_data(i,j,k,RhoQ_comp);
 #endif
             }
-            
+
             calc_rho_p(kmax,flag_psfc[0],orig_psfc(i,j,0),Theta_vec,
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
                        Q_vec,
@@ -1222,9 +1264,9 @@ init_base_state_from_metgrid(const Real l_rdOcp,
  */
 AMREX_GPU_DEVICE
 void
-interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,
-                           const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                           const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
+interpolate_column_metgrid (int i, int j, char stag, int src_comp, int dest_comp,
+                            const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                            const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
 {
     // This subroutine is a bit ham-handed and can be cleaned up later.
     int kmax = amrex::ubound(Box(new_data)).z;
@@ -1327,7 +1369,7 @@ interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,
             }
             Real y0 = orig_data(i,j,khi0,src_comp);
             Real y1 = orig_data(i,j,khi1,src_comp);
-	        new_data(i,j,k,dest_comp) = y0-(y1-y0)/(z1-z0)*(z0-z);
+            new_data(i,j,k,dest_comp) = y0-(y1-y0)/(z1-z0)*(z0-z);
         } else {
             // interpolate
             Real y0 = orig_data(i,j,klow,src_comp);
@@ -1353,9 +1395,9 @@ interpolate_column_metgrid(int i, int j, char stag, int src_comp, int dest_comp,
  */
 AMREX_GPU_DEVICE
 void
-interpolate_column(int i, int j, int src_comp, int dest_comp,
-                   const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
-                   const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
+interpolate_column (int i, int j, int src_comp, int dest_comp,
+                    const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
+                    const Array4<Real const>&  new_z, const Array4<Real>&  new_data)
 {
     // CAVEAT: we only consider interpolation here - if we go past end of array this won't work for now
 

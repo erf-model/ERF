@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "AMReX_FArrayBox.H"
+#include "AMReX_IArrayBox.H"
 #include "NCInterface.H"
 
 using PlaneVector = amrex::Vector<amrex::FArrayBox>;
@@ -15,7 +16,7 @@ using PlaneVector = amrex::Vector<amrex::FArrayBox>;
  // Read from metgrid
  NetCDF variables of dimensions Time_BT_SN_WE: "UU", "VV", "TT", "RH", "PRES", "GHT"
  NetCDF variables of dimensions Time_SN_WE   : "HGT", "MAPFAC_U",  "MAPFAC_V",  "MAPFAC_M", "PSFC"
- NetCDF global attributes of type int        : "FLAG_PSFC", "FLAG_MAPFAC_U", "FLAG_MAPFAC_V", "FLAG_MAPFAC_M", 
+ NetCDF global attributes of type int        : "FLAG_PSFC", "FLAG_MAPFAC_U", "FLAG_MAPFAC_V", "FLAG_MAPFAC_M",
                                                "FLAG_HGT_M", "WEST-EAST_GRID_DIMENSION", "SOUTH-NORTH_GRID_DIMENSION"
  NetCDF global attributes of type string     : "SIMULATION_START_DATE"
  NetCDF global attributes of type real       : "DX", "DY"
@@ -37,17 +38,23 @@ enum class NC_Data_Dims_Type {
     Time_BdyWidth_WE
 };
 
-void BuildFABsFromNetCDFFile(const amrex::Box& domain,
-                             const std::string &fname,
-                             amrex::Vector<std::string> nc_var_names,
-                             amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
-                             amrex::Vector<amrex::FArrayBox*> fab_vars);
+void BuildFABsFromNetCDFFile (const amrex::Box& domain,
+                              const std::string &fname,
+                              amrex::Vector<std::string> nc_var_names,
+                              amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
+                              amrex::Vector<amrex::FArrayBox*> fab_vars);
 
-int BuildFABsFromWRFBdyFile(const std::string &fname,
-                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                            amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+void BuildIABsFromNetCDFFile (const amrex::Box& domain,
+                              const std::string &fname,
+                              amrex::Vector<std::string> nc_var_names,
+                              amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
+                              amrex::Vector<amrex::IArrayBox*> fab_vars);
+
+int BuildFABsFromWRFBdyFile (const std::string &fname,
+                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 //
 // NDArray is the datatype designed to hold any data, including scalars, multidimensional
@@ -69,10 +76,10 @@ struct NDArray
    }
 
    // default constructor
-   NDArray() : name{"null"}, ref_counted{1}, owned{false}, data{nullptr} {}
+   NDArray () : name{"null"}, ref_counted{1}, owned{false}, data{nullptr} {}
 
    // copy constructor
-   NDArray(const NDArray& array) {
+   NDArray (const NDArray& array) {
      name  = array.name;
      shape = array.shape;
      data  = array.data;
@@ -91,29 +98,29 @@ struct NDArray
     }
 
    // destructor
-   ~NDArray() {
+   ~NDArray () {
      ref_counted.fetch_sub(1, std::memory_order_acq_rel);
      if (ref_counted == 1 && owned) delete[] data;
    }
 
    // get the data pointer
-   decltype(auto) get_data() {
+   decltype(auto) get_data () {
      ref_counted.fetch_add(1, std::memory_order_relaxed);
      return data;
    }
 
    // get the variable name
-   std::string get_vname() {
+   std::string get_vname () {
      return name;
    }
 
    // get the variable data shape
-   std::vector<size_t> get_vshape() {
+   std::vector<size_t> get_vshape () {
      return shape;
    }
 
    // return the total number of data
-   size_t ndim() {
+   size_t ndim () {
      size_t num = 1;
      int isize = static_cast<int>(shape.size());
      for (auto i=0; i<isize; ++i) num *= shape[i];
@@ -121,7 +128,7 @@ struct NDArray
    }
 
    // set the data shape information
-   void set_vshape(std::vector<size_t> vshape) {
+   void set_vshape (std::vector<size_t> vshape) {
      shape = vshape;
     }
 
@@ -134,8 +141,8 @@ struct NDArray
 };
 
 template<typename DType>
-void ReadNetCDFFile(const std::string& fname, amrex::Vector<std::string> names,
-                    amrex::Vector<NDArray<DType> >& arrays)
+void ReadNetCDFFile (const std::string& fname, amrex::Vector<std::string> names,
+                     amrex::Vector<NDArray<DType> >& arrays)
 {
     AMREX_ASSERT(arrays.size() == names.size());
 
@@ -164,7 +171,12 @@ void ReadNetCDFFile(const std::string& fname, amrex::Vector<std::string> names,
             if (vname_to_read.substr(0,2) == "R_") {
                 vname_to_read  = names[n+4]; // This allows us to read "T" instead -- we will over-write this later
             }
-            // amrex::Print() << "About to read " << vname_to_read << " while filling the array for " << vname_to_write << std::endl;
+
+            /*
+            amrex::AllPrint() << "About to read " << vname_to_read
+                              << " while filling the array for " << vname_to_write << std::endl;
+            */
+
             std::vector<size_t> shape = ncf.var(vname_to_read).shape();
             arrays[n]                 = NDArray<DType>(vname_to_read,shape);
             DType* dataPtr            = arrays[n].get_data();

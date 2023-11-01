@@ -27,7 +27,7 @@ namespace WRFBdyTypes {
 }
 
 // Converts UTC time string to a time_t value.
-std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat)
+std::time_t getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
 {
     // Create a stream which we will use to parse the string,
     // which we provide to constructor of stream to fill the buffer.
@@ -50,12 +50,12 @@ std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTim
 }
 
 Real
-read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
-                 Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                 Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                 Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int& width, Real& start_bdy_time)
+read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
+                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                  int& width, Real& start_bdy_time)
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -546,15 +546,15 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
 }
 
 void
-convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
-                    const FArrayBox& NC_MUB_fab,
-                    const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
-                    const FArrayBox& NC_MSFM_fab,
-                    const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
-                    const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
-                    const FArrayBox& NC_RDNW_fab,
-                    const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
-                    const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
+convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
+                     const FArrayBox& NC_MUB_fab,
+                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
+                     const FArrayBox& NC_MSFM_fab,
+                     const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
+                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
+                     const FArrayBox& NC_RDNW_fab,
+                     const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
+                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();

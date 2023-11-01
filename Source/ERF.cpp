@@ -173,6 +173,10 @@ ERF::ERF ()
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
 
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
+
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
@@ -1368,6 +1372,10 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);

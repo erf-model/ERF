@@ -12,7 +12,7 @@ using namespace amrex;
  */
 
 void
-ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs, 
+ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
                         const Real time,
                         bool cons_only,
                         int icomp_cons,

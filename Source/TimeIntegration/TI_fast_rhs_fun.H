@@ -146,7 +146,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 #ifdef ERF_USE_NETCDF
         // Update vars in set zone (relaxation already updated)
         if ((level == 0) &&
-            (((init_type == "real") && (wrfbdy_set_width>0)) || 
+            (((init_type == "real") && (wrfbdy_set_width>0)) ||
              ((init_type == "metgrid") && (metgrid_bdy_set_width>0)))) {
             if (fast_step == 0 ) {
                 update_interior_ghost(level, dtau, wrfbdy_set_width, boxes_at_level[level], S_slow_rhs, S_old, S_data);

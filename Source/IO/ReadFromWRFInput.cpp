@@ -5,25 +5,25 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-read_from_wrfinput(int lev,
-                   const Box& domain,
-                   const std::string& fname,
-                   FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
-                   FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
-                   FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
-                   FArrayBox& NC_MUB_fab ,
-                   FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
-                   FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
-                   FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
-                   FArrayBox& NC_RDNW_fab,
+read_from_wrfinput (int lev,
+                    const Box& domain,
+                    const std::string& fname,
+                    FArrayBox& NC_xvel_fab, FArrayBox& NC_yvel_fab,
+                    FArrayBox& NC_zvel_fab, FArrayBox& NC_rho_fab,
+                    FArrayBox& NC_rhop_fab, FArrayBox& NC_rhotheta_fab,
+                    FArrayBox& NC_MUB_fab ,
+                    FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
+                    FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
+                    FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
+                    FArrayBox& NC_RDNW_fab,
 #if defined(ERF_USE_MOISTURE)
-                   FArrayBox& NC_QVAPOR_fab,
-                   FArrayBox& NC_QCLOUD_fab,
-                   FArrayBox& NC_QRAIN_fab,
+                    FArrayBox& NC_QVAPOR_fab,
+                    FArrayBox& NC_QCLOUD_fab,
+                    FArrayBox& NC_QRAIN_fab,
 #elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
-                   FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
-                   FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab)
+                    FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
+                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 

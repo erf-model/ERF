@@ -8,7 +8,7 @@
 using namespace amrex;
 
 template<typename V, typename T>
-bool containerHasElement(const V& iterable, const T& query) {
+bool containerHasElement (const V& iterable, const T& query) {
     return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
 }
 
@@ -78,7 +78,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
 // set plotfile variable names
 Vector<std::string>
-ERF::PlotFileVarNames ( Vector<std::string> plot_var_names )
+ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 {
     Vector<std::string> names;
 

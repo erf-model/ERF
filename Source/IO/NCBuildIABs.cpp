@@ -6,19 +6,19 @@
 #include "DataStruct.H"
 #include "NCInterface.H"
 #include "NCWpsFile.H"
-#include "AMReX_FArrayBox.H"
+#include "AMReX_IArrayBox.H"
 #include "AMReX_IndexType.H"
 #include "AMReX_Print.H"
 
 using namespace amrex;
 
-using RARRAY = NDArray<float>;
+using IARRAY = NDArray<int>;
 
 void
-fill_fab_from_arrays (int iv, Vector<RARRAY>& nc_arrays,
+fill_iab_from_arrays (int iv, Vector<IARRAY>& nc_arrays,
                       const std::string& var_name,
                       NC_Data_Dims_Type& NC_dim_type,
-                      FArrayBox& temp);
+                      IArrayBox& temp);
 
 /**
  * Function to read NetCDF variables and fill the corresponding Array4's
@@ -29,15 +29,15 @@ fill_fab_from_arrays (int iv, Vector<RARRAY>& nc_arrays,
  * @param fab_vars Fab data we are to fill
  */
 void
-BuildFABsFromNetCDFFile (const Box& domain,
+BuildIABsFromNetCDFFile (const Box& domain,
                          const std::string &fname,
                          Vector<std::string> nc_var_names,
                          Vector<enum NC_Data_Dims_Type> NC_dim_types,
-                         Vector<amrex::FArrayBox*> fab_vars)
+                         Vector<amrex::IArrayBox*> fab_vars)
 {
     int ioproc = ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
-    amrex::Vector<RARRAY> nc_arrays(nc_var_names.size());
+    amrex::Vector<IARRAY> nc_arrays(nc_var_names.size());
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
@@ -46,9 +46,9 @@ BuildFABsFromNetCDFFile (const Box& domain,
 
     for (int iv = 0; iv < nc_var_names.size(); iv++)
     {
-        amrex::FArrayBox tmp;
+        amrex::IArrayBox tmp;
         if (amrex::ParallelDescriptor::IOProcessor()) {
-            fill_fab_from_arrays(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
+            fill_iab_from_arrays(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
         }
 
         Box box   = tmp.box();
@@ -84,7 +84,7 @@ BuildFABsFromNetCDFFile (const Box& domain,
 
 /**
  * Helper function for reading data from NetCDF file into a
- * provided FAB.
+ * provided IAB.
  *
  * @param iv Index for which variable we are going to fill
  * @param nc_arrays Arrays of data from NetCDF file
@@ -93,11 +93,11 @@ BuildFABsFromNetCDFFile (const Box& domain,
  * @param temp FAB where we store the variable data from the NetCDF Arrays
  */
 void
-fill_fab_from_arrays (int iv,
-                      Vector<RARRAY>& nc_arrays,
+fill_iab_from_arrays (int iv,
+                      Vector<IARRAY>& nc_arrays,
                       const std::string& var_name,
                       NC_Data_Dims_Type& NC_dim_type,
-                      FArrayBox& temp)
+                      IArrayBox& temp)
 {
     int ns1, ns2, ns3;
     if (NC_dim_type == NC_Data_Dims_Type::Time_BT) {
@@ -135,7 +135,7 @@ fill_fab_from_arrays (int iv,
 #else
     temp.resize(my_box,1);
 #endif
-    Array4<Real> fab_arr = temp.array();
+    Array4<int> iab_arr = temp.array();
 
     int ioff = temp.box().smallEnd()[0];
     int joff = temp.box().smallEnd()[1];
@@ -149,6 +149,6 @@ fill_fab_from_arrays (int iv,
         int k  = n / (ns2*ns3);
         int j  = (n - k*(ns2*ns3)) / ns3 + joff;
         int i  = n - k*(ns2*ns3) - (j-joff) * ns3 + ioff;
-        fab_arr(i,j,k,0) = static_cast<Real>(*(nc_arrays[iv].get_data()+n));
+        iab_arr(i,j,k,0) = static_cast<int>(*(nc_arrays[iv].get_data()+n));
     }
 }

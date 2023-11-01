@@ -46,6 +46,7 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCBuildFABs.cpp
+                   ${SRC_DIR}/IO/NCBuildIABs.cpp
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp
