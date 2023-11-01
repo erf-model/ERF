@@ -551,9 +551,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
-    // Sea Surface Temps and Land Masks
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>>  sst_lev;
-    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> lmask_lev;
+    // Sea Surface Temps and Land Masks (lev, ntimes)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
@@ -574,8 +574,6 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_m;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
-
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
 
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;

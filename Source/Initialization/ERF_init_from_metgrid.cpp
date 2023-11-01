@@ -129,6 +129,10 @@ ERF::init_from_metgrid (int lev)
     // At least two met_em files are necessary to calculate tendency terms.
     AMREX_ALWAYS_ASSERT(ntimes >= 2);
 
+    // Size the SST and LANDMASK
+      sst_lev[lev].resize(ntimes);
+    lmask_lev[lev].resize(ntimes);
+
     // *** FArrayBox's at this level for holding the metgrid data
     Vector<FArrayBox> NC_xvel_fab;   NC_xvel_fab.resize(ntimes);
     Vector<FArrayBox> NC_yvel_fab;   NC_yvel_fab.resize(ntimes);
@@ -196,6 +200,7 @@ ERF::init_from_metgrid (int lev)
 
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
+    t_new[lev] = start_bdy_time;
 
     // Determine the spacing between met_em files.
     bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];
@@ -248,35 +253,56 @@ ERF::init_from_metgrid (int lev)
     // Copy SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
     auto& dm = lev_new[Vars::cons].DistributionMap();
+    auto  ng = lev_new[Vars::cons].nGrowVect(); ng[2] = 0;
     BoxList bl2d = ba.boxList();
     for (auto& b : bl2d) {
         b.setRange(2,0);
     }
     BoxArray ba2d(std::move(bl2d));
+    int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
+    int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
     if (flag_sst[0]) {
-        sst_lev[lev] = std::make_unique<MultiFab>(ba2d,dm,1,0);
-        for ( MFIter mfi(*(sst_lev[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            Box tbx = mfi.tilebox();
-            FArrayBox& dst = (*(sst_lev[lev]))[mfi];
-            FArrayBox& src = NC_sst_fab[0];
-            dst.copy(src, tbx, 0, tbx, 0, 1);
+        for (int it = 0; it < ntimes; ++it) {
+            sst_lev[lev][it] = std::make_unique<MultiFab>(ba2d,dm,1,ng);
+            for ( MFIter mfi(*(sst_lev[lev][it]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                Box gtbx = mfi.growntilebox();
+                FArrayBox& dst = (*(sst_lev[lev][it]))[mfi];
+                FArrayBox& src = NC_sst_fab[it];
+                const Array4<      Real>& dst_arr = dst.array();
+                const Array4<const Real>& src_arr = src.const_array();
+                amrex::ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                {
+                    int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                    int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                });
+            }
+            sst_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
     } else {
-        sst_lev[lev] = nullptr;
+        for (int it = 0; it < ntimes; ++it) sst_lev[lev][it] = nullptr;
     }
     if (flag_lmask[0]) {
-        lmask_lev[lev] = std::make_unique<iMultiFab>(ba2d,dm,1,0);
-        for ( MFIter mfi(*(lmask_lev[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
-            Box tbx = mfi.tilebox();
-            IArrayBox& dst = (*(lmask_lev[lev]))[mfi];
-            IArrayBox& src = NC_lmask_iab[0];
-            dst.copy(src, tbx, 0, tbx, 0, 1);
+        for (int it = 0; it < ntimes; ++it) {
+            lmask_lev[lev][it] = std::make_unique<iMultiFab>(ba2d,dm,1,ng);
+            for ( MFIter mfi(*(lmask_lev[lev][it]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+                Box gtbx = mfi.growntilebox();
+                IArrayBox& dst = (*(lmask_lev[lev][it]))[mfi];
+                IArrayBox& src = NC_lmask_iab[it];
+                const Array4<      int>& dst_arr = dst.array();
+                const Array4<const int>& src_arr = src.const_array();
+                amrex::ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                {
+                    int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                    int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                    dst_arr(i,j,0) = src_arr(li,lj,0);
+                });
+            }
+            lmask_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
     } else {
-        lmask_lev[lev] = nullptr;
+        for (int it = 0; it < ntimes; ++it) lmask_lev[lev][it] = nullptr;
     }
-    amrex::AllPrint() << "Copied SST and LANDMASK data. Dying now...\n";
-    exit(0);
 
     for (int it = 0; it < ntimes; it++) {
         // Verify that the grid size and resolution from met_em file matches that in geom (from ERF inputs file).

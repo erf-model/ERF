@@ -22,9 +22,8 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-//    amrex::Print() << " BoundaryConditions_metgrid.cpp ERF::fill_from_metgrid \ttime \t" << time << std::endl;
-    Real time_since_start = time;
-    int n_time = static_cast<int>( time_since_start / dT);
+    Real time_since_start = time - start_bdy_time;
+    int n_time = static_cast<int>( time_since_start /  dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
@@ -34,15 +33,15 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
 #if defined(ERF_USE_MOISTURE)
     // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQt RhoQp NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQv RhoQc NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
 # else
     // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0};
-    Vector<int> cons_map = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0};
 #endif
 
     Vector<Vector<int>> is_read;

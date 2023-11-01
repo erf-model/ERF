@@ -10,9 +10,13 @@ using namespace amrex;
  * @param[in] max_iters maximum iterations to use
  */
 void
-ABLMost::update_fluxes (int lev,
+ABLMost::update_fluxes (const int& lev,
+                        const Real& time,
                         int max_iters)
 {
+    // Update SST data if we have a valid pointer
+    if (m_sst_lev[lev][0]) time_interp_tsurf(lev, time);
+
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
@@ -73,12 +77,9 @@ ABLMost::compute_fluxes (const int& lev,
     const auto *const tm_ptr  = m_ma.get_average(lev,2);
     const auto *const umm_ptr = m_ma.get_average(lev,3);
 
-    // Ghost cells
-    amrex::IntVect ng = u_star[lev]->nGrowVect(); ng[2]=0;
-
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
-        amrex::Box gtbx = mfi.growntilebox(ng);
+        Box gtbx = mfi.growntilebox();
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -106,7 +107,7 @@ ABLMost::compute_fluxes (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
-ABLMost::impose_most_bcs (const int lev,
+ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
                           MultiFab* eddyDiffs)
 {
@@ -131,7 +132,7 @@ ABLMost::impose_most_bcs (const int lev,
  */
 template<typename FluxCalc>
 void
-ABLMost::compute_most_bcs (const int lev,
+ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
                            MultiFab* eddyDiffs,
                            const FluxCalc& flux_comp)
@@ -168,7 +169,7 @@ ABLMost::compute_most_bcs (const int lev,
             auto dest_arr = (*mfs[var_idx])[mfi].array();
 
             if (var_idx == Vars::cons) {
-                amrex::Box b2d = bx; // Copy constructor
+                Box b2d = bx;
                 b2d.setBig(2,zlo-1);
                 int n = Cons::RhoTheta;
 
@@ -178,9 +179,9 @@ ABLMost::compute_most_bcs (const int lev,
                                              umm_arr,tm_arr,u_star_arr,t_star_arr,t_surf_arr,dest_arr);
                 });
 
-            } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) { //for velx
+            } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) {
 
-                amrex::Box xb2d = surroundingNodes(bx,0); // Copy constructor
+                Box xb2d = surroundingNodes(bx,0);
                 xb2d.setBig(2,zlo-1);
 
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -189,9 +190,9 @@ ABLMost::compute_most_bcs (const int lev,
                                              umm_arr,um_arr,u_star_arr,dest_arr);
                 });
 
-            } else if (var_idx == Vars::yvel || var_idx == Vars::ymom) { //for vely
+            } else if (var_idx == Vars::yvel || var_idx == Vars::ymom) {
 
-                amrex::Box yb2d = surroundingNodes(bx,1); // Copy constructor
+                Box yb2d = surroundingNodes(bx,1);
                 yb2d.setBig(2,zlo-1);
 
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -202,4 +203,34 @@ ABLMost::compute_most_bcs (const int lev,
             }
         } // var_idx
     } // mfiter
+}
+
+void
+ABLMost::time_interp_tsurf(const int& lev,
+                           const Real& time)
+{
+    // Time interpolation
+    Real dT = m_bdy_time_interval;
+    Real time_since_start = time - m_start_bdy_time;
+    int n_time = static_cast<int>( time_since_start /  dT);
+    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+    amrex::Real oma   = 1.0 - alpha;
+    AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
+
+    // Populate t_surf
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto sst_hi_arr = m_sst_lev[lev][n_time+1]->const_array(mfi);
+        const auto sst_lo_arr = m_sst_lev[lev][n_time  ]->const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
+                              + alpha * sst_hi_arr(i,j,k);
+        });
+    }
 }

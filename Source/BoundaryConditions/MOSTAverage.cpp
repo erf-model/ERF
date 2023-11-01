@@ -262,6 +262,9 @@ MOSTAverage::set_k_indices_N()
             AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
             m_k_indx[lev]->setVal(lk);
+
+            amrex::Print() << "MA: " << m_zref << ' ' << m_zlo << ' ' << m_zhi << ' ' << m_dz << ' ' << lk << "\n";
+            exit(0);
         }
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -304,12 +307,13 @@ MOSTAverage::set_k_indices_T()
                 auto k_arr = m_k_indx[lev]->array(mfi);
                 ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
+                    k_arr(i,j,k) = 0;
                     Real z_target = d_zref + z_phys_arr(i,j,k);
                     for (int lk(0); lk<=kmax; ++lk) {
                         Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
-                                                  + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
+                                           + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
                         Real z_hi = 0.25 * ( z_phys_arr(i,j  ,lk+1) + z_phys_arr(i+1,j  ,lk+1)
-                                                  + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
+                                           + z_phys_arr(i,j+1,lk+1) + z_phys_arr(i+1,j+1,lk+1) );
                         if (z_target > z_lo && z_target < z_hi){
                             AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                       "K index must be larger than averaging radius!");
@@ -376,9 +380,9 @@ MOSTAverage::set_norm_indices_T()
                 Real z_target = delta_z + z_phys_arr(i,j,k);
                 for (int lk(0); lk<=kmax; ++lk) {
                     Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
-                                              + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
+                                       + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
                     Real z_hi = 0.25 * ( z_phys_arr(i_new,j_new  ,lk+1) + z_phys_arr(i_new+1,j_new  ,lk+1)
-                                              + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
+                                       + z_phys_arr(i_new,j_new+1,lk+1) + z_phys_arr(i_new+1,j_new+1,lk+1) );
                     if (z_target > z_lo && z_target < z_hi){
                         AMREX_ASSERT_WITH_MESSAGE(lk >= d_radius,
                                                   "K index must be larger than averaging radius!");
@@ -532,7 +536,7 @@ MOSTAverage::compute_plane_averages(int lev)
     // Peel back the level
     auto& fields   = m_fields[lev];
     auto& averages = m_averages[lev];
-    const auto & geom     = m_geom[lev];
+    const auto & geom = m_geom[lev];
 
     auto& z_phys   = m_z_phys_nd[lev];
     auto& x_pos    = m_x_pos[lev];
