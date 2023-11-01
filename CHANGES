@@ -1,6 +1,6 @@
 #23.11
 
-  -- AMReX submodule set to 23.10 release hash (ae7b64b)
+  -- AMReX submodule set to 23.11 release hash (ae7b64b)
 
   -- Bug fix with vertical grid stretching and MOST (#1275)
 
