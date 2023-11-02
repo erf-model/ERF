@@ -149,7 +149,7 @@ struct adiabatic_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -202,7 +202,7 @@ struct adiabatic_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -260,7 +260,7 @@ struct surface_flux
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -323,7 +323,7 @@ struct surface_flux_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -387,7 +387,7 @@ struct surface_flux_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -447,7 +447,7 @@ struct surface_temp
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -512,7 +512,7 @@ struct surface_temp_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -578,7 +578,7 @@ struct surface_temp_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -787,7 +787,7 @@ struct moeng_flux
 
 private:
     int zlo;
-    static constexpr amrex::Real eps = 1e-16;
+    const amrex::Real eps = 1e-16;
 };
 
 
@@ -986,6 +986,6 @@ struct donelan_flux
 
 private:
     int zlo;
-    static constexpr amrex::Real eps = 1e-16;
+    const amrex::Real eps = 1e-16;
 };
 #endif
