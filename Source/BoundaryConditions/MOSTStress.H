@@ -639,6 +639,7 @@ struct moeng_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eps);
 
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -649,7 +650,7 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = (theta-theta_mean)*wsp_mean;
         amrex::Real num2    = (theta_mean-theta_surf)*wsp;
-        amrex::Real moflux  = (std::abs(tstar) > EPS) ?
+        amrex::Real moflux  = (std::abs(tstar) > eps) ?
                               tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -700,6 +701,7 @@ struct moeng_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real umean    = um_arr(i,j,zlo);
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
@@ -763,6 +765,7 @@ struct moeng_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real vmean     = vm_arr(i,j,zlo);
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
@@ -784,7 +787,7 @@ struct moeng_flux
 
 private:
     int zlo;
-    static constexpr amrex::Real EPS = 1e-16;
+    static constexpr amrex::Real eps = 1e-16;
 };
 
 
@@ -833,6 +836,7 @@ struct donelan_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -888,6 +892,7 @@ struct donelan_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -955,6 +960,7 @@ struct donelan_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -980,5 +986,6 @@ struct donelan_flux
 
 private:
     int zlo;
+    static constexpr amrex::Real eps = 1e-16;
 };
 #endif
