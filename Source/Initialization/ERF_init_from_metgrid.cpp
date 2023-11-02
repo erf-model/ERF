@@ -202,6 +202,7 @@ ERF::init_from_metgrid (int lev)
     // Start at the earliest time in nc_init_file[lev].
     start_bdy_time = NC_epochTime[0];
     t_new[lev] = start_bdy_time;
+    t_old[lev] = start_bdy_time - 1.e200;
 
     // Determine the spacing between met_em files.
     bdy_time_interval = NC_epochTime[1]-NC_epochTime[0];

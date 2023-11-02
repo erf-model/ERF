@@ -95,10 +95,11 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
             auto epochTime = getEpochTime(date, dateTimeFormat);
             epochTimes.push_back(epochTime);
 
-            if (nt == 1)
+            if (nt == 1) {
                 timeInterval = epochTimes[1] - epochTimes[0];
-            else if (nt >= 1)
+            } else if (nt >= 1) {
                 AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
+            }
         }
         start_bdy_time = epochTimes[0];
     }

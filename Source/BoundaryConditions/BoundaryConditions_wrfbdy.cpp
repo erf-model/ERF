@@ -22,8 +22,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = (time - start_bdy_time) / 1.e10;
-    int n_time = static_cast<int>( time_since_start / dT);
+    Real time_since_start = time - start_bdy_time;
+    int n_time = static_cast<int>( time_since_start /  dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;

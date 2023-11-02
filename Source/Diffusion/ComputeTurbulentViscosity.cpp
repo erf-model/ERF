@@ -87,6 +87,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
               mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+
+              if (mu_turb(i, j, k, EddyDiff::Mom_h)==0.0) amrex::Print() << "MUturb m: " << amrex::IntVect(i,j,k) << ' ' << mu_turb(i, j, k, EddyDiff::Mom_h) << "\n";
           });
       }
     }
@@ -193,7 +195,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         Box bxcc   = mfi.tilebox();
-        Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc);
+        Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
         Box planey = bxcc; planey.setSmall(1, 1); planey.setBig(1, ngc);
         int i_lo   = bxcc.smallEnd(0); int i_hi = bxcc.bigEnd(0);
         int j_lo   = bxcc.smallEnd(1); int j_hi = bxcc.bigEnd(1);
@@ -206,15 +208,17 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         if (i_lo == domain.smallEnd(0)) {
             amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, j, k, EddyDiff::Mom_h);
-                mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, j, k, EddyDiff::Mom_v);
+                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
+                mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, lj, k, EddyDiff::Mom_h);
+                mu_turb(i_lo-i, j, k, EddyDiff::Mom_v) = mu_turb(i_lo, lj, k, EddyDiff::Mom_v);
             });
         }
         if (i_hi == domain.bigEnd(0)) {
             amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, j, k, EddyDiff::Mom_h);
-                mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, j, k, EddyDiff::Mom_v);
+                int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
+                mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, lj, k, EddyDiff::Mom_h);
+                mu_turb(i_hi+i, j, k, EddyDiff::Mom_v) = mu_turb(i_hi, lj, k, EddyDiff::Mom_v);
             });
         }
         if (j_lo == domain.smallEnd(1)) {
