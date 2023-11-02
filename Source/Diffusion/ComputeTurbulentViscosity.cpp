@@ -202,7 +202,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
-        // Extrapolate outside the domain in lateral directions
+        // Extrapolate outside the domain in lateral directions (planex owns corner cells)
         if (i_lo == domain.smallEnd(0)) {
             amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -338,9 +338,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                    mu_turb(i, j, k_hi+k, indx_v) = mu_turb(i, j, k_hi, indx_v);
                  });
                  break;
-           }
-       }
-   }
+            }
+        }
+    }
 }
 
 /**
