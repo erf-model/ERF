@@ -262,9 +262,6 @@ MOSTAverage::set_k_indices_N()
             AMREX_ALWAYS_ASSERT(lk >= m_radius);
 
             m_k_indx[lev]->setVal(lk);
-
-            amrex::Print() << "MA: " << m_zref << ' ' << m_zlo << ' ' << m_zhi << ' ' << m_dz << ' ' << lk << "\n";
-            exit(0);
         }
     // Specified k_indx & compute z_ref
     } else if (read_k) {

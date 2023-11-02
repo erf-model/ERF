@@ -96,17 +96,17 @@ public:
     // constructor - reads in parameters from inputs file
     //             - sizes multilevel arrays and data structures
     ERF ();
-    ~ERF() override;
+    ~ERF () override;
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    ERF(ERF&&)  noexcept = delete;
+    ERF (ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
     ERF& operator=(ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
-    ERF(const ERF& other) = delete;
+    ERF (const ERF& other) = delete;
     //
     // Delete the copy assignment operator
     ERF& operator=(const ERF& other) = delete;
@@ -320,7 +320,7 @@ private:
     ///////////////////////////
 
     // read in some parameters from inputs file
-    void ReadParameters();
+    void ReadParameters ();
 
     // set covered coarse cells to be the average of overlying fine cells
     void AverageDown ();
@@ -374,7 +374,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs,
                                 int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                amrex::MultiFab* eddyDiffs, bool allow_most_bcs = true);
+                                bool allow_most_bcs = true);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
@@ -559,6 +559,8 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
 
+    // Terrain / grid stretching
+    amrex::Vector<amrex::Real> zlevels_stag;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -658,7 +660,12 @@ private:
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens",
-                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
+                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
+                                                    "z_phys", "detJ" , "mapfac",
+                                                    // eddy viscosity
+                                                    "Kmv","Kmh",
+                                                    // eddy diffusivity of heat
+                                                    "Khv","Khh"
 #if defined(ERF_USE_MOISTURE)
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
 #elif defined(ERF_USE_WARM_NO_PRECIP)
@@ -759,7 +766,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
 #endif
 
-    void refinement_criteria_setup();
+    void refinement_criteria_setup ();
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;

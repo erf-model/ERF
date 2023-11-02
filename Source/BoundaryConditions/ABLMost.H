@@ -35,8 +35,8 @@ public:
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
-                      amrex::Real& start_bdy_time,
-                      amrex::Real& bdy_time_interval)
+                      amrex::Real start_bdy_time = 0.0,
+                      amrex::Real bdy_time_interval = 0.0)
     : m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
@@ -60,8 +60,16 @@ public:
         auto erf_st = pp.query("most.surf_temp", surf_temp);
         if (erf_st) {
             theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+            pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
+            surf_heating_rate = surf_heating_rate / 3600.0; // [K/s]
+            if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
+                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+            }
         } else {
             pp.query("most.surf_temp_flux", surf_temp_flux);
+            if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
+                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+            }
             if (std::abs(surf_temp_flux) > std::numeric_limits<amrex::Real>::epsilon()) {
                 theta_type = ThetaCalcType::HEAT_FLUX;
             } else {
@@ -166,18 +174,37 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
-                     amrex::MultiFab* eddyDiffs);
+                     amrex::MultiFab* eddyDiffs,
+                     amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
                       amrex::MultiFab* eddyDiffs,
+                      amrex::MultiFab* z_phys,
+                      const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
 
     void
     time_interp_tsurf(const int& lev,
                       const amrex::Real& time);
+
+    void
+    update_surf_temp (const amrex::Real& time)
+    {
+        if (surf_heating_rate != 0) {
+            int nlevs = m_geom.size();
+            for (int lev = 0; lev < nlevs; lev++)
+            {
+               t_surf[lev]->setVal(surf_temp + surf_heating_rate*time);
+               amrex::Print() << "Surface temp at t=" << time
+                   << ": "
+                   << surf_temp + surf_heating_rate*time
+                   << std::endl;
+            }
+        }
+    }
 
     void
     update_mac_ptrs (const int& lev,
@@ -221,6 +248,7 @@ public:
 private:
     amrex::Real z0_const;
     amrex::Real surf_temp;
+    amrex::Real surf_heating_rate{0};
     amrex::Real surf_temp_flux{0};
     amrex::Real cnk_a{0.0185};
     amrex::Real depth{30.0};

@@ -1,8 +1,8 @@
 void
-erf_init_dens_hse(amrex::MultiFab& rho_hse,
-                  std::unique_ptr<amrex::MultiFab>&,
-                  std::unique_ptr<amrex::MultiFab>&,
-                  amrex::Geometry const&) override
+erf_init_dens_hse (amrex::MultiFab& rho_hse,
+                   std::unique_ptr<amrex::MultiFab>&,
+                   std::unique_ptr<amrex::MultiFab>&,
+                   amrex::Geometry const&) override
 {
     amrex::Real rho_0 = parms.rho_0;
     for ( amrex::MFIter mfi(rho_hse, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )

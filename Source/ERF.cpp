@@ -122,6 +122,14 @@ ERF::ERF ()
 
     // Geometry on all levels has been defined already.
 
+    if (solverChoice.use_terrain) {
+        init_zlevels(zlevels_stag,
+                     geom[0],
+                     solverChoice.grid_stretching_ratio,
+                     solverChoice.zsurf,
+                     solverChoice.dz0);
+    }
+
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
 
@@ -463,6 +471,24 @@ ERF::InitData ()
             } // lev
         }
 
+        Real QKE_0;
+        if (pp.query("QKE_0", QKE_0)) {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                auto& lev_new = vars_new[lev];
+                for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box &bx = mfi.tilebox();
+                    const auto &cons_arr = lev_new[Vars::cons].array(mfi);
+                    // We want to set the lateral BC values, too
+                    Box gbx = bx; // Copy constructor
+                    gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
+                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        cons_arr(i,j,k,RhoQKE_comp) = cons_arr(i,j,k,Rho_comp) * QKE_0;
+                    });
+                } // mfi
+            }
+        }
+
+
         if (coupling_type == "TwoWay") {
             AverageDown();
         }
@@ -533,7 +559,11 @@ ERF::InitData ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
         m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, start_bdy_time, bdy_time_interval);
+                                           sst_lev, lmask_lev
+#ifdef ERF_USE_NETCDF
+                                           ,start_bdy_time, bdy_time_interval
+#endif
+                                           );
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics

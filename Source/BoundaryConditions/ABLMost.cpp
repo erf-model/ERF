@@ -34,6 +34,7 @@ ABLMost::update_fluxes (const int& lev,
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+            update_surf_temp(time);
             if (rough_type == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
@@ -109,15 +110,16 @@ ABLMost::compute_fluxes (const int& lev,
 void
 ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
-                          MultiFab* eddyDiffs)
+                          MultiFab* eddyDiffs,
+                          MultiFab* z_phys)
 {
     const int zlo = 0;
     if (flux_type == FluxCalcType::DONELAN) {
-        donelan_flux flux_comp(zlo,m_geom[lev].CellSize(2));
-        compute_most_bcs(lev,mfs,eddyDiffs,flux_comp);
+        donelan_flux flux_comp(zlo);
+        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
-        moeng_flux flux_comp(zlo,m_geom[lev].CellSize(2));
-        compute_most_bcs(lev,mfs,eddyDiffs,flux_comp);
+        moeng_flux flux_comp(zlo);
+        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
 }
 
@@ -135,6 +137,8 @@ void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
                            MultiFab* eddyDiffs,
+                           MultiFab* z_phys,
+                           const Real& dz_no_terrain,
                            const FluxCalc& flux_comp)
 {
     const int zlo   = 0;
@@ -142,10 +146,11 @@ ABLMost::compute_most_bcs (const int& lev,
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Get field arrays
-        const auto cons_arr = mfs[Vars::cons]->array(mfi);
-        const auto velx_arr = mfs[Vars::xvel]->array(mfi);
-        const auto vely_arr = mfs[Vars::yvel]->array(mfi);
-        const auto  eta_arr = eddyDiffs->array(mfi);
+        const auto cons_arr  = mfs[Vars::cons]->array(mfi);
+        const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
+        const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+        const auto  eta_arr  = eddyDiffs->array(mfi);
+        const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
         // Get average arrays
         const auto *const u_mean     = m_ma.get_average(lev,0);
@@ -175,8 +180,11 @@ ABLMost::compute_most_bcs (const int& lev,
 
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    flux_comp.compute_t_flux(i,j,k,n,icomp,cons_arr,velx_arr,vely_arr,eta_arr,
-                                             umm_arr,tm_arr,u_star_arr,t_star_arr,t_surf_arr,dest_arr);
+                    Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+                    flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
+                                             cons_arr, velx_arr, vely_arr, eta_arr,
+                                             umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
+                                             dest_arr);
                 });
 
             } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) {
@@ -186,8 +194,11 @@ ABLMost::compute_most_bcs (const int& lev,
 
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    flux_comp.compute_u_flux(i,j,k,icomp,var_idx,cons_arr,velx_arr,vely_arr,eta_arr,
-                                             umm_arr,um_arr,u_star_arr,dest_arr);
+                    Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+                    flux_comp.compute_u_flux(i, j, k, icomp, var_idx, dz,
+                                             cons_arr, velx_arr, vely_arr, eta_arr,
+                                             umm_arr, um_arr, u_star_arr,
+                                             dest_arr);
                 });
 
             } else if (var_idx == Vars::yvel || var_idx == Vars::ymom) {
@@ -197,8 +208,11 @@ ABLMost::compute_most_bcs (const int& lev,
 
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    flux_comp.compute_v_flux(i,j,k,icomp,var_idx,cons_arr,velx_arr,vely_arr,eta_arr,
-                                             umm_arr,vm_arr,u_star_arr,dest_arr);
+                    Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+                    flux_comp.compute_v_flux(i, j, k, icomp, var_idx, dz,
+                                             cons_arr, velx_arr, vely_arr, eta_arr,
+                                             umm_arr, vm_arr, u_star_arr,
+                                             dest_arr);
                 });
             }
         } // var_idx

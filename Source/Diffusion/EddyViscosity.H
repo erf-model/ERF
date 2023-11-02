@@ -5,18 +5,21 @@
 
 #include <ABLMost.H>
 #include <DataStruct.H>
+#include <AMReX_BCRec.H>
 
 void
 ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
                            const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
                            const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
                            const amrex::MultiFab& cons_in,
+                           const amrex::MultiFab& cons_old,
                            amrex::MultiFab& eddyViscosity,
                            amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                            const amrex::Geometry& geom,
                            const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                            const TurbChoice& turbChoice, const amrex::Real const_grav,
                            std::unique_ptr<ABLMost>& most,
+                           const amrex::BCRec* bc_ptr,
                            bool vert_only = false);
 
 AMREX_GPU_DEVICE

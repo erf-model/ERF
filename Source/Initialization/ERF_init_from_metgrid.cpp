@@ -98,6 +98,7 @@ calc_rho_p (const int& kmax,
             Vector<Real>& Rhod_vec,
             Vector<Real>& Pd_vec);
 
+
 #ifdef ERF_USE_NETCDF
 /**
  * Initializes ERF data using metgrid data supplied by an external NetCDF file.
@@ -248,7 +249,7 @@ ERF::init_from_metgrid (int lev)
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys);
+    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
 
     // Copy SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();

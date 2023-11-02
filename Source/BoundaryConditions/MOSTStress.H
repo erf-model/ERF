@@ -587,9 +587,8 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    moeng_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -600,6 +599,7 @@ struct moeng_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -649,7 +649,8 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = (theta-theta_mean)*wsp_mean;
         amrex::Real num2    = (theta_mean-theta_surf)*wsp;
-        amrex::Real moflux  = tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean);
+        amrex::Real moflux  = (std::abs(tstar) > EPS) ?
+                              tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
@@ -663,6 +664,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -725,6 +727,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -781,7 +784,7 @@ struct moeng_flux
 
 private:
     int zlo;
-    amrex::Real dz;
+    static constexpr amrex::Real EPS = 1e-16;
 };
 
 
@@ -790,9 +793,8 @@ private:
  */
 struct donelan_flux
 {
-    donelan_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    donelan_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -803,6 +805,7 @@ struct donelan_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -849,6 +852,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -915,6 +919,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -975,6 +980,5 @@ struct donelan_flux
 
 private:
     int zlo;
-    amrex::Real dz;
 };
 #endif

@@ -145,6 +145,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
                z_t_rk[lev] = nullptr;
     }
 
+    sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
+
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
     // ********************************************************************************************
@@ -392,6 +395,7 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
 
     if (l_use_kturb) {
       eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+      eddyDiffs_lev[lev]->setVal(0.0);
       if(l_use_ddorf) {
           SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
       } else {
@@ -409,7 +413,7 @@ ERF::update_terrain_arrays (int lev, Real time)
     if (solverChoice.use_terrain) {
         if (init_type != "real" && init_type != "metgrid") {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(geom[lev],*z_phys_nd[lev]);
+            init_terrain_grid(geom[lev],*z_phys_nd[lev],zlevels_stag);
         }
         if (lev>0 && (init_type == "real" || init_type == "metgrid")) {
             PhysBCFunctNoOp empty_bc;
@@ -429,7 +433,7 @@ ERF::update_terrain_arrays (int lev, Real time)
 }
 
 void
-ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
+ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 {
     const BoxArray& ba(cons_mf.boxArray());
     const DistributionMapping& dm(cons_mf.DistributionMap());
