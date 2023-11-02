@@ -100,6 +100,7 @@ void ERF::advance_dycore(int level,
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
+    MultiFab* QKE_equil = QKE_equil_lev[level].get();
 
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
@@ -214,17 +215,14 @@ void ERF::advance_dycore(int level,
     // PBL - only updates vertical eddy viscosity components so horizontal
     //       components come from the LES model or are left as zero.
     // *************************************************************************
-    if (l_use_kturb)
-    {
-        // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    if (l_use_kturb) {
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
-                                  state_old[IntVar::cons],state_new[IntVar::cons],
-                                  *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
+                                  state_old[IntVar::cons],
+                                  *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, QKE_equil, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
-                                  tc, solverChoice.gravity, m_most, bc_ptr_d);
+                                  tc, solverChoice.gravity, m_most);
     }
 
     // ***********************************************************************************************

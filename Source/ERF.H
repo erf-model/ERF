@@ -546,6 +546,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
+    // Equilibrium QKE for MYNN2.5 PBL model
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> QKE_equil_lev;
+
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;

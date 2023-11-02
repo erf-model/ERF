@@ -18,13 +18,13 @@ zlo.type = "Most" # "Most" # "NoSlipWall"
 #erf.most.time_average      = false
 erf.most.z0                = 0.001
 erf.most.zref              = 15.0 # >=dz/2
-erf.most.surf_temp_flux    = 0.05
-#erf.most.surf_temp         = 303.0
+#erf.most.surf_temp_flux    = 0.05
+erf.most.surf_temp         = 303.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.no_substepping = 0
-erf.fixed_dt       = 0.5     # fixed time step
+erf.fixed_dt       = 0.1     # fixed time step
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -36,7 +36,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       =-100        # number of timesteps between checkpoints
+erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 #erf.plotfile_type   = netcdf
@@ -50,13 +50,13 @@ erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.pbl_type = "MYNN2.5"
-erf.les_type         = "None" # "none"
+erf.les_type = "Smagorinsky" # "none"
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 0.0 # 5.0
 erf.Cs = 0.16
 
-erf.dycore_horiz_adv_type = "Upwind_3rd"
-erf.dycore_vert_adv_type  = "Upwind_5th"
+#erf.dycore_horiz_adv_type = "Upwind_3rd"
+#erf.dycore_vert_adv_type  = "Upwind_5th"
 
 erf.use_coriolis = true
 erf.abl_driver_type = "GeostrophicWind"

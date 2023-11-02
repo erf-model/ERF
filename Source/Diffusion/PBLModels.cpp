@@ -19,12 +19,11 @@ void
 ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const amrex::MultiFab& yvel,
                               const amrex::MultiFab& cons_in,
-                              const amrex::MultiFab& cons_old,
                               amrex::MultiFab& eddyViscosity,
+                              amrex::MultiFab* QKE_equil,
                               const amrex::Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
-                              const amrex::BCRec* bc_ptr,
                               bool /*vert_only*/)
 {
   // MYNN Level 2.5 PBL Model
@@ -32,21 +31,13 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
     const amrex::Real A1 = turbChoice.pbl_A1;
     const amrex::Real A2 = turbChoice.pbl_A2;
-    const amrex::Real B1 = turbChoice.pbl_B1;
+    //const amrex::Real B1 = turbChoice.pbl_B1;
     const amrex::Real B2 = turbChoice.pbl_B2;
     const amrex::Real C1 = turbChoice.pbl_C1;
     const amrex::Real C2 = turbChoice.pbl_C2;
     const amrex::Real C3 = turbChoice.pbl_C3;
     //const amrex::Real C4 = turbChoice.pbl_C4;
     const amrex::Real C5 = turbChoice.pbl_C5;
-
-    // Dirichlet flags to switch derivative stencil
-    bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
-    bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
-    bool u_ext_dir_on_zlo = ( (bc_ptr[BCVars::xvel_bc].lo(2) == ERFBCType::ext_dir) );
-    bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
-    bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
-    bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
 
     // Epsilon
     amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
@@ -57,11 +48,11 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
     for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
       const amrex::Box &bx = mfi.growntilebox(1);
-      const amrex::Array4<amrex::Real const> &cell_data     = cons_in.array(mfi);
-      const amrex::Array4<amrex::Real const> &cell_data_old = cons_old.array(mfi);
+      const amrex::Array4<amrex::Real const> &cell_data = cons_in.array(mfi);
       const amrex::Array4<amrex::Real      > &K_turb = eddyViscosity.array(mfi);
       const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
       const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
+      const amrex::Array4<amrex::Real const> &QKE_equil_arr = QKE_equil->const_array(mfi);
 
       // Compute some quantities that are constant in each column
       // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
@@ -76,18 +67,15 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
       const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
       amrex::FArrayBox qintegral(xybx,2);
       qintegral.setVal<amrex::RunOn::Device>(0.0);
-      amrex::FArrayBox qturb(bx,1); amrex::FArrayBox qturb_old(bx,1);
+      amrex::FArrayBox qturb(bx,1);
       const amrex::Array4<amrex::Real> qint = qintegral.array();
       const amrex::Array4<amrex::Real> qvel = qturb.array();
-      const amrex::Array4<amrex::Real> qvel_old = qturb_old.array();
 
       amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
                          [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
       {
           qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-          qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
           AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
-          AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
           const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
           if (sbx.contains(i,j,k)) {
@@ -116,37 +104,22 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
       {
           // Compute some partial derivatives that we will need (second order)
           // U and V derivatives are interpolated to account for staggered grid
+          int lk = amrex::max(k,0);
           amrex::Real dthetadz, dudz, dvdz;
-          if ( k==izmax && c_ext_dir_on_zhi ) {
-              dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
-                             - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                             + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
-          } else if ( k==izmin && c_ext_dir_on_zlo ) {
-              dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                             + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                             - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
+          if (k == izmax) {
+              dthetadz = (cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp) -
+                          cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
+              dudz = 0.5*(uvel(i,j,k) - uvel(i,j,k-1) + uvel(i+1,j,k) - uvel(i+1,j,k-1))*dz_inv;
+              dvdz = 0.5*(vvel(i,j,k) - vvel(i,j,k-1) + vvel(i,j+1,k) - vvel(i,j+1,k-1))*dz_inv;
+          } else if (k <= izmin){
+              dthetadz = (cell_data(i,j,lk+1,RhoTheta_comp)/cell_data(i,j,lk+1,Rho_comp) -
+                          cell_data(i,j,lk  ,RhoTheta_comp)/cell_data(i,j,lk  ,Rho_comp))*dz_inv;
+              dudz = 0.5*(uvel(i,j,lk+1) - uvel(i,j,lk) + uvel(i+1,j,lk+1) - uvel(i+1,j,lk))*dz_inv;
+              dvdz = 0.5*(vvel(i,j,lk+1) - vvel(i,j,lk) + vvel(i,j+1,lk+1) - vvel(i,j+1,lk))*dz_inv;
           } else {
-              dthetadz = 0.5*(cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                            - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-          }
-
-          if ( k==izmax && u_ext_dir_on_zhi ) {
-              dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                               + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
-          } else if ( k==izmin && u_ext_dir_on_zlo ) {
-              dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                               + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
-          } else {
+              dthetadz = 0.5*(cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) -
+                              cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
               dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
-          }
-
-          if ( k==izmax && v_ext_dir_on_zhi ) {
-              dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                               + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
-          } else if ( k==izmin && v_ext_dir_on_zlo ) {
-              dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                               + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
-          } else {
               dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
           }
 
@@ -163,7 +136,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
           // First Length Scale
           AMREX_ASSERT(l_obukhov != 0);
-          int lk = amrex::max(k,0);
           const amrex::Real zval = gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
           const amrex::Real zeta = zval/l_obukhov;
           amrex::Real l_S;
@@ -201,21 +173,17 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Overall Length Scale
           amrex::Real l_comb = 1.0 / (1.0/l_S + 1.0/l_T + 1.0/l_B);
 
-          // NOTE: Level 2 limiting from balance of production and dissipation.
-          //       K_turb has a setval of 0.0 when the MF is created (NOT EACH STEP).
-          //       We do this inline to avoid storing qe^2 at each cell.
-          amrex::Real l_comb_old   = K_turb(i,j,k,EddyDiff::PBL_lengthscale);
-          amrex::Real shearProd    = dudz*dudz + dvdz*dvdz;
-          amrex::Real buoyProd     = -(CONST_GRAV/theta0) * dthetadz;
-          amrex::Real lSM          = K_turb(i,j,k,EddyDiff::Mom_v)   / (qvel_old(i,j,k) + eps);
-          amrex::Real lSH          = K_turb(i,j,k,EddyDiff::Theta_v) / (qvel_old(i,j,k) + eps);
-          amrex::Real qe2          = B1 * l_comb_old * ( lSM * shearProd + lSH * buoyProd );
-          amrex::Real qe           = (qe2 < 0.0) ? 0.0 : std::sqrt(qe2);
+          // MYNN2 Limiting (Nakanishi & Niino 09 DOI:10.2151/jmsj.87.895; Appendix A)
+          //=========================================================================
+          amrex::Real qe           = std::sqrt(QKE_equil_arr(i,j,k));
           amrex::Real one_m_alpha  = (qvel(i,j,k) > qe) ? 1.0 : qvel(i,j,k) / (qe + eps);
           amrex::Real one_m_alpha2 = one_m_alpha * one_m_alpha;
 
-          // Compute non-dimensional parameters
-          amrex::Real l2_over_q2   = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
+          // MYNN2.5 non-dimensional parameters
+          //=========================================================================
+          amrex::Real shearProd  = dudz*dudz + dvdz*dvdz;
+          amrex::Real buoyProd   = -(CONST_GRAV/theta0) * dthetadz;
+          amrex::Real l2_over_q2 = l_comb*l_comb/(qvel(i,j,k)*qvel(i,j,k));
           amrex::Real GM = l2_over_q2 * shearProd;
           amrex::Real GH = l2_over_q2 * buoyProd;
           amrex::Real E1 = 1.0 + one_m_alpha2 * ( 6.0*A1*A1*GM - 9.0*A1*A2*(1.0-C2)*GH );
@@ -228,6 +196,9 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           amrex::Real SM = (R2*E2 - R1*E4)/(E2*E3 - E1*E4);
           amrex::Real SH = (R1*E3 - R2*E1)/(E2*E3 - E1*E4);
           amrex::Real SQ = 3.0 * SM; // Nakanishi & Niino 2009
+
+          AMREX_ASSERT_WITH_MESSAGE(SM > 0.0, "PBL Error: momentum transport coeff must be positive!");
+          AMREX_ASSERT_WITH_MESSAGE(SH > 0.0, "PBL Error: theta transport coeff must be positive!");
 
           // Finally, compute the eddy viscosity/diffusivities
           const amrex::Real rho = cell_data(i,j,k,Rho_comp);
