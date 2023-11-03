@@ -2,7 +2,7 @@
  * RTE-RRTMGP radiation model interface to ERF
  * The orginal code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
- * For details of the radiation algorithm, please reference to the following paper,
+ * For details of the radiation algorithm, please reference to the following paper, 
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
  *
  * NOTE: we use the C++ version of RTE-RRTMGP, which is reimplemented the original Fortran
@@ -10,7 +10,7 @@
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
  *
- * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes,
+ * The RTE-RRTMGP uses BSD-3-Clause Open Source License, if you want to make changes, 
  * and modifications to the code, please refer to BSD-3-Clause Open Source License.
  */
 #ifndef ERF_RRTMGP_H
@@ -38,12 +38,13 @@ class Rrtmgp {
   public:
     // constructor
     Rrtmgp() = default;
-    explicit Rrtmgp(int ngases, char* gas_names[]);
     // deconstructor
     ~Rrtmgp() = default;
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize();
+    void initialize(int num_gas, std::vector<std::string> active_gas_names, 
+                    const char* rrtmgp_coefficients_file_sw, 
+                    const char* rrtmgp_coefficients_file_lw);
 
     // finalize/clean up
     void finalize();
@@ -112,12 +113,12 @@ class Rrtmgp {
    template<typename DType>
    void multifab_to_array();
 
-   template<typename DType>
+   template<typename DType>   
    void array_to_multifab();
 
    // number of gas for radiation model
    int ngas;
-   char** gas_names;
+   const char** gas_names;
 
    string1d active_gases;
 

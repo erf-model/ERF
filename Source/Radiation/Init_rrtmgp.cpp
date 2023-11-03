@@ -10,7 +10,9 @@
 // Rrtmgp
 #include "Rrtmgp.H"
 
-void Rrtmgp::initialize()
+void Rrtmgp::initialize(int num_gas, std::vector<std::string> active_gas_names, 
+                        const char* rrtmgp_coefficients_file_sw, 
+                        const char* rrtmgp_coefficients_file_lw)
 {
     // First, make sure yakl has been initialized
     if (!yakl::isInitialized()) {
@@ -26,6 +28,13 @@ void Rrtmgp::initialize()
     // impossible from this initialization routine because I do not think the
     // rad_cnst objects are setup yet.
     // the other tasks!
+    ngas      = num_gas;
+    for (auto i = 0; i < ngas; ++i) 
+       gas_names[i] = active_gas_names[i].c_str();
+
+    coefficients_file_sw = rrtmgp_coefficients_file_sw;
+    coefficients_file_lw = rrtmgp_coefficients_file_lw;
+
     auto active_gases = string1d("active_gases", ngas);
     for (int igas=0; igas<ngas; igas++) {
         active_gases(igas+1) = gas_names[igas];
