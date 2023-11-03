@@ -38,12 +38,13 @@ class Rrtmgp {
   public:
     // constructor
     Rrtmgp() = default;
-    explicit Rrtmgp(int ngases, char* gas_names[]);
     // deconstructor
     ~Rrtmgp() = default;
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize();
+    void initialize(int num_gas, std::vector<std::string> active_gas_names,
+                    const char* rrtmgp_coefficients_file_sw,
+                    const char* rrtmgp_coefficients_file_lw);
 
     // finalize/clean up
     void finalize();
@@ -117,7 +118,7 @@ class Rrtmgp {
 
    // number of gas for radiation model
    int ngas;
-   char** gas_names;
+   const char** gas_names;
 
    string1d active_gases;
 
