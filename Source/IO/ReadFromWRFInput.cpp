@@ -60,7 +60,7 @@ read_from_wrfinput (int lev,
 
     // Read the netcdf file and fill these FABs
     amrex::Print() << "Building initial FABS from file " << fname << std::endl;
-    BuildFABsFromNetCDFFile(domain, fname, NC_names, NC_dim_types, NC_fabs);
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
     //
     // Convert the velocities using the map factors

@@ -15,8 +15,6 @@ ifeq ($(USE_NETCDF), TRUE)
   CEXE_sources += ReadFromWRFBdy.cpp
   CEXE_sources += ReadFromWRFInput.cpp
   CEXE_sources += ReadFromMetgrid.cpp
-  CEXE_sources += NCBuildFABs.cpp
-  CEXE_sources += NCBuildIABs.cpp
   CEXE_sources += NCInterface.cpp
   CEXE_sources += NCPlotFile.cpp
   CEXE_sources += NCColumnFile.cpp
