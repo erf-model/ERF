@@ -201,7 +201,7 @@ public:
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
-    void advance_dycore (int level, int finest_level,
+    void advance_dycore (int level,
                          amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
                          amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,

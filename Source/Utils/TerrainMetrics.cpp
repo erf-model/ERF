@@ -69,7 +69,6 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
 void
 init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real> const& z_levels_h)
 {
-  auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
 
   // z_nd is nodal in all directions

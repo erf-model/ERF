@@ -279,7 +279,6 @@ AdvectionSrcForScalars (int level, int finest_level,
                         const bool two_way_coupling)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
-    auto dx    = 1.0/cellSizeInv[0], dy    = 1.0/cellSizeInv[1], dz    = 1.0/cellSizeInv[2];
     auto dxInv =     cellSizeInv[0], dyInv =     cellSizeInv[1], dzInv =     cellSizeInv[2];
 
     amrex::GpuArray<amrex::FArrayBox, AMREX_SPACEDIM> flux;

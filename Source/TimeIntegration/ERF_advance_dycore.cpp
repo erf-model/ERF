@@ -43,7 +43,7 @@ using namespace amrex;
  * @param[in] ifr  pointer to InterpFaceRegister to be used to fill boundary conditions from the coarser level
  */
 
-void ERF::advance_dycore(int level, int finest_level,
+void ERF::advance_dycore(int level,
                          MultiFab& cons_old,  MultiFab& cons_new,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,

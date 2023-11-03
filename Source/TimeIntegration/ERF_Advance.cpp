@@ -118,7 +118,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
     // Update the dycore
-    advance_dycore(lev, finest_level,
+    advance_dycore(lev,
                    cons_mf, S_new,
                    U_old, V_old, W_old,
                    U_new, V_new, W_new,
