@@ -73,11 +73,14 @@ AdvectionSrcForRhoThetaWrapper_T(const amrex::Box& bx,
       amrex::Real interpy_hi(0.), interpy_lo(0.);
       amrex::Real interpz_hi(0.), interpz_lo(0.);
 
-      interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx_hi,interpx_lo,rho_u(i+1,j  ,k  ),rho_u(i  ,j  ,k  ));
-      interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy_hi,interpy_lo,rho_v(i  ,j+1,k  ),rho_v(i  ,j  ,k  ));
+      interp_prim_h.InterpolateInX(i+1,j,k,prim_index,interpx_hi,rho_u(i+1,j  ,k  ));
+      interp_prim_h.InterpolateInX(i  ,j,k,prim_index,interpx_lo,rho_u(i  ,j  ,k  ));
 
-      interp_prim_v.InterpolateInZ_hi(i,j,k,prim_index,interpz_hi,Omega(i  ,j  ,k+1));
-      interp_prim_v.InterpolateInZ_lo(i,j,k,prim_index,interpz_lo,Omega(i  ,j  ,k  ));
+      interp_prim_h.InterpolateInY(i,j+1,k,prim_index,interpy_hi,rho_v(i  ,j+1,k  ));
+      interp_prim_h.InterpolateInY(i,j  ,k,prim_index,interpy_lo,rho_v(i  ,j  ,k  ));
+
+      interp_prim_v.InterpolateInZ(i,j,k+1,prim_index,interpz_hi,Omega(i  ,j  ,k+1));
+      interp_prim_v.InterpolateInZ(i,j,k  ,prim_index,interpz_lo,Omega(i  ,j  ,k  ));
 
       advectionSrc(i,j,k,1) = - invdetJ * (
                                            ( xflux_hi * interpx_hi - xflux_lo * interpx_lo ) * dxInv * mfsq +

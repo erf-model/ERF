@@ -45,7 +45,7 @@ The following problems are currently tested in the CI:
 | DensityCurrent_detJ2_MT       | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | use_terrain = true    |
 |                               |          | Outflow  |          | SlipWall   |       | uses zlevels          |
 |                               |          | Outflow  |          | SlipWall   |       | detJ = 2 everywhere   |
-|                               |          |          |          |            |       | terrain_type = 1      |
+|                               |          |          |          |            |       | terrain_type = Moving |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | EkmanSpiral                   | 4 4 400  | Periodic | Periodic | NoSlipWall | Geo   | +Coriolis             |
 |                               |          |          |          | SlipWall   |       | +gravity              |

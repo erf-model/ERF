@@ -159,7 +159,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                                                const Array4<Real const>& z_phys_nd,
                                                const GpuArray<Real,AMREX_SPACEDIM> dxInv,
                                                int bccomp_u, int bccomp_v, int bccomp_w,
-                                               int terrain_type)
+                                               TerrainType terrain_type)
 {
     BL_PROFILE_VAR("impose_vertical_zvel_bcs()",impose_vertical_zvel_bcs);
     const auto& dom_lo = amrex::lbound(domain);
@@ -198,7 +198,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
-    bool l_moving_terrain = (terrain_type == 1);
+    bool l_moving_terrain = (terrain_type == TerrainType::Moving);
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
 

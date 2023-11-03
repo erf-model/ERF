@@ -62,7 +62,7 @@ void erf_slow_rhs_pre (int level, int nrk,
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
  */
-void erf_slow_rhs_post (int level, int nrk,
+void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Real dt,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
                        amrex::Vector<amrex::MultiFab>& S_old,

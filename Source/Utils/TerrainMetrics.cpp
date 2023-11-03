@@ -69,7 +69,6 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
 void
 init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real> const& z_levels_h)
 {
-  auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
 
   // z_nd is nodal in all directions
@@ -83,9 +82,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
   ParmParse pp("erf");
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
-
-  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi
-  //std::string terrain_type = "custom";
 
    amrex::Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
