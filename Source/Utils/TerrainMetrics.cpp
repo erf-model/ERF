@@ -84,9 +84,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
-  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi
-  //std::string terrain_type = "custom";
-
    amrex::Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
 #ifdef AMREX_USE_GPU

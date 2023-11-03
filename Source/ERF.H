@@ -19,7 +19,7 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PhysBCFunct.H>
-#include <AMReX_FluxRegister.H>
+#include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
 #ifdef AMREX_MEM_PROFILING
@@ -201,7 +201,7 @@ public:
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
     // Interface for advancing the data at one level by one "slow" timestep
-    void advance_dycore (int level,
+    void advance_dycore (int level, int finest_level,
                          amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
                          amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
@@ -574,7 +574,7 @@ private:
     amrex::Vector<amrex::MultiFab> base_state_new;
 
     // array of flux registers
-    amrex::Vector<amrex::FluxRegister*> flux_registers;
+    amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec
@@ -679,9 +679,6 @@ private:
 
     // flag to turn tracer particle generation on/off
     static bool use_tracer_particles;
-
-    // mesh refinement
-    static std::string coupling_type;
 
     // Diagnostic output interval
     static int sum_interval;
@@ -820,10 +817,9 @@ private:
     }
 
     AMREX_FORCE_INLINE
-    amrex::FluxRegister&
-    get_flux_reg (int lev)
+    amrex::YAFluxRegister& getAdvFluxReg (int lev)
     {
-      return *flux_registers[lev];
+        return *advflux_reg[lev];
     }
 
     AMREX_FORCE_INLINE

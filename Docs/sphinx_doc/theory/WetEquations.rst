@@ -38,7 +38,7 @@ The governing equations for this model are
   \frac{\partial \rho_d}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u})
 
   \frac{\partial (\rho_d \mathbf{u})}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \mathbf{u}) -
-          \frac{1}{1 + q_v + q_c}  \nabla p^\prime - \nabla \cdot \tau + \mathbf{F} + \delta_{i,3}\mathbf{B}
+          \frac{1}{1 + q_v + q_c} ( \nabla p^\prime  + \delta_{i,3}\mathbf{B} ) - \nabla \cdot \tau + \mathbf{F}
 
   \frac{\partial (\rho_d \theta_d)}{\partial t} &= - \nabla \cdot (\rho_d \mathbf{u} \theta_d)
                 + \nabla \cdot ( \rho_d \alpha_{T}\ \nabla \theta_d) + \frac{\theta_d L_v}{T_d C_{pd}} f_{cond}

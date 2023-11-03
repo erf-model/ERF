@@ -43,7 +43,7 @@ using namespace amrex;
  * @param[in] ifr  pointer to InterpFaceRegister to be used to fill boundary conditions from the coarser level
  */
 
-void ERF::advance_dycore(int level,
+void ERF::advance_dycore(int level, int finest_level,
                          MultiFab& cons_old,  MultiFab& cons_new,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
@@ -314,7 +314,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     // Register coarse data for coarse-fine fill
-    if (level<finest_level && coupling_type=="OneWay" && cf_width>0) {
+    if (level<finest_level && solverChoice.coupling_type == CouplingType::OneWay && cf_width>0) {
         FPr_c[level].RegisterCoarseData({&cons_old, &cons_new}, {old_time, old_time + dt_advance});
         FPr_u[level].RegisterCoarseData({&xvel_old, &xvel_new}, {old_time, old_time + dt_advance});
         FPr_v[level].RegisterCoarseData({&yvel_old, &yvel_new}, {old_time, old_time + dt_advance});
