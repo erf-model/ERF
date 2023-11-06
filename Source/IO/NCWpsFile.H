@@ -235,7 +235,7 @@ fill_fab_from_arrays (int iv,
 
 #ifdef AMREX_USE_GPU
     // Make sure temp lives on CPU since nc_arrays lives on CPU only
-    temp.resize(my_box,1,The_Pinned_Arena());
+    temp.resize(my_box,1,amrex::The_Pinned_Arena());
 #else
     temp.resize(my_box,1);
 #endif
@@ -289,15 +289,15 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
             fill_fab_from_arrays<FAB,DType>(iv, nc_arrays, nc_var_names[iv], NC_dim_types[iv], tmp);
         }
 
-        amrex::Box box   = tmp.box();
         int ncomp = tmp.nComp();
+        amrex::Box box = tmp.box();
 
         amrex::ParallelDescriptor::Bcast(&box,   1, ioproc);
         amrex::ParallelDescriptor::Bcast(&ncomp, 1, ioproc);
 
         if (!amrex::ParallelDescriptor::IOProcessor()) {
 #ifdef AMREX_USE_GPU
-            tmp.resize(box,ncomp, The_Pinned_Arena());
+            tmp.resize(box,ncomp,amrex::The_Pinned_Arena());
 #else
             tmp.resize(box,ncomp);
 #endif

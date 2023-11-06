@@ -27,11 +27,13 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
                    IArrayBox& NC_lmask_iab);
 
+AMREX_GPU_HOST_DEVICE
 void
 interpolate_column (int i, int j, int src_comp, int dest_comp,
                     const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
                     const Array4<Real const>&  new_z, const Array4<Real>&  new_data);
 
+AMREX_GPU_HOST_DEVICE
 void
 interpolate_column_metgrid (int i, int j, char stag, int src_comp, int dest_comp,
                             const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
@@ -608,25 +610,25 @@ ERF::init_from_metgrid (int lev)
             amrex::ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xlo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k)*Factor;
+                xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at east boundary
             amrex::ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                xhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k)*Factor;
+                xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at south boundary
             amrex::ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                ylo_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k)*Factor;
+                ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at north boundary
             amrex::ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
-                yhi_arr(i,j,k,0) = fabs_for_bcs_arr(i,j,k)*Factor;
+                yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
 
         } // ivar
@@ -1283,7 +1285,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
  * @param new_z Array4 object containing the new z-coordinates to interpolate into
  * @param new_data Array4 object into which we interpolate the data at the new z-coordinates
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 void
 interpolate_column_metgrid (int i, int j, char stag, int src_comp, int dest_comp,
                             const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
@@ -1414,7 +1416,7 @@ interpolate_column_metgrid (int i, int j, char stag, int src_comp, int dest_comp
  * @param new_z Array4 object containing the new z-coordinates to interpolate into
  * @param new_data Array4 object into which we interpolate the data at the new z-coordinates
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 void
 interpolate_column (int i, int j, int src_comp, int dest_comp,
                     const Array4<Real const>& orig_z, const Array4<Real const>& orig_data,
