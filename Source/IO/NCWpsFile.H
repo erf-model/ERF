@@ -122,12 +122,6 @@ struct NDArray
    DType* data;
 };
 
-void BuildIABsFromNetCDFFile (const amrex::Box& domain,
-                              const std::string &fname,
-                              amrex::Vector<std::string> nc_var_names,
-                              amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
-                              amrex::Vector<amrex::IArrayBox*> fab_vars);
-
 int BuildFABsFromWRFBdyFile (const std::string &fname,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                              amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
