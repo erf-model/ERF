@@ -51,7 +51,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<const Real>& mf_v,
                     const AdvType horiz_adv_type,
                     const AdvType vert_adv_type,
-                    const int use_terrain,
+                    const bool use_terrain,
                     const int domhi_z)
 {
     BL_PROFILE_VAR("AdvectionSrcForMom", AdvectionSrcForMom);

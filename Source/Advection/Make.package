@@ -6,4 +6,5 @@ CEXE_headers += AdvectionSrcForMom_N.H
 CEXE_headers += AdvectionSrcForMom_T.H
 CEXE_headers += AdvectionSrcForState_N.H
 CEXE_headers += AdvectionSrcForState_T.H
+CEXE_headers += AdvectionSrcForScalars.H
 CEXE_headers += Interpolation.H
