@@ -18,7 +18,7 @@
         Real slow_dt = new_stage_time - old_step_time;
 
         // Moving terrain
-        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
         {
             // Note that the "old" and "new" metric terms correspond to
             // t^n and the RK stage (either t^*, t^** or t^{n+1} that this source
@@ -211,7 +211,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && coupling_type=="OneWay" && cf_width>0) {
+        if (level>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -276,8 +276,8 @@
 #endif
 
         // Moving terrain
-        if ( solverChoice.use_terrain && (solverChoice.terrain_type == 1) ) {
-            erf_slow_rhs_post(level, nrk, slow_dt,
+        if ( solverChoice.use_terrain && (solverChoice.terrain_type == TerrainType::Moving) ) {
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,
@@ -292,7 +292,7 @@
 #endif
                               );
         } else {
-            erf_slow_rhs_post(level, nrk, slow_dt,
+            erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
                               source, SmnSmn, eddyDiffs,

@@ -49,7 +49,7 @@
                 Array4<Real>* fslow = fslow_d.dataPtr();
 
                 // Moving terrain
-                if ( solverChoice.use_terrain && solverChoice.terrain_type == 1 )
+                if ( solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Moving )
                 {
                     const Array4<const Real>& dJ_old =     detJ_cc[level]->const_array(mfi);
                     const Array4<const Real>& dJ_new = detJ_cc_new[level]->const_array(mfi);

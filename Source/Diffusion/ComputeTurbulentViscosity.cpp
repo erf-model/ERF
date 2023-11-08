@@ -61,7 +61,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 #endif
       for (amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
-          // NOTE: This gets us the lateral ghost cells for lev>1; which
+          // NOTE: This gets us the lateral ghost cells for lev>0; which
           //       have been filled from FP Two Levels.
           Box bxcc  = mfi.growntilebox() & domain;
 
@@ -164,7 +164,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
       }
     }
 
-    // Extrapolate Kturb in extrap x/y, fill remaining elements
+    // Extrapolate Kturb in x/y, fill remaining elements (relevent to lev==0)
     //***********************************************************************************
     int ngc(1);
     Real inv_Pr_t    = turbChoice.Pr_t_inv;

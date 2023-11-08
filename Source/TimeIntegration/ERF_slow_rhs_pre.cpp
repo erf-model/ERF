@@ -119,7 +119,7 @@ void erf_slow_rhs_pre (int level,
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const bool    l_use_terrain    = solverChoice.use_terrain;
-    const bool    l_moving_terrain = (solverChoice.terrain_type == 1);
+    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -801,8 +801,7 @@ void erf_slow_rhs_pre (int level,
             q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                        +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-            rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                - abl_pressure_grad[0]
+            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                 + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -810,8 +809,7 @@ void erf_slow_rhs_pre (int level,
             {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                rho_u_rhs(i, j, k) += coriolis_factor *
-                        (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
             }
 
             // Add Rayleigh damping
@@ -846,8 +844,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-              rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                  - abl_pressure_grad[0]
+              rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -855,8 +852,7 @@ void erf_slow_rhs_pre (int level,
               {
                   Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                   Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                  rho_u_rhs(i, j, k) += coriolis_factor *
-                          (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                  rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
               }
 
               // Add Rayleigh damping
@@ -911,8 +907,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - abl_pressure_grad[1]
+              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
@@ -953,8 +948,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - abl_pressure_grad[1]
+              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1007,8 +1001,7 @@ void erf_slow_rhs_pre (int level,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - abl_pressure_grad[2]
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                     + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1048,8 +1041,7 @@ void erf_slow_rhs_pre (int level,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - abl_pressure_grad[2]
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                     + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)

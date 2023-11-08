@@ -24,7 +24,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
-        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+        if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
         {
             // Make "old" fast geom -- store in z_phys_nd for convenience
             if (verbose) Print() << "Making geometry at start of substep time: " << old_substep_time << std::endl;
@@ -94,7 +94,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level]);
             }
-        } else if (solverChoice.use_terrain && solverChoice.terrain_type == 0) {
+        } else if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Static) {
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
