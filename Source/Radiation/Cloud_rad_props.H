@@ -4,9 +4,11 @@
 #ifndef ERF_CLOUD_RAD_PROPS_H_
 #define ERF_CLOUD_RAD_PROPS_H_
 
-#include "ERF.H"
-#include "Linear_interpolate.H"
+#include <AMReX_MultiFabUtil.H>
+#include "ERF_Constants.H"
 #include "rrtmgp_const.h"
+#include "Water_vapor_saturation.H"
+#include "Linear_interpolate.H"
 
 class CloudRadProps {
   public:
