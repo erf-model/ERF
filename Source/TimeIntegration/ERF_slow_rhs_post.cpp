@@ -44,7 +44,7 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  */
 
-void erf_slow_rhs_post (int level,
+void erf_slow_rhs_post (int level, int finest_level,
                         int nrk,
                         Real dt,
                         Vector<MultiFab>& S_rhs,
@@ -93,8 +93,9 @@ void erf_slow_rhs_post (int level,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const bool l_use_terrain    = solverChoice.use_terrain;
-    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    const bool l_use_terrain      = solverChoice.use_terrain;
+    const bool l_two_way_coupling = (solverChoice.coupling_type == CouplingType::TwoWay);
+    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -250,27 +251,27 @@ void erf_slow_rhs_post (int level,
         if (l_use_deardorff) {
             start_comp = RhoKE_comp;
               num_comp = 1;
-            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+            AdvectionSrcForScalars(level, finest_level, mfi, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                   cur_prim, cell_rhs, detJ_arr, dt, dxInv, mf_m,
                                    horiz_adv_type, vert_adv_type,
-                                   l_use_terrain);
+                                   l_use_terrain, l_two_way_coupling);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
-            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+            AdvectionSrcForScalars(level, finest_level, mfi, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                   cur_prim, cell_rhs, detJ_arr, dt, dxInv, mf_m,
                                    horiz_adv_type, vert_adv_type,
-                                   l_use_terrain);
+                                   l_use_terrain, l_two_way_coupling);
         }
 
         // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
         num_comp = 1;
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                              cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                              horiz_adv_type, vert_adv_type,
-                              l_use_terrain);
+        AdvectionSrcForScalars(level, finest_level, mfi, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               cur_prim, cell_rhs, detJ_arr, dt, dxInv, mf_m,
+                               horiz_adv_type, vert_adv_type,
+                               l_use_terrain, l_two_way_coupling);
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;
@@ -283,10 +284,10 @@ void erf_slow_rhs_post (int level,
              moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
              moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
         }
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+        AdvectionSrcForScalars(level, finest_level, mfi, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               cur_prim, cell_rhs, detJ_arr, dt, dxInv, mf_m,
                                moist_horiz_adv_type, moist_vert_adv_type,
-                               l_use_terrain);
+                               l_use_terrain, l_two_way_coupling);
 
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         start_comp = RhoQv_comp;
@@ -300,10 +301,10 @@ void erf_slow_rhs_post (int level,
              moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
         }
 
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+        AdvectionSrcForScalars(level, finest_level, mfi, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                               cur_prim, cell_rhs, detJ_arr, dt, dxInv, mf_m,
                                moist_horiz_adv_type, moist_vert_adv_type,
-                               l_use_terrain);
+                               l_use_terrain, l_two_way_coupling);
 #endif
 
         if (l_use_diff) {

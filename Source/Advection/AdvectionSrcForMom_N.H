@@ -42,22 +42,27 @@ AdvectionSrcForXMom_N (int i, int j, int k,
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j,0) + rho_u(i, j, k) * mf_u_inv(i,j,0));
-    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_u_inv(i-1,j,0) + rho_u(i, j, k) * mf_u_inv(i,j,0));
-    interp_u_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
+    interp_u_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
+
+    rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_u_inv(i-1,j,0) + rho_u(i, j, k) * mf_u_inv(i,j,0));
+    interp_u_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
     rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) * mf_v_inv(i,j+1,0) + rho_v(i-1, j+1, k) * mf_v_inv(i-1,j+1,0));
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_v_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_v_inv(i-1,j  ,0));
-    interp_u_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
+    interp_u_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
+
+    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) * mf_v_inv(i,j  ,0) + rho_v(i-1, j  , k) * mf_v_inv(i-1,j  ,0));
+    interp_u_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
     rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i-1, j, k+1));
-    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i-1, j, k  ));
-    interp_u_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
-    interp_u_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
+    interp_u_v.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi);
     zflux_hi = rho_w_avg_hi * interp_hi;
+
+    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i-1, j, k  ));
+    interp_u_v.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo);
     zflux_lo = rho_w_avg_lo * interp_lo;
 
     amrex::Real mfsq = 1 / (mf_u_inv(i,j,0) * mf_u_inv(i,j,0));
@@ -110,22 +115,27 @@ AdvectionSrcForYMom_N (int i, int j, int k,
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j  ,0) + rho_u(i+1, j-1, k) * mf_u_inv(i+1,j-1,0));
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_u_inv(i  ,j  ,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0));
-    interp_v_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
+    interp_v_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
+
+    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) * mf_u_inv(i  ,j  ,0) + rho_u(i  , j-1, k) * mf_u_inv(i  ,j-1,0));
+    interp_v_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
     rho_v_avg_hi = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j+1, k) * mf_v_inv(i  ,j+1,0));
-    rho_v_avg_lo = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_v_inv(i  ,j-1,0));
-    interp_v_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
+    interp_v_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
+
+    rho_v_avg_lo = 0.5 * (rho_v(i, j, k) * mf_v_inv(i  ,j  ,0) + rho_v(i, j-1, k) * mf_v_inv(i  ,j-1,0));
+    interp_v_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
     rho_w_avg_hi = 0.5 * (rho_w(i, j, k+1) + rho_w(i, j-1, k+1));
-    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i, j-1, k  ));
-    interp_v_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
-    interp_v_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
+    interp_v_v.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi);
     zflux_hi = rho_w_avg_hi * interp_hi;
+
+    rho_w_avg_lo = 0.5 * (rho_w(i, j, k  ) + rho_w(i, j-1, k  ));
+    interp_v_v.InterpolateInZ(i,j,k  ,0,interp_lo,rho_w_avg_lo);
     zflux_lo = rho_w_avg_lo * interp_lo;
 
     amrex::Real mfsq = 1 / (mf_v_inv(i,j,0) * mf_v_inv(i,j,0));
@@ -186,15 +196,19 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     amrex::Real interp_hi(0.), interp_lo(0.);
 
     rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) + rho_u(i+1, j, k-1)) * mf_u_inv(i+1,j  ,0);
-    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0);
-    interp_w_h.InterpolateInX(i,j,k,0,interp_hi,interp_lo,rho_u_avg_hi,rho_u_avg_lo);
+    interp_w_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
     xflux_hi = rho_u_avg_hi * interp_hi;
+
+    rho_u_avg_lo = 0.5 * (rho_u(i  , j, k) + rho_u(i  , j, k-1)) * mf_u_inv(i  ,j  ,0);
+    interp_w_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
     xflux_lo = rho_u_avg_lo * interp_lo;
 
     rho_v_avg_hi = 0.5 * (rho_v(i, j+1, k) + rho_v(i, j+1, k-1)) * mf_v_inv(i  ,j+1,0);
-    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0);
-    interp_w_h.InterpolateInY(i,j,k,0,interp_hi,interp_lo,rho_v_avg_hi,rho_v_avg_lo);
+    interp_w_h.InterpolateInY(i,j+1,k,0,interp_hi,rho_v_avg_hi);
     yflux_hi = rho_v_avg_hi * interp_hi;
+
+    rho_v_avg_lo = 0.5 * (rho_v(i, j  , k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0);
+    interp_w_h.InterpolateInY(i,j,k,0,interp_lo,rho_v_avg_lo);
     yflux_lo = rho_v_avg_lo * interp_lo;
 
     // int l_spatial_order_hi = std::min(std::min(vert_spatial_order, 2*(domhi_z+1-k)), 2*(k+1));
@@ -208,15 +222,15 @@ AdvectionSrcForZMom_N (int i, int j, int k,
         rho_w_avg_hi = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k+1));
         if (k == domhi_z)
         {
-            interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
+            interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
         } else if (k == domhi_z-1 || k == 1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
-               interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,AdvType::Centered_4th);
+               interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_4th);
             } else {
-               interp_w_wall.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi,vert_adv_type);
+               interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,vert_adv_type);
             }
         } else {
-            interp_w_v.InterpolateInZ_hi(i,j,k,0,interp_hi,rho_w_avg_hi);
+            interp_w_v.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi);
         }
         zflux_hi = rho_w_avg_hi * interp_hi;
     }
@@ -231,15 +245,15 @@ AdvectionSrcForZMom_N (int i, int j, int k,
     } else {
         rho_w_avg_lo = 0.5 * (rho_w(i,j,k) + rho_w(i,j,k-1));
         if (k == 1) {
-            interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_2nd);
+            interp_w_wall.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_2nd);
         } else if (k == 2 || k == domhi_z) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
-                interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_4th);
+                interp_w_wall.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_4th);
             } else {
-                interp_w_wall.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo,vert_adv_type);
+                interp_w_wall.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo,vert_adv_type);
             }
         } else {
-            interp_w_v.InterpolateInZ_lo(i,j,k,0,interp_lo,rho_w_avg_lo);
+            interp_w_v.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo);
         }
         zflux_lo = rho_w_avg_lo * interp_lo;
     }
