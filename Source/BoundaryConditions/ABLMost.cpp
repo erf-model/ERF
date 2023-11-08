@@ -10,10 +10,13 @@ using namespace amrex;
  * @param[in] max_iters maximum iterations to use
  */
 void
-ABLMost::update_fluxes (int lev,
-                        Real cur_time,
+ABLMost::update_fluxes (const int& lev,
+                        const Real& time,
                         int max_iters)
 {
+    // Update SST data if we have a valid pointer
+    if (m_sst_lev[lev][0]) time_interp_tsurf(lev, time);
+
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
@@ -31,7 +34,7 @@ ABLMost::update_fluxes (int lev,
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-            update_surf_temp(cur_time);
+            update_surf_temp(time);
             if (rough_type == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
@@ -75,12 +78,9 @@ ABLMost::compute_fluxes (const int& lev,
     const auto *const tm_ptr  = m_ma.get_average(lev,2);
     const auto *const umm_ptr = m_ma.get_average(lev,3);
 
-    // Ghost cells
-    amrex::IntVect ng = u_star[lev]->nGrowVect(); ng[2]=0;
-
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
-        amrex::Box gtbx = mfi.growntilebox(ng);
+        Box gtbx = mfi.growntilebox();
 
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
@@ -108,7 +108,7 @@ ABLMost::compute_fluxes (const int& lev,
  * @param[in] eddyDiffs Diffusion coefficients from turbulence model
  */
 void
-ABLMost::impose_most_bcs (const int lev,
+ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
                           MultiFab* eddyDiffs,
                           MultiFab* z_phys)
@@ -134,7 +134,7 @@ ABLMost::impose_most_bcs (const int lev,
  */
 template<typename FluxCalc>
 void
-ABLMost::compute_most_bcs (const int lev,
+ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
                            MultiFab* eddyDiffs,
                            MultiFab* z_phys,
@@ -217,4 +217,34 @@ ABLMost::compute_most_bcs (const int lev,
             }
         } // var_idx
     } // mfiter
+}
+
+void
+ABLMost::time_interp_tsurf(const int& lev,
+                           const Real& time)
+{
+    // Time interpolation
+    Real dT = m_bdy_time_interval;
+    Real time_since_start = time - m_start_bdy_time;
+    int n_time = static_cast<int>( time_since_start /  dT);
+    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+    amrex::Real oma   = 1.0 - alpha;
+    AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
+
+    // Populate t_surf
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto sst_hi_arr = m_sst_lev[lev][n_time+1]->const_array(mfi);
+        const auto sst_lo_arr = m_sst_lev[lev][n_time  ]->const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
+                              + alpha * sst_hi_arr(i,j,k);
+        });
+    }
 }
