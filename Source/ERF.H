@@ -313,6 +313,11 @@ public:
     static amrex::Vector<std::string> tracer_particle_varnames;
 #endif
 
+#ifdef ERF_USE_NETCDF
+    void init_from_wrfinput (int lev);
+    void init_from_metgrid (int lev);
+#endif // ERF_USE_NETCDF
+
 private:
 
     ///////////////////////////
@@ -344,11 +349,6 @@ private:
     void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
-
-#ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev);
-    void init_from_metgrid (int lev);
-#endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev); // NOLINT
