@@ -45,7 +45,6 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/IO/NCBuildFABs.cpp
                    ${SRC_DIR}/IO/NCInterface.cpp
                    ${SRC_DIR}/IO/NCPlotFile.cpp
                    ${SRC_DIR}/IO/NCCheckpoint.cpp
@@ -114,6 +113,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_zvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_bndryreg.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_metgrid.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp

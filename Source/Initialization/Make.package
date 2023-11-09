@@ -8,6 +8,7 @@ CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init1d.cpp
 
 ifeq ($(USE_NETCDF),TRUE)
+CEXE_headers += Metgrid_utils.H
 CEXE_sources += ERF_init_from_wrfinput.cpp
 CEXE_sources += ERF_init_from_metgrid.cpp
 endif
