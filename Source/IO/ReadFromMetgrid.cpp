@@ -6,31 +6,6 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-// Converts UTC time string to a time_t value in UTC.
-std::time_t
-getEpochTime_metgrid (const std::string& dateTime, const std::string& dateTimeFormat)
-{
-    // Create a stream which we will use to parse the string,
-    // which we provide to constructor of stream to fill the buffer.
-    std::istringstream ss{ dateTime };
-
-    // Create a tm object to store the parsed date and time.
-    std::tm tmTime;
-    memset(&tmTime, 0, sizeof(tmTime));
-
-    // Now we read from buffer using get_time manipulator
-    // and formatting the input appropriately.
-    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
-
-    // Convert the tm structure to time_t value and return.
-    // Here we use timegm since the output should be relative to UTC.
-    auto epoch = timegm(&tmTime);
-    // Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
-    //         << " , Epoch: " << epoch << std::endl;
-
-    return epoch;
-}
-
 void
 read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    std::string& NC_dateTime, Real& NC_epochTime,
@@ -65,7 +40,7 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
         { // Global Attributes (string)
             NC_dateTime = ncf.get_attr("SIMULATION_START_DATE")+"UTC";
             const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S%Z";
-            NC_epochTime = getEpochTime_metgrid(NC_dateTime, dateTimeFormat);
+            NC_epochTime = getEpochTime(NC_dateTime, dateTimeFormat);
         }
         { // Global Attributes (Real)
             std::vector<Real> attr;

@@ -26,29 +26,6 @@ namespace WRFBdyTypes {
     };
 }
 
-// Converts UTC time string to a time_t value.
-std::time_t getEpochTime (const std::string& dateTime, const std::string& dateTimeFormat)
-{
-    // Create a stream which we will use to parse the string,
-    // which we provide to constructor of stream to fill the buffer.
-    std::istringstream ss{ dateTime };
-
-    // Create a tm object to store the parsed date and time.
-    std::tm tmTime;
-    memset(&tmTime, 0, sizeof(tmTime));
-
-    // Now we read from buffer using get_time manipulator
-    // and formatting the input appropriately.
-    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
-
-    // Convert the tm structure to time_t value and return.
-    auto epoch = std::mktime(&tmTime);
-    // Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
-    //         << " , Epoch: " << epoch << std::endl;
-
-    return epoch;
-}
-
 Real
 read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
                   Vector<Vector<FArrayBox>>& bdy_data_xlo,
