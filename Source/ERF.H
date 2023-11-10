@@ -48,6 +48,10 @@
 #include "Microphysics.H"
 #endif
 
+#ifdef ERF_USE_RRTMGP
+#include "Radiation.H"
+#endif
+
 #ifdef ERF_USE_NETCDF
 #include "NCWpsFile.H"
 #endif
@@ -216,6 +220,12 @@ public:
 #if defined(ERF_USE_MOISTURE)
     void advance_microphysics (int lev, amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
+#endif
+
+#if defined(ERF_USE_RRTMGP)
+    void advance_radiation (int lev,
+                            amrex::MultiFab& cons_in,
+                            const amrex::Real& dt_advance);
 #endif
 
     amrex::MultiFab& build_fine_mask (int lev);
@@ -533,6 +543,10 @@ private:
 #if defined(ERF_USE_MOISTURE)
     Microphysics micro;
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
+#endif
+
+#if defined(ERF_USE_RRTMGP)
+    Radiation rad;
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries

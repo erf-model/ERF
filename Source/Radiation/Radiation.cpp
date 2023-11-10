@@ -72,20 +72,18 @@ namespace internal {
 }
 
 // init
-void Radiation::initialize(const amrex::MultiFab& cons_in,
-                           const amrex::MultiFab& qc_in,
-                           const amrex::MultiFab& qv_in,
-                           const amrex::MultiFab& qi_in,
-                           const amrex::BoxArray& grids,
-                           const amrex::Geometry& geom,
-                           const amrex::Real& dt_advance,
+void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
+                           const BoxArray& grids,
+                           const Geometry& geom,
+                           const Real& dt_advance,
                            const bool& do_sw_rad,
                            const bool& do_lw_rad,
                            const bool& do_aero_rad,
                            const bool& do_snow_opt,
                            const bool& is_cmip6_volcano) {
+
    m_geom = geom;
-   m_gtoe = grids;
+   m_box = grids;
 
    auto dz   = m_geom.CellSize(2);
    auto lowz = m_geom.ProbLo(2);
@@ -108,14 +106,11 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
 
    // initialize cloud, aerosol, and radiation
    optics.initialize();
-   radiation.initialize();
-
-   // Setup the RRTMGP interface
-   //rrtmgp_initialize(ngas, active_gases, rrtmgp_coefficients_file_sw, rrtmgp_coefficients_file_lw);
-   radiation.initialize();
+   radiation.initialize(ngas, active_gases,
+                        rrtmgp_coefficients_file_sw.c_str(),
+                        rrtmgp_coefficients_file_lw.c_str());
 
    // initialize the radiation data
-
    auto nswbands = radiation.get_nband_sw();
    auto nswgpts  = radiation.get_ngpt_sw();
    auto nlwbands = radiation.get_nband_lw();
@@ -130,9 +125,6 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
      }
    });
 
-   // Temporary variable for heating rate output
-   hr = real2d("hr", ncol, nlev);
-
    tmid = real2d("tmid", ncol, nlev);
    pmid = real2d("pmid", ncol, nlev);
 
@@ -141,6 +133,14 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
 
    albedo_dir = real2d("albedo_dir", nswbands, ncol);
    albedo_dif = real2d("albedo_dif", nswbands, ncol);
+
+   qrs = real2d("qrs", ncol, nlev);   // shortwave radiative heating rate
+   qrl = real2d("qrl", ncol, nlev);   // longwave  radiative heating rate
+
+   // Clear-sky heating rates are not on the physics buffer, and we have no
+   // reason to put them there, so declare these are regular arrays here
+   qrsc = real2d("qrsc", ncol, nlev);
+   qrlc = real2d("qrlc", ncol, nlev);
 
    amrex::Print() << "  LW coefficents file: "                                 //  a/, &
                   << "  SW coefficents file: "                                 //  a/, &
@@ -158,8 +158,12 @@ void Radiation::initialize(const amrex::MultiFab& cons_in,
 
 // run radiation model
 void Radiation::run() {
-   real2d qrs("qrs", ncol, nlev);   // shortwave radiative heating rate
-   real2d qrl("qrl", ncol, nlev);  // longwave  radiative heating rate
+   // local variables
+   // Temporary variable for heating rate output
+   real2d hr("hr", ncol, nlev);
+
+   // Cosine solar zenith angle for all columns in chunk
+   real1d coszrs("coszrs", ncol);
 
    // Pointers to fields on the physics buffer
    real2d cld("cld", ncol, nlev), cldfsnow("cldfsnow", ncol, nlev),
@@ -167,24 +171,6 @@ void Radiation::run() {
           icswp("icswp", ncol, nlev), dei("dei", ncol, nlev),
           des("des", ncol, nlev), lambdac("lambdac", ncol, nlev),
           mu("mu", ncol, nlev), rei("rei", ncol, nlev), rel("rel", ncol, nlev);
-
-   // Clear-sky heating rates are not on the physics buffer, and we have no
-   // reason to put them there, so declare these are regular arrays here
-   real2d qrsc("qrsc", ncol, nlev);
-   real2d qrlc("qrlc", ncol, nlev);
-
-   // Temporary variable for heating rate output
-   real2d hr("hr", ncol, nlev);
-
-   real2d tmid("tmid", ncol, nlev),
-          pmid("pmid", ncol, nlev);
-   real2d pint("pint", ncol, nlev+1 ),
-          tint("tint", ncol, nlev+1);
-   real2d albedo_dir("albedo_dir", nswbands, ncol),
-          albedo_dif("albedo_dif", nswbands, ncol);
-
-   // Cosine solar zenith angle for all columns in chunk
-   real1d coszrs("coszrs", ncol);
 
    // Cloud, snow, and aerosol optical properties
    real3d cld_tau_gpt_sw("cld_tau_gpt_sw", ncol, nlev, nswgpts),
@@ -199,6 +185,7 @@ void Radiation::run() {
    real3d cld_tau_bnd_lw("cld_tau_bnd_lw", ncol, nlev, nlwbands),
           aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
    real3d cld_tau_gpt_lw("cld_tau_gpt_lw", ncol, nlev, nlwgpts);
+
    // NOTE: these are diagnostic only
    real3d liq_tau_bnd_sw("liq_tau_bnd_sw", ncol, nlev, nswbands),
           ice_tau_bnd_sw("ice_tau_bnd_sw", ncol, nlev, nswbands),
@@ -234,12 +221,13 @@ void Radiation::run() {
       internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_allsky);
       internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_clrsky);
 
+      // Get cosine solar zenith angle for current time step. ( still NOT YET implemented here)
+//      set_cosine_solar_zenith_angle(state, dt_avg, coszrs(1:ncol))
+      yakl::memset(coszrs, 0.2);  // we set constant value here to avoid numerical overflow.
+
      // Get albedo. This uses CAM routines internally and just provides a
      // wrapper to improve readability of the code here.
-//      set_albedo(cam_in, albedo_dir(1:nswbands,1:ncol), albedo_dif(1:nswbands,1:ncol))
-
-      // Get cosine solar zenith angle for current time step.
-//      set_cosine_solar_zenith_angle(state, dt_avg, coszrs(1:ncol))
+     set_albedo(coszrs, albedo_dir, albedo_dif);
 
      // Do shortwave cloud optics calculations
      yakl::memset(cld_tau_gpt_sw, 0.);
@@ -251,11 +239,6 @@ void Radiation::run() {
                                 lambdac, mu, dei, des, rel, rei,
                                 cld_tau_bnd_sw, cld_ssa_bnd_sw, cld_asm_bnd_sw,
                                 liq_tau_bnd_sw, ice_tau_bnd_sw, snw_tau_bnd_sw);
-
-     // Output the band-by-band cloud optics BEFORE we reorder bands, because
-     // we hard-coded the indices for diagnostic bands in radconstants.F90 to
-     // correspond to the optical property look-up tables.
-//      output_cloud_optics_sw(state, cld_tau_bnd_sw, cld_ssa_bnd_sw, cld_asm_bnd_sw);
 
      // Now reorder bands to be consistent with RRTMGP
      // We need to fix band ordering because the old input files assume RRTMG
@@ -305,13 +288,10 @@ void Radiation::run() {
         if (night_indices(icol) > 0) nnight++;
      }
 
-     // Loop over diagnostic calls
-//     rad_cnst_get_call_list(active_calls);
-
-     for (auto icall = 1 /*N_DIAG*/; icall > 0; --icall) {
+     for (auto icall = ngas /*N_DIAG*/; icall > 0; --icall) {
 //      if (active_calls(icall)) {
         // Get gas concentrations
-//      get_gas_vmr(icall, active_gases, gas_vmr);
+       get_gas_vmr(active_gases, gas_vmr);
 
         // Get aerosol optics
         if (do_aerosol_rad) {
@@ -354,14 +334,6 @@ void Radiation::run() {
            yakl::memset(aer_asm_bnd_sw, 0.);
         }
 
-        // Check (and possibly clip) values before passing to RRTMGP driver
-        // handle_error(clip_values(cld_tau_gpt_sw,  0._r8, huge(cld_tau_gpt_sw), trim(subname) // ' cld_tau_gpt_sw', tolerance=1e-10_r8))
-        // handle_error(clip_values(cld_ssa_gpt_sw,  0._r8,                1._r8, trim(subname) // ' cld_ssa_gpt_sw', tolerance=1e-10_r8))
-        // handle_error(clip_values(cld_asm_gpt_sw, -1._r8,                1._r8, trim(subname) // ' cld_asm_gpt_sw', tolerance=1e-10_r8))
-        // handle_error(clip_values(aer_tau_bnd_sw,  0._r8, huge(aer_tau_bnd_sw), trim(subname) // ' aer_tau_bnd_sw', tolerance=1e-10_r8))
-        // handle_error(clip_values(aer_ssa_bnd_sw,  0._r8,                1._r8, trim(subname) // ' aer_ssa_bnd_sw', tolerance=1e-10_r8))
-        // handle_error(clip_values(aer_asm_bnd_sw, -1._r8,                1._r8, trim(subname) // ' aer_asm_bnd_sw', tolerance=1e-10_r8))
-
         // Call the shortwave radiation driver
         radiation_driver_sw(
                   ncol, gas_vmr,
@@ -372,8 +344,6 @@ void Radiation::run() {
                );
 
         }
-        // Set net fluxes used by other components (land?)
-//        set_net_fluxes_sw(fluxes_allsky, fsds, fsns, fsnt);
    }
    else {
       // Conserve energy
@@ -413,10 +383,10 @@ void Radiation::run() {
 
     // Loop over diagnostic calls
     //rad_cnst_get_call_list(active_calls);
-    for (auto icall = 1; /*N_DIAG;*/ icall > 0; --icall) {
+    for (auto icall = ngas; /*N_DIAG;*/ icall > 0; --icall) {
       // if (active_calls(icall)) {
        // Get gas concentrations
-       //get_gas_vmr(icall, active_gases, gas_vmr);
+       get_gas_vmr(active_gases, gas_vmr);
 
        // Get aerosol optics
        yakl::memset(aer_tau_bnd_lw, 0.);
@@ -425,22 +395,10 @@ void Radiation::run() {
           aer_rad.aer_rad_props_lw(is_cmip6_volc, icall, dt, zi, aer_tau_bnd_lw, clear_rh);
        }
 
-       // Check (and possibly clip) values before passing to RRTMGP driver
-       //handle_error(clip_values(cld_tau_gpt_lw,  0._r8, huge(cld_tau_gpt_lw), trim(subname) // ': cld_tau_gpt_lw', tolerance=1e-10_r8))
-       //handle_error(clip_values(aer_tau_bnd_lw,  0._r8, huge(aer_tau_bnd_lw), trim(subname) // ': aer_tau_bnd_lw', tolerance=1e-10_r8))
-
        // Call the longwave radiation driver to calculate fluxes and heating rates
        radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
                            fluxes_allsky, fluxes_clrsky, qrl, qrlc);
-       // Send fluxes to history buffer
-       //   call output_fluxes_lw(icall, state, fluxes_allsky, fluxes_clrsky, qrl, qrlc)
     }
-
-    // Set net fluxes used in other components
-    //set_net_fluxes_lw(fluxes_allsky, flns, flnt);
-
-    // Export surface fluxes that are used by the land model
-    //call export_surface_fluxes(fluxes_allsky, cam_out, 'longwave')
   }
   else {
     // Conserve energy (what does this mean exactly?)
@@ -453,11 +411,6 @@ void Radiation::run() {
    }
 
  } // dolw
-
- // Compute net radiative heating tendency
-//    radheat_tend(ptend, qrl, qrs,
-//                 fsns, fsnt, flns, flnt,
-//                 cam_in%asdir, net_flux);
 
  // Compute heating rate for dtheta/dt
  for (auto ilay = 1; ilay < nlev; ++nlev) {
@@ -691,8 +644,7 @@ void Radiation::set_daynight_indices(real1d& coszrs, int1d& day_indices, int1d& 
    // Loop over columns and identify daytime columns as those where the cosine
    // solar zenith angle exceeds zero. Note that we wrap the setting of
    // day_indices in an if-then to make sure we are not accesing day_indices out
-   // of bounds, and stopping with an informative error message if we do for some
-   // reason.
+   // of bounds, and stopping with an informative error message if we do for some reason.
    int iday = 0;
    int inight = 0;
    for (auto icol = 0; icol < ncol; ++icol) {
@@ -706,7 +658,7 @@ void Radiation::set_daynight_indices(real1d& coszrs, int1d& day_indices, int1d& 
    }
 }
 
-void Radiation::get_gas_vmr(std::vector<std::string>& gas_names, real3d& gas_vmr) {
+void Radiation::get_gas_vmr(const std::vector<std::string>& gas_names, real3d& gas_vmr) {
     // Mass mixing ratio
     real2d mmr("mmr", ncol, nlev);
     // Gases and molecular weights. Note that we do NOT have CFCs yet (I think

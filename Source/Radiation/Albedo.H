@@ -9,14 +9,5 @@
 */
 #ifndef ERF_ALBEDO_H_
 #define ERF_ALBEDO_H_
-void set_albedo(const real1d& coszrs, real2d& albedo_dir, real2d& albedo_dif)
-{
-  // Albedos for land type I (Briegleb)
-  auto nswbands = albedo_dir.extent(0);
-  auto ncol     = albedo_dif.extent(1);
-  yakl::c::parallel_for(yakl::c::Bounds<2>(nswbands,ncol), YAKL_LAMBDA (int ibnd, int icol) {
-    albedo_dir(ibnd, icol) = 1.4 * 0.24 / ( 1. + 0.8 * coszrs(icol));
-    albedo_dif(ibnd, icol) = 1.2 * 0.24;
-  });
-}
+void set_albedo(const real1d& coszrs, real2d& albedo_dir, real2d& albedo_dif);
 #endif

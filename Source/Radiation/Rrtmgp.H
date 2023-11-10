@@ -20,7 +20,6 @@
 #include <vector>
 #include <memory>
 
-#include <ERF.H>
 #include <ERF_Constants.H>
 
 // rrtmgp includes
