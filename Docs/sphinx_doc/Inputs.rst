@@ -183,7 +183,7 @@ List of Parameters
 | Parameter                     | Definition      | Acceptable      | Default     |
 |                               |                 | Values          |             |
 +===============================+=================+=================+=============+
-| **erf.grid_stretching_ratio** | scaling factor  | Real > 0        | 0 (no grid  |
+| **erf.grid_stretching_ratio** | scaling factor  | Real > 1        | 0 (no grid  |
 |                               | applied to      |                 | stretching) |
 |                               | delta z at each |                 |             |
 |                               | level           |                 |             |
