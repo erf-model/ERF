@@ -46,9 +46,11 @@ struct SolverChoice {
         pp.query("use_terrain", use_terrain);
 
         pp.query("grid_stretching_ratio", grid_stretching_ratio);
-        AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 0.),
-                                  "The grid stretching ratio must be greater than 0");
-        if (grid_stretching_ratio > 0) {
+        if (grid_stretching_ratio != 0) {
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+                                      "The grid stretching ratio must be greater than 1");
+        }
+        if (grid_stretching_ratio >= 1) {
             if (!use_terrain) {
                 amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
                 use_terrain = true;
