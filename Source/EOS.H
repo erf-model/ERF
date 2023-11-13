@@ -7,7 +7,20 @@
 #include <cmath>
 
 /**
- * Function to return temperature given density and potential temperatue
+ * Function to return potential temperature given pressure and temperature
+ *
+ * @params[in] pressure
+ * @params[in] temperature
+ * @params[in] rd0cp ratio of R_d to c_p
+*/
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real getThgivenPandT(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
+{
+    return T*std::pow(p_0/P, rdOcp);
+}
+
+/**
+ * Function to return temperature given density and potential temperature
  *
  * @params[in] rho density
  * @params[in] rhotheta density times potential temperature theta
@@ -24,7 +37,7 @@ amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta, 
 }
 
 /**
- * Function to return potential temperature given density and temperatue
+ * Function to return potential temperature given density and temperature
  *
  * @params[in] rho density
  * @params[in] T temperature

@@ -4,7 +4,7 @@
 extern std::string inputs_name;
 
 void
-ERF::writeJobInfo(const std::string& dir) const
+ERF::writeJobInfo (const std::string& dir) const
 {
   // job_info file with details about the run
   std::ofstream jobInfoFile;
@@ -132,7 +132,7 @@ ERF::writeJobInfo(const std::string& dir) const
 }
 
 void
-ERF::writeBuildInfo(std::ostream& os)
+ERF::writeBuildInfo (std::ostream& os)
 {
   std::string PrettyLine = std::string(78, '=') + "\n";
   std::string OtherLine = std::string(78, '-') + "\n";

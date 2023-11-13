@@ -5,18 +5,18 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 /*
- * Impose boundary conditions using data read in from wrfbdy files
+ * Impose boundary conditions using data read in from met_em files
  *
  * @param[out] mfs  Vector of MultiFabs to be filled
  * @param[in] time  time at which the data should be filled
  */
 
 void
-ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
-                       const Real time,
-                       bool cons_only,
-                       int icomp_cons,
-                       int ncomp_cons)
+ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
+                        const Real time,
+                        bool cons_only,
+                        int icomp_cons,
+                        int ncomp_cons)
 {
     int lev = 0;
 
@@ -29,12 +29,19 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
     amrex::Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
+    // See IndexDefines.H
+#if defined(ERF_USE_MOISTURE)
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQt RhoQp NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0, WRFBdyVars::QV, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQv RhoQc NumVars]
+    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
 # else
-    Vector<int> cons_read = {1, 1, 0, 0, 0}; // R, RT, RKE, RQKE, RS
-    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0}; // R, RT, RKE, RQKE, RS
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar NumVars]
+    Vector<int> cons_read = {1, 1, 0, 0, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0};
 #endif
 
     Vector<Vector<int>> is_read;
@@ -45,9 +52,9 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
 
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
-    ind_map.push_back( {WRFBdyVars::U} ); // xvel
-    ind_map.push_back( {WRFBdyVars::V} ); // yvel
-    ind_map.push_back( {0} );             // zvel
+    ind_map.push_back( {MetGridBdyVars::U} ); // xvel
+    ind_map.push_back( {MetGridBdyVars::V} ); // yvel
+    ind_map.push_back( {0} );                 // zvel
 
     // Nvars to loop over
     Vector<int> comp_var = {ncomp_cons, 1, 1, 1};
@@ -72,16 +79,30 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
         // Loop over each component
-        for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
+        for (int comp_idx(0); comp_idx < comp_var[var_idx]; ++comp_idx)
         {
-            int width = wrfbdy_set_width;;
+            int width = metgrid_bdy_set_width;
 
-            // Variable can be read from wrf bdy
+            // Variable can be read from met_em files
             //------------------------------------
             if (is_read[var_idx][comp_idx])
             {
                 int ivar  = ind_map[var_idx][comp_idx];
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
+
+//                if (ivar == MetGridBdyVars::U) {
+//                    amrex::Print() << "fill_from_metgrid U   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+//                } else if (ivar == MetGridBdyVars::V) {
+//                    amrex::Print() << "fill_from_metgrid V   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+//                } else if (ivar == MetGridBdyVars::R) {
+//                    amrex::Print() << "fill_from_metgrid R   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+//                } else if (ivar == MetGridBdyVars::T) {
+//                    amrex::Print() << "fill_from_metgrid T   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+//                } else if (ivar == MetGridBdyVars::QV) {
+//                    amrex::Print() << "fill_from_metgrid QV  var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
+//                } else {
+//                    amrex::Print() << "fill_from_metgrid UNKNOWN" << std::endl;
+//                }
 
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
@@ -104,6 +125,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
                     // Grown tilebox so we fill exterior ghost cells as well
                     Box gbx = mfi.growntilebox(ng_vect);
                     const Array4<Real>& dest_arr = mf.array(mfi);
+
+                    // Call w/o interior ghost cells
                     Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                     compute_interior_ghost_bxs_xy(gbx, domain, width, 0,
                                                   bx_xlo, bx_xhi,
@@ -144,9 +167,10 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
                     });
                 } // mfi
 
-            // Variable not read from wrf bdy
+            // Variable not read or computed from met_em files
             //------------------------------------
             } else {
+                width = metgrid_bdy_width;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
@@ -166,14 +190,14 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
                     ParallelFor(bx_xlo, bx_xhi,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+width);
-                            jj = std::min(jj, dom_hi.y-width);
+                        int jj = std::max(j , dom_lo.y);
+                            jj = std::min(jj, dom_hi.y);
                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        int jj = std::max(j , dom_lo.y+width);
-                            jj = std::min(jj, dom_hi.y-width);
+                        int jj = std::max(j , dom_lo.y);
+                            jj = std::min(jj, dom_hi.y);
                             dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
                     });
 

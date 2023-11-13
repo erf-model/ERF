@@ -4,7 +4,7 @@
 #ifndef ERF_AER_RAD_PROPS_H_
 #define ERF_AER_RAD_PROPS_H_
 
-#include "ERF.H"
+#include <AMReX_MultiFabUtil.H>
 #include "Mam4_aero.H"
 #include "YAKL_netcdf.h"
 #include "rrtmgp_const.h"
