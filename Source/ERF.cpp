@@ -1264,7 +1264,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 {
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
                         solverChoice.coupling_type == CouplingType::Mixed);
-    
+
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
