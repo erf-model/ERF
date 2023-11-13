@@ -328,6 +328,7 @@ linkcheck_ignore = [
     'https://link.springer.com/article/10.1007/BF00240838',
     'https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904',
     'https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98',
+    'https://doi.org/10.1029/RG020i004p00851'
 ]
 
 
