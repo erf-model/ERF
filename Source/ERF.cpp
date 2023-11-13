@@ -1345,8 +1345,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
-    AMREX_ALWAYS_ASSERT(solver.coupling_type == CouplingType::OneWay ||
-                        solver.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1356,7 +1356,7 @@ ERF::Construct_ERFFillPatchers (int lev)
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
     // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
-    int ncomp = (solver.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
 
     FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                        ba_crse, dm_crse, geom[lev-1],
@@ -1375,8 +1375,8 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
-    AMREX_ALWAYS_ASSERT(solver.coupling_type == CouplingType::OneWay ||
-                        solver.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1386,7 +1386,7 @@ ERF::Define_ERFFillPatchers (int lev)
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
     // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
-    int ncomp = (solver.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
 
     FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
                         ba_crse, dm_crse, geom[lev-1],
