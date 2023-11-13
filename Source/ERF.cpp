@@ -178,6 +178,10 @@ ERF::ERF ()
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
 
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
+
     // Metric terms
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
@@ -604,8 +608,12 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        int ng_for_most = ComputeGhostCells(solverChoice.advChoice,solverChoice.use_NumDiff)+1;
-        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd,ng_for_most);
+        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
+                                           sst_lev, lmask_lev
+#ifdef ERF_USE_NETCDF
+                                           ,start_bdy_time, bdy_time_interval
+#endif
+                                           );
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
@@ -616,7 +624,7 @@ ERF::InitData ()
             MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-            m_most->update_fluxes(lev,t_new[lev]);
+            m_most->update_fluxes(lev, t_new[lev]);
         }
     }
 
@@ -1084,6 +1092,13 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
         AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
 
+        // Query the set and total widths for metgrid_bdy interior ghost cells
+        pp.query("metgrid_bdy_width", metgrid_bdy_width);
+        pp.query("metgrid_bdy_set_width", metgrid_bdy_set_width);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= metgrid_bdy_set_width);
+
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
@@ -1489,6 +1504,10 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);

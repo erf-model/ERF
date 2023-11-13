@@ -92,7 +92,8 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time);
+    if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
@@ -128,7 +129,7 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
 
-    if (init_type != "real") {
+    if ((init_type != "real") and (init_type != "metgrid")) {
         (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
     }
 
@@ -248,7 +249,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //       --- i.e., cons_only and which cons indices (icomp_cons & ncomp_cons)
 
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time, cons_only, icomp_cons, ncomp_cons);
+    if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time, cons_only, icomp_cons, ncomp_cons);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time, cons_only, icomp_cons, ncomp_cons);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);

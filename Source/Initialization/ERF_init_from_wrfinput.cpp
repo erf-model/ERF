@@ -254,6 +254,10 @@ ERF::init_from_wrfinput (int lev)
                             NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
     }
+
+    // Start at the earliest time (read_from_wrfbdy)
+    t_new[lev] = start_bdy_time;
+    t_old[lev] = start_bdy_time - 1.e200;
 }
 
 /**

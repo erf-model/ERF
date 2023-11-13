@@ -33,8 +33,14 @@ public:
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                      int ng_in)
-      : m_geom(geom), m_ma(geom,vars_old,Theta_prim,z_phys_nd)
+                      amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
+                      amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
+                      amrex::Real start_bdy_time = 0.0,
+                      amrex::Real bdy_time_interval = 0.0)
+    : m_start_bdy_time(start_bdy_time),
+      m_bdy_time_interval(bdy_time_interval),
+      m_geom(geom),
+      m_ma(geom,vars_old,Theta_prim,z_phys_nd)
     {
         amrex::ParmParse pp("erf");
         pp.query("most.z0", z0_const);
@@ -86,6 +92,7 @@ public:
             amrex::Abort("Undefined MOST roughness type!");
         }
 
+        // Size the MOST params for all levels
         int nlevs = m_geom.size();
         z_0.resize(nlevs);
         u_star.resize(nlevs);
@@ -93,11 +100,37 @@ public:
         t_surf.resize(nlevs);
         olen.resize(nlevs);
 
-        for (int lev = 0; lev < nlevs; lev++)
-        {
-            // Z0 heights
+        // Get pointers to SST and LANDMASK data
+        m_sst_lev.resize(nlevs);
+        m_lmask_lev.resize(nlevs);
+        for (int lev(0); lev<nlevs; ++lev) {
+            int nt_tot = sst_lev[lev].size();
+            m_sst_lev[lev].resize(nt_tot);
+            m_lmask_lev[lev].resize(nt_tot);
+            for (int nt(0); nt<nt_tot; ++nt) {
+                m_sst_lev[lev][nt]   = sst_lev[lev][nt].get();
+                m_lmask_lev[lev][nt] = lmask_lev[lev][nt].get();
+            }
+        }
+
+        for (int lev = 0; lev < nlevs; lev++) {
+            // Attributes for MFs and FABs
             //--------------------------------------------------------
-            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng_in);
+            auto& mf = vars_old[lev][Vars::cons];
+            // Create a 2D ba, dm, & ghost cells
+            amrex::BoxArray ba  = mf.boxArray();
+            amrex::BoxList bl2d = ba.boxList();
+            for (auto& b : bl2d) {
+                b.setRange(2,0);
+            }
+            amrex::BoxArray ba2d(std::move(bl2d));
+            const amrex::DistributionMapping& dm = mf.DistributionMap();
+            const int ncomp   = 1;
+            amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
+
+            // Z0 heights FAB
+            //--------------------------------------------------------
+            amrex::Box bx = amrex::grow(m_geom[lev].Domain(),ng);
             bx.setSmall(2,0);
             bx.setBig(2,0);
             z_0[lev].resize(bx,1);
@@ -105,72 +138,31 @@ public:
 
             // 2D MFs for U*, T*, T_surf
             //--------------------------------------------------------
-            { // CC vars
-                auto& mf = vars_old[lev][Vars::cons];
-                // Create a 2D ba, dm, & ghost cells
-                amrex::BoxArray ba  = mf.boxArray();
-                amrex::BoxList bl2d = ba.boxList();
-                for (auto& b : bl2d) {
-                    b.setRange(2,0);
-                }
-                amrex::BoxArray ba2d(std::move(bl2d));
-                const amrex::DistributionMapping& dm = mf.DistributionMap();
-                const int ncomp   = 1;
-                amrex::IntVect ng = mf.nGrowVect(); ng[2]=0;
+            u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            u_star[lev]->setVal(1.E34);
 
-                u_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-                u_star[lev]->setVal(1.E34);
+            t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            t_star[lev]->setVal(1.E34);
 
-                t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-                t_star[lev]->setVal(1.E34);
+            olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            olen[lev]->setVal(1.E34);
 
-                olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-                olen[lev]->setVal(1.E34);
+            t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
-                t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
-                if (erf_st) {
-                   t_surf[lev]->setVal(surf_temp);
-                } else {
-                    t_surf[lev]->setVal(0.0);
-                }
+            if (m_sst_lev[lev][0]) { // Valid SST data at t==0
+                theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+                amrex::MultiFab::Copy(*(t_surf[lev]), *(m_sst_lev[lev][0]), 0, 0, 1, ng);
+            } else if (erf_st) {     // Constant temp
+                t_surf[lev]->setVal(surf_temp);
+            } else {
+                t_surf[lev]->setVal(0.0);
             }
         }// lev
     }
 
     void
-    update_surf_temp (amrex::Real cur_time)
-    {
-        if (surf_heating_rate != 0) {
-            int nlevs = m_geom.size();
-            for (int lev = 0; lev < nlevs; lev++)
-            {
-               t_surf[lev]->setVal(surf_temp + surf_heating_rate*cur_time);
-               amrex::Print() << "Surface temp at t=" << cur_time
-                   << ": "
-                   << surf_temp + surf_heating_rate*cur_time
-                   << std::endl;
-            }
-        }
-    }
-
-    void
-    impose_most_bcs (const int lev,
-                     const amrex::Vector<amrex::MultiFab*>& mfs,
-                     amrex::MultiFab* eddyDiffs,
-                     amrex::MultiFab* z_phys);
-
-    template<typename FluxCalc>
-    void
-    compute_most_bcs (const int lev,
-                      const amrex::Vector<amrex::MultiFab*>& mfs,
-                      amrex::MultiFab* eddyDiffs,
-                      amrex::MultiFab* z_phys,
-                      const amrex::Real& dz_no_terrain,
-                      const FluxCalc& flux_comp);
-
-    void
-    update_fluxes (int lev,
-                   amrex::Real cur_time,
+    update_fluxes (const int& lev,
+                   const amrex::Real& time,
                    int max_iters = 25);
 
     template <typename FluxIter>
@@ -180,22 +172,57 @@ public:
                     const FluxIter& most_flux);
 
     void
-    update_mac_ptrs (int lev,
+    impose_most_bcs (const int& lev,
+                     const amrex::Vector<amrex::MultiFab*>& mfs,
+                     amrex::MultiFab* eddyDiffs,
+                     amrex::MultiFab* z_phys);
+
+    template<typename FluxCalc>
+    void
+    compute_most_bcs (const int& lev,
+                      const amrex::Vector<amrex::MultiFab*>& mfs,
+                      amrex::MultiFab* eddyDiffs,
+                      amrex::MultiFab* z_phys,
+                      const amrex::Real& dz_no_terrain,
+                      const FluxCalc& flux_comp);
+
+    void
+    time_interp_tsurf(const int& lev,
+                      const amrex::Real& time);
+
+    void
+    update_surf_temp (const amrex::Real& time)
+    {
+        if (surf_heating_rate != 0) {
+            int nlevs = m_geom.size();
+            for (int lev = 0; lev < nlevs; lev++)
+            {
+               t_surf[lev]->setVal(surf_temp + surf_heating_rate*time);
+               amrex::Print() << "Surface temp at t=" << time
+                   << ": "
+                   << surf_temp + surf_heating_rate*time
+                   << std::endl;
+            }
+        }
+    }
+
+    void
+    update_mac_ptrs (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim)
     { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); }
 
     const amrex::MultiFab*
-    get_u_star (int lev) { return u_star[lev].get(); }
+    get_u_star (const int& lev) { return u_star[lev].get(); }
 
     const amrex::MultiFab*
-    get_t_star (int lev) { return t_star[lev].get(); }
+    get_t_star (const int& lev) { return t_star[lev].get(); }
 
     const amrex::MultiFab*
-    get_olen (int lev) { return olen[lev].get(); }
+    get_olen (const int& lev) { return olen[lev].get(); }
 
     const amrex::MultiFab*
-    get_mac_avg (int lev, int comp) { return m_ma.get_average(lev,comp); }
+    get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
@@ -225,6 +252,8 @@ private:
     amrex::Real surf_temp_flux{0};
     amrex::Real cnk_a{0.0185};
     amrex::Real depth{30.0};
+    amrex::Real m_start_bdy_time;
+    amrex::Real m_bdy_time_interval;
     amrex::Vector<amrex::Geometry>  m_geom;
     amrex::Vector<amrex::FArrayBox> z_0;
 
@@ -233,6 +262,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
+
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
+    amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
 };
 
 #endif /* ABLMOST_H */

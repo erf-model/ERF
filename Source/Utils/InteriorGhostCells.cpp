@@ -89,6 +89,7 @@ compute_interior_ghost_bxs_xy (const Box& bx,
 /**
  * Compute the RHS in the relaxation zone
  *
+ * @param[in] init_type initialization method for this simulation
  * @param[in] bdy_time_interval time interval between boundary condition time stamps
  * @param[in] time    current time
  * @param[in] delta_t timestep
@@ -104,7 +105,8 @@ compute_interior_ghost_bxs_xy (const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
+wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
+                                   const Real& bdy_time_interval,
                                    const Real& start_bdy_time,
                                    const Real& time,
                                    const Real& delta_t,
@@ -126,8 +128,8 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
     // Time interpolation
     Real dT = bdy_time_interval;
-    Real time_since_start = (time - start_bdy_time) / 1.e10;
-    int n_time = static_cast<int>( time_since_start / dT);
+    Real time_since_start = time - start_bdy_time;
+    int n_time = static_cast<int>( time_since_start /  dT);
     amrex::Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
@@ -145,13 +147,24 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
-    // End of loop for WRFBdyVars
-    int WRFBdyEnd = WRFBdyVars::NumTypes-3;
-
+    int BdyEnd, ivarU, ivarV, ivarR, ivarT;
+    if (init_type == "real") {
+        BdyEnd = WRFBdyVars::NumTypes-3;
+        ivarU = WRFBdyVars::U;
+        ivarV = WRFBdyVars::V;
+        ivarR = WRFBdyVars::R;
+        ivarT = WRFBdyVars::T;
+    } else if (init_type == "metgrid") {
+        BdyEnd = MetGridBdyVars::NumTypes-1;
+        ivarU = MetGridBdyVars::U;
+        ivarV = MetGridBdyVars::V;
+        ivarR = MetGridBdyVars::R;
+        ivarT = MetGridBdyVars::T;
+    }
 
     // Size the FABs
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
@@ -167,16 +180,17 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
 
-        if (ivar  == WRFBdyVars::U) {
+        // Size the FABs
+        if (ivar  == ivarU) {
             U_xlo.resize(bx_xlo,1); U_xhi.resize(bx_xhi,1);
             U_ylo.resize(bx_ylo,1); U_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::V) {
+        } else if (ivar  == ivarV) {
             V_xlo.resize(bx_xlo,1); V_xhi.resize(bx_xhi,1);
             V_ylo.resize(bx_ylo,1); V_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::R) {
+        } else if (ivar  == ivarR) {
             R_xlo.resize(bx_xlo,1); R_xhi.resize(bx_xhi,1);
             R_ylo.resize(bx_ylo,1); R_yhi.resize(bx_yhi,1);
-        } else if (ivar  == WRFBdyVars::T){
+        } else if (ivar  == ivarT){
             T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
             T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
         } else {
@@ -197,10 +211,9 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
-
     // Populate FABs from boundary interpolation
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
@@ -220,16 +233,16 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == WRFBdyVars::U) {
+        if (ivar  == ivarU) {
             arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
             arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-        } else if (ivar  == WRFBdyVars::V) {
+        } else if (ivar  == ivarV) {
             arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
             arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-        } else if (ivar  == WRFBdyVars::R) {
+        } else if (ivar  == ivarR) {
             arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
             arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-        } else if (ivar  == WRFBdyVars::T){
+        } else if (ivar  == ivarT){
             arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
             arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
         } else {
@@ -288,10 +301,9 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         });
     } // ivar
 
-
     // Velocity to momentum
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar <= WRFBdyVars::V; ivar++)
+    for (int ivar(ivarU); ivar <= ivarV; ivar++)
     {
         int ivar_idx = ivar_map[ivar];
         Box domain   = geom.Domain();
@@ -312,7 +324,7 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
 
         Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
         Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-        if (ivar  == WRFBdyVars::U) {
+        if (ivar  == ivarU) {
             arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
             arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
 
@@ -425,10 +437,11 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
         }
     } // mfi
 
+//    return; // DJW debugging return statement to shut off relaxation zone.
 
     // Compute RHS in relaxation region
     //==========================================================
-    for (int ivar(WRFBdyVars::U); ivar < WRFBdyEnd; ivar++)
+    for (int ivar(ivarU); ivar < BdyEnd; ivar++)
     {
         int ivar_idx = ivar_map[ivar];
         int icomp    = comp_map[ivar];
@@ -455,22 +468,22 @@ wrfbdy_compute_interior_ghost_rhs (const Real& bdy_time_interval,
             Array4<Real> rhs_arr; Array4<Real> data_arr;
             Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
             Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-            if (ivar  == WRFBdyVars::U) {
+            if (ivar  == ivarU) {
                 arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                 arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                 rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
                 data_arr = S_data[IntVar::xmom].array(mfi);
-            } else if (ivar  == WRFBdyVars::V) {
+            } else if (ivar  == ivarV) {
                 arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                 arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                 rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
                 data_arr = S_data[IntVar::ymom].array(mfi);
-            } else if (ivar  == WRFBdyVars::R) {
+            } else if (ivar  == ivarR) {
                 arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                 arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);
                 data_arr = S_data[IntVar::cons].array(mfi);
-            } else if (ivar  == WRFBdyVars::T){
+            } else if (ivar  == ivarT){
                 arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                 arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                 rhs_arr  = S_rhs[IntVar::cons].array(mfi);

@@ -4,7 +4,7 @@
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * Please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
- * NOTE: we use the C++ version of RTE-RRTMGP, which is reimplemented the original Fortran
+ * NOTE: we use the C++ version of RTE-RRTMGP, which is the implemention of the original Fortran
  * code using C++ YAKL for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
@@ -28,6 +28,8 @@
 #include "Rrtmgp.H"
 #include "Optics.H"
 #include "Aero_rad_props.H"
+#include "Parameterizations.H"
+#include "Albedo.H"
 
 // Radiation code interface class
 class Radiation {
@@ -36,57 +38,54 @@ class Radiation {
    ~Radiation() = default;
 
    // init
-   void initialize (const amrex::MultiFab& cons_in,
-                    const amrex::MultiFab& qc_in,
-                    const amrex::MultiFab& qv_in,
-                    const amrex::MultiFab& qi_in,
-                    const amrex::BoxArray& grids,
-                    const amrex::Geometry& geom,
-                    const amrex::Real& dt_advance,
-                    const bool& do_sw_rad,
-                    const bool& do_lw_rad,
-                    const bool& do_aero_rad,
-                    const bool& do_snow_opt,
-                    const bool& is_cmip6_volcano);
+   void initialize(const amrex::MultiFab& cons_in, amrex::MultiFab& qmoist,
+                   const amrex::BoxArray& grids,
+                   const amrex::Geometry& geom,
+                   const amrex::Real& dt_advance,
+                   const bool& do_sw_rad,
+                   const bool& do_lw_rad,
+                   const bool& do_aero_rad,
+                   const bool& do_snow_opt,
+                   const bool& is_cmip6_volcano);
 
    // run radiation model
-   void run ();
+   void run();
 
    // call back
-   void on_complete ();
+   void on_complete();
 
-   void radiation_driver_lw (int ncol, int nlev,
-                             real3d& gas_vmr,
-                             real2d& pmid, real2d& pint, real2d& tmid, real2d& tint,
-                             real3d& cld_tau_gpt, real3d& aer_tau_bnd,
-                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                             real2d& qrl, real2d& qrlc);
+   void radiation_driver_lw(int ncol, int nlev,
+                            real3d& gas_vmr,
+                            real2d& pmid, real2d& pint, real2d& tmid, real2d& tint,
+                            real3d& cld_tau_gpt, real3d& aer_tau_bnd,
+                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+                            real2d& qrl, real2d& qrlc);
 
-   void radiation_driver_sw (int ncol,
-                             real3d& gas_vmr, real2d& pmid, real2d& pint, real2d& tmid,
-                             real2d& albedo_dir, real2d& albedo_dif, real1d& coszrs,
-                             real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
-                             real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
-                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                             real2d& qrs, real2d& qrsc);
+   void radiation_driver_sw(int ncol,
+                            real3d& gas_vmr, real2d& pmid, real2d& pint, real2d& tmid,
+                            real2d& albedo_dir, real2d& albedo_dif, real1d& coszrs,
+                            real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
+                            real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
+                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+                            real2d& qrs, real2d& qrsc);
 
-   void set_daynight_indices (real1d& coszrs,
-                              int1d& day_indices,
-                              int1d& night_indices);
+   void set_daynight_indices(real1d& coszrs,
+                             int1d& day_indices,
+                             int1d& night_indices);
 
-   void get_gas_vmr (std::vector<std::string>& gas_names,
-                     real3d& gas_vmr);
+   void get_gas_vmr(const std::vector<std::string>& gas_names,
+                    real3d& gas_vmr);
 
-   void calculate_heating_rate (real2d& flux_up,
-                                real2d& flux_dn,
-                                real2d& pint,
-                                real2d& heating_rate);
-private:
+   void calculate_heating_rate(real2d& flux_up,
+                               real2d& flux_dn,
+                               real2d& pint,
+                               real2d& heating_rate);
+  private:
    // geometry
    amrex::Geometry m_geom;
 
    // valid boxes on which to evolve the solution
-   amrex::BoxArray m_gtoe;
+   amrex::BoxArray m_box;
 
    // number of vertical levels
    int nlev, zlo, zhi;
@@ -119,7 +118,7 @@ private:
    //
    // Net flux calculated in this routine; used to check energy conservation in
    // the physics package driver?
-   real1d net_flux; //("net_flux",ncol);
+   real1d net_flux;
 
    // This should be module data or something specific to aerosol where it is used?
    bool is_cmip6_volc;    // true if cmip6 style volcanic file is read otherwise false
@@ -127,11 +126,11 @@ private:
    real dt;               // time step(s) - needed for aerosol optics call
 
    // Surface and top fluxes
-   real1d  fsns;  //(pcols)      ! Surface solar absorbed flux
-   real1d  fsnt;  //(pcols)      ! Net column abs solar flux at model top
-   real1d  flns;  //(pcols)      ! Srf longwave cooling (up-down) flux
-   real1d  flnt;  //(pcols)      ! Net outgoing lw flux at model top
-   real1d  fsds;  //(pcols)      ! Surface solar down flux
+   real1d fsns;  //(ncols)      ! Surface solar absorbed flux
+   real1d fsnt;  //(ncols)      ! Net column abs solar flux at model top
+   real1d flns;  //(ncols)      ! Srf longwave cooling (up-down) flux
+   real1d flnt;  //(ncols)      ! Net outgoing lw flux at model top
+   real1d fsds;  //(ncols)      ! Surface solar down flux
 
    // radiation data
    const std::vector<std::string> active_gases = {
@@ -186,8 +185,8 @@ private:
    int1d rrtmg_to_rrtmgp;
 
    // Pointers to heating rates on physics buffer
-   real2d qrs;  //(:,:)  ! shortwave radiative heating rate
-   real2d qrl;  //(:,:)  ! longwave  radiative heating rate
+   real2d qrs; // shortwave radiative heating rate
+   real2d qrl; // longwave  radiative heating rate
 
    // Pointers to fields on the physics buffer
    real2d zi;
@@ -195,11 +194,8 @@ private:
 
    // Clear-sky heating rates are not on the physics buffer, and we have no
    // reason to put them there, so declare these are regular arrays here
-   real2d qrsc; //(pcols,pver)
-   real2d qrlc; //(pcols,pver)
-
-   // Temporary variable for heating rate output
-   real2d hr;
+   real2d qrsc;
+   real2d qrlc;
 
    real2d tmid, pmid, pdel;
    real2d pint, tint;

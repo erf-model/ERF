@@ -10,7 +10,6 @@
 
 #include "DataStruct.H"
 #include "NCInterface.H"
-#include "NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_Print.H"
 
@@ -27,36 +26,13 @@ namespace WRFBdyTypes {
     };
 }
 
-// Converts UTC time string to a time_t value.
-std::time_t getEpochTime(const std::string& dateTime, const std::string& dateTimeFormat)
-{
-    // Create a stream which we will use to parse the string,
-    // which we provide to constructor of stream to fill the buffer.
-    std::istringstream ss{ dateTime };
-
-    // Create a tm object to store the parsed date and time.
-    std::tm tmTime;
-    memset(&tmTime, 0, sizeof(tmTime));
-
-    // Now we read from buffer using get_time manipulator
-    // and formatting the input appropriately.
-    strptime(dateTime.c_str(), dateTimeFormat.c_str(), &tmTime);
-
-    // Convert the tm structure to time_t value and return.
-    auto epoch = std::mktime(&tmTime);
-    // Print() << "Time Stamp: "<< std::put_time(&tmTime, "%c")
-    //         << " , Epoch: " << epoch << std::endl;
-
-    return epoch;
-}
-
 Real
-read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
-                 Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                 Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                 Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int& width, Real& start_bdy_time)
+read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
+                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                  int& width, Real& start_bdy_time)
 {
     amrex::Print() << "Loading boundary data from NetCDF file " << std::endl;
 
@@ -96,10 +72,11 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
             auto epochTime = getEpochTime(date, dateTimeFormat);
             epochTimes.push_back(epochTime);
 
-            if (nt == 1)
+            if (nt == 1) {
                 timeInterval = epochTimes[1] - epochTimes[0];
-            else if (nt >= 1)
+            } else if (nt >= 1) {
                 AMREX_ALWAYS_ASSERT(epochTimes[nt] - epochTimes[nt-1] == timeInterval);
+            }
         }
         start_bdy_time = epochTimes[0];
     }
@@ -547,15 +524,15 @@ read_from_wrfbdy(const std::string& nc_bdy_file, const Box& domain,
 }
 
 void
-convert_wrfbdy_data(int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
-                    const FArrayBox& NC_MUB_fab,
-                    const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
-                    const FArrayBox& NC_MSFM_fab,
-                    const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
-                    const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
-                    const FArrayBox& NC_RDNW_fab,
-                    const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
-                    const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
+convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
+                     const FArrayBox& NC_MUB_fab,
+                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
+                     const FArrayBox& NC_MSFM_fab,
+                     const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
+                     const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
+                     const FArrayBox& NC_RDNW_fab,
+                     const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
+                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
