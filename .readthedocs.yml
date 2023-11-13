@@ -5,6 +5,10 @@ build:
   tools:
     python: "3.11"
 
+python:
+  install:
+     - requirements: Docs/sphinx_doc/requirements.txt
+
 sphinx:
    configuration: Docs/sphinx_doc/conf.py
 
