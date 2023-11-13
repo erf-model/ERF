@@ -173,7 +173,9 @@ public:
 
     // Perform the volume-weighted sum
     amrex::Real
-    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp, bool local, bool finemask);
+    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
+                 const amrex::MultiFab& mapfac,
+                 bool local, bool finemask);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
@@ -328,6 +330,9 @@ public:
     void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
+    // more flexible version of AverageDown() that lets you average down across multiple levels
+    void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+
 private:
 
     ///////////////////////////
@@ -338,7 +343,7 @@ private:
     void ReadParameters ();
 
     // set covered coarse cells to be the average of overlying fine cells
-    void AverageDown ();
+    void AverageDown (int scomp, int ncomp);
 
     void update_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
@@ -359,9 +364,6 @@ private:
     void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
-
-    // more flexible version of AverageDown() that lets you average down across multiple levels
-    void AverageDownTo (int crse_lev); // NOLINT
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -842,9 +844,9 @@ private:
     }
 
     AMREX_FORCE_INLINE
-    amrex::YAFluxRegister& getAdvFluxReg (int lev)
+    amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
-        return *advflux_reg[lev];
+        return advflux_reg[lev];
     }
 
     AMREX_FORCE_INLINE

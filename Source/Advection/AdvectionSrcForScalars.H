@@ -6,13 +6,13 @@
  */
 template<typename InterpType_H, typename InterpType_V>
 void
-AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
-                                const int& ncomp, const int& icomp,
-                                const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
-                                const amrex::Array4<const amrex::Real>& cell_prim,
-                                const amrex::Array4<const amrex::Real>& avg_xmom,
-                                const amrex::Array4<const amrex::Real>& avg_ymom,
-                                const amrex::Array4<const amrex::Real>& avg_zmom)
+AdvectionSrcForScalarsWrapper(const amrex::Box& bx,
+                              const int& ncomp, const int& icomp,
+                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
+                              const amrex::Array4<const amrex::Real>& cell_prim,
+                              const amrex::Array4<const amrex::Real>& avg_xmom,
+                              const amrex::Array4<const amrex::Real>& avg_ymom,
+                              const amrex::Array4<const amrex::Real>& avg_zmom)
 {
     // Instantiate structs for vert/horiz interp
     InterpType_H interp_prim_h(cell_prim);
@@ -30,7 +30,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
         amrex::Real interpx(0.);
 
         interp_prim_h.InterpolateInX(i,j,k,prim_index,interpx,avg_xmom(i  ,j  ,k  ));
-        (flx_arr[0])(i,j,k,n) = avg_xmom(i,j,k) * interpx;
+        (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * interpx;
     });
     amrex::ParallelFor(ybx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -40,7 +40,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
         amrex::Real interpy(0.);
         interp_prim_h.InterpolateInY(i,j,k,prim_index,interpy,avg_ymom(i  ,j  ,k  ));
 
-        (flx_arr[1])(i,j,k,n) = avg_ymom(i,j,k) * interpy;
+        (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * interpy;
     });
     amrex::ParallelFor(zbx, ncomp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -51,7 +51,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
 
         interp_prim_v.InterpolateInZ(i,j,k,prim_index,interpz,avg_zmom(i  ,j  ,k  ));
 
-        (flx_arr[2])(i,j,k,n) = avg_zmom(i,j,k) * interpz;
+        (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * interpz;
     });
 }
 
@@ -60,7 +60,7 @@ AdvectionSrcForScalarsWrapper_N(const amrex::Box& bx,
  */
 template<typename InterpType_H>
 void
-AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
+AdvectionSrcForScalarsVert(const amrex::Box& bx,
                              const int& ncomp, const int& icomp,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
                              const amrex::Array4<const amrex::Real>& cell_prim,
@@ -71,27 +71,27 @@ AdvectionSrcForScalarsVert_N(const amrex::Box& bx,
 {
     switch(vert_adv_type) {
     case AdvType::Centered_2nd:
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED2>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED2>(bx, ncomp, icomp,
                                                                 flx_arr, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Upwind_3rd:
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND3>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3>(bx, ncomp, icomp,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Centered_4th:
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED4>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, ncomp, icomp,
                                                                 flx_arr, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Upwind_5th:
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,UPWIND5>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, ncomp, icomp,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Centered_6th:
-        AdvectionSrcForScalarsWrapper_N<InterpType_H,CENTERED6>(bx, ncomp, icomp,
+        AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED6>(bx, ncomp, icomp,
                                                                 flx_arr, cell_prim,
                                                                 avg_xmom, avg_ymom, avg_zmom);
         break;

@@ -316,17 +316,63 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
-    if (solverChoice.coupling_type == CouplingType::TwoWay)
+    if (solverChoice.coupling_type == CouplingType::TwoWay ||
+        solverChoice.coupling_type == CouplingType::Mixed)
     {
+        // If we doing mixed rather than two-way coupling, we only reflux the "slow" variables (not rho and rhotheta)
+        int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
+        int  num_comp_reflux = NVAR - src_comp_reflux;
+        bool use_terrain = solverChoice.use_terrain;
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
+            // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
+            // m is the map scale factor at cell centers
+            // Here we pre-divide (rho S) by m^2 before refluxing
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                if (use_terrain) {
+                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+                    ParallelFor(bx, num_comp_reflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,src_comp_reflux+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                } else {
+                    ParallelFor(bx, num_comp_reflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,src_comp_reflux+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                }
+            } // mfi
+
             // This call refluxes from the lev/lev+1 interface onto lev
-            getAdvFluxReg(lev+1).Reflux(vars_new[lev][Vars::cons], 0, 0, NVAR);
+            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons],
+                                         src_comp_reflux, src_comp_reflux, num_comp_reflux);
+
+            // Here we multiply (rho S) by m^2 after refluxing
+            for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                if (use_terrain) {
+                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+                    ParallelFor(bx, num_comp_reflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,src_comp_reflux+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
+                    });
+                } else {
+                    ParallelFor(bx, num_comp_reflux, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,src_comp_reflux+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                }
+            } // mfi
 
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
             // be over-written by averaging down
-            AverageDownTo(lev);
+            AverageDownTo(lev, src_comp_reflux, num_comp_reflux);
         }
     }
 
@@ -486,8 +532,11 @@ ERF::InitData ()
         }
 
 
-        if (solverChoice.coupling_type == CouplingType::TwoWay) {
-            AverageDown();
+        if (solverChoice.coupling_type == CouplingType::TwoWay ||
+            solverChoice.coupling_type == CouplingType::Mixed) {
+            int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
+            int  num_comp_reflux = NVAR - src_comp_reflux;
+            AverageDown(src_comp_reflux, num_comp_reflux);
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -526,7 +575,8 @@ ERF::InitData ()
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
+    if (solverChoice.coupling_type == CouplingType::TwoWay ||
+        solverChoice.coupling_type == CouplingType::Mixed) {
         advflux_reg[0] = nullptr;
         for (int lev = 1; lev <= finest_level; lev++)
         {
@@ -640,11 +690,12 @@ ERF::InitData ()
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        // NOTE: we must set up the FillPatcher object before calling
-        //       FillPatch at a fine level
-        if (solverChoice.coupling_type== CouplingType::OneWay && cf_width>0 && lev>0) {
-                Construct_ERFFillPatchers(lev);
-                Register_ERFFillPatchers(lev);
+        //
+        // NOTE: we must set up the FillPatcher object before calling FillPatch at a fine level
+        //
+        if (solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0 && lev>0) {
+            Construct_ERFFillPatchers(lev);
+            Register_ERFFillPatchers(lev);
         }
 
         auto& lev_new = vars_new[lev];
@@ -1079,8 +1130,11 @@ ERF::MakeHorizontalAverages ()
     int lev = 0;
 
     // First, average down all levels (if doing two-way coupling)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        AverageDown();
+    if (solverChoice.coupling_type == CouplingType::TwoWay ||
+        solverChoice.coupling_type == CouplingType::Mixed) {
+        int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
+        int  num_comp_reflux = NVAR - src_comp_reflux;
+        AverageDown(src_comp_reflux, num_comp_reflux);
     }
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
@@ -1209,34 +1263,91 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 
 // Set covered coarse cells to be the average of overlying fine cells for all levels
 void
-ERF::AverageDown ()
+ERF::AverageDown (int scomp, int ncomp)
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
-        AverageDownTo(lev);
+        AverageDownTo(lev, scomp, ncomp);
     }
 }
 
 // Set covered coarse cells to be the average of overlying fine cells at level crse_lev
 void
-ERF::AverageDownTo (int crse_lev) // NOLINT
+ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
+
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
-            amrex::average_down(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
-                                0, vars_new[crse_lev][var_idx].nComp(), refRatio(crse_lev));
-        else // We assume the arrays are face-centered if not cell-centered
-            amrex::average_down_faces(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
-                                      refRatio(crse_lev),geom[crse_lev]);
+        {
+            // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
+            // m is the map scale factor at cell centers
+            // Here we pre-divide (rho S) by m^2 before average down
+            for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+              for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                if (solverChoice.use_terrain) {
+                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                } else {
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                }
+              } // mfi
+            } // lev
+
+            amrex::average_down(vars_new[crse_lev+1][var_idx],
+                                vars_new[crse_lev  ][var_idx],
+                                scomp, ncomp, refRatio(crse_lev));
+
+            // Here we multiply (rho S) by m^2 after average down
+            for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+              for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
+                const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                if (solverChoice.use_terrain) {
+                    const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
+                    });
+                } else {
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    {
+                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                    });
+                }
+              } // mfi
+            } // lev
+
+        } else { // We assume the arrays are face-centered if not cell-centered, and
+                 //    only average down the momenta if using two-way coupling
+            if (solverChoice.coupling_type == CouplingType::TwoWay) {
+                amrex::average_down_faces(vars_new[crse_lev+1][var_idx], vars_new[crse_lev][var_idx],
+                                          refRatio(crse_lev),geom[crse_lev]);
+            }
+        }
     }
 }
 
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
+
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1244,10 +1355,12 @@ ERF::Construct_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
+    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+
     FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                        ba_crse, dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 2, &cell_cons_interp);
+                       -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
                        -cf_width, -cf_set_width, 1, &face_linear_interp);
@@ -1262,6 +1375,9 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
+                        solverChoice.coupling_type == CouplingType::Mixed);
+
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1269,10 +1385,12 @@ ERF::Define_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
+    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+
     FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
                         ba_crse, dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 2, &cell_cons_interp);
+                        -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
                         -cf_width, -cf_set_width, 1, &face_linear_interp);
