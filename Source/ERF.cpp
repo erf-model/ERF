@@ -1280,9 +1280,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
                         solverChoice.coupling_type == CouplingType::Mixed);
 
-    int l_scomp = scomp;
-    int l_ncomp = ncomp;
-
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
@@ -1297,14 +1294,14 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
                 if (solverChoice.use_terrain) {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-                    ParallelFor(bx, l_ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,l_scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 } else {
-                    ParallelFor(bx, l_ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,l_scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
               } // mfi
@@ -1322,14 +1319,14 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
                 if (solverChoice.use_terrain) {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
-                    ParallelFor(bx, l_ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,l_scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
+                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
                     });
                 } else {
-                    ParallelFor(bx, l_ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+                    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,l_scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
               } // mfi
@@ -1348,6 +1345,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
+    AMREX_ALWAYS_ASSERT(solver.coupling_type == CouplingType::OneWay ||
+                        solver.coupling_type == CouplingType::Mixed);
+
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1355,10 +1355,12 @@ ERF::Construct_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
+    int ncomp = (solver.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+
     FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                        ba_crse, dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 2, &cell_cons_interp);
+                       -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
                        -cf_width, -cf_set_width, 1, &face_linear_interp);
@@ -1373,6 +1375,9 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
+    AMREX_ALWAYS_ASSERT(solver.coupling_type == CouplingType::OneWay ||
+                        solver.coupling_type == CouplingType::Mixed);
+
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1380,10 +1385,12 @@ ERF::Define_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: crse-fine set/relaxation only done on Rho/RhoTheta
+    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
+    int ncomp = (solver.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+
     FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
                         ba_crse, dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 2, &cell_cons_interp);
+                        -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
                         -cf_width, -cf_set_width, 1, &face_linear_interp);

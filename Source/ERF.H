@@ -330,6 +330,9 @@ public:
     void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
+    // more flexible version of AverageDown() that lets you average down across multiple levels
+    void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
+
 private:
 
     ///////////////////////////
@@ -361,9 +364,6 @@ private:
     void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
-
-    // more flexible version of AverageDown() that lets you average down across multiple levels
-    void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
