@@ -4,7 +4,6 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
-#include <AMReX_InterpFaceRegister.H>
 #include <DataStruct.H>
 #include <IndexDefines.H>
 #include <ABLMost.H>

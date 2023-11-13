@@ -21,7 +21,7 @@ enum struct ABLDriverType {
 };
 
 enum struct CouplingType {
-    OneWay, TwoWay
+    OneWay, TwoWay, Mixed
 };
 
 enum struct TerrainType {
@@ -194,8 +194,12 @@ struct SolverChoice {
         pp.query("coupling_type",coupling_type_string);
         if (coupling_type_string == "TwoWay") {
             coupling_type = CouplingType::TwoWay;
-        } else {
+        } else if (coupling_type_string == "OneWay") {
             coupling_type = CouplingType::OneWay;
+        } else if (coupling_type_string == "Mixed") {
+            coupling_type = CouplingType::Mixed;
+        } else {
+            amrex::Abort("Dont know this coupling_type");
         }
     }
 
@@ -211,8 +215,10 @@ struct SolverChoice {
 
         if (coupling_type == CouplingType::TwoWay) {
             amrex::Print() << "Using two-way coupling " << std::endl;
-        } else {
+        } else if (coupling_type == CouplingType::OneWay) {
             amrex::Print() << "Using one-way coupling " << std::endl;
+        } else if (coupling_type == CouplingType::Mixed) {
+            amrex::Print() << "Using   mixed coupling " << std::endl;
         }
 
         if (terrain_type == TerrainType::Static) {

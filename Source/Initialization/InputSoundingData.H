@@ -157,7 +157,7 @@ public:
 
         // integrate from surface to domain top
         amrex::Real qvf, dz;
-#if 0
+#if 0   // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
         amrex::Print() << "z  p_m  rho_m  theta  U  V" << std::endl;
@@ -182,7 +182,7 @@ public:
                 rhom_integ[k] = 1 / (
                     R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
             }
-#if 0
+#if 0       // Printing
             amrex::Print() << z_inp_sound[k]
                 << " " << pm_integ[k]
                 << " " << rhom_integ[k]
