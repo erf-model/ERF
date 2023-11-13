@@ -40,7 +40,8 @@ AdvectionSrcForRho (const Box& bx, const Box& valid_bx,
                     const Array4<      Real>& avg_xmom,
                     const Array4<      Real>& avg_ymom,
                     const Array4<      Real>& avg_zmom,
-                    const Array4<const Real>& z_nd, const Array4<const Real>& detJ,
+                    const Array4<const Real>& z_nd,
+                    const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
@@ -78,13 +79,13 @@ AdvectionSrcForRho (const Box& bx, const Box& valid_bx,
     if (use_terrain) {
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real h_zeta = Compute_h_zeta_AtIface(i  ,j  ,k,cellSizeInv,z_nd);
+            Real h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
             (flx_arr[0])(i,j,k,0) *= h_zeta;
             avg_xmom(i,j,k)       *= h_zeta;
         });
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real h_zeta =  Compute_h_zeta_AtJface(i  ,j  ,k,cellSizeInv,z_nd);
+            Real h_zeta =  Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
             (flx_arr[1])(i,j,k,0) *= h_zeta;
             avg_ymom(i,j,k)       *= h_zeta;
         });
@@ -127,7 +128,8 @@ AdvectionSrcForRho (const Box& bx, const Box& valid_bx,
 
 void
 AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
-                        const Array4<const Real>& avg_xmom, const Array4<const Real>& avg_ymom,
+                        const Array4<const Real>& avg_xmom,
+                        const Array4<const Real>& avg_ymom,
                         const Array4<const Real>& avg_zmom,
                         const Array4<const Real>& cell_prim,
                         const Array4<Real>& advectionSrc,
