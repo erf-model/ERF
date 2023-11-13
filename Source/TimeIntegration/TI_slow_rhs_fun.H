@@ -17,6 +17,21 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
+        // *************************************************************************
+        // Set up flux registers if using two_way coupling
+        // *************************************************************************
+        YAFluxRegister* fr_as_crse = nullptr;
+        YAFluxRegister* fr_as_fine = nullptr;
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+            if (level < finest_level) {
+                fr_as_crse = getAdvFluxReg(level+1);
+                fr_as_crse->reset();
+            }
+            if (level > 0) {
+                fr_as_fine = getAdvFluxReg(level);
+            }
+        }
+
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
         {
@@ -80,7 +95,7 @@
 #endif
                           fine_geom, solverChoice, r0_new);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -91,6 +106,7 @@
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             fr_as_crse, fr_as_fine,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
@@ -176,7 +192,7 @@
 #endif
                           fine_geom, solverChoice, r0);
 
-            erf_slow_rhs_pre(level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
 #if defined(ERF_USE_MOISTURE)
                              qmoist[level],
@@ -187,6 +203,7 @@
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             fr_as_crse, fr_as_fine,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
@@ -211,7 +228,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_width>0) {
+        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -275,6 +292,27 @@
         if (init_type=="metgrid" && level==0 && metgrid_bdy_set_width > 0) moist_zero = true;
 #endif
 
+        // *************************************************************************
+        // Set up flux registers if using two_way coupling
+        // *************************************************************************
+        YAFluxRegister* fr_as_crse = nullptr;
+        YAFluxRegister* fr_as_fine = nullptr;
+        if (solverChoice.coupling_type == CouplingType::TwoWay ||
+            solverChoice.coupling_type == CouplingType::Mixed)
+        {
+            if (level < finest_level) {
+                fr_as_crse = getAdvFluxReg(level+1);
+                // For Mixed we haven't reset this in erf_slow_rhs_pre but we need to here.
+                if (solverChoice.coupling_type == CouplingType::Mixed)
+                {
+                    fr_as_crse->reset();
+                }
+            }
+            if (level > 0) {
+                fr_as_fine = getAdvFluxReg(level);
+            }
+        }
+
         // Moving terrain
         if ( solverChoice.use_terrain && (solverChoice.terrain_type == TerrainType::Moving) ) {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
@@ -284,12 +322,13 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level]
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              ,moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
+                              fr_as_crse, fr_as_fine
                               );
         } else {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
@@ -299,12 +338,13 @@
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
-                              mapfac_m[level], mapfac_u[level], mapfac_v[level]
+                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                              ,moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
+                              moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
-                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi
+                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
+                              fr_as_crse, fr_as_fine
                               );
         }
     }; // end slow_rhs_fun_post
@@ -367,7 +407,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && coupling_type=="OneWay" && cf_width>0) {
+        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],

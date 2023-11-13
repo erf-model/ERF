@@ -21,12 +21,20 @@ ERF::sum_integrated_quantities(Real time)
     int datwidth = 14;
     int datprecision = 6;
 
-    amrex::Real scalar = 0.0;
-    amrex::Real mass   = 0.0;
+    // Multilevel sums
+    Real mass_ml = 0.0;
+    Real rhth_ml = 0.0;
+    Real scal_ml = 0.0;
+
+    // Level 0 sums
+    Real mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],      Rho_comp,*mapfac_m[0],false,false);
+    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],false,false);
+    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],false,false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass   += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,true,true);
-        scalar += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,true,true);
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],      Rho_comp,*mapfac_m[lev],false,true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],false,true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],false,true);
     }
 
     if (verbose > 0) {
@@ -53,8 +61,8 @@ ERF::sum_integrated_quantities(Real time)
             h_avg_olen[0]  = 0.;
         }
 
-        const int nfoo = 2;
-        amrex::Real foo[nfoo] = {mass,scalar};
+        const int nfoo = 6;
+        amrex::Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
 #ifdef AMREX_LAZY
         Lazy::QueueReduction([=]() mutable {
 #endif
@@ -63,12 +71,23 @@ ERF::sum_integrated_quantities(Real time)
 
           if (amrex::ParallelDescriptor::IOProcessor()) {
             int i = 0;
-            mass   = foo[i++];
-            scalar = foo[i++];
+            mass_sl = foo[i++];
+            rhth_sl = foo[i++];
+            scal_sl = foo[i++];
+            mass_ml = foo[i++];
+            rhth_ml = foo[i++];
+            scal_ml = foo[i++];
 
             amrex::Print() << '\n';
-            amrex::Print() << "TIME= " << time << " MASS        = " << mass   << '\n';
-            amrex::Print() << "TIME= " << time << " SCALAR      = " << scalar << '\n';
+            if (finest_level ==  0) {
+               amrex::Print() << "TIME= " << time << " MASS              = " << mass_sl << '\n';
+               amrex::Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
+               amrex::Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
+            } else {
+               amrex::Print() << "TIME= " << time << " MASS        SL/ML = " << mass_sl << " " << mass_ml << '\n';
+               amrex::Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+               amrex::Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
+            }
 
             // The first data log only holds scalars
             if (NumDataLogs() > 0)
@@ -256,29 +275,42 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
  */
 amrex::Real
 ERF::volWgtSumMF(int lev,
-  const amrex::MultiFab& mf, int comp, bool local, bool finemask)
+  const MultiFab& mf, int comp,
+  const MultiFab& mapfac, bool local, bool finemask)
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
-    amrex::Real sum = 0.0;
-    amrex::MultiFab tmp(grids[lev], dmap[lev], 1, 0);
-    amrex::MultiFab::Copy(tmp, mf, comp, 0, 1, 0);
+    Real sum = 0.0;
+    MultiFab tmp(grids[lev], dmap[lev], 1, 0);
+    MultiFab::Copy(tmp, mf, comp, 0, 1, 0);
+
+    // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
+    // m is the map scale factor at cell centers
+    for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<      Real>    tmp_arr =    tmp.array(mfi);
+        const Array4<const Real> mapfac_arr = mapfac.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            tmp_arr(i,j,k) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+        });
+    } // mfi
 
     if (lev < finest_level && finemask) {
         const amrex::MultiFab& mask = build_fine_mask(lev+1);
-        amrex::MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
+        MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
     }
 
-    amrex::MultiFab volume(grids[lev], dmap[lev], 1, 0);
+    MultiFab volume(grids[lev], dmap[lev], 1, 0);
     auto const& dx = geom[lev].CellSizeArray();
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
     if (solverChoice.use_terrain)
         amrex::MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
-    sum = amrex::MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
+    sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
     if (!local)
-      amrex::ParallelDescriptor::ReduceRealSum(sum);
+      ParallelDescriptor::ReduceRealSum(sum);
 
     return sum;
 }

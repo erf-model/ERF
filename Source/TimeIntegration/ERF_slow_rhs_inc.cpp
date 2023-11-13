@@ -457,7 +457,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     } // l_use_diff
 
     // HACK FOR PRINTING
-    S_rhs[IntVar::cons].setVal(0.);
+    // S_rhs[IntVar::cons].setVal(0.);
 
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
@@ -582,15 +582,20 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         }
 
         // **************************************************************************
-        // Define updates in the RHS of continuity, temperature, and scalar equations
+        // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
-        Real fac = 1.0;
-        AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
-                                   rho_u, rho_v, omega_arr, fac,
-                                   avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
-                                   cell_prim, z_nd, detJ_arr,
-                                   dxInv, mf_m, mf_u, mf_v,
-                                   horiz_adv_type, vert_adv_type, l_use_terrain);
+        AdvectionSrcForRho(bx, valid_bx, cell_rhs,
+                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                           cell_prim, z_nd, detJ_arr,
+                           dxInv, mf_m, mf_u, mf_v,
+                           l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
+
+        int icomp = RhoTheta_comp; int ncomp = 1;
+        AdvectionSrcForScalars(bx, icomp, ncomp,
+                               avg_xmom, avg_ymom, avg_zmom,
+                               cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
