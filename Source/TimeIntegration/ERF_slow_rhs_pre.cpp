@@ -147,8 +147,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
 
-    std::array<FArrayBox,AMREX_SPACEDIM> flux;
-
     // *************************************************************************
     // Combine external forcing terms
     // *************************************************************************
@@ -472,6 +470,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+    {
+    std::array<FArrayBox,AMREX_SPACEDIM> flux;
+
     for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -536,7 +537,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(tbx,dir),2);
+            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -1106,4 +1107,5 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // two-way coupling
         } // end profile
     } // mfi
+    } // OMP
 }
