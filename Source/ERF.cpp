@@ -1264,7 +1264,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 {
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
                         solverChoice.coupling_type == CouplingType::Mixed);
-
+    
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
@@ -1277,16 +1277,17 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                 const Box& bx = mfi.tilebox();
                 const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
                 const Array4<const Real> mapfac_arr = mapfac_m[lev]->const_array(mfi);
+                int l_scomp = scomp;
                 if (solverChoice.use_terrain) {
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,l_scomp+n) *= detJ_arr(i,j,k) / (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 } else {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,l_scomp+n) /= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
               } // mfi
@@ -1306,12 +1307,12 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                     const Array4<const Real>   detJ_arr = detJ_cc[lev]->const_array(mfi);
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
+                        cons_arr(i,j,k,l_scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0)) / detJ_arr(i,j,k);
                     });
                 } else {
                     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
                     {
-                        cons_arr(i,j,k,scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
+                        cons_arr(i,j,k,l_scomp+n) *= (mapfac_arr(i,j,0)*mapfac_arr(i,j,0));
                     });
                 }
               } // mfi
