@@ -28,10 +28,12 @@ void AdvectionSrcForRhoAndTheta (const amrex::Box& bx, const amrex::Box& valid_b
                                  const amrex::Array4<const amrex::Real>& mf_u,
                                  const amrex::Array4<const amrex::Real>& mf_v,
                                  const AdvType horiz_adv_type, const AdvType vert_adv_type,
-                                 const int use_terrain);
+                                 const bool use_terrain);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
-void AdvectionSrcForScalars (const amrex::Box& bx,
+void AdvectionSrcForScalars (int level, int finest_level,
+                             const amrex::MFIter& mfi,
+                             const amrex::Box& bx,
                              const int icomp, const int ncomp,
                              const amrex::Array4<const amrex::Real>& avg_xmom,
                              const amrex::Array4<const amrex::Real>& avg_ymom,
@@ -39,10 +41,11 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
                              const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::Real dt,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
-                             const int use_terrain);
+                             const bool use_terrain, const bool is_two_way_coupling);
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
@@ -58,7 +61,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
-                         const int use_terrain, const int domhi_z);
+                         const bool use_terrain, const int domhi_z);
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE

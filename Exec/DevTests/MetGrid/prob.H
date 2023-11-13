@@ -12,7 +12,7 @@ struct ProbParm : ProbParmDefaults {
 class Problem : public ProblemBase
 {
 public:
-    Problem();
+    Problem(const amrex::Real* problo, const amrex::Real* probhi);
 
 protected:
     std::string name() override { return "Metgrid"; }

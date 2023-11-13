@@ -42,9 +42,6 @@ bool ERF::use_tracer_particles = false;
 amrex::Vector<std::string> ERF::tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
 #endif
 
-// Type of mesh refinement algorithm
-std::string ERF::coupling_type = "OneWay";
-
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
 
@@ -169,7 +166,7 @@ ERF::ERF ()
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
 
-    flux_registers.resize(nlevs_max);
+    advflux_reg.resize(nlevs_max);
 
     // Stresses
     Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
@@ -180,6 +177,10 @@ ERF::ERF ()
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);
@@ -315,12 +316,12 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
-    if (coupling_type == "TwoWay")
+    if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
             // This call refluxes from the lev/lev+1 interface onto lev
-            get_flux_reg(lev+1).Reflux(vars_new[lev][Vars::cons],1.0, 0, 0, NVAR, geom[lev]);
+            getAdvFluxReg(lev+1).Reflux(vars_new[lev][Vars::cons], 0, 0, NVAR);
 
             // We need to do this before anything else because refluxing changes the
             // values of coarse cells underneath fine grids with the assumption they'll
@@ -367,7 +368,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     // Moving terrain
-    if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == 1) )
+    if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
     {
       for (int lev = finest_level; lev >= 0; lev--)
       {
@@ -403,8 +404,8 @@ ERF::InitData ()
         }
     }
 
-    if (!solverChoice.use_terrain && solverChoice.terrain_type != 0) {
-        amrex::Abort("We do not allow terrain_type != 0 with use_terrain = false");
+    if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
+        amrex::Abort("We do not allow non-static terrain_type with use_terrain = false");
     }
 
     last_plot_file_step_1 = -1;
@@ -485,7 +486,7 @@ ERF::InitData ()
         }
 
 
-        if (coupling_type == "TwoWay") {
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
         }
 
@@ -525,11 +526,14 @@ ERF::InitData ()
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
-    if (coupling_type == "TwoWay") {
-        flux_registers[0] = 0;
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        advflux_reg[0] = nullptr;
         for (int lev = 1; lev <= finest_level; lev++)
         {
-            flux_registers[lev] = new FluxRegister(grids[lev], dmap[lev], ref_ratio[lev-1], lev, NVAR);
+            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
+                                                   dmap[lev],  dmap[lev-1],
+                                                   geom[lev],  geom[lev-1],
+                                              ref_ratio[lev-1], lev, NVAR);
         }
     }
 
@@ -554,8 +558,12 @@ ERF::InitData ()
     //       WritePlotFile calls FillPatch in order to compute gradients
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        int ng_for_most = ComputeGhostCells(solverChoice.advChoice,solverChoice.use_NumDiff)+1;
-        m_most = std::make_unique<ABLMost>(geom,vars_old,Theta_prim,z_phys_nd,ng_for_most);
+        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
+                                           sst_lev, lmask_lev
+#ifdef ERF_USE_NETCDF
+                                           ,start_bdy_time, bdy_time_interval
+#endif
+                                           );
 
         // We now configure ABLMost params here so that we can print the averages at t=0
         // Note we don't fill ghost cells here because this is just for diagnostics
@@ -566,7 +574,7 @@ ERF::InitData ()
             MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-            m_most->update_fluxes(lev,t_new[lev]);
+            m_most->update_fluxes(lev, t_new[lev]);
         }
     }
 
@@ -634,7 +642,7 @@ ERF::InitData ()
     {
         // NOTE: we must set up the FillPatcher object before calling
         //       FillPatch at a fine level
-        if (coupling_type=="OneWay" && cf_width>0 && lev>0) {
+        if (solverChoice.coupling_type== CouplingType::OneWay && cf_width>0 && lev>0) {
                 Construct_ERFFillPatchers(lev);
                 Register_ERFFillPatchers(lev);
         }
@@ -649,7 +657,7 @@ ERF::InitData ()
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
-        if (solverChoice.terrain_type > 0) {
+        if (solverChoice.terrain_type != TerrainType::Static) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
@@ -936,10 +944,6 @@ ERF::ReadParameters ()
 
         AMREX_ALWAYS_ASSERT(cfl > 0. || fixed_dt > 0.);
 
-        // Mesh refinement
-        pp.query("coupling_type",coupling_type);
-        AMREX_ALWAYS_ASSERT( (coupling_type == "OneWay") || (coupling_type == "TwoWay") );
-
         // How to initialize
         pp.query("init_type",init_type);
         if (!init_type.empty() &&
@@ -953,12 +957,8 @@ ERF::ReadParameters ()
         }
 
         // No moving terrain with init real
-        if (init_type == "real") {
-            int terr_type(0);
-            pp.query("terrain_type",terr_type);
-            if (terr_type) {
-                amrex::Abort("Moving terrain is not supported with init real");
-            }
+        if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
+            amrex::Abort("Moving terrain is not supported with init real");
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1041,6 +1041,13 @@ ERF::ReadParameters ()
         AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
         AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
 
+        // Query the set and total widths for metgrid_bdy interior ghost cells
+        pp.query("metgrid_bdy_width", metgrid_bdy_width);
+        pp.query("metgrid_bdy_set_width", metgrid_bdy_set_width);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= metgrid_bdy_set_width);
+
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
@@ -1072,7 +1079,7 @@ ERF::MakeHorizontalAverages ()
     int lev = 0;
 
     // First, average down all levels (if doing two-way coupling)
-    if (coupling_type == "TwoWay") {
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
         AverageDown();
     }
 
@@ -1204,7 +1211,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 void
 ERF::AverageDown ()
 {
-    AMREX_ALWAYS_ASSERT(coupling_type == "TwoWay");
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
         AverageDownTo(lev);
@@ -1215,7 +1222,7 @@ ERF::AverageDown ()
 void
 ERF::AverageDownTo (int crse_lev) // NOLINT
 {
-    AMREX_ALWAYS_ASSERT(coupling_type == "TwoWay");
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
         if (ba[0].type() == IntVect::TheZeroVector())
@@ -1376,7 +1383,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     nbx = convert(domain_p[0],IntVect(0,0,1));
     domain_p.push_back(nbx);
 
-    flux_registers.resize(nlevs_max);
+    advflux_reg.resize(nlevs_max);
 
     // Stresses
     Tau11_lev.resize(nlevs_max); Tau22_lev.resize(nlevs_max); Tau33_lev.resize(nlevs_max);
@@ -1387,6 +1394,10 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     SFS_diss_lev.resize(nlevs_max);
     eddyDiffs_lev.resize(nlevs_max);
     SmnSmn_lev.resize(nlevs_max);
+
+    // Sea surface temps
+    sst_lev.resize(nlevs_max);
+    lmask_lev.resize(nlevs_max);
 
     // Metric terms
     z_phys_nd.resize(nlevs_max);

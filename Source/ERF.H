@@ -19,7 +19,7 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PhysBCFunct.H>
-#include <AMReX_FluxRegister.H>
+#include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
 #ifdef AMREX_MEM_PROFILING
@@ -46,6 +46,10 @@
 
 #ifdef ERF_USE_MOISTURE
 #include "Microphysics.H"
+#endif
+
+#ifdef ERF_USE_RRTMGP
+#include "Radiation.H"
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -218,6 +222,12 @@ public:
                                const amrex::Real& dt_advance);
 #endif
 
+#if defined(ERF_USE_RRTMGP)
+    void advance_radiation (int lev,
+                            amrex::MultiFab& cons_in,
+                            const amrex::Real& dt_advance);
+#endif
+
     amrex::MultiFab& build_fine_mask (int lev);
 
     void MakeHorizontalAverages ();
@@ -301,12 +311,22 @@ public:
                            bool cons_only = false,
                            int icomp_cons = 0,
                            int ncomp_cons = NVAR);
+    void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
 #endif
 
 #ifdef ERF_USE_PARTICLES
     std::unique_ptr<TerrainFittedPC> tracer_particles;
     static amrex::Vector<std::string> tracer_particle_varnames;
 #endif
+
+#ifdef ERF_USE_NETCDF
+    void init_from_wrfinput (int lev);
+    void init_from_metgrid (int lev);
+#endif // ERF_USE_NETCDF
 
 private:
 
@@ -339,11 +359,6 @@ private:
     void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
-
-#ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev);
-    void init_from_metgrid (int lev);
-#endif // ERF_USE_NETCDF
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev); // NOLINT
@@ -530,6 +545,10 @@ private:
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #endif
 
+#if defined(ERF_USE_RRTMGP)
+    Radiation rad;
+#endif
+
     // Fillpatcher classes for coarse-fine boundaries
     int cf_width{0};
     int cf_set_width{0};
@@ -545,6 +564,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Tau23_lev, Tau32_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
+
+    // Sea Surface Temps and Land Masks (lev, ntimes)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
 
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
@@ -568,13 +591,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
 
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
-
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
 
     // array of flux registers
-    amrex::Vector<amrex::FluxRegister*> flux_registers;
+    amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec
@@ -680,9 +701,6 @@ private:
     // flag to turn tracer particle generation on/off
     static bool use_tracer_particles;
 
-    // mesh refinement
-    static std::string coupling_type;
-
     // Diagnostic output interval
     static int sum_interval;
     static amrex::Real sum_per;
@@ -700,6 +718,10 @@ private:
     static std::string nc_bdy_file;
     int wrfbdy_width{0};
     int wrfbdy_set_width{0};
+
+    // NetCDF initialization (met_em) file
+    int metgrid_bdy_width{0};
+    int metgrid_bdy_set_width{0};
 
     // Text input_sounding file
     static std::string input_sounding_file;
@@ -820,10 +842,9 @@ private:
     }
 
     AMREX_FORCE_INLINE
-    amrex::FluxRegister&
-    get_flux_reg (int lev)
+    amrex::YAFluxRegister& getAdvFluxReg (int lev)
     {
-      return *flux_registers[lev];
+        return *advflux_reg[lev];
     }
 
     AMREX_FORCE_INLINE

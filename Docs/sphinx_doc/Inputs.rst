@@ -860,7 +860,7 @@ List of Parameters
 | **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
 |                             | coordinates?       |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_type**        | static or moving?  |  0 / 1             | 0          |
+| **erf.terrain_type**        | static or moving?  |  Static / Moving   | Static     |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
 |                             | following          | 1,                 |            |
