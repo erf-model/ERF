@@ -106,7 +106,7 @@ The following references have informed the implementation of the MYNN PBL model 
 - `Skamarock et al., A Description of the Advanced Research WRF Model Version 4, 2021 <http://dx.doi.org/10.5065/1dfh-6p97>`_:
   Description of the models implemented in WRF
 
-- `Olson et al., A Description of the MYNN-EDMF Scheme and the Coupling to Other Components in WRF–ARW
+- `Olson et al., A Description of the MYNN-EDMF Scheme and the Coupling to Other Components in WRF–ARW, 2019
   <https://doi.org/10.25923/n9wm-be49>`_:
   Description of more recent advancements upon the MYNN model
 
@@ -121,9 +121,11 @@ the implementation of MYNN PBL models in ERF.
 MYNN-EDMF Level 2.5 PBL Model
 -----------------------------
 
-
+More recent advancements that add significant complexity to the MYNN scheme have been incorporated into WRF, as described in Olson et al. 2019. These advancements are not included in ERF, but may be in the future.
 
 .. _YSUPBL:
 
 YSU PBL Model
 -------------
+
+The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It is not yet supported in ERF, but is under development.
