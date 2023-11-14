@@ -384,6 +384,10 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx1_lev[lev]->setVal(0.);
+        SFS_hfx2_lev[lev]->setVal(0.);
+        SFS_hfx3_lev[lev]->setVal(0.);
+        SFS_diss_lev[lev]->setVal(0.);
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
