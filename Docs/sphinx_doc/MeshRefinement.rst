@@ -137,7 +137,7 @@ and face-baced normal momenta on the coarse-fine interface, the coarse data is c
 interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
 (outside of the valid fine region) as well as specified and relaxation data inside the lateral boundaries
 of the fine region. More specifically, similarly to how the lateral boundaries are treated,
-a user may specify the total width of the interior Dirichlet and relaxation region with 
+a user may specify the total width of the interior Dirichlet and relaxation region with
 ``erf.cf_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
 ``erf.cf_set_width = <Int>`` (yellow).
@@ -174,7 +174,7 @@ where :math:`G` is the RHS of the evolution equations, :math:`\psi^{\prime}` is 
 relaxation, :math:`\psi^{FP}` is the fine data obtained from spatial and temporal interpolation of the
 coarse data, and :math:`n` is the minimum number of grid points from a lateral boundary. The specified and
 relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
-on the fine mesh. 
+on the fine mesh.
 
 Finally, we note that time dependent Dirichlet data, provided via an external boundary file,
 may be enforced on the lateral boundary conditions of the domain (coarsest mesh). For such cases,
