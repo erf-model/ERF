@@ -293,7 +293,7 @@
 #endif
 
         // *************************************************************************
-        // Set up flux registers if using two_way coupling
+        // Set up flux registers if using mixed or two_way coupling
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;

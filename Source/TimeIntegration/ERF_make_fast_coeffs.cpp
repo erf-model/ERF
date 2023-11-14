@@ -44,7 +44,6 @@ void make_fast_coeffs (int /*level*/,
 
     Real c_v = c_p - R_d;
 
-    const Box domain(geom.Domain());
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dzi = dxInv[2];

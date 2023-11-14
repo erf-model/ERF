@@ -14,27 +14,33 @@ using namespace amrex;
 /**
  * Function for computing the fast RHS with no terrain
  *
- * @param[in]  step  which fast time step
- * @param[in]  level level of resolution
- * @param[in]  S_slow_rhs slow RHS computed in erf_slow_rhs_pre
- * @param[in]  S_prev previous solution
- * @param[in]  S_stage_data solution            at previous RK stage
- * @param[in]  S_stage_prim primitive variables at previous RK stage
- * @param[in]  pi_stage   Exner function      at previous RK stage
- * @param[in]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
- * @param[out] S_data current solution
- * @param[in]  S_scratch scratch space
- * @param[in]  geom container for geometric information
- * @param[in]  gravity magnitude of gravity
- * @param[in]  dtau fast time step
- * @param[in]  beta_s  Coefficient which determines how implicit vs explicit the solve is
- * @param[in]  facinv inverse factor for time-averaging the momenta
- * @param[in] mapfac_m map factor at cell centers
- * @param[in] mapfac_u map factor at x-faces
- * @param[in] mapfac_v map factor at y-faces
+ * @param[in]    step  which fast time step within each Runge-Kutta step
+ * @param[in]    nrk   which Runge-Kutta step
+ * @param[in]    level level of resolution
+ * @param[in]    finest_level finest level of resolution
+ * @param[in]    S_slow_rhs slow RHS computed in erf_slow_rhs_pre
+ * @param[in]    S_prev previous solution
+ * @param[in]    S_stage_data solution            at previous RK stage
+ * @param[in]    S_stage_prim primitive variables at previous RK stage
+ * @param[in]    pi_stage   Exner function      at previous RK stage
+ * @param[in]    fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[out]   S_data current solution
+ * @param[in]    S_scratch scratch space
+ * @param[in]    geom container for geometric information
+ * @param[in]    gravity magnitude of gravity
+ * @param[in]    dtau fast time step
+ * @param[in]    beta_s  Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]    facinv inverse factor for time-averaging the momenta
+ * @param[in]    mapfac_m map factor at cell centers
+ * @param[in]    mapfac_u map factor at x-faces
+ * @param[in]    mapfac_v map factor at y-faces
+ * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
+ * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
+ * @param[in]    l_reflux should we add fluxes to the FluxRegisters?
  */
 
-void erf_fast_rhs_N (int step, int /*level*/,
+void erf_fast_rhs_N (int step, int nrk,
+                     int level, int finest_level,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
@@ -49,7 +55,10 @@ void erf_fast_rhs_N (int step, int /*level*/,
                      const Real facinv,
                      std::unique_ptr<MultiFab>& mapfac_m,
                      std::unique_ptr<MultiFab>& mapfac_u,
-                     std::unique_ptr<MultiFab>& mapfac_v)
+                     std::unique_ptr<MultiFab>& mapfac_v,
+                     YAFluxRegister* fr_as_crse,
+                     YAFluxRegister* fr_as_fine,
+                     bool l_reflux)
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
 
@@ -59,7 +68,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = 0.1;
 
-    const Box domain(geom.Domain());
+    const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
     Real dxi = dxInv[0];
@@ -265,6 +274,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+    {
+    std::array<FArrayBox,AMREX_SPACEDIM> flux;
     for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -316,6 +327,16 @@ void erf_fast_rhs_N (int step, int /*level*/,
         auto const&     coeffC_a =     coeff_C_mf.array(mfi);
         auto const&     coeffP_a =     coeff_P_mf.array(mfi);
         auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
+
+        // *************************************************************************
+        // Define flux arrays for use in advection
+        // *************************************************************************
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
+            flux[dir].setVal<RunOn::Device>(0.);
+        }
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
+            flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         // *********************************************************************
         {
@@ -484,7 +505,8 @@ void erf_fast_rhs_N (int step, int /*level*/,
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * old_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
 
-            avg_zmom(i,j,k) += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            (flx_arr[2])(i,j,k,0) = facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
             // Note that in the solve we effectively impose soln_a(i,j,vbx_hi.z+1)=0
             // so we don't update avg_zmom at k=vbx_hi.z+1
@@ -492,9 +514,27 @@ void erf_fast_rhs_N (int step, int /*level*/,
             temp_rhs_arr(i,j,k,Rho_comp     ) += dzi * ( zflux_hi - zflux_lo );
             temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dzi * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                                              - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
+            (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
         });
         } // end profile
+
+        // We only add to the flux registers in the final RK step
+        if (l_reflux && nrk == 2) {
+            int strt_comp_reflux = 0;
+            int  num_comp_reflux = 2;
+            if (level < finest_level) {
+                fr_as_crse->CrseAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+            if (level > 0) {
+                fr_as_fine->FineAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+        } // two-way coupling
     } // mfi
+    } // OMP
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
