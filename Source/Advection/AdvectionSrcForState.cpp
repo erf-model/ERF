@@ -12,7 +12,6 @@ using namespace amrex;
  * functions when either (or both) spatial order(s) is greater than 2.
  *
  * @param[in] bx box over which the scalars are updated
- * @param[in] valid_bx box that contains only the cells not in the specified or relaxation zones
  * @param[out] advectionSrc tendency for the scalar update equation
  * @param[in] rho_u x-component of momentum
  * @param[in] rho_v y-component of momentum
@@ -32,7 +31,7 @@ using namespace amrex;
  */
 
 void
-AdvectionSrcForRho (const Box& bx, const Box& valid_bx,
+AdvectionSrcForRho (const Box& bx,
                     const Array4<Real>& advectionSrc,
                     const Array4<const Real>& rho_u,
                     const Array4<const Real>& rho_v,
@@ -51,9 +50,6 @@ AdvectionSrcForRho (const Box& bx, const Box& valid_bx,
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-
-    // We note that valid_bx is the actual grid, while bx may be a tile within that grid
-    const auto& vbx_hi = ubound(valid_bx);
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
