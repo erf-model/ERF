@@ -111,7 +111,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
  * Function for computing the fast RHS with no terrain
  *
  */
-void erf_fast_rhs_N (int step, int level,
+void erf_fast_rhs_N (int step, int nrk, int level, int finest_level,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                      const amrex::Vector<amrex::MultiFab >& S_prev,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
@@ -126,13 +126,16 @@ void erf_fast_rhs_N (int step, int level,
                      const amrex::Real facinv,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                     std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                     std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                     amrex::YAFluxRegister* fr_as_crse,
+                     amrex::YAFluxRegister* fr_as_fine,
+                     bool l_reflux);
 
 /**
  * Function for computing the fast RHS with fixed terrain
  *
  */
-void erf_fast_rhs_T (int step, int level,
+void erf_fast_rhs_T (int step, int nrk, int level, int finest_level,
                      amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                      const amrex::Vector<amrex::MultiFab >& S_prev,
                      amrex::Vector<amrex::MultiFab >& S_stage_data,
@@ -150,13 +153,16 @@ void erf_fast_rhs_T (int step, int level,
                      const amrex::Real facinv,
                      std::unique_ptr<amrex::MultiFab>& mapfac_m,
                      std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                     std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                     std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                     amrex::YAFluxRegister* fr_as_crse,
+                     amrex::YAFluxRegister* fr_as_fine,
+                     bool l_reflux);
 
 /**
  * Function for computing the fast RHS with moving terrain
  *
  */
-void erf_fast_rhs_MT (int step, int level,
+void erf_fast_rhs_MT (int step, int nrk, int level, int finest_level,
                       amrex::Vector<amrex::MultiFab >& S_slow_rhs,
                       const amrex::Vector<amrex::MultiFab >& S_prev,
                       amrex::Vector<amrex::MultiFab >& S_stg_data,
@@ -181,7 +187,10 @@ void erf_fast_rhs_MT (int step, int level,
                       const amrex::Real facinv,
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                      std::unique_ptr<amrex::MultiFab>& mapfac_v);
+                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                      amrex::YAFluxRegister* fr_as_crse,
+                      amrex::YAFluxRegister* fr_as_fine,
+                      bool l_reflux);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast

@@ -72,28 +72,28 @@ AdvectionSrcForScalarsVert(const amrex::Box& bx,
     switch(vert_adv_type) {
     case AdvType::Centered_2nd:
         AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED2>(bx, ncomp, icomp,
-                                                                flx_arr, cell_prim,
-                                                                avg_xmom, avg_ymom, avg_zmom);
+                                                              flx_arr, cell_prim,
+                                                              avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Upwind_3rd:
         AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND3>(bx, ncomp, icomp,
-                                                              flx_arr, cell_prim,
-                                                              avg_xmom, avg_ymom, avg_zmom);
+                                                            flx_arr, cell_prim,
+                                                            avg_xmom, avg_ymom, avg_zmom);
         break;
     case AdvType::Centered_4th:
         AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED4>(bx, ncomp, icomp,
-                                                                flx_arr, cell_prim,
-                                                                avg_xmom, avg_ymom, avg_zmom);
-        break;
-    case AdvType::Upwind_5th:
-        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, ncomp, icomp,
                                                               flx_arr, cell_prim,
                                                               avg_xmom, avg_ymom, avg_zmom);
         break;
+    case AdvType::Upwind_5th:
+        AdvectionSrcForScalarsWrapper<InterpType_H,UPWIND5>(bx, ncomp, icomp,
+                                                            flx_arr, cell_prim,
+                                                            avg_xmom, avg_ymom, avg_zmom);
+        break;
     case AdvType::Centered_6th:
         AdvectionSrcForScalarsWrapper<InterpType_H,CENTERED6>(bx, ncomp, icomp,
-                                                                flx_arr, cell_prim,
-                                                                avg_xmom, avg_ymom, avg_zmom);
+                                                              flx_arr, cell_prim,
+                                                              avg_xmom, avg_ymom, avg_zmom);
         break;
     default:
         AMREX_ASSERT_WITH_MESSAGE(false, "Unknown vertical advection scheme!");

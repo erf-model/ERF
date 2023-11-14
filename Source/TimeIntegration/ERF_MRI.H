@@ -18,8 +18,8 @@ private:
     std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
-    std::function<void(int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
-                                                           const amrex::Real, const amrex::Real)> fast_rhs;
+    std::function<void(int, int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
+                                                                const amrex::Real, const amrex::Real)> fast_rhs;
 
    /**
     * \brief Integrator timestep size (Real)
@@ -133,7 +133,7 @@ public:
         slow_rhs_post = F;
     }
 
-    void set_fast_rhs (std::function<void(int, int, T&, const T&, T&, T&, T&,
+    void set_fast_rhs (std::function<void(int, int, int, T&, const T&, T&, T&, T&,
                                           const amrex::Real, const amrex::Real,
                                           const amrex::Real, const amrex::Real)> F)
     {
@@ -281,7 +281,7 @@ public:
                 // *******************************************************************************
                 for (int ks = 0; ks < nsubsteps; ++ks)
                 {
-                    fast_rhs(ks, nsubsteps, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
+                    fast_rhs(ks, nsubsteps, nrk, *F_slow, S_old, S_new, *S_sum, *S_scratch, dtau, inv_fac,
                              time + ks*dtau, time + (ks+1) * dtau);
 
                 } // ks

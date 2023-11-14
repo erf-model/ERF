@@ -1,7 +1,7 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto fast_rhs_fun = [&](int fast_step, int n_sub,
+auto fast_rhs_fun = [&](int fast_step, int n_sub, int nrk,
                         Vector<MultiFab>& S_slow_rhs,
                         const Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_stage,
@@ -21,6 +21,22 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
         // beta_s = -1.0 : fully explicit
         // beta_s =  1.0 : fully implicit
         Real beta_s = 0.1;
+
+        // *************************************************************************
+        // Set up flux registers if using two_way coupling
+        // *************************************************************************
+        const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
+
+        YAFluxRegister* fr_as_crse = nullptr;
+        YAFluxRegister* fr_as_fine = nullptr;
+        if (l_reflux) {
+            if (level < finest_level) {
+                fr_as_crse = getAdvFluxReg(level+1);
+            }
+            if (level > 0) {
+                fr_as_fine = getAdvFluxReg(level);
+            }
+        }
 
         // Moving terrain
         std::unique_ptr<MultiFab> z_t_pert;
@@ -73,7 +89,7 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_MT(fast_step, level,
+                erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
@@ -81,10 +97,11 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                fr_as_crse, fr_as_fine, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_MT(fast_step, level,
+                erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
                                 S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                 S_data, S_scratch, fine_geom,
                                 solverChoice.gravity, solverChoice.use_lagged_delta_rt,
@@ -92,7 +109,8 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                 z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
-                                mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                                fr_as_crse, fr_as_fine, l_reflux);
             }
         } else if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Static) {
             if (fast_step == 0) {
@@ -103,18 +121,20 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_T(fast_step, level,
+                erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               fr_as_crse, fr_as_fine, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_T(fast_step, level,
+                erf_fast_rhs_T(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               fr_as_crse, fr_as_fine, l_reflux);
             }
         } else {
             if (fast_step == 0) {
@@ -125,18 +145,20 @@ auto fast_rhs_fun = [&](int fast_step, int n_sub,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
-                erf_fast_rhs_N(fast_step, level,
+                erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_old, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               fr_as_crse, fr_as_fine, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
-                erf_fast_rhs_N(fast_step, level,
+                erf_fast_rhs_N(fast_step, nrk, level, finest_level,
                                S_slow_rhs, S_data, S_stage, S_prim, pi_stage, fast_coeffs,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
-                               mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                               fr_as_crse, fr_as_fine, l_reflux);
             }
         }
 
