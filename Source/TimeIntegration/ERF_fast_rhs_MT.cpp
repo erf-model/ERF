@@ -553,7 +553,7 @@ void erf_fast_rhs_MT (int step, int /*level*/,
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
-              avg_zmom(i,j,k) += facinv*zflux_lo;
+              avg_zmom(i,j,k) += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
               // Note that the factor of (1/J) in the fast source term is canceled
               // when we multiply old and new by detJ_old and detJ_new , respectively

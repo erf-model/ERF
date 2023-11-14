@@ -484,7 +484,7 @@ void erf_fast_rhs_N (int step, int /*level*/,
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * old_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
 
-            avg_zmom(i,j,k) += facinv*zflux_lo;
+            avg_zmom(i,j,k) += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
             // Note that in the solve we effectively impose soln_a(i,j,vbx_hi.z+1)=0
             // so we don't update avg_zmom at k=vbx_hi.z+1

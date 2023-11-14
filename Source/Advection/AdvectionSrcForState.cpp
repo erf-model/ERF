@@ -176,43 +176,43 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
         switch(horiz_adv_type) {
         case AdvType::Centered_2nd:
             AdvectionSrcForScalarsVert<CENTERED2>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                    avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
+                                                  avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
             break;
         case AdvType::Upwind_3rd:
             AdvectionSrcForScalarsVert<UPWIND3>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                  avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
+                                                avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
             break;
         case AdvType::Centered_4th:
             AdvectionSrcForScalarsVert<CENTERED4>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                    avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
+                                                  avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
             break;
         case AdvType::Upwind_5th:
             AdvectionSrcForScalarsVert<UPWIND5>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                  avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
+                                                avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
             break;
         case AdvType::Centered_6th:
             AdvectionSrcForScalarsVert<CENTERED6>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                    avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
+                                                  avg_xmom, avg_ymom, avg_zmom, vert_adv_type);
             break;
         case AdvType::Weno_3:
             AdvectionSrcForScalarsWrapper<WENO3,WENO3>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                         avg_xmom, avg_ymom, avg_zmom);
+                                                       avg_xmom, avg_ymom, avg_zmom);
             break;
         case AdvType::Weno_5:
             AdvectionSrcForScalarsWrapper<WENO5,WENO5>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                         avg_xmom, avg_ymom, avg_zmom);
+                                                       avg_xmom, avg_ymom, avg_zmom);
             break;
         case AdvType::Weno_3Z:
             AdvectionSrcForScalarsWrapper<WENO_Z3,WENO_Z3>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                             avg_xmom, avg_ymom, avg_zmom);
+                                                           avg_xmom, avg_ymom, avg_zmom);
             break;
         case AdvType::Weno_3MZQ:
             AdvectionSrcForScalarsWrapper<WENO_MZQ3,WENO_MZQ3>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                                 avg_xmom, avg_ymom, avg_zmom);
+                                                               avg_xmom, avg_ymom, avg_zmom);
             break;
         case AdvType::Weno_5Z:
             AdvectionSrcForScalarsWrapper<WENO_Z5,WENO_Z5>(bx, ncomp, icomp, flx_arr, cell_prim,
-                                                             avg_xmom, avg_ymom, avg_zmom);
+                                                           avg_xmom, avg_ymom, avg_zmom);
             break;
         default:
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");

@@ -584,7 +584,7 @@ void erf_fast_rhs_T (int step, int /*level*/,
 
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
-              avg_zmom(i,j,k) += facinv*zflux_lo;
+              avg_zmom(i,j,k) += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
               Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
               cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
