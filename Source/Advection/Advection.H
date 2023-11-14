@@ -11,7 +11,7 @@
 
 
 /** Compute advection tendency for density and potential temperature */
-void AdvectionSrcForRho (const amrex::Box& bx, const amrex::Box& valid_bx,
+void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<amrex::Real>& src,
                          const amrex::Array4<const amrex::Real>& rho_u,    // These are being used
                          const amrex::Array4<const amrex::Real>& rho_v,    //  to define the fluxes

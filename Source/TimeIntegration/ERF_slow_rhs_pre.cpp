@@ -464,6 +464,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
     } // l_use_diff
 
 
+    // We must initialize these to zero each RK step
+    S_scratch[IntVar::xmom].setVal(0.);
+    S_scratch[IntVar::ymom].setVal(0.);
+    S_scratch[IntVar::zmom].setVal(0.);
+
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
@@ -489,11 +494,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
-
-        // We must initialize these to zero each RK step
-        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,tbx);
-        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,tby);
-        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,tbz);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -651,7 +651,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
-        AdvectionSrcForRho(bx, valid_bx, cell_rhs,
+        AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,

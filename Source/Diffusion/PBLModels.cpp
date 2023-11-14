@@ -58,7 +58,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
       const amrex::Box &bx = mfi.growntilebox(1);
       const amrex::Array4<amrex::Real const> &cell_data     = cons_in.array(mfi);
-      const amrex::Array4<amrex::Real const> &cell_data_old = cons_old.array(mfi);
       const amrex::Array4<amrex::Real      > &K_turb = eddyViscosity.array(mfi);
       const amrex::Array4<amrex::Real const> &uvel = xvel.array(mfi);
       const amrex::Array4<amrex::Real const> &vvel = yvel.array(mfi);
