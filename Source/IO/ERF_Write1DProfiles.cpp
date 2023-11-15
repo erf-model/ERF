@@ -320,10 +320,13 @@ ERF::derive_stress_profiles(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             fab_arr(i, j, k, 0) = tau11_arr(i,j,k);
-            fab_arr(i, j, k, 1) = tau12_arr(i,j,k);
-            fab_arr(i, j, k, 2) = tau13_arr(i,j,k);
+            fab_arr(i, j, k, 1) = 0.25 * ( tau12_arr(i,j  ,k) + tau12_arr(i+1,j  ,k)
+                                         + tau12_arr(i,j+1,k) + tau12_arr(i+1,j+1,k) );
+            fab_arr(i, j, k, 2) = 0.25 * ( tau13_arr(i,j,k  ) + tau13_arr(i+1,j,k)
+                                         + tau13_arr(i,j,k+1) + tau13_arr(i+1,j,k+1) );
             fab_arr(i, j, k, 3) = tau22_arr(i,j,k);
-            fab_arr(i, j, k, 4) = tau23_arr(i,j,k);
+            fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
+                                         + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
             fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
             fab_arr(i, j, k, 7) =  diss_arr(i,j,k);
