@@ -11,6 +11,7 @@ Density of the mixture
 ========================
 
 The total density in a given cell is given by
+
 .. math::
     \rho &=& \frac{m}{V} = \frac{m_a + m_v + m_c + m_p}{V},
 
