@@ -215,11 +215,6 @@ public:
         {
             // Copy old -> new
             MultiFab::Copy(S_new[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
-
-            // Copy old momentum -> scratch momentum
-            if (i>=1) {
-                MultiFab::Copy((*S_scratch)[i],S_old[i],0,0,num_vars[i],S_old[i].nGrowVect());
-            }
         }
 
         // Timestep taken by the fast integrator

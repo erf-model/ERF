@@ -463,12 +463,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // MFIter
     } // l_use_diff
 
-
-    // We must initialize these to zero each RK step
-    S_scratch[IntVar::xmom].setVal(0.);
-    S_scratch[IntVar::ymom].setVal(0.);
-    S_scratch[IntVar::zmom].setVal(0.);
-
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
