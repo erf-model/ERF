@@ -1,11 +1,13 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_zero = 1
+amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  10600 5000 5000
-amr.n_cell           =   140 80 60
+geometry.prob_extent =  28000 16000 8000
+amr.n_cell           =   140 80 100
 
 geometry.is_periodic = 0 0 0
 
@@ -17,9 +19,10 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
+erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
 
 erf.use_terrain = true
+erf.terrain_smoothing = 2
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = -1       # timesteps between computing mass
@@ -36,22 +39,26 @@ erf.check_int       = 100        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 10         # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys
+erf.plot_int_1      = 1          # number of timesteps between plotfiles
+erf.plot_vars_1     = qv Rhoqv density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres KE QKE
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
+erf.alpha_T = 1.0
 erf.alpha_C = 1.0
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
+#erf.les_type        = "Deardorff"
 erf.Cs              = 0.1
 
+#erf.terrain_z_levels = 0 130 354 583 816 1054 1549 2068 2615 3193 3803 4450 5142 5892 6709 7603 8591 9702 10967 12442 14230 16610 18711 20752 22133 23960 26579 28493 31236 33699 36068 40000
+
 # INITIALIZATION WITH ATM DATA
-erf.init_type    = "metgrid"
-erf.nc_init_file_0 = "met_em_d01.nc"
-#erf.nc_bdy_file = ""
+erf.metgrid_bdy_width = 5
+erf.metgrid_bdy_set_width = 1
+erf.init_type      = "metgrid"
+erf.nc_init_file_0 = "met_em.d01.2022-06-18_00:00:00.nc" "met_em.d01.2022-06-18_06:00:00.nc" "met_em.d01.2022-06-18_12:00:00.nc" "met_em.d01.2022-06-18_18:00:00.nc"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024

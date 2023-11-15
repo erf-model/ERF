@@ -21,6 +21,7 @@ using namespace amrex;
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
  * @param[in]  level level of resolution
+ * @param[in]  finest_level finest level of resolution
  * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
  * @param[out]  S_rhs RHS computed here
@@ -60,6 +61,8 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
+ * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rayleigh_tau  strength of Rayleigh damping
  * @param[in] dptr_rayleigh_ubar reference value for x-velocity used to define Rayleigh damping
  * @param[in] dptr_rayleigh_vbar reference value for y-velocity used to define Rayleigh damping
@@ -67,7 +70,7 @@ using namespace amrex;
  * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
  */
 
-void erf_slow_rhs_pre (int level,
+void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
                        amrex::Real dt,
                        Vector<MultiFab>& S_rhs,
@@ -100,6 +103,8 @@ void erf_slow_rhs_pre (int level,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
+                       YAFluxRegister* fr_as_crse,
+                       YAFluxRegister* fr_as_fine,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                        const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_wbar,
                        const amrex::Real* dptr_rayleigh_thetabar)
@@ -119,8 +124,10 @@ void erf_slow_rhs_pre (int level,
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const bool    l_use_terrain    = solverChoice.use_terrain;
-    const bool    l_moving_terrain = (solverChoice.terrain_type == 1);
+    const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
+
+    const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -138,6 +145,7 @@ void erf_slow_rhs_pre (int level,
     const int domhi_z = domain.bigEnd()[2];
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const Real* dx = geom.CellSize();
 
     // *************************************************************************
     // Combine external forcing terms
@@ -455,13 +463,15 @@ void erf_slow_rhs_pre (int level,
         } // MFIter
     } // l_use_diff
 
-
     // *************************************************************************
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
+    {
+    std::array<FArrayBox,AMREX_SPACEDIM> flux;
+
     for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
@@ -478,11 +488,6 @@ void erf_slow_rhs_pre (int level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
-
-        // We must initialize these to zero each RK step
-        S_scratch[IntVar::xmom][mfi].template setVal<RunOn::Device>(0.,tbx);
-        S_scratch[IntVar::ymom][mfi].template setVal<RunOn::Device>(0.,tby);
-        S_scratch[IntVar::zmom][mfi].template setVal<RunOn::Device>(0.,tbz);
 
         Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
@@ -521,6 +526,16 @@ void erf_slow_rhs_pre (int level,
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
+
+        // *************************************************************************
+        // Define flux arrays for use in advection
+        // *************************************************************************
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
+            flux[dir].setVal<RunOn::Device>(0.);
+        }
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
+            flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         //-----------------------------------------
         // Perturbational pressure field
@@ -628,15 +643,19 @@ void erf_slow_rhs_pre (int level,
         }
 
         // **************************************************************************
-        // Define updates in the RHS of continuity, temperature, and scalar equations
+        // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
-        Real fac = 1.0;
-        AdvectionSrcForRhoAndTheta(bx, valid_bx, cell_rhs,       // these are being used to build the fluxes
-                                   rho_u, rho_v, omega_arr, fac,
-                                   avg_xmom, avg_ymom, avg_zmom, // these are being defined from the rho fluxes
-                                   cell_prim, z_nd, detJ_arr,
-                                   dxInv, mf_m, mf_u, mf_v,
-                                   l_horiz_adv_type, l_vert_adv_type, l_use_terrain);
+        AdvectionSrcForRho(bx, cell_rhs,
+                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+                           l_use_terrain, flx_arr);
+
+        int icomp = RhoTheta_comp; int ncomp = 1;
+        AdvectionSrcForScalars(bx, icomp, ncomp,
+                               avg_xmom, avg_ymom, avg_zmom,
+                               cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -801,8 +820,7 @@ void erf_slow_rhs_pre (int level,
             q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                        +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-            rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                - abl_pressure_grad[0]
+            rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                 + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -810,8 +828,7 @@ void erf_slow_rhs_pre (int level,
             {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                rho_u_rhs(i, j, k) += coriolis_factor *
-                        (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
             }
 
             // Add Rayleigh damping
@@ -846,8 +863,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
 #endif
-              rho_u_rhs(i, j, k) += -gpx / (1.0 + q)
-                                  - abl_pressure_grad[0]
+              rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i-1,j,k,Rho_comp)) * abl_geo_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -855,8 +871,7 @@ void erf_slow_rhs_pre (int level,
               {
                   Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                   Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                  rho_u_rhs(i, j, k) += coriolis_factor *
-                          (rho_v_loc * sinphi - rho_w_loc * cosphi);
+                  rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
               }
 
               // Add Rayleigh damping
@@ -911,8 +926,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - abl_pressure_grad[1]
+              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
@@ -953,8 +967,7 @@ void erf_slow_rhs_pre (int level,
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
 #endif
-              rho_v_rhs(i, j, k) += -gpy / (1.0_rt + q)
-                                  - abl_pressure_grad[1]
+              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                   + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j-1,k,Rho_comp)) * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1007,8 +1020,7 @@ void erf_slow_rhs_pre (int level,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - abl_pressure_grad[2]
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                     + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1048,8 +1060,7 @@ void erf_slow_rhs_pre (int level,
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
 #endif
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz) / (1.0_rt + q)
-                                    - abl_pressure_grad[2]
+                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                     + 0.5*(cell_data(i,j,k,Rho_comp)+cell_data(i,j,k-1,Rho_comp)) * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1067,8 +1078,28 @@ void erf_slow_rhs_pre (int level,
                 }
         });
         } // no terrain
-         ApplySpongeZoneBCs(solverChoice.spongeChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
-                            rho_w, bx, cell_rhs, cell_data);
+            ApplySpongeZoneBCs(solverChoice.spongeChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
+                               rho_w, bx, cell_rhs, cell_data);
+        } // end profile
+
+        {
+        BL_PROFILE("slow_rhs_pre_fluxreg");
+        // We only add to the flux registers in the final RK step
+        if (l_reflux && nrk == 2) {
+            int strt_comp_reflux = 0;
+            int  num_comp_reflux = 2;
+            if (level < finest_level) {
+                fr_as_crse->CrseAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+            if (level > 0) {
+                fr_as_fine->FineAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+        } // two-way coupling
         } // end profile
     } // mfi
+    } // OMP
 }

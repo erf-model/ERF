@@ -5,6 +5,59 @@
 
 using namespace amrex;
 
+void
+init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
+              const amrex::Geometry& geom,
+              const amrex::Real grid_stretching_ratio,
+              const amrex::Real zsurf,
+              const amrex::Real dz0)
+{
+    auto dx = geom.CellSizeArray();
+    const amrex::Box& domain = geom.Domain();
+    int nz = domain.length(2)+1; // staggered
+    zlevels_stag.resize(nz);
+
+    if (grid_stretching_ratio == 0) {
+        // This is the default for z_levels
+        for (int k = 0; k < nz; k++)
+        {
+            zlevels_stag[k] = k * dx[2];
+        }
+    } else {
+        // Create stretched grid based on initial dz and stretching ratio
+        zlevels_stag[0] = zsurf;
+        amrex::Real dz = dz0;
+        amrex::Print() << "Stretched grid levels: " << zsurf;
+        for (int k = 1; k < nz; k++)
+        {
+            zlevels_stag[k] = zlevels_stag[k-1] + dz;
+            amrex::Print() << " " << zlevels_stag[k];
+            dz *= grid_stretching_ratio;
+        }
+        amrex::Print() << std::endl;
+    }
+
+    // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
+    // levels to be specified and will take precedence over the
+    // grid_stretching_ratio parameter
+    ParmParse pp("erf");
+    int n_zlevels = pp.countval("terrain_z_levels");
+    if (n_zlevels > 0)
+    {
+        if (n_zlevels != nz) {
+            amrex::Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
+            amrex::Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
+            amrex::Abort("You must specify a z_level for every value of k");
+        }
+
+        if (grid_stretching_ratio > 0) {
+            amrex::Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
+        }
+
+        pp.queryarr("terrain_z_levels", zlevels_stag, 0, nz);
+    }
+}
+
 /**
  * Computation of the terrain grid from BTF, STF, or Sullivan TF model
  *
@@ -14,9 +67,8 @@ using namespace amrex;
  */
 
 void
-init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
+init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real> const& z_levels_h)
 {
-  auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
 
   // z_nd is nodal in all directions
@@ -24,35 +76,12 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
   int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
   int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
   int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
+  int nz = domain.length(2)+1;
 
   // User-selected method from inputs file (BTF default)
   ParmParse pp("erf");
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
-
-  // "custom" refers to terrain analytically specified, such as WitchOfAgnesi
-  std::string terrain_type = "custom";
-
-  int nz = domain.length(2)+1;
-  amrex::Vector<Real> z_levels_h;
-  z_levels_h.resize(nz);
-
-  // This is the default for z_levels
-  for (int k = 0; k < nz; k++)
-  {
-      z_levels_h[k] = k * dx[2];
-  }
-
-  // But we can read them in from the inputs file as an alternative
-  int n_zlevels = pp.countval("terrain_z_levels");
-
-  pp.queryarr("terrain_z_levels", z_levels_h, 0, nz);
-
-  if (n_zlevels > 0 && n_zlevels != nz) {
-      amrex::Print() << "You supplied " << n_zlevels << " z_levels " << std::endl;
-      amrex::Print() << "but n_cell in the z-direction is " <<  nz << std::endl;
-      amrex::Abort("You must specify a z_level for every value of k");
-  }
 
    amrex::Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
@@ -392,9 +421,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd)
  * Computation of detJ at cell-center
  */
 void
-make_J(const amrex::Geometry& geom,
-       amrex::MultiFab& z_phys_nd,
-       amrex::MultiFab& detJ_cc)
+make_J (const amrex::Geometry& geom,
+        amrex::MultiFab& z_phys_nd,
+        amrex::MultiFab& detJ_cc)
 {
     const auto *dx = geom.CellSize();
     amrex::Real dzInv = 1.0/dx[2];
@@ -428,9 +457,9 @@ make_J(const amrex::Geometry& geom,
  * Computation of z_phys at cell-center
  */
 void
-make_zcc(const amrex::Geometry& geom,
-         amrex::MultiFab& z_phys_nd,
-         amrex::MultiFab& z_phys_cc)
+make_zcc (const amrex::Geometry& geom,
+          amrex::MultiFab& z_phys_nd,
+          amrex::MultiFab& z_phys_cc)
 {
     // Domain valid box (z_nd is nodal)
     const amrex::Box& domain = geom.Domain();

@@ -19,7 +19,7 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_PhysBCFunct.H>
-#include <AMReX_FluxRegister.H>
+#include <AMReX_YAFluxRegister.H>
 #include <AMReX_ErrorList.H>
 
 #ifdef AMREX_MEM_PROFILING
@@ -46,6 +46,10 @@
 
 #ifdef ERF_USE_MOISTURE
 #include "Microphysics.H"
+#endif
+
+#ifdef ERF_USE_RRTMGP
+#include "Radiation.H"
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -96,17 +100,17 @@ public:
     // constructor - reads in parameters from inputs file
     //             - sizes multilevel arrays and data structures
     ERF ();
-    ~ERF() override;
+    ~ERF () override;
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
-    ERF(ERF&&)  noexcept = delete;
+    ERF (ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
     ERF& operator=(ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
-    ERF(const ERF& other) = delete;
+    ERF (const ERF& other) = delete;
     //
     // Delete the copy assignment operator
     ERF& operator=(const ERF& other) = delete;
@@ -169,7 +173,9 @@ public:
 
     // Perform the volume-weighted sum
     amrex::Real
-    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp, bool local, bool finemask);
+    volWgtSumMF (int lev, const amrex::MultiFab& mf, int comp,
+                 const amrex::MultiFab& mapfac,
+                 bool local, bool finemask);
 
     // Decide if it is time to take an action
     static bool is_it_time_for_action (int nstep, amrex::Real time, amrex::Real dt,
@@ -216,6 +222,12 @@ public:
 #if defined(ERF_USE_MOISTURE)
     void advance_microphysics (int lev, amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
+#endif
+
+#if defined(ERF_USE_RRTMGP)
+    void advance_radiation (int lev,
+                            amrex::MultiFab& cons_in,
+                            const amrex::Real& dt_advance);
 #endif
 
     amrex::MultiFab& build_fine_mask (int lev);
@@ -301,12 +313,25 @@ public:
                            bool cons_only = false,
                            int icomp_cons = 0,
                            int ncomp_cons = NVAR);
+    void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
+                           amrex::Real time,
+                           bool cons_only = false,
+                           int icomp_cons = 0,
+                           int ncomp_cons = NVAR);
 #endif
 
 #ifdef ERF_USE_PARTICLES
     std::unique_ptr<TerrainFittedPC> tracer_particles;
     static amrex::Vector<std::string> tracer_particle_varnames;
 #endif
+
+#ifdef ERF_USE_NETCDF
+    void init_from_wrfinput (int lev);
+    void init_from_metgrid (int lev);
+#endif // ERF_USE_NETCDF
+
+    // more flexible version of AverageDown() that lets you average down across multiple levels
+    void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
 private:
 
@@ -315,10 +340,10 @@ private:
     ///////////////////////////
 
     // read in some parameters from inputs file
-    void ReadParameters();
+    void ReadParameters ();
 
     // set covered coarse cells to be the average of overlying fine cells
-    void AverageDown ();
+    void AverageDown (int scomp, int ncomp);
 
     void update_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
@@ -339,14 +364,6 @@ private:
     void init_uniform (int lev);
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
-
-#ifdef ERF_USE_NETCDF
-    void init_from_wrfinput (int lev);
-    void init_from_metgrid (int lev);
-#endif // ERF_USE_NETCDF
-
-    // more flexible version of AverageDown() that lets you average down across multiple levels
-    void AverageDownTo (int crse_lev); // NOLINT
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -369,7 +386,7 @@ private:
     void FillIntermediatePatch (int lev, amrex::Real time,
                                 const amrex::Vector<amrex::MultiFab*>& mfs,
                                 int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
-                                amrex::MultiFab* eddyDiffs, bool allow_most_bcs = true);
+                                bool allow_most_bcs = true);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
@@ -530,6 +547,10 @@ private:
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #endif
 
+#if defined(ERF_USE_RRTMGP)
+    Radiation rad;
+#endif
+
     // Fillpatcher classes for coarse-fine boundaries
     int cf_width{0};
     int cf_set_width{0};
@@ -546,10 +567,16 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> eddyDiffs_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SmnSmn_lev;
 
+    // Sea Surface Temps and Land Masks (lev, ntimes)
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>  sst_lev;
+    amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>> lmask_lev;
+
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
 
+    // Terrain / grid stretching
+    amrex::Vector<amrex::Real> zlevels_stag;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
@@ -566,13 +593,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_u;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mapfac_v;
 
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sst;
-
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
 
     // array of flux registers
-    amrex::Vector<amrex::FluxRegister*> flux_registers;
+    amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec
@@ -651,7 +676,12 @@ private:
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "pres_hse", "dens_hse", "pert_pres", "pert_dens",
-                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y", "z_phys", "detJ" , "mapfac"
+                                                    "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
+                                                    "z_phys", "detJ" , "mapfac",
+                                                    // eddy viscosity
+                                                    "Kmv","Kmh",
+                                                    // eddy diffusivity of heat
+                                                    "Khv","Khh"
 #if defined(ERF_USE_MOISTURE)
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
 #elif defined(ERF_USE_WARM_NO_PRECIP)
@@ -673,9 +703,6 @@ private:
     // flag to turn tracer particle generation on/off
     static bool use_tracer_particles;
 
-    // mesh refinement
-    static std::string coupling_type;
-
     // Diagnostic output interval
     static int sum_interval;
     static amrex::Real sum_per;
@@ -693,6 +720,10 @@ private:
     static std::string nc_bdy_file;
     int wrfbdy_width{0};
     int wrfbdy_set_width{0};
+
+    // NetCDF initialization (met_em) file
+    int metgrid_bdy_width{0};
+    int metgrid_bdy_set_width{0};
 
     // Text input_sounding file
     static std::string input_sounding_file;
@@ -748,7 +779,7 @@ private:
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
 #endif
 
-    void refinement_criteria_setup();
+    void refinement_criteria_setup ();
 
     std::unique_ptr<WriteBndryPlanes> m_w2d  = nullptr;
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
@@ -813,10 +844,9 @@ private:
     }
 
     AMREX_FORCE_INLINE
-    amrex::FluxRegister&
-    get_flux_reg (int lev)
+    amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
-      return *flux_registers[lev];
+        return advflux_reg[lev];
     }
 
     AMREX_FORCE_INLINE

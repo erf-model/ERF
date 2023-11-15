@@ -42,7 +42,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         // NOTE: std::swap above causes the field ptrs to be out of date.
         //       Reassign the field ptrs for MAC avg computation.
         m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
-        m_most->update_fluxes(lev);
+        m_most->update_fluxes(lev, time);
       }
     }
 
@@ -119,14 +119,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     // Update the dycore
     advance_dycore(lev,
-                  cons_mf, S_new,
-                  U_old, V_old, W_old,
-                  U_new, V_new, W_new,
-                  rU_old[lev], rV_old[lev], rW_old[lev],
-                  rU_new[lev], rV_new[lev], rW_new[lev],
-                  rU_crse, rV_crse, rW_crse,
-                  source, buoyancy,
-                  Geom(lev), dt_lev, time, &ifr);
+                   cons_mf, S_new,
+                   U_old, V_old, W_old,
+                   U_new, V_new, W_new,
+                   rU_old[lev], rV_old[lev], rW_old[lev],
+                   rU_new[lev], rV_new[lev], rW_new[lev],
+                   rU_crse, rV_crse, rW_crse,
+                   source, buoyancy,
+                   Geom(lev), dt_lev, time, &ifr);
 
 #if defined(ERF_USE_MOISTURE)
     // Update the microphysics

@@ -17,6 +17,8 @@ using namespace amrex;
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
  *
  * @param[in]  level level of resolution
+ * @param[in]  finest_level finest level of resolution
+ * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
  * @param[out]  S_rhs RHS computed here
  * @param[in]  S_old solution at start of time step
@@ -42,9 +44,11 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
+ * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  */
 
-void erf_slow_rhs_post (int level,
+void erf_slow_rhs_post (int level, int finest_level,
                         int nrk,
                         Real dt,
                         Vector<MultiFab>& S_rhs,
@@ -69,9 +73,9 @@ void erf_slow_rhs_post (int level,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
-                        std::unique_ptr<MultiFab>& mapfac_v
+                        std::unique_ptr<MultiFab>& mapfac_v,
 #if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-                       ,const bool& moist_zero,
+                        const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
@@ -80,8 +84,10 @@ void erf_slow_rhs_post (int level,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                        Vector<Vector<FArrayBox>>& bdy_data_yhi
+                        Vector<Vector<FArrayBox>>& bdy_data_yhi,
 #endif
+                        YAFluxRegister* fr_as_crse,
+                        YAFluxRegister* fr_as_fine
                         )
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
@@ -93,8 +99,9 @@ void erf_slow_rhs_post (int level,
     const MultiFab* t_mean_mf = nullptr;
     if (most) t_mean_mf = most->get_mac_avg(0,2);
 
-    const bool l_use_terrain    = solverChoice.use_terrain;
-    const bool l_moving_terrain = (solverChoice.terrain_type == 1);
+    const bool l_use_terrain      = solverChoice.use_terrain;
+    const bool l_reflux = (solverChoice.coupling_type != CouplingType::OneWay);
+    const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -113,9 +120,11 @@ void erf_slow_rhs_post (int level,
     const Box& domain = geom.Domain();
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const Real* dx = geom.CellSize();
 
     // *************************************************************************
     // Set gravity as a vector
+    // *************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
@@ -158,10 +167,26 @@ void erf_slow_rhs_post (int level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    {
+      std::array<FArrayBox,AMREX_SPACEDIM> flux;
+
+      for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& tbx = mfi.tilebox();
 
+        // *************************************************************************
+        // Define flux arrays for use in advection
+        // *************************************************************************
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            flux[dir].resize(amrex::surroundingNodes(tbx,dir),NVAR);
+            flux[dir].setVal<RunOn::Device>(0.);
+        }
+        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
+            flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+
+        // *************************************************************************
+        // Define Array4's
+        // *************************************************************************
         const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
 
@@ -252,25 +277,22 @@ void erf_slow_rhs_post (int level,
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type,
-                                   l_use_terrain);
+                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type,
-                                   l_use_terrain);
+                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
         }
 
         // This is simply an advected scalar for convenience
         start_comp = RhoScalar_comp;
         num_comp = 1;
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                              cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                              horiz_adv_type, vert_adv_type,
-                              l_use_terrain);
+                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
 
 #ifdef ERF_USE_MOISTURE
         start_comp = RhoQt_comp;
@@ -285,8 +307,7 @@ void erf_slow_rhs_post (int level,
         }
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               moist_horiz_adv_type, moist_vert_adv_type,
-                               l_use_terrain);
+                               moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
 
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         start_comp = RhoQv_comp;
@@ -302,8 +323,7 @@ void erf_slow_rhs_post (int level,
 
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               moist_horiz_adv_type, moist_vert_adv_type,
-                               l_use_terrain);
+                               moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
 #endif
 
         if (l_use_diff) {
@@ -441,7 +461,8 @@ void erf_slow_rhs_post (int level,
                 // NOTE: we don't include additional source terms when terrain is moving
                 Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                 cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-#ifndef AMREX_USE_GPU
+                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+#if 0           // Printing
                 if (cur_cons(i,j,k,n) < Real(0.)) {
                     amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
@@ -482,7 +503,8 @@ void erf_slow_rhs_post (int level,
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                 cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-#ifndef AMREX_USE_GPU
+                cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+#if 0           // Printing
                 if (cur_cons(i,j,k,n) < Real(0.)) {
                     amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
@@ -521,5 +543,25 @@ void erf_slow_rhs_post (int level,
             new_zmom(i,j,k) = cur_zmom(i,j,k);
         });
         } // end profile
-    } // mfi
+
+        {
+        BL_PROFILE("rhs_post_10");
+        // We only add to the flux registers in the final RK step
+        if (l_reflux && nrk == 2) {
+            int strt_comp_reflux = RhoTheta_comp + 1;
+            int  num_comp_reflux = NVAR - strt_comp_reflux;
+            if (level < finest_level) {
+                fr_as_crse->CrseAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+            if (level > 0) {
+                fr_as_fine->FineAdd(mfi,
+                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+            }
+        } // two-way coupling
+        } // end profile
+      } // mfi
+    } // OMP
 }

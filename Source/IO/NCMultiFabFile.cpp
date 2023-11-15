@@ -20,10 +20,10 @@
 using namespace amrex;
 
 void
-ERF::ReadNCMultiFab(FabArray<FArrayBox> &mf,
-                    const std::string  &mf_name,
-                    int /*coordinatorProc*/,
-                    int /*allow_empty_mf*/) {
+ERF::ReadNCMultiFab (FabArray<FArrayBox> &mf,
+                     const std::string  &mf_name,
+                     int /*coordinatorProc*/,
+                     int /*allow_empty_mf*/) {
 
     const std::string& FullPath = amrex::Concatenate(check_file,istep[0],5);
 

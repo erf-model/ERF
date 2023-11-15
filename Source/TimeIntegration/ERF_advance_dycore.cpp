@@ -216,13 +216,15 @@ void ERF::advance_dycore(int level,
     // *************************************************************************
     if (l_use_kturb)
     {
+        // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
+        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
-                                  state_old[IntVar::cons],
+                                  state_old[IntVar::cons],state_new[IntVar::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
-                                  tc, solverChoice.gravity, m_most);
+                                  tc, solverChoice.gravity, m_most, bc_ptr_d);
     }
 
     // ***********************************************************************************************
@@ -312,7 +314,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
 
     // Register coarse data for coarse-fine fill
-    if (level<finest_level && coupling_type=="OneWay" && cf_width>0) {
+    if (level<finest_level && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
         FPr_c[level].RegisterCoarseData({&cons_old, &cons_new}, {old_time, old_time + dt_advance});
         FPr_u[level].RegisterCoarseData({&xvel_old, &xvel_new}, {old_time, old_time + dt_advance});
         FPr_v[level].RegisterCoarseData({&yvel_old, &yvel_new}, {old_time, old_time + dt_advance});

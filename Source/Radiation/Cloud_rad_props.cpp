@@ -3,8 +3,6 @@
 //
 #include "YAKL_netcdf.h"
 #include "Cloud_rad_props.H"
-#include "Water_vapor_saturation.H"
-#include "Linear_interpolate.H"
 
 void CloudRadProps::initialize() {
     realHost1d g_mu_h;         // mu samples on grid

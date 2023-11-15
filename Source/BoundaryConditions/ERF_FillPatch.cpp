@@ -73,7 +73,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0 && fillset) {
+    if (lev>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_set_width>0 && fillset) {
         FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
         FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
         FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
@@ -92,7 +92,8 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time);
+    if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
@@ -128,7 +129,7 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
 
-    if (init_type != "real") {
+    if ((init_type != "real") and (init_type != "metgrid")) {
         (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
     }
 
@@ -158,7 +159,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
                             int ng_cons, int ng_vel, bool cons_only,
                             int icomp_cons, int ncomp_cons,
-                            MultiFab* eddyDiffs,
                             bool allow_most_bcs)
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
@@ -227,7 +227,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && coupling_type=="OneWay" && cf_set_width>0) {
+    if (lev>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_set_width>0) {
         if (cons_only) {
             FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
         } else {
@@ -249,7 +249,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
     //       --- i.e., cons_only and which cons indices (icomp_cons & ncomp_cons)
 
     // We call this here because it is an ERF routine
-    if (init_type=="real" && lev==0) fill_from_wrfbdy(mfs, time, cons_only, icomp_cons, ncomp_cons);
+    if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time, cons_only, icomp_cons, ncomp_cons);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time, cons_only, icomp_cons, ncomp_cons);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
@@ -260,7 +261,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
     // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
-        m_most->impose_most_bcs(lev,mfs,eddyDiffs);
+        m_most->impose_most_bcs(lev,mfs,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
 }
 
 //

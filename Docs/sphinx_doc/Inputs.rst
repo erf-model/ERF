@@ -164,6 +164,61 @@ Examples of Usage
      level-1 grids will be created every 2 level-0 time steps, and new
      level-2 grids will be created every 2 level-1 time steps.
 
+
+Grid Stretching
+===============
+
+This automatically activates **erf.use_terrain**. By default, the
+problem-specific terrain is initialized to be flat at an elevation of z=0.
+These inputs are used to automatically generate the staggered z levels used to
+calculate the grid metric transformation. Alternatively, arbitrary z levels may
+be specified with the **erf.terrain_z_levels** parameter.
+
+.. _list-of-parameters-3:
+
+List of Parameters
+------------------
+
++-------------------------------+-----------------+-----------------+-------------+
+| Parameter                     | Definition      | Acceptable      | Default     |
+|                               |                 | Values          |             |
++===============================+=================+=================+=============+
+| **erf.grid_stretching_ratio** | scaling factor  | Real > 1        | 0 (no grid  |
+|                               | applied to      |                 | stretching) |
+|                               | delta z at each |                 |             |
+|                               | level           |                 |             |
++-------------------------------+-----------------+-----------------+-------------+
+| **erf.initial_dz**            | vertical grid   | Real > 0        | must be set |
+|                               | spacing for the |                 | if grid     |
+|                               | cell above the  |                 | stretching  |
+|                               | bottom surface  |                 | ratio is set|
++-------------------------------+-----------------+-----------------+-------------+
+| **erf.terrain_z_levels**      | nominal         | List of Real    | NONE        |
+|                               | staggered       |                 |             |
+|                               | z levels        |                 |             |
++-------------------------------+-----------------+-----------------+-------------+
+
+.. _notes-3:
+
+Notes
+-----
+
+- If both **erf.terrain_z_levels** and **erf.grid_stretching_ratio** are
+  specified, the simple grid stretching will be ignored.
+- The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
+  the z direction + 1.
+
+.. _examples-of-usage-3:
+
+Examples of Usage
+-----------------
+
+-  **erf.grid_stretching_ratio** = 1.025
+
+-  | **erf.initial_dz** = 5.0
+   | the first cell center would be at z=2.5
+
+
 Regridding
 ==========
 
@@ -805,7 +860,7 @@ List of Parameters
 | **erf.use_terrain**         | use terrain-fitted |  true / false      | false      |
 |                             | coordinates?       |                    |            |
 +-----------------------------+--------------------+--------------------+------------+
-| **erf.terrain_type**        | static or moving?  |  0 / 1             | 0          |
+| **erf.terrain_type**        | static or moving?  |  Static / Moving   | Static     |
 +-----------------------------+--------------------+--------------------+------------+
 | **erf.terrain_smoothing**   | specify terrain    | 0,                 | 0          |
 |                             | following          | 1,                 |            |

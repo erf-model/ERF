@@ -30,7 +30,9 @@ import sys
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = [ 'sphinx.ext.mathjax']
+extensions = [
+    'sphinx.ext.mathjax',
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -134,7 +136,9 @@ html_theme = 'sphinx_rtd_theme'
 # html_theme_options = {}
 
 # Add any paths that contain custom themes here, relative to this directory.
-# html_theme_path = []
+# Add path to the RTD explicitly to robustify builds
+import sphinx_rtd_theme
+html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
@@ -324,6 +328,7 @@ linkcheck_ignore = [
     'https://link.springer.com/article/10.1007/BF00240838',
     'https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904',
     'https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98',
+    'https://doi.org/10.1029/RG020i004p00851'
 ]
 
 

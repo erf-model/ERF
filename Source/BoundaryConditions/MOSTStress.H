@@ -149,7 +149,7 @@ struct adiabatic_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -202,7 +202,7 @@ struct adiabatic_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -260,7 +260,7 @@ struct surface_flux
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -323,7 +323,7 @@ struct surface_flux_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -387,7 +387,7 @@ struct surface_flux_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -447,7 +447,7 @@ struct surface_temp
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -512,7 +512,7 @@ struct surface_temp_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -578,7 +578,7 @@ struct surface_temp_mod_charnock
 private:
     most_data mdata;
     similarity_funs sfuns;
-    amrex::Real tol = 1.0e-5;
+    const amrex::Real tol = 1.0e-5;
 };
 
 
@@ -587,9 +587,8 @@ private:
  */
 struct moeng_flux
 {
-    moeng_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    moeng_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -600,6 +599,7 @@ struct moeng_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -639,6 +639,7 @@ struct moeng_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eps);
 
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -649,7 +650,8 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = (theta-theta_mean)*wsp_mean;
         amrex::Real num2    = (theta_mean-theta_surf)*wsp;
-        amrex::Real moflux  = tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean);
+        amrex::Real moflux  = (std::abs(tstar) > eps) ?
+                              tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
@@ -663,6 +665,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -698,6 +701,7 @@ struct moeng_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real umean    = um_arr(i,j,zlo);
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
@@ -725,6 +729,7 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -760,6 +765,7 @@ struct moeng_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real vmean     = vm_arr(i,j,zlo);
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
@@ -781,7 +787,7 @@ struct moeng_flux
 
 private:
     int zlo;
-    amrex::Real dz;
+    const amrex::Real eps = 1e-16;
 };
 
 
@@ -790,9 +796,8 @@ private:
  */
 struct donelan_flux
 {
-    donelan_flux (int l_zlo,
-               amrex::Real l_dz)
-      :  zlo(l_zlo), dz(l_dz) {}
+    donelan_flux (int l_zlo)
+      :  zlo(l_zlo) {}
 
 
     AMREX_GPU_DEVICE
@@ -803,6 +808,7 @@ struct donelan_flux
                     const int& k,
                     const int& n,
                     const int& icomp,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -830,6 +836,7 @@ struct donelan_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -849,6 +856,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -884,6 +892,7 @@ struct donelan_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -915,6 +924,7 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const int& var_idx,
+                    const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -950,6 +960,7 @@ struct donelan_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -975,6 +986,6 @@ struct donelan_flux
 
 private:
     int zlo;
-    amrex::Real dz;
+    const amrex::Real eps = 1e-16;
 };
 #endif

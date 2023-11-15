@@ -20,6 +20,14 @@ enum struct ABLDriverType {
     None, PressureGradient, GeostrophicWind
 };
 
+enum struct CouplingType {
+    OneWay, TwoWay, Mixed
+};
+
+enum struct TerrainType {
+    Static, Moving
+};
+
 enum struct Coord {
     x, y, z
 };
@@ -37,6 +45,20 @@ struct SolverChoice {
         // Do we have terrain (or grid stretching)?
         pp.query("use_terrain", use_terrain);
 
+        pp.query("grid_stretching_ratio", grid_stretching_ratio);
+        if (grid_stretching_ratio != 0) {
+            AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= 1.),
+                                      "The grid stretching ratio must be greater than 1");
+        }
+        if (grid_stretching_ratio >= 1) {
+            if (!use_terrain) {
+                amrex::Print() << "Turning terrain on to enable grid stretching" << std::endl;
+                use_terrain = true;
+            }
+            pp.query("zsurface", zsurf);
+            pp.get("initial_dz", dz0);
+        }
+
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
@@ -47,11 +69,20 @@ struct SolverChoice {
         }
 
         // Is the terrain static or moving?
-        pp.query("terrain_type", terrain_type);
+        static std::string terrain_type_string = "Static";
+        pp.query("terrain_type",terrain_type_string);
+        if (terrain_type_string == "Moving" || terrain_type_string == "moving") {
+            terrain_type = TerrainType::Moving;
+        } else if (terrain_type_string == "Static" || terrain_type_string == "static") {
+            terrain_type = TerrainType::Static;
+        } else {
+            amrex::Abort("terrain_type can be either Moving/moving or Static/static");
+        }
 
         // Use lagged_delta_rt in the fast integrator?
         pp.query("use_lagged_delta_rt", use_lagged_delta_rt);
-        if (!use_lagged_delta_rt && !(terrain_type == 1)) {
+
+        if (!use_lagged_delta_rt && !(terrain_type == TerrainType::Moving)) {
             amrex::Error("Can't turn off lagged_delta_rt when terrain not moving");
         }
 
@@ -112,8 +143,14 @@ struct SolverChoice {
         for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_pressure_grad[i] = abl_pressure_grad_in[i];
 
         amrex::Vector<amrex::Real> abl_geo_forcing_in = {0.0, 0.0, 0.0};
-        pp.queryarr("abl_geo_forcing",abl_geo_forcing_in);
-        for(int i = 0; i < AMREX_SPACEDIM; ++i) abl_geo_forcing[i] = abl_geo_forcing_in[i];
+        if(pp.queryarr("abl_geo_forcing",abl_geo_forcing_in)) {
+            amrex::Print() << "Specified abl_geo_forcing: (";
+            for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+                abl_geo_forcing[i] = abl_geo_forcing_in[i];
+                amrex::Print() << abl_geo_forcing[i] << " ";
+            }
+            amrex::Print() << ")" << std::endl;
+        }
 
         if (use_coriolis)
         {
@@ -153,6 +190,19 @@ struct SolverChoice {
                 }
             }
         }
+
+        // Which type of refinement
+        static std::string coupling_type_string = "OneWay";
+        pp.query("coupling_type",coupling_type_string);
+        if (coupling_type_string == "TwoWay") {
+            coupling_type = CouplingType::TwoWay;
+        } else if (coupling_type_string == "OneWay") {
+            coupling_type = CouplingType::OneWay;
+        } else if (coupling_type_string == "Mixed") {
+            coupling_type = CouplingType::Mixed;
+        } else {
+            amrex::Abort("Dont know this coupling_type");
+        }
     }
 
     void display()
@@ -164,6 +214,20 @@ struct SolverChoice {
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
+
+        if (coupling_type == CouplingType::TwoWay) {
+            amrex::Print() << "Using two-way coupling " << std::endl;
+        } else if (coupling_type == CouplingType::OneWay) {
+            amrex::Print() << "Using one-way coupling " << std::endl;
+        } else if (coupling_type == CouplingType::Mixed) {
+            amrex::Print() << "Using   mixed coupling " << std::endl;
+        }
+
+        if (terrain_type == TerrainType::Static) {
+            amrex::Print() << "Using static terrain " << std::endl;
+        } else {
+            amrex::Print() << "Using moving terrain " << std::endl;
+        }
 
         if (abl_driver_type == ABLDriverType::None) {
             amrex::Print() << "ABL Driver Type: " << "None" << std::endl;
@@ -241,7 +305,6 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
 
     bool        use_terrain            = false;
-    int         terrain_type           = 0;
 #ifdef ERF_USE_MOISTURE
     int         buoyancy_type          = 2; // uses Tprime
 #else
@@ -266,6 +329,11 @@ struct SolverChoice {
     amrex::Real c_p = Cp_d; // specific heat at constant pressure for dry air [J/(kg-K)]
     amrex::Real rdOcp;
 
+    // Staggered z levels for vertical grid stretching
+    amrex::Real grid_stretching_ratio   = 0;
+    amrex::Real zsurf                   = 0.0;
+    amrex::Real dz0;
+
 #if defined(ERF_USE_WARM_NO_PRECIP)
     amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
 #endif
@@ -282,6 +350,9 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
+
+    CouplingType coupling_type;
+    TerrainType  terrain_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

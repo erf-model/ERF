@@ -8,7 +8,7 @@
 using namespace amrex;
 
 template<typename V, typename T>
-bool containerHasElement(const V& iterable, const T& query) {
+bool containerHasElement (const V& iterable, const T& query) {
     return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
 }
 
@@ -78,7 +78,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
 // set plotfile variable names
 Vector<std::string>
-ERF::PlotFileVarNames ( Vector<std::string> plot_var_names )
+ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
 {
     Vector<std::string> names;
 
@@ -541,6 +541,23 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                    derdat(i ,j ,k, mf_comp) = mf_m(i,j,0);
                 });
             }
+            mf_comp ++;
+        }
+
+        if (containerHasElement(plot_var_names, "Kmv")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "Kmh")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_h,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "Khv")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_v,mf_comp,1,0);
+            mf_comp ++;
+        }
+        if (containerHasElement(plot_var_names, "Khh")) {
+            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_h,mf_comp,1,0);
             mf_comp ++;
         }
 

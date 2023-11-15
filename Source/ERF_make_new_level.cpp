@@ -105,7 +105,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
 
-    if (solverChoice.use_terrain && solverChoice.terrain_type > 0) {
+    if (solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
         base_state_new[lev].define(ba,dm,3,1);
         base_state_new[lev].setVal(0.);
     }
@@ -114,7 +114,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
           detJ_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type > 0) {
+        if (solverChoice.terrain_type != TerrainType::Static) {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
@@ -126,7 +126,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         // We need this to be one greater than the ghost cells to handle levels > 0
         int ngrow = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 2;
         z_phys_nd[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
-        if (solverChoice.terrain_type > 0) {
+        if (solverChoice.terrain_type != TerrainType::Static) {
             z_phys_nd_new[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
             z_phys_nd_src[lev] = std::make_unique<MultiFab>(ba_nd,dm,1,IntVect(ngrow,ngrow,1));
         }
@@ -144,6 +144,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
                z_t_rk[lev] = nullptr;
     }
+
+    sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
+    lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
 
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
@@ -167,7 +170,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //                          since we may need to use the grid information before constructing
     //                          initial idealized data
     // ********************************************************************************************
-    if (init_type == "real") {
+    if ((init_type == "real") || (init_type == "metgrid")) {
 
         // If called from restart, the data structures for terrain-related quantities
         //    are built in the ReadCheckpoint routine.  Otherwise we build them here.
@@ -381,6 +384,10 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx1_lev[lev]->setVal(0.);
+        SFS_hfx2_lev[lev]->setVal(0.);
+        SFS_hfx3_lev[lev]->setVal(0.);
+        SFS_diss_lev[lev]->setVal(0.);
     } else {
       Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
       Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
@@ -392,6 +399,7 @@ ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
 
     if (l_use_kturb) {
       eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+      eddyDiffs_lev[lev]->setVal(0.0);
       if(l_use_ddorf) {
           SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
       } else {
@@ -409,7 +417,7 @@ ERF::update_terrain_arrays (int lev, Real time)
     if (solverChoice.use_terrain) {
         if (init_type != "real" && init_type != "metgrid") {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(geom[lev],*z_phys_nd[lev]);
+            init_terrain_grid(geom[lev],*z_phys_nd[lev],zlevels_stag);
         }
         if (lev>0 && (init_type == "real" || init_type == "metgrid")) {
             PhysBCFunctNoOp empty_bc;
@@ -429,7 +437,7 @@ ERF::update_terrain_arrays (int lev, Real time)
 }
 
 void
-ERF::initialize_integrator(int lev, MultiFab& cons_mf, MultiFab& vel_mf)
+ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 {
     const BoxArray& ba(cons_mf.boxArray());
     const DistributionMapping& dm(cons_mf.DistributionMap());

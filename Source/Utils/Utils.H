@@ -4,7 +4,6 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
-#include <AMReX_InterpFaceRegister.H>
 #include <DataStruct.H>
 #include <IndexDefines.H>
 #include <ABLMost.H>
@@ -68,7 +67,8 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void wrfbdy_compute_interior_ghost_rhs (const amrex::Real& bdy_time_interval,
+void wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
+                                        const amrex::Real& bdy_time_interval,
                                         const amrex::Real& start_bdy_time,
                                         const amrex::Real& time,
                                         const amrex::Real& delta_t,

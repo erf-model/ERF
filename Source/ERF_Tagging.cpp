@@ -57,7 +57,7 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
 */
 
 void
-ERF::refinement_criteria_setup()
+ERF::refinement_criteria_setup ()
 {
     if (max_level > 0)
     {

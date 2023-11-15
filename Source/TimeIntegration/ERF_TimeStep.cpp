@@ -34,9 +34,10 @@ ERF::timeStep (int lev, Real time, int iteration)
                 int old_finest = finest_level;
                 regrid(lev, time);
 
-                // NOTE: Def & Reg index lev backwards (so we add 1 here)
+                // NOTE: Define & Register index lev backwards (so we add 1 here)
                 // Redefine & register the ERFFillpatcher objects
-                if (coupling_type=="OneWay" && cf_width>0) {
+                if (solverChoice.coupling_type != CouplingType::TwoWay && cf_width > 0)
+                {
                     Define_ERFFillPatchers(lev+1);
                     Register_ERFFillPatchers(lev+1);
                     if (lev < max_level-1) {
@@ -84,11 +85,15 @@ ERF::timeStep (int lev, Real time, int iteration)
         // recursive call for next-finer level
         for (int i = 1; i <= nsubsteps[lev+1]; ++i)
         {
-            timeStep(lev+1, time+(i-1)*dt[lev+1], i);
+            Real strt_time_for_fine = time + (i-1)*dt[lev+1];
+            timeStep(lev+1, strt_time_for_fine, i);
         }
 
-        if (coupling_type == "TwoWay") {
-            AverageDownTo(lev); // average lev+1 down to lev
+        if (solverChoice.coupling_type == CouplingType::TwoWay ||
+            solverChoice.coupling_type == CouplingType::Mixed) {
+            int  scomp = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
+            int  ncomp = NVAR - scomp;
+            AverageDownTo(lev, scomp, ncomp); // average lev+1 down to lev
         }
     }
 }
