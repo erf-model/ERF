@@ -123,12 +123,13 @@ class MamConstituents {
      int nmodes = 3;
      std::vector<int> num_spec{6, 3, 3};
 
-     modes.names.reserve(nmodes);
-     modes.types.reserve(nmodes);
-     modes.comps.reserve(nmodes);
+     modes.nmodes = 3;
+     modes.names.resize(nmodes);
+     modes.types.resize(nmodes);
+     modes.comps.resize(nmodes);
 
      modes.comps[0].nspec = num_spec[0];
-     modes.names[0] = "mam3_mode" + std::to_string(0);
+     modes.names[0] = "mam3_mode_0";
      modes.types[0] = "accum";
 
      modes.comps[0].source_num_a = "N";
@@ -136,6 +137,7 @@ class MamConstituents {
      modes.comps[0].source_num_c = "N";
      modes.comps[0].camname_num_c = "num_c1";
 
+     modes.comps[0].type.resize(num_spec[0]);
      modes.comps[0].type[0] = "sulfate";
      modes.comps[0].type[1] = "p-organic";
      modes.comps[0].type[2] = "s-organic";
@@ -143,6 +145,7 @@ class MamConstituents {
      modes.comps[0].type[4] = "dust";
      modes.comps[0].type[5] = "seasalt";
 
+     modes.comps[0].props.resize(num_spec[0]);
      modes.comps[0].props[0] = "data/sulfate_rrtmg_c080918.nc";
      modes.comps[0].props[1] = "data/ocpho_rrtmg_c101112.nc";
      modes.comps[0].props[2] = "data/ocphi_rrtmg_c100508.nc";
@@ -151,7 +154,7 @@ class MamConstituents {
      modes.comps[0].props[5] = "data/ssam_rrtmg_c100508.nc";
 
      modes.comps[1].nspec = num_spec[1];
-     modes.names[1] = "mam3_mode" + std::to_string(1);
+     modes.names[1] = "mam3_mode_1";
      modes.types[1] = "aitken";
 
      modes.comps[1].source_num_a = "N";
@@ -159,16 +162,18 @@ class MamConstituents {
      modes.comps[1].source_num_c = "N";
      modes.comps[1].camname_num_c = "num_c2";
 
+     modes.comps[1].type.resize(num_spec[1]);
      modes.comps[1].type[0] = "sulfate";
      modes.comps[1].type[1] = "s-organic";
      modes.comps[1].type[2] = "seasalt";
 
+     modes.comps[1].props.resize(num_spec[1]);
      modes.comps[1].props[0] = "data/sulfate_rrtmg_c080918.nc";
      modes.comps[1].props[1] = "data/ocphi_rrtmg_c100508.nc";
      modes.comps[1].props[2] = "data/ssam_rrtmg_c100508.nc";
 
      modes.comps[2].nspec = num_spec[2];
-     modes.names[2] = "mam3_mode" + std::to_string(2);
+     modes.names[2] = "mam3_mode_2";
      modes.types[2] = "coarse";
 
      modes.comps[2].source_num_a = "N";
@@ -176,17 +181,19 @@ class MamConstituents {
      modes.comps[2].source_num_c = "N";
      modes.comps[2].camname_num_c = "num_c3";
 
-     modes.comps[1].type[0] = "dust";
-     modes.comps[1].type[1] = "seasalt";
-     modes.comps[1].type[2] = "sulfate";
+     modes.comps[2].type.resize(num_spec[2]);
+     modes.comps[2].type[0] = "dust";
+     modes.comps[2].type[1] = "seasalt";
+     modes.comps[2].type[2] = "sulfate";
 
+     modes.comps[2].props.resize(num_spec[2]);
      modes.comps[2].props[0] = "data/dust_aeronet_rrtmg_c141106.nc";
      modes.comps[2].props[1] = "data/ssam_rrtmg_c100508.nc";
      modes.comps[2].props[2] = "data/sulfate_rrtmg_c080918.nc";
 
-     gaslist.reserve(N_DIAG);
-     aerosollist.reserve(N_DIAG);
-     ma_list.reserve(N_DIAG);
+     gaslist.resize(N_DIAG);
+     aerosollist.resize(N_DIAG);
+     ma_list.resize(N_DIAG);
 
      // Set the list_id fields which distinquish the climate and diagnostic lists
      for(auto i = 0; i < N_DIAG; ++i) {
@@ -196,6 +203,7 @@ class MamConstituents {
      }
 
      gaslist[0].ngas = 8;
+     gaslist[0].gas.resize(gaslist[0].ngas);
      gaslist[0].gas[0].source = "A";
      gaslist[0].gas[1].source = "N";
      gaslist[0].gas[2].source = "N";
@@ -215,16 +223,20 @@ class MamConstituents {
      gaslist[0].gas[7].camname = "CFC12";
 
      ma_list[0].nmodes = 3;
+     ma_list[0].idx.resize(ma_list[0].nmodes);
      ma_list[0].idx[0] = 0;
      ma_list[0].idx[1] = 1;
      ma_list[0].idx[2] = 2;
 
-     ma_list[0].physprop_files.reserve(ma_list[0].nmodes);
-     ma_list[0].idx_props.reserve(ma_list[0].nmodes);
+     ma_list[0].physprop_files.resize(ma_list[0].nmodes);
+     ma_list[0].idx_props.resize(ma_list[0].nmodes);
 
+     ma_list[0].physprop_files.resize(ma_list[0].nmodes);
      ma_list[0].physprop_files[0] = "data/mam3_mode1_rrtmg_c110318.nc";
      ma_list[0].physprop_files[1] = "data/mam3_mode2_rrtmg_c110318.nc";
      ma_list[0].physprop_files[2] = "data/mam3_mode3_rrtmg_c110318.nc";
+
+     ma_list[0].idx_props.resize(ma_list[0].nmodes);
      ma_list[0].idx_props[0] = 78384393;
      ma_list[0].idx_props[1] = 8192;
      ma_list[0].idx_props[2] = 78384392;
@@ -237,8 +249,8 @@ class MamConstituents {
 
      // Add physprop files for the species from the mode definitions.
      for(auto i = 0; i < modes.nmodes; ++i) {
-         for(auto j = 0; j < modes.comps[i].nspec; ++j)
-           prop.physprop_accum_unique_files(modes.comps[i].props[j], "M");
+         for(auto j = 0; j < modes.comps[i].nspec; ++j) 
+           prop.physprop_accum_unique_files(modes.comps[i].props[j], "M"); 
      }
    }
 
@@ -472,7 +484,7 @@ class MamConstituents {
    return mode_idx;
  }
 
-  int rad_cnst_get_spec_idx(const int& list_idx, const int& mode_idx, const std::string& spec_type)
+ int rad_cnst_get_spec_idx(const int& list_idx, const int& mode_idx, const std::string& spec_type)
   {
     // if specie type not found return -1
     int spec_idx = -1;
@@ -500,9 +512,9 @@ class MamConstituents {
     return spec_idx;
   }
 
-  // Output the mass per layer, and total column burdens for gas and aerosol
-  // constituents in either the climate or diagnostic lists
-  void rad_cnst_out(int list_idx) {
+ // Output the mass per layer, and total column burdens for gas and aerosol
+ // constituents in either the climate or diagnostic lists
+ void rad_cnst_out(int list_idx) {
    int ncol;
    int idx;
    std::string name, cbname, source;
@@ -557,7 +569,7 @@ class MamConstituents {
 
 //      cb(:ncol) = sum(mass(:ncol,:),2)
    }
-  }
+ }
 
  // Return pointer to mass mixing ratio for the aerosol from the specified
  // climate or diagnostic list.
