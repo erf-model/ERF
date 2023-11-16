@@ -547,6 +547,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             stateContrib /= detJ(i,j,k);
 
             cell_rhs(i,j,k,qty_index) += stateContrib;
+
+            if (qty_index==RhoTheta_comp) hfx_z(i,j,k) = -0.5 * ( zflux(i, j, k, qty_index) + zflux(i, j, k+1, qty_index) );
         });
     }
 
