@@ -543,6 +543,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
 #if defined(ERF_USE_MOISTURE)
+    std::string moisture_model = "NullMoist";
     Microphysics micro;
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
 #endif

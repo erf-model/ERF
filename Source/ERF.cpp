@@ -967,6 +967,16 @@ ERF::ReadParameters ()
         pp.query("use_tracer_particles", use_tracer_particles);
 #endif
 
+#ifdef ERF_USE_MOISTURE
+        // What type of moisture model to use
+        pp.query("moisture_model", moisture_model);
+        if (moisture_model == "SAM") {
+            micro.SetModel<SAM>();
+        } else {
+            amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
+        }
+#endif
+
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
         {
