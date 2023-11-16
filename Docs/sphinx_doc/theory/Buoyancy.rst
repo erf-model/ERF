@@ -19,7 +19,7 @@ Density of the mixture
 The total density in a cell containing air, water vapor, liquid water and precipitates is given by
 
 .. math::
-    \rho &=& \frac{m}{V} = \frac{m_a + m_v + m_c + m_p}{V},
+    \rho = \frac{m}{V} = \frac{m_a + m_v + m_c + m_p}{V},
 
 where :math:`m_a` is the mass of dry air, :math:`m_v` is the mass of water vapor, :math:`m_c` is the mass of liquid water, and :math:`m_p` is the mass of precipitate.
 From the definitions of the mass mixing ratio (ratio of mass of a component to mass of dry air), we have for any component
