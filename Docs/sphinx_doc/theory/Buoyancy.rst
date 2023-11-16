@@ -7,10 +7,16 @@
 
 .. _Buoyancy:
 
-Density of the mixture
-========================
+Buoyancy
+=========
 
-The total density in a given cell is given by
+ERF has three options for how to define the buoyancy force.  Even in the absence of moisture these
+expressions are not equivalent.
+
+Density of the mixture
+-----------------------
+
+The total density in a cell containing air, water vapor, liquid water and precipitates is given by
 
 .. math::
     \rho = \frac{m}{V} = \frac{m_a + m_v + m_c + m_p}{V},
@@ -19,7 +25,7 @@ where :math:`m_a` is the mass of dry air, :math:`m_v` is the mass of water vapor
 From the definitions of the mass mixing ratio (ratio of mass of a component to mass of dry air), we have for any component
 
 .. math::
-    q_i \equiv = \frac{m_i}{m_a}.
+    q_i \equiv \frac{m_i}{m_a}.
 
 Using this we can write
 
@@ -29,12 +35,6 @@ Using this we can write
 
 where :math:`\rho_d \equiv \cfrac{m_a}{V}` is the density of dry air.
 
-
-Buoyancy
-=========
-
-ERF has three options for how to define the buoyancy force.  Even in the absence of moisture these
-expressions are not equivalent.
 
 Type 1
 ------
@@ -47,8 +47,10 @@ One version of the buoyancy force is expressed simply as
 .. math::
      \rho^\prime = \rho_{total} - \rho_0
 
-where the full density :math:`\rho_{total}` is the sum of dry and moist components and :math:`\rho_0` is the base state density
-for dry air only.
+where the total density :math:`\rho_{total} = \rho_d(1 + q_v + q_c + q_p)` is the sum of dry and moist components and :math:`\rho_0` is the total density
+for the background state. For eg., a usual scenario is that of a background state that contains only air and vapor and no cloud water or precipitates. For such a state,
+the total background density :math:`\rho_0 = \rho_{d_0}(1 + q_{v_0})`, where :math:`\rho_{d_0}` and :math:`q_{v_0}` are the background dry density and vapor mixing ratio respectively.
+As a check, we observe that :math:`\rho^\prime_0 = 0`, which means that the background state is not buoyant.
 
 Type 2
 ------
