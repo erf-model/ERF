@@ -49,7 +49,7 @@ namespace MicVar {
 //
 // use MultiFab for 3D data, but table for 1D data
 //
-class SAM {
+class SAM : public NullMoist {
 
  using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
@@ -59,19 +59,6 @@ class SAM {
 
   // destructor
   virtual ~SAM () = default;
-
-  // Set up for first time
-  virtual void
-  define (SolverChoice& sc)
-  {
-      docloud = sc.do_cloud;
-      doprecip = sc.do_precip;
-      m_fac_cond = lcond / sc.c_p;
-      m_fac_fus = lfus / sc.c_p;
-      m_fac_sub = lsub / sc.c_p;
-      m_gOcp = CONST_GRAV / sc.c_p;
-      m_axis = sc.ave_plane;
-  }
 
   // cloud physics
   void Cloud ();
@@ -94,22 +81,35 @@ class SAM {
   // process microphysics
   void Proc ();
 
+  // Set up for first time
+  void
+  define (SolverChoice& sc) override
+  {
+      docloud = sc.do_cloud;
+      doprecip = sc.do_precip;
+      m_fac_cond = lcond / sc.c_p;
+      m_fac_fus = lfus / sc.c_p;
+      m_fac_sub = lsub / sc.c_p;
+      m_gOcp = CONST_GRAV / sc.c_p;
+      m_axis = sc.ave_plane;
+  }
+
   // init
-  virtual void
+  void
   Init (const amrex::MultiFab& cons_in,
               amrex::MultiFab& qmoist,
         const amrex::BoxArray& grids,
         const amrex::Geometry& geom,
-        const amrex::Real& dt_advance);
+        const amrex::Real& dt_advance) override;
 
   // update ERF variables
-  virtual void
+  void
   Update (amrex::MultiFab& cons_in,
-          amrex::MultiFab& qmoist);
+          amrex::MultiFab& qmoist) override;
 
   // wrapper to do all the updating
-  virtual void
-  Advance ( )
+  void
+  Advance ( ) override
   {
       this->Cloud();
       this->Diagnose();

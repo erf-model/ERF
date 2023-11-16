@@ -971,11 +971,10 @@ ERF::ReadParameters ()
         // What type of moisture model to use
         pp.query("moisture_model", moisture_model);
         if (moisture_model == "SAM") {
-            SAM T;
-            micro.SetModel(T);
+            micro.SetModel<SAM>();
+        } else {
+            amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
         }
-
-        //micro.SetModel(moisture_model);
 #endif
 
         // If this is set, it must be even
