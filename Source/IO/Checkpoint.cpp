@@ -173,9 +173,7 @@ ERF::WriteCheckpointFile () const
    }
 
 #ifdef ERF_USE_PARTICLES
-   if (use_tracer_particles) {
-       tracer_particles->Checkpoint(checkpointname, "tracers", true, tracer_particle_varnames);
-   }
+   particleData.Checkpoint(checkpointname);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -378,11 +376,7 @@ ERF::ReadCheckpointFile ()
     }
 
 #ifdef ERF_USE_PARTICLES
-   if (use_tracer_particles) {
-       tracer_particles = std::make_unique<TerrainFittedPC>(Geom(0), dmap[0], grids[0]);
-       std::string tracer_file("tracers");
-       tracer_particles->Restart(restart_chkfile, tracer_file);
-   }
+   particleData.Restart(restart_chkfile);
 #endif
 
 #ifdef ERF_USE_NETCDF

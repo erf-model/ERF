@@ -1,9 +1,9 @@
-#ifndef TERRAIN_FITTED_PC_H_
-#define TERRAIN_FITTED_PC_H_
+#ifndef TRACER_PC_H_
+#define TRACER_PC_H_
 
 #include <AMReX_Particles.H>
 
-struct RealIdx
+struct TracerRealIdx
 {
     enum {
         vx = 0,
@@ -12,7 +12,7 @@ struct RealIdx
     };
 };
 
-struct IntIdx
+struct TracerIntIdx
 {
     enum {
         k = 0,
@@ -20,9 +20,8 @@ struct IntIdx
     };
 };
 
-struct TerrainFittedAssignor
+struct TracerAssignor
 {
-
     template <typename P>
     AMREX_GPU_HOST_DEVICE
     amrex::IntVect operator() (P const& p,
@@ -40,23 +39,23 @@ struct TerrainFittedAssignor
     }
 };
 
-class TerrainFittedPC
-    : public amrex::ParticleContainer<RealIdx::ncomps, IntIdx::ncomps, 0, 0,
-                                      amrex::DefaultAllocator, TerrainFittedAssignor>
+class TracerPC
+    : public amrex::ParticleContainer<TracerRealIdx::ncomps, TracerIntIdx::ncomps, 0, 0,
+                                      amrex::DefaultAllocator, TracerAssignor>
 {
 
 public:
 
-    TerrainFittedPC (amrex::ParGDBBase* gdb)
-        : amrex::ParticleContainer<RealIdx::ncomps, IntIdx::ncomps, 0, 0,
-                                   amrex::DefaultAllocator, TerrainFittedAssignor>(gdb)
+    TracerPC (amrex::ParGDBBase* gdb)
+        : amrex::ParticleContainer<TracerRealIdx::ncomps, TracerIntIdx::ncomps, 0, 0,
+                                   amrex::DefaultAllocator, TracerAssignor>(gdb)
         {}
 
-    TerrainFittedPC (const amrex::Geometry            & geom,
-                     const amrex::DistributionMapping & dmap,
-                     const amrex::BoxArray            & ba)
-        : amrex::ParticleContainer<RealIdx::ncomps, IntIdx::ncomps, 0, 0,
-                                   amrex::DefaultAllocator, TerrainFittedAssignor>(geom, dmap, ba)
+    TracerPC (const amrex::Geometry            & geom,
+              const amrex::DistributionMapping & dmap,
+              const amrex::BoxArray            & ba)
+        : amrex::ParticleContainer<TracerRealIdx::ncomps, TracerIntIdx::ncomps, 0, 0,
+                                   amrex::DefaultAllocator, TracerAssignor>(geom, dmap, ba)
         {}
 
     void InitParticles (const amrex::MultiFab& a_z_height);

@@ -1,14 +1,14 @@
-#include "TerrainFittedPC.H"
+#include "TracerPC.H"
 
 #include <AMReX_TracerParticle_mod_K.H>
 
 using namespace amrex;
 
 void
-TerrainFittedPC::
+TracerPC::
 InitParticles (const MultiFab& a_z_height)
 {
-    BL_PROFILE("TerrainFittedPC::InitParticles");
+    BL_PROFILE("TracerPC::InitParticles");
 
     const int lev = 0;
     const Real* dx = Geom(lev).CellSize();
@@ -49,11 +49,11 @@ InitParticles (const MultiFab& a_z_height)
                 p.pos(1) = y;
                 p.pos(2) = z;
 
-                p.rdata(RealIdx::vx) = v[0];
-                p.rdata(RealIdx::vy) = v[1];
-                p.rdata(RealIdx::vz) = v[2];
+                p.rdata(TracerRealIdx::vx) = v[0];
+                p.rdata(TracerRealIdx::vy) = v[1];
+                p.rdata(TracerRealIdx::vz) = v[2];
 
-                p.idata(IntIdx::k) = iv[2];  // particles carry their z-index
+                p.idata(TracerIntIdx::k) = iv[2];  // particles carry their z-index
 
                 host_particles.push_back(p);
            }
@@ -76,9 +76,9 @@ InitParticles (const MultiFab& a_z_height)
   /brief Uses midpoint method to advance particles using umac.
 */
 void
-TerrainFittedPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_height)
+TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_height)
 {
-    BL_PROFILE("TerrainFittedPC::AdvectWithUmac()");
+    BL_PROFILE("TracerPC::AdvectWithUmac()");
     AMREX_ASSERT(OK(lev, lev, umac[0].nGrow()-1));
     AMREX_ASSERT(lev >= 0 && lev < GetParticles().size());
 
