@@ -249,8 +249,8 @@ class MamConstituents {
 
      // Add physprop files for the species from the mode definitions.
      for(auto i = 0; i < modes.nmodes; ++i) {
-         for(auto j = 0; j < modes.comps[i].nspec; ++j) 
-           prop.physprop_accum_unique_files(modes.comps[i].props[j], "M"); 
+         for(auto j = 0; j < modes.comps[i].nspec; ++j)
+           prop.physprop_accum_unique_files(modes.comps[i].props[j], "M");
      }
    }
 
