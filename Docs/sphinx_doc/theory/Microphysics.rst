@@ -24,7 +24,7 @@ Governing equations for the microphysical quantities for Kessler microphysics fr
 where :math:`C_c` is the rate of condensation of water vapor to cloud water, :math:`E_c` is the rate of evaporation of cloud water to water vapor,
 :math:`A_c` is the autoconversion of cloud water to rain, :math:`K_c` is the accretion of cloud water to rain drops, :math:`E_r` is the evaporation of
 rain to water vapor and :math:`F_r` is the sedimentation of rain. The parametrization used is given in `klemp1978simulation`_, and is given
-below. Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm:math:`^{-3}`.
+below. Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`.
 
 .. _`gabervsek2012dry`: https://journals.ametsoc.org/view/journals/mwre/140/10/mwr-d-11-00144.1.xml
 .. _`klemp1978simulation`: https://journals.ametsoc.org/view/journals/atsc/35/6/1520-0469_1978_035_1070_tsotdc_2_0_co_2.xml
