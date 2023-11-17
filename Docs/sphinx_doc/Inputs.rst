@@ -899,6 +899,8 @@ List of Parameters
 | Parameter                   | Definition               | Acceptable         | Default    |
 |                             |                          | Values             |            |
 +=============================+==========================+====================+============+
+| **erf.moisture_model**      | Name of moisture model   |  "SAM", "Kessler"  | "Null"     |
++-----------------------------+--------------------------+--------------------+------------+
 | **erf.do_cloud**            | use basic moisture model |  true / false      | true       |
 +-----------------------------+--------------------------+--------------------+------------+
 | **erf.do_precip**           | include precipitation    |  true / false      | true       |
