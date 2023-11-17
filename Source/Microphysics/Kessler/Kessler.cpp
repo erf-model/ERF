@@ -11,7 +11,7 @@ using namespace amrex;
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void Microphysics::Kessler() {
+void Kessler::Kessler() {
 
   Real powr1 = (3.0 + b_rain) / 4.0;
   Real powr2 = (5.0 + b_rain) / 8.0;

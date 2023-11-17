@@ -10,7 +10,7 @@
  * @param[out] cons Conserved variables
  * @param[out] qmoist: qv, qc, qi, qr, qs, qg
  */
-void SAM::Update (amrex::MultiFab& cons,
+void Kessler::Update (amrex::MultiFab& cons,
                   amrex::MultiFab& qmoist)
 {
   // copy multifab data to qc, qv, and qi

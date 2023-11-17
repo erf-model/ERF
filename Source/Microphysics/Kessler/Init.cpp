@@ -19,7 +19,7 @@ using namespace amrex;
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
-void SAM::Init (const MultiFab& cons_in, MultiFab& qmoist,
+void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
                 const BoxArray& grids,
                 const Geometry& geom,
                 const Real& dt_advance)

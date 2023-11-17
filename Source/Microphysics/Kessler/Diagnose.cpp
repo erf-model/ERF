@@ -4,7 +4,7 @@
  * Computes diagnostic quantities like cloud ice/liquid and precipitation ice/liquid
  * from the existing Microphysics variables.
  */
-void SAM::Diagnose () {
+void Kessler::Diagnose () {
 
   auto qt   = mic_fab_vars[MicVar::qt];
   auto qp   = mic_fab_vars[MicVar::qp];
@@ -39,21 +39,4 @@ void SAM::Diagnose () {
        qpi_array(i,j,k) = qp_array(i,j,k)*(1.0-omp);
      });
   }
-}
-
-/**
- * Wrapper for the PrecipFall, Cloud, Precipitation, and Diagnostics routines.
- */
-void SAM::Proc () {
-
-    MicroPrecipFall();
-
-    if (docloud) {
-        Cloud();
-        if (doprecip) {
-            Precip();
-        }
-    }
-
-    Diagnose();
 }
