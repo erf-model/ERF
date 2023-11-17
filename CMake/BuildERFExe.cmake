@@ -59,13 +59,13 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MOISTURE)
     target_sources(${erf_lib_name} PRIVATE
-       ${SRC_DIR}/Microphysics/Init.cpp
-       ${SRC_DIR}/Microphysics/Cloud.cpp
-       ${SRC_DIR}/Microphysics/IceFall.cpp
-       ${SRC_DIR}/Microphysics/Precip.cpp
-       ${SRC_DIR}/Microphysics/PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/Diagnose.cpp
-       ${SRC_DIR}/Microphysics/Update.cpp)
+       ${SRC_DIR}/Microphysics/SAM/Init.cpp
+       ${SRC_DIR}/Microphysics/SAM/Cloud.cpp
+       ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/Precip.cpp
+       ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/Diagnose.cpp
+       ${SRC_DIR}/Microphysics/SAM/Update.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
@@ -185,6 +185,8 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_MOISTURE)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   endif()
 
   if(ERF_ENABLE_RRTMGP)

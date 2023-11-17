@@ -289,9 +289,8 @@ void Radiation::run() {
      }
 
      for (auto icall = ngas /*N_DIAG*/; icall > 0; --icall) {
-//      if (active_calls(icall)) {
         // Get gas concentrations
-       get_gas_vmr(active_gases, gas_vmr);
+        get_gas_vmr(active_gases, gas_vmr);
 
         // Get aerosol optics
         if (do_aerosol_rad) {

@@ -53,6 +53,8 @@ erf.use_gravity = true
 erf.use_terrain = true
 erf.use_terrain = false
 
+erf.moisture_model = "SAM"
+
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
 erf.dynamicViscosity = 5.0

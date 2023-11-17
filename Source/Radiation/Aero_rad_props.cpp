@@ -87,6 +87,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
    // This is done to avoid having optional arguments in modal_aero_sw call
    yakl::memset(trop_level, 10000000);
 
+   // I was thinking whether we have to include volcanic effects on radiation?
    if (is_cmip6_volc) {
       // get extinction so as to supply to modal_aero_sw routine for computing EXTINCT variable
       // converting it from 1/km to 1/m
@@ -123,6 +124,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
          amrex::Print() << "aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found";
       }
    }
+
 
    // get number of bulk aerosols and number of modes in current list
    mam_consti.get_nmodes(list_idx, nmodes);
@@ -174,7 +176,6 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
         real2d h_ext("h_ext", ncol, nlev);
         real2d h_ssa("h_ssa", ncol, nlev);
         real2d h_asm("h_asm", ncol, nlev);
-//         rad_cnst_get_aer_props(list_idx, iaerosol, sw_hygro_ext=h_ext, sw_hygro_ssa=h_ssa, sw_hygro_asm=h_asm);
         mam_consti.get_aer_sw_hygro_ext(list_idx, iaerosol, h_ext);
         mam_consti.get_aer_sw_hygro_ssa(list_idx, iaerosol, h_ssa);
         mam_consti.get_aer_sw_hygro_asm(list_idx, iaerosol, h_asm);
@@ -191,7 +192,6 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
           real1d n_ext("n_ext", ncol);
           real1d n_ssa("n_ssa", ncol);
           real1d n_asm("n_asm", ncol);
-//         rad_cnst_get_aer_props(list_idx, iaerosol, sw_nonhygro_ext=n_ext, sw_nonhygro_ssa=n_ssa, sw_nonhygro_asm=n_asm)
           mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaerosol, n_ext);
           mam_consti.get_aer_sw_nonhygro_ssa(list_idx, iaerosol, n_ssa);
           mam_consti.get_aer_sw_nonhygro_asm(list_idx, iaerosol, n_asm);
@@ -207,24 +207,22 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx,
           real1d n_ext("n_ext", ncol);
           real1d n_scat("n_scat", ncol);
           real1d n_ascat("n_ascat", ncol);
-//         rad_cnst_get_aer_props(list_idx, iaerosol, sw_nonhygro_ext=n_ext, sw_nonhygro_scat=n_scat, sw_nonhygro_ascat=n_ascat)
           mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaerosol, n_ext);
           mam_consti.get_aer_sw_nonhygro_scat(list_idx, iaerosol, n_scat);
           mam_consti.get_aer_sw_nonhygro_ascat(list_idx, iaerosol, n_ascat);
           get_volcanic_rad_props(ncol, aermass, n_ext, n_scat, n_ascat, ta, tw, twg, twf);
-        yakl::c::parallel_for(yakl::c::Bounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
-           tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
-           tau_w  (icol,ilev,isw) = tau_w  (icol,ilev,isw) + tw (icol,ilev,isw);
-           tau_w_g(icol,ilev,isw) = tau_w_g(icol,ilev,isw) + twg(icol,ilev,isw);
-           tau_w_f(icol,ilev,isw) = tau_w_f(icol,ilev,isw) + twf(icol,ilev,isw);
-        });
+          yakl::c::parallel_for(yakl::c::Bounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
+             tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
+             tau_w  (icol,ilev,isw) = tau_w  (icol,ilev,isw) + tw (icol,ilev,isw);
+             tau_w_g(icol,ilev,isw) = tau_w_g(icol,ilev,isw) + twg(icol,ilev,isw);
+             tau_w_f(icol,ilev,isw) = tau_w_f(icol,ilev,isw) + twf(icol,ilev,isw);
+         });
       } else if (opticstype == "volcanic_radius") {
          // get optical properties for volcanic aerosols
          real2d r_ext("r_ext",ncol,nlev);
          real2d r_scat("r_scat",ncol,nlev);
          real2d r_ascat("r_ascat",ncol,nlev);
          real1d r_mu("r_mu", ncol);
-//         rad_cnst_get_aer_props(list_idx, iaerosol, r_sw_ext=r_ext, r_sw_scat=r_scat, r_sw_ascat=r_ascat, mu=r_mu)
          mam_consti.get_aer_r_sw_ext(list_idx, iaerosol, r_ext);
          mam_consti.get_aer_r_sw_scat(list_idx, iaerosol, r_scat);
          mam_consti.get_aer_r_sw_ascat(list_idx, iaerosol, r_ascat);
@@ -311,7 +309,6 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
    const real km_inv_to_m_inv = 0.001;
 
    // get number of bulk aerosols and number of modes in current list
-//   mam_consti.rad_cnst_get_info(list_idx, numaerosols, nmodes);
    mam_consti.get_nmodes(list_idx, nmodes);
    mam_consti.get_naero(list_idx, numaerosols);
 
@@ -406,7 +403,6 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
 
       // get aerosol mass mixing ratio
 //      mam_consti.rad_cnst_get_aer_mmr(list_idx, iaerosol, aermmr);
-
       yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
          if (ilev < top_lev) {
             aermass(icol,ilev) = 0.;
@@ -434,7 +430,6 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
          });
       } else if (opticstype == "volcanic_radius") {
          // get optical properties for hygroscopic aerosols
-//         mam_consti.rad_cnst_get_aer_props(list_idx, iaerosol, r_lw_abs=r_lw_abs, mu=r_mu);
           mam_consti.get_aer_r_lw_abs(list_idx, iaerosol, r_lw_abs);
           mam_consti.get_aer_mu(list_idx, iaerosol, r_mu);
          // get microphysical properties for volcanic aerosols
