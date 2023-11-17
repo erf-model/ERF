@@ -12,7 +12,7 @@ using namespace amrex;
  *
  * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
  */
-void Microphysics::PrecipFall(int hydro_type) {
+void SAM::PrecipFall(int hydro_type) {
 
   Real constexpr eps = 1.e-10;
   bool constexpr nonos = true;
@@ -291,7 +291,7 @@ void Microphysics::PrecipFall(int hydro_type) {
 /**
  * Wrapper for PrecipFall which computes the temporary variable Omega, needed by the precipitation advection scheme.
  */
-void Microphysics::MicroPrecipFall() {
+void SAM::MicroPrecipFall() {
 
   for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto omega_array = mic_fab_vars[MicVar::omega]->array(mfi);
