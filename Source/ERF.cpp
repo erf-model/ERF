@@ -27,7 +27,9 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
+#ifdef ERF_USE_MULTIBLOCK
 ParticleData ERF::particleData;
+#endif
 
 // Time step control
 amrex::Real ERF::cfl           =  0.8;
