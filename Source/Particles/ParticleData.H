@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 
+#include <IndexDefines.H>
 #include <AMReX_Particles.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -29,24 +30,35 @@ struct ParticleData {
         pp.query("use_hydro_particles", use_hydro_particles);
     }
 
-    void init_particles(std::unique_ptr<amrex::ParGDBBase> a_gdb, amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd)
+    void init_particles(amrex::ParGDBBase* a_gdb, const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+
     {
         // Initialize tracer particles
         if (use_tracer_particles) {
             tracer_particles = std::make_unique<TracerPC>(a_gdb);
-            tracer_particles->InitParticles(*z_phys_nd[0]);
+            if (z_phys_nd[0] != nullptr) {
+                tracer_particles->InitParticles(*z_phys_nd[0]);
+            } else {
+                tracer_particles->InitParticles();
+            }
+            tracer_particles->Redistribute();
             amrex::Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
         }
 
         // Initialize tracer particles
         if (use_hydro_particles) {
             hydro_particles = std::make_unique<HydroPC>(a_gdb);
-            hydro_particles->InitParticles(*z_phys_nd[0]);
+            if (z_phys_nd[0] != nullptr) {
+                hydro_particles->InitParticles(*z_phys_nd[0]);
+            } else {
+                hydro_particles->InitParticles();
+            }
+            hydro_particles->Redistribute();
             amrex::Print() << "Initialized " << hydro_particles->TotalNumberOfParticles() << " hydro particles." << std::endl;
         }
     }
 
-    void Checkpoint(std::string& filename )
+    void Checkpoint(const std::string& filename)
     {
         if (use_tracer_particles) {
             tracer_particles->Checkpoint(filename, "tracer_particles", true, tracer_particle_varnames);
@@ -69,6 +81,43 @@ struct ParticleData {
             hydro_particles = std::make_unique<HydroPC>(a_gdb);
             std::string hydro_file("hydro_particles");
             hydro_particles->Restart(restart_file, hydro_file);
+        }
+    }
+
+    void advance_particles(int lev, amrex::Real dt_lev,       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
+                                                        const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
+    {
+        // Update tracer particles
+        if (use_tracer_particles) {
+            amrex::MultiFab* mac_vel = &vars_new[lev][Vars::xvel];
+            bool use_terrain = (z_phys_nd[lev] != nullptr);
+            if (use_terrain) {
+                tracer_particles->AdvectWithUmac(mac_vel, lev, dt_lev, use_terrain, *z_phys_nd[lev]);
+            } else {
+                amrex::MultiFab dummy;
+                tracer_particles->AdvectWithUmac(mac_vel, lev, dt_lev, use_terrain, dummy);
+            }
+        }
+
+        // Update  hydro particles
+        if (use_hydro_particles) {
+            bool use_terrain = (z_phys_nd[lev] != nullptr);
+            if (use_terrain) {
+                hydro_particles->AdvectWithGravity(lev, dt_lev, use_terrain, *z_phys_nd[lev]);
+            } else {
+                amrex::MultiFab dummy;
+                hydro_particles->AdvectWithGravity(lev, dt_lev, use_terrain, dummy);
+            }
+        }
+    }
+
+    void Redistribute()
+    {
+        if (use_tracer_particles) {
+            tracer_particles->Redistribute();
+        }
+        if (use_hydro_particles) {
+            hydro_particles->Redistribute();
         }
     }
 

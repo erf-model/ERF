@@ -134,6 +134,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 #endif
 
 #ifdef ERF_USE_PARTICLES
-    advance_particles(lev, dt_lev);
+    particleData.advance_particles(lev, dt_lev, vars_new, z_phys_nd);
 #endif
 }

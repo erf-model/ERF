@@ -316,11 +316,6 @@ public:
                            int ncomp_cons = NVAR);
 #endif
 
-#ifdef ERF_USE_PARTICLES
-    void    init_particles ();
-    void advance_particles (int lev, amrex::Real dt_lev);
-#endif
-
 #ifdef ERF_USE_NETCDF
     void init_from_wrfinput (int lev);
     void init_from_metgrid (int lev);
@@ -687,7 +682,7 @@ private:
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
 #ifdef ERF_USE_PARTICLES
-                                                    ,"particle_count"
+                                                    ,"tracer_particle_count", "hydro_particle_count"
 #endif
                                                    };
 

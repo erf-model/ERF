@@ -7,6 +7,60 @@ using namespace amrex;
 
 void
 HydroPC::
+InitParticles ()
+{
+    BL_PROFILE("HydroPC::InitParticles");
+
+    const int lev = 0;
+    const Real* dx = Geom(lev).CellSize();
+    const Real* plo = Geom(lev).ProbLo();
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
+    {
+        const Box& tile_box  = mfi.tilebox();
+
+        Gpu::HostVector<ParticleType> host_particles;
+        for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
+            if (iv[2] == 23) { // This is a random choice to put them above the ground and let them fall
+                Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
+                Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
+
+                Real x = plo[0] + (iv[0] + r[0])*dx[0];
+                Real y = plo[1] + (iv[1] + r[1])*dx[1];
+                Real z = plo[2] + (iv[2] + r[2])*dx[2];
+
+                ParticleType p;
+                p.id()  = ParticleType::NextID();
+                p.cpu() = ParallelDescriptor::MyProc();
+                p.pos(0) = x;
+                p.pos(1) = y;
+                p.pos(2) = z;
+
+                p.rdata(HydroRealIdx::vx) = v[0];
+                p.rdata(HydroRealIdx::vy) = v[1];
+                p.rdata(HydroRealIdx::vz) = v[2];
+
+                p.idata(HydroIntIdx::k) = iv[2];  // particles carry their z-index
+
+                host_particles.push_back(p);
+           }
+        }
+
+        auto& particles = GetParticles(lev);
+        auto& particle_tile = particles[std::make_pair(mfi.index(), mfi.LocalTileIndex())];
+        auto old_size = particle_tile.GetArrayOfStructs().size();
+        auto new_size = old_size + host_particles.size();
+        particle_tile.resize(new_size);
+
+        Gpu::copy(Gpu::hostToDevice,
+                  host_particles.begin(),
+                  host_particles.end(),
+                  particle_tile.GetArrayOfStructs().begin() + old_size);
+    }
+}
+
+void
+HydroPC::
 InitParticles (const MultiFab& a_z_height)
 {
     BL_PROFILE("HydroPC::InitParticles");
@@ -77,7 +131,7 @@ InitParticles (const MultiFab& a_z_height)
   /brief Uses midpoint method to advance particles using umac.
 */
 void
-HydroPC::AdvectWithGravity (int lev, Real dt, const MultiFab& a_z_height)
+HydroPC::AdvectWithGravity (int lev, Real dt, bool use_terrain, const MultiFab& a_z_height)
 {
     BL_PROFILE("HydroPC::AdvectWithGravity()");
     AMREX_ASSERT(lev >= 0 && lev < GetParticles().size());
@@ -86,6 +140,7 @@ HydroPC::AdvectWithGravity (int lev, Real dt, const MultiFab& a_z_height)
     const Geometry& geom = m_gdb->Geom(lev);
     const Box& domain = geom.Domain();
     const auto plo = geom.ProbLoArray();
+    const auto dx  = geom.CellSizeArray();
     const auto dxi = geom.InvCellSizeArray();
 
 #ifdef AMREX_USE_OMP
@@ -99,23 +154,31 @@ HydroPC::AdvectWithGravity (int lev, Real dt, const MultiFab& a_z_height)
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
 
-        const auto& zheight_fab = a_z_height[grid];
-        const auto zheight = zheight_fab.array();
+        auto zheight = use_terrain ? a_z_height[grid].array() : Array4<Real>{};
 
         amrex::ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
-            ParticleReal v[AMREX_SPACEDIM];
+
+            ParticleReal v = p.rdata(HydroRealIdx::vz);
+
+            // Define acceleration to be (gravity minus drag) where drag is defined
+            // such the particles will reach a terminal velocity of 5.0 (totally arbitrary)
+            ParticleReal terminal_vel = 5.0;
+            ParticleReal grav = CONST_GRAV;
+            ParticleReal drag = CONST_GRAV * (v * v) / (terminal_vel*terminal_vel);
+
+            ParticleReal half_dt = 0.5 * dt;
 
             // Update the particle velocity over first half of step (dt/2)
-            p.rdata(HydroRealIdx::vz) += CONST_GRAV * ParticleReal(0.5)*dt;
+            p.rdata(HydroRealIdx::vz) -= (grav - drag) * half_dt;
 
             // Update the particle position over (dt)
-            p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*dt*p.rdata(HydroRealIdx::vz));
+            p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*dt*p.rdata(HydroRealIdx::vz));
 
             // Update the particle velocity over second half of step (dt/2)
-            p.rdata(HydroRealIdx::vz) += CONST_GRAV * ParticleReal(0.5)*dt;
+            p.rdata(HydroRealIdx::vz) -= (grav - drag) * half_dt;
 
             // also update z-coordinate here
             IntVect iv(
@@ -124,8 +187,14 @@ HydroPC::AdvectWithGravity (int lev, Real dt, const MultiFab& a_z_height)
                              p.idata(0)));
             iv[0] += domain.smallEnd()[0];
             iv[1] += domain.smallEnd()[1];
-            auto zlo = zheight(iv[0], iv[1], iv[2]);
-            auto zhi = zheight(iv[0], iv[1], iv[2]+1);
+            ParticleReal zlo, zhi;
+            if (use_terrain) {
+                zlo = zheight(iv[0], iv[1], iv[2]);
+                zhi = zheight(iv[0], iv[1], iv[2]+1);
+            } else {
+                zlo =  iv[2]    * dx[2];
+                zhi = (iv[2]+1) * dx[2];
+            }
             if (p.pos(2) > zhi) { // need to be careful here
                 p.idata(0) += 1;
             } else if (p.pos(2) <= zlo) {

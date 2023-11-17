@@ -18,7 +18,6 @@ zlo.velocity    = 0.0 0.0 0.0  # for Dirichlet BC
 zhi.velocity    = 0.0 2.0 0.0  # for Dirichlet BC
 
 # TIME STEP CONTROL
-erf.use_lowM_dt     = 1
 erf.cfl             = 0.9
 
 # DIAGNOSTICS & VERBOSITY

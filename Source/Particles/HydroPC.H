@@ -53,15 +53,16 @@ public:
         {}
 
     HydroPC (const amrex::Geometry            & geom,
-              const amrex::DistributionMapping & dmap,
-              const amrex::BoxArray            & ba)
+             const amrex::DistributionMapping & dmap,
+             const amrex::BoxArray            & ba)
         : amrex::ParticleContainer<HydroRealIdx::ncomps, HydroIntIdx::ncomps, 0, 0,
                                    amrex::DefaultAllocator, HydroAssignor>(geom, dmap, ba)
         {}
 
+    void InitParticles ();
     void InitParticles (const amrex::MultiFab& a_z_height);
 
-    void AdvectWithGravity (int level, amrex::Real dt, const amrex::MultiFab& a_z_height);
+    void AdvectWithGravity (int level, amrex::Real dt, bool use_terrain, const amrex::MultiFab& a_z_height);
 };
 
 #endif

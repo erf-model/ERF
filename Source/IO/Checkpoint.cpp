@@ -376,7 +376,7 @@ ERF::ReadCheckpointFile ()
     }
 
 #ifdef ERF_USE_PARTICLES
-   particleData.Restart(restart_chkfile);
+   particleData.Restart((amrex::ParGDBBase*)GetParGDB(),restart_chkfile);
 #endif
 
 #ifdef ERF_USE_NETCDF

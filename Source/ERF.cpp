@@ -27,6 +27,7 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
+ParticleData ERF::particleData;
 
 // Time step control
 amrex::Real ERF::cfl           =  0.8;
@@ -534,9 +535,7 @@ ERF::InitData ()
         }
 
 #ifdef ERF_USE_PARTICLES
-        std::unique_ptr<ParGDBBase> m_gdb = std::make_unique<ParGDBBase>(this);
-        std::unique_ptr<AmrParGDB>  a_gdb = std::make_unique<AmrParGDB>(this);
-        init_particles(m_gdb,z_phys_nd);
+        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
 #endif
 
     } else { // Restart from a checkpoint
@@ -952,7 +951,7 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
 #ifdef ERF_USE_PARTICLES
-        particleData.init(m_gdb);
+        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
         particleData.init_particle_params();
 #endif
 

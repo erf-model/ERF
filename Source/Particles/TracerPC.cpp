@@ -6,6 +6,59 @@ using namespace amrex;
 
 void
 TracerPC::
+InitParticles ()
+{
+    BL_PROFILE("TracerPC::InitParticles");
+
+    const int lev = 0;
+    const Real* dx = Geom(lev).CellSize();
+    const Real* plo = Geom(lev).ProbLo();
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
+    {
+        const Box& tile_box  = mfi.tilebox();
+        Gpu::HostVector<ParticleType> host_particles;
+        for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
+            if (iv[0] == 3) {
+                Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
+                Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
+
+                Real x = plo[0] + (iv[0] + r[0])*dx[0];
+                Real y = plo[1] + (iv[1] + r[1])*dx[1];
+                Real z = plo[2] + (iv[2] + r[2])*dx[2];
+
+                ParticleType p;
+                p.id()  = ParticleType::NextID();
+                p.cpu() = ParallelDescriptor::MyProc();
+                p.pos(0) = x;
+                p.pos(1) = y;
+                p.pos(2) = z;
+
+                p.rdata(TracerRealIdx::vx) = v[0];
+                p.rdata(TracerRealIdx::vy) = v[1];
+                p.rdata(TracerRealIdx::vz) = v[2];
+
+                p.idata(TracerIntIdx::k) = iv[2];  // particles carry their z-index
+
+                host_particles.push_back(p);
+           }
+        }
+
+        auto& particles = GetParticles(lev);
+        auto& particle_tile = particles[std::make_pair(mfi.index(), mfi.LocalTileIndex())];
+        auto old_size = particle_tile.GetArrayOfStructs().size();
+        auto new_size = old_size + host_particles.size();
+        particle_tile.resize(new_size);
+
+        Gpu::copy(Gpu::hostToDevice,
+                  host_particles.begin(),
+                  host_particles.end(),
+                  particle_tile.GetArrayOfStructs().begin() + old_size);
+    }
+}
+
+void
+TracerPC::
 InitParticles (const MultiFab& a_z_height)
 {
     BL_PROFILE("TracerPC::InitParticles");
@@ -76,7 +129,7 @@ InitParticles (const MultiFab& a_z_height)
   /brief Uses midpoint method to advance particles using umac.
 */
 void
-TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_height)
+TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, bool use_terrain, MultiFab& a_z_height)
 {
     BL_PROFILE("TracerPC::AdvectWithUmac()");
     AMREX_ASSERT(OK(lev, lev, umac[0].nGrow()-1));
@@ -95,6 +148,7 @@ TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_
     const Box& domain = geom.Domain();
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+    const auto dx  = geom.CellSizeArray();
 
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
@@ -133,13 +187,13 @@ TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_
                                                                   &((*umac_pointer[1])[grid]),
                                                                   &((*umac_pointer[2])[grid])) };
 
-            const auto& zheight_fab = a_z_height[grid];
-            const auto zheight = zheight_fab.array();
             //array of these pointers to pass to the GPU
             amrex::GpuArray<amrex::Array4<const Real>, AMREX_SPACEDIM>
                 const umacarr {{AMREX_D_DECL((*fab[0]).array(),
                                              (*fab[1]).array(),
                                              (*fab[2]).array() )}};
+
+            auto zheight      = use_terrain ? a_z_height[grid].array() : Array4<Real>{};
 
             amrex::ParallelFor(n,
                                [=] AMREX_GPU_DEVICE (int i)
@@ -171,8 +225,14 @@ TracerPC::AdvectWithUmac (MultiFab* umac, int lev, Real dt, const MultiFab& a_z_
                                      p.idata(0)));
                     iv[0] += domain.smallEnd()[0];
                     iv[1] += domain.smallEnd()[1];
-                    auto zlo = zheight(iv[0], iv[1], iv[2]);
-                    auto zhi = zheight(iv[0], iv[1], iv[2]+1);
+                    ParticleReal zlo, zhi;
+                    if (use_terrain) {
+                        zlo = zheight(iv[0], iv[1], iv[2]);
+                        zhi = zheight(iv[0], iv[1], iv[2]+1);
+                    } else {
+                        zlo =  iv[2]    * dx[2];
+                        zhi = (iv[2]+1) * dx[2];
+                    }
                     if (p.pos(2) > zhi) { // need to be careful here
                         p.idata(0) += 1;
                     } else if (p.pos(2) <= zlo) {
