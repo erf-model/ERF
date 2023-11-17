@@ -690,8 +690,10 @@ private:
     // algorithm choices
     static SolverChoice solverChoice;
 
+#ifdef ERF_USE_PARTICLES
     // Particle info
     static ParticleData particleData;
+#endif
 
     static int verbose;
 
