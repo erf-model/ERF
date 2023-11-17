@@ -2,8 +2,12 @@
 #define MICROPHYSICS_H
 
 #include <NullMoist.H>
-#include <SAM.H>
-#include <Kessler.H>
+#ifdef ERF_USE_SAM
+	#include <SAM.H>
+#endif
+#ifdef ERF_USE_KESSLER
+	#include <Kessler.H>
+#endif
 
 class Microphysics {
 
