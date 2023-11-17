@@ -46,6 +46,7 @@ erf.use_rayleigh_damping = false # TODO: enable
 # PHYSICS OPTIONS
 erf.les_type        = "Deardorff"
 erf.pbl_type        = "None"
+erf.moisture_model  = "SAM"
 
 erf.molec_diff_type = "Constant"
 erf.rho0_trans      = 1.0 # [kg/m^3], used to convert input diffusivities
