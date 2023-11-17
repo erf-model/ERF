@@ -23,7 +23,6 @@ xlo.theta = 1.
 xlo.scalar = 0.
 
 # TIME STEP CONTROL
-erf.use_lowM_dt = 1
 erf.cfl = 0.9
 
 # DIAGNOSTICS & VERBOSITY

@@ -145,7 +145,7 @@ ERF::sum_integrated_quantities(Real time)
  * @param mf MultiFab from which we wish to sample data
  */
 void
-ERF::sample_points(int lev, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_points(int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
 

@@ -1,3 +1,6 @@
-CEXE_sources += TerrainFittedPC.cpp
+CEXE_sources += HydroPC.cpp
+CEXE_sources += TracerPC.cpp
 
-CEXE_headers += TerrainFittedPC.H
+CEXE_headers += ParticleData.H
+CEXE_headers += TracerPC.H
+CEXE_headers += HydroPC.H

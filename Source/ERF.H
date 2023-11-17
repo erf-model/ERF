@@ -27,7 +27,7 @@
 #endif
 
 #ifdef ERF_USE_PARTICLES
-#include "TerrainFittedPC.H"
+#include "ParticleData.H"
 #endif
 
 #include "prob_common.H"
@@ -64,10 +64,6 @@
 
 #ifdef ERF_USE_MULTIBLOCK
 class MultiBlockContainer;
-#endif
-
-#ifdef ERF_USE_PARTICLES
-typedef amrex::ParticleContainer<AMREX_SPACEDIM, 0, 0, 0> TracerPC;
 #endif
 
 /**
@@ -318,11 +314,6 @@ public:
                            bool cons_only = false,
                            int icomp_cons = 0,
                            int ncomp_cons = NVAR);
-#endif
-
-#ifdef ERF_USE_PARTICLES
-    std::unique_ptr<TerrainFittedPC> tracer_particles;
-    static amrex::Vector<std::string> tracer_particle_varnames;
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -692,17 +683,19 @@ private:
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
 #ifdef ERF_USE_PARTICLES
-                                                    ,"particle_count"
+                                                    ,"tracer_particle_count", "hydro_particle_count"
 #endif
                                                    };
 
     // algorithm choices
     static SolverChoice solverChoice;
 
-    static int verbose;
+#ifdef ERF_USE_PARTICLES
+    // Particle info
+    static ParticleData particleData;
+#endif
 
-    // flag to turn tracer particle generation on/off
-    static bool use_tracer_particles;
+    static int verbose;
 
     // Diagnostic output interval
     static int sum_interval;

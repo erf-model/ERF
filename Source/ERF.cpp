@@ -27,6 +27,9 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
+#ifdef ERF_USE_MULTIBLOCK
+ParticleData ERF::particleData;
+#endif
 
 // Time step control
 amrex::Real ERF::cfl           =  0.8;
@@ -35,12 +38,6 @@ amrex::Real ERF::fixed_fast_dt = -1.0;
 amrex::Real ERF::init_shrink   =  1.0;
 amrex::Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
-
-
-#ifdef ERF_USE_PARTICLES
-bool ERF::use_tracer_particles = false;
-amrex::Vector<std::string> ERF::tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
-#endif
 
 // Dictate verbosity in screen output
 int         ERF::verbose       = 0;
@@ -540,14 +537,7 @@ ERF::InitData ()
         }
 
 #ifdef ERF_USE_PARTICLES
-        // Initialize tracer particles if required
-        if (use_tracer_particles) {
-            tracer_particles = std::make_unique<TerrainFittedPC>(Geom(0), dmap[0], grids[0]);
-
-            tracer_particles->InitParticles(*z_phys_nd[0]);
-
-            Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
-        }
+        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
 #endif
 
     } else { // Restart from a checkpoint
@@ -963,8 +953,8 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
 #ifdef ERF_USE_PARTICLES
-        // Tracer particle toggle
-        pp.query("use_tracer_particles", use_tracer_particles);
+        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
+        particleData.init_particle_params();
 #endif
 
 #ifdef ERF_USE_MOISTURE
@@ -1124,6 +1114,10 @@ ERF::ReadParameters ()
 
 #ifdef ERF_USE_MULTIBLOCK
     solverChoice.pp_prefix = pp_prefix;
+#endif
+
+#ifdef ERF_USE_MULTIBLOCK
+    Particleinit_particle_params();
 #endif
 
     solverChoice.init_params(max_level);
