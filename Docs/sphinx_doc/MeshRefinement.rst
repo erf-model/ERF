@@ -131,27 +131,31 @@ ERF supports one-way, two-way, and "mixed" coupling between levels; this is a ru
       erf.coupling_type = "OneWay" or "TwoWay" or "Mixed"
 
 By one-way coupling, we mean that between each pair of refinement levels,
-the coarse mesh communicates data to the fine mesh to serve as boundary conditions
-for the time advance of the fine solution . For cell-centered quantities,
+the coarse level communicates data to the fine level to serve as boundary conditions
+for the time advance of the fine solution. For cell-centered quantities,
 and face-baced normal momenta on the coarse-fine interface, the coarse data is conservatively
-interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
-(outside of the valid fine region) as well as specified data inside the lateral boundaries
-of the fine region. More specifically, similarly to how the lateral boundaries are treated,
-a user may specify the total width of the interior Dirichlet and relaxation region with
+interpolated to the fine level.
+
+The interpolated data is utilized to specify ghost cell data (outside of the valid fine region)
+as well as specified data inside the lateral boundaries of the fine region.
+See :ref:`sec:LateralBoundaryConditions` for the details of how the relaxation works; when
+used in the context of mesh refinement we fill the specified values by interpolation from the
+coarser level rather than reading from the external file. For coarse/fine boundaries,
+a user may specify the total width of the interior specified (Dirichlet) and relaxation region with
 ``erf.cf_width = <Int>`` (yellow + blue)
-and analogously the width of the interior Dirichlet region may be specified with
+and analogously the width of the interior specified (Dirichlet) region may be specified with
 ``erf.cf_set_width = <Int>`` (yellow).
 
-See :ref:`sec:BoundaryConditions` for the details of how the relaxation works; when
-used in the contect of mesh refinement we interpolate the specified values from the
-coarser level rather than reading them from the external file.
+By two-way coupling, we mean that in additional to interpolating data from the coarser level
+to supply boundary conditions for the fine regions,
+the fine level also communicates data back to the coarse level in two ways:
 
-By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),
-the fine mesh communicates data back to the coarse mesh in two ways:
+- The fine cell-centered data are conservatively averaged onto the coarse mesh covered by fine mesh.
 
-- The fine cell-centered data is conservatively averaged onto the coarse mesh covered by fine mesh.
+- The fine momenta are conservatively averaged onto the coarse faces covered by fine mesh.
 
-- A "reflux" operation is performed for all cell-centered data.
+- A "reflux" operation is performed for all cell-centered data; this updates values on the coarser
+level outside of regions covered by the finer level.
 
 We define "mixed" coupling as using the two-way coupling algorithm for all cell-centered quantities except for
 :math:`\rho` and :math:`\rho \theta.`
