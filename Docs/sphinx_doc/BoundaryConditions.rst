@@ -4,8 +4,11 @@
 
 .. _sec:LateralBoundaryConditions:
 
-Ideal Domain Boundary Conditions
+Domain Boundary Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ideal Domain BCs
+----------------------
 
 There are two primary types of physical/domain boundary conditions: those which rely only on the
 data in the valid regions, and those which rely on externally specified values.
@@ -136,8 +139,8 @@ It is important to note that external Dirichlet boundary data should be specifie
 as the value on the face of the cell bounding the domain, even for cell-centered
 state data.
 
-Specified Domain Boundary Conditions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Specified Domain BCs
+----------------------
 
 When we use specified lateral boundary conditions, we read time-dependent Dirichlet data
 from a file.  The user may specify (in the inputs file)
@@ -184,8 +187,8 @@ coarse data, and :math:`n` is the minimum number of grid points from a lateral b
 relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
 on the fine mesh.
 
-Sponge zone boundary conditions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Sponge zone domain BCs
+----------------------
 
 ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specifed by the user in the inputs file.
 
@@ -196,15 +199,16 @@ ERF provides the capability to apply sponge zones at the boundaries to prevent s
 where RHS are the other right-hand side terms. The parameters to be set by the user are - `A` is the sponge amplitude, `n` is the sponge strength and the `Q_\mathrm{target}` - the target solution in the sponge. `\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder``.
 
 ::
-    erf.sponge_strength = 10000.0
-    erf.use_xlo_sponge_damping = true
-    erf.xlo_sponge_end = 4.0
-    erf.use_xhi_sponge_damping = true
-    erf.xhi_sponge_start = 26.0
-    erf.use_zhi_sponge_damping = true
-    erf.zhi_sponge_start = 8.0
 
-    erf.sponge_density = 1.2
-    erf.sponge_x_velocity = 10.0
-    erf.sponge_y_velocity = 0.0
-    erf.sponge_z_velocity = 0.0
+          erf.sponge_strength = 10000.0
+          erf.use_xlo_sponge_damping = true
+          erf.xlo_sponge_end = 4.0
+          erf.use_xhi_sponge_damping = true
+          erf.xhi_sponge_start = 26.0
+          erf.use_zhi_sponge_damping = true
+          erf.zhi_sponge_start = 8.0
+
+          erf.sponge_density = 1.2
+          erf.sponge_x_velocity = 10.0
+          erf.sponge_y_velocity = 0.0
+          erf.sponge_z_velocity = 0.0
