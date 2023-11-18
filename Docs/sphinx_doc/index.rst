@@ -68,6 +68,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    Discretizations.rst
    MeshRefinement.rst
    BoundaryConditions.rst
+   MOST.rst
    DerivedQuantities.rst
    Checkpoint.rst
    Plotfiles.rst
