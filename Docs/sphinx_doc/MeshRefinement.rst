@@ -135,53 +135,16 @@ the coarse mesh communicates data to the fine mesh to serve as boundary conditio
 for the time advance of the fine solution . For cell-centered quantities,
 and face-baced normal momenta on the coarse-fine interface, the coarse data is conservatively
 interpolated to the fine mesh. The interpolated data is utilized to specify ghost cell data
-(outside of the valid fine region) as well as specified and relaxation data inside the lateral boundaries
+(outside of the valid fine region) as well as specified data inside the lateral boundaries
 of the fine region. More specifically, similarly to how the lateral boundaries are treated,
 a user may specify the total width of the interior Dirichlet and relaxation region with
 ``erf.cf_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
 ``erf.cf_set_width = <Int>`` (yellow).
 
-.. |wrfbdy| image:: figures/wrfbdy_BCs.png
-           :width: 600
-
-.. _fig:Lateral BCs
-
-.. table:: Lateral boundaries with OneWay coupling
-
-   +-----------------------------------------------------+
-   |                     |wrfbdy|                        |
-   +-----------------------------------------------------+
-   |  Image taken from `Skamarock et al. (2021)`_        |
-   +-----------------------------------------------------+
-
-.. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
-
-Within the interior Dirichlet region (yellow), the RHS is exactly 0. However, within the relaxation region (blue),
-the RHS (:math:`F`) is given by the following:
-
-.. math::
-
-   \begin{align}
-   F &= G + R, \\
-   \psi^{\prime} &= \psi^{n} + \Delta t \; G, \\
-   R &= H_{1} \left( \psi^{FP} - \psi^{\prime} \right) - H_{2} \Delta^2 \left( \psi^{FP} - \psi^{\prime} \right), \\
-   H_{1} &= \frac{1}{10 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1}, \\
-   H_{2} &= \frac{1}{50 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1},
-   \end{align}
-
-where :math:`G` is the RHS of the evolution equations, :math:`\psi^{\prime}` is the predicted update without
-relaxation, :math:`\psi^{FP}` is the fine data obtained from spatial and temporal interpolation of the
-coarse data, and :math:`n` is the minimum number of grid points from a lateral boundary. The specified and
-relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
-on the fine mesh.
-
-Finally, we note that time dependent Dirichlet data, provided via an external boundary file,
-may be enforced on the lateral boundary conditions of the domain (coarsest mesh). For such cases,
-the relaxation region width at the domain edges may be specified with ``erf.wrfbdy_width = <Int>``
-(yellow + blue) while the interior Dirichlet region may be specified with ``erf.wrfbdy_set_width = <Int>``
-(yellow). With the boundary file approach, all dycore variables are set and relaxed but
-moisture is only set in the yellow region if it is present within the boundary file.
+See :ref:`sec:BoundaryConditions` for the details of how the relaxation works; when
+used in the contect of mesh refinement we interpolate the specified values from the
+coarser level rather than reading them from the external file.
 
 By two-way coupling, we mean that in additional to specifying ghost cell data (outside of the valid fine region),
 the fine mesh communicates data back to the coarse mesh in two ways:
@@ -194,7 +157,7 @@ We define "mixed" coupling as using the two-way coupling algorithm for all cell-
 :math:`\rho` and :math:`\rho \theta.`
 
 We note that all three coupling schemes are conservative for mass because the fluxes for the continuity
-equation are the momenta themselves, which are interpolated on faces at the coarse-fine interface.  Other advected
-quantities which are advanced in conservation form will lose conservation with one-way coupling.
+equation are the momenta themselves, which are interpolated on faces at the coarse-fine interface.
+Other advected quantities which are advanced in conservation form will lose conservation with one-way coupling.
 Two-way coupling ensures conservation of the advective contribution to all scalar updates but
 does not account for loss of conservation due to diffusive or source terms.
