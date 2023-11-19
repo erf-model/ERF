@@ -557,8 +557,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
         //       prim to conserved.
 
         // Temp MF on box (distribution map differs w/ fine patch)
-        int num_var = 1;
-        if (ivar_idx == IntVar::cons) num_var = 2;
+        int num_var = fmf.nComp();
         fmf_p_v.emplace_back(fmf.boxArray(), fmf.DistributionMap(), num_var, fmf.nGrowVect());
         MultiFab& fmf_p = fmf_p_v[ivar_idx];
         amrex::MultiFab::Copy(fmf_p,fmf, 0, 0, num_var, fmf.nGrowVect());
@@ -708,7 +707,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             amrex::Real num   = amrex::Real(Spec_z + Relax_z);
             amrex::Real denom = amrex::Real(Relax_z - 1);
             amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-           {
+            {
                if (mask_arr(i,j,k) == relax_mask_val) {
 
                    // Indices
@@ -802,7 +801,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                    amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
                    rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
                }
-           });
+            });
         } // mfi
     } // ivar_idx
 }
