@@ -144,7 +144,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     //exit(0);
 
     // Compute p at z = 0.5 dz - the first cell center
-    p[0]   = p_0 - rho0*(1.0 + q_v0)*CONST_GRAV*dz/2.0;
+    p[0]   = p_0 - rho0*CONST_GRAV*dz/2.0;
 
     //std::cout << p[0] << "\n";
 
@@ -166,7 +166,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         z = prob_lo_z + (k+0.5)*dz;
 
         // Do forward integration from k-1 to k using values at k-1
-        p[k] = p[k-1] - r[k-1]*(1.0 + q_v[k-1])*CONST_GRAV*dz;
+        p[k] = p[k-1] - r[k-1]*CONST_GRAV*dz;
 
         // Now compute the values at k
         theta[k] = compute_theta(z);
@@ -266,7 +266,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
               ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
               {
                   int kk = std::max(k,0);
-                  rho_hse_arr(i,j,k) = r[kk]*(1.0 + q_v[kk]) ;
+                  rho_hse_arr(i,j,k) = r[kk] ;
               });
           } // mfi
     } // no terrain
@@ -345,7 +345,7 @@ Problem::init_custom_pert(
     Real* q_v = d_q_v.data();
     Real* p = d_p.data();
 
-    const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
+    const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 0.0;
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
   amrex::ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
