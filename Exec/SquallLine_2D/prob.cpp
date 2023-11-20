@@ -144,7 +144,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     //exit(0);
 
     // Compute p at z = 0.5 dz - the first cell center
-    p[0]   = p_0 - rho0*CONST_GRAV*dz/2.0;
+    p[0]   = p_0 - rho0*(1.0 + q_v0)*CONST_GRAV*dz/2.0;
 
     //std::cout << p[0] << "\n";
 
@@ -166,7 +166,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         z = prob_lo_z + (k+0.5)*dz;
 
         // Do forward integration from k-1 to k using values at k-1
-        p[k] = p[k-1] - r[k-1]*CONST_GRAV*dz;
+        p[k] = p[k-1] - r[k-1]*(1.0 + q_v[k-1])*CONST_GRAV*dz;
 
         // Now compute the values at k
         theta[k] = compute_theta(z);
@@ -195,6 +195,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
 {
+
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
@@ -266,7 +267,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
               ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
               {
                   int kk = std::max(k,0);
-                  rho_hse_arr(i,j,k) = r[kk] ;
+                  rho_hse_arr(i,j,k) = r[kk]*(1.0 + q_v[kk]) ;
               });
           } // mfi
     } // no terrain
@@ -374,8 +375,8 @@ Problem::init_custom_pert(
     temperature = compute_temperature(p[k], theta_total);
     Real T_b = compute_temperature(p[k], d_t[k]);
     RH     = compute_relative_humidity(z, p[k], T_b);
-    q_v    = vapor_mixing_ratio(z, p[k], T_b, RH);
-    rho = p[k]/(R_d*temperature*(1.0 + R_v_by_R_d*q_v));
+    Real q_v_hot    = vapor_mixing_ratio(z, p[k], T_b, RH);
+    rho = p[k]/(R_d*temperature*(1.0 + R_v_by_R_d*q_v_hot));
 
     /*if(rad < 0.1){
         std::cout << "temperature and density new and old is "  << temperature << " " << rho << "\n";
@@ -386,8 +387,8 @@ Problem::init_custom_pert(
 
 
     // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = rho*theta_total;
-    state(i, j, k, Rho_comp)      = rho;
+    state(i, j, k, RhoTheta_comp) = rho*theta_total - rho*(1.0 + q_v_hot)*theta_total ;
+    state(i, j, k, Rho_comp)      = rho - rho*(1.0 + q_v_hot);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = rho*scalar;
