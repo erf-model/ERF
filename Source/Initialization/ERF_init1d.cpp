@@ -130,7 +130,11 @@ ERF::initHSE (int lev)
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
-    prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+	#ifdef ERF_USE_MOISTURE
+    	prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+	#else
+    	prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+	#endif
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
@@ -231,7 +235,7 @@ ERF::erf_enforce_hse (int lev,
                 }
             } else {
                 for (int k = 1; k <= nz; k++) {
-                    dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
+                    dens_interp = 0.5*(rho_arr(i,j,k-1) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                 }
