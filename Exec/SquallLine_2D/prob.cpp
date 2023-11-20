@@ -9,7 +9,27 @@
 
 using namespace amrex;
 
-ProbParm parms;
+std::unique_ptr<ProblemBase>
+amrex_probinit(
+    const amrex_real* /*problo*/,
+    const amrex_real* /*probhi*/)
+{
+    return std::make_unique<Problem>();
+}
+
+Problem::Problem()
+{
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("T_0", parms.T_0);
+  pp.query("U_0", parms.U_0);
+  pp.query("x_c", parms.x_c);
+  pp.query("z_c", parms.z_c);
+  pp.query("x_r", parms.x_r);
+  pp.query("z_r", parms.z_r);
+  pp.query("T_pert", parms.T_pert);
+}
+
 
 Real z_tr = 12000.0;
 Real height = 1200.0;
@@ -139,7 +159,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     r[0]     = p[0]/(R_d*T_b*(1.0 + R_v_by_R_d*q_v[0]));
 
 
-    //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+    fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
@@ -158,7 +178,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
 
         //std::cout << p[k] << "\n";
 
-        //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
+        fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
         //std::cout << "Temperature is " << z << " " << T_b  - 273.15 << " " << T_dp << " " << rho_b  << " " << p[k] << "\n";
 
     }
@@ -170,7 +190,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
 }
 
 void
-erf_init_dens_hse(MultiFab& rho_hse,
+Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
                   std::unique_ptr<MultiFab>& z_phys_nd,
                   std::unique_ptr<MultiFab>& z_phys_cc,
                   Geometry const& geom)
@@ -219,19 +239,19 @@ erf_init_dens_hse(MultiFab& rho_hse,
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
         Vector<Real> h_t(khi+2);
-           Vector<Real> h_q_v(khi+2);
+		Vector<Real> h_q_v(khi+2);
 
         amrex::Gpu::DeviceVector<Real> d_r(khi+2);
         amrex::Gpu::DeviceVector<Real> d_p(khi+2);
         amrex::Gpu::DeviceVector<Real> d_t(khi+2);
-           amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
+		amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
 
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-           amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
+		amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r = d_r.data();
         Real* q_v = d_q_v.data();
@@ -252,10 +272,8 @@ erf_init_dens_hse(MultiFab& rho_hse,
     } // no terrain
 }
 
-
-
 void
-init_custom_prob(
+Problem::init_custom_pert(
     const Box& bx,
     const Box& xbx,
     const Box& ybx,
@@ -422,7 +440,7 @@ init_custom_prob(
 }
 
 void
-init_custom_terrain (const Geometry& /*geom*/,
+Problem::init_custom_terrain (const Geometry& /*geom*/,
                            MultiFab& z_phys_nd,
                      const Real& /*time*/)
 {
@@ -449,7 +467,7 @@ init_custom_terrain (const Geometry& /*geom*/,
 }
 
 void
-erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
+Problem::erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
                   amrex::Vector<amrex::Real>& ubar,
                   amrex::Vector<amrex::Real>& vbar,
                   amrex::Vector<amrex::Real>& wbar,
@@ -465,22 +483,8 @@ erf_init_rayleigh(amrex::Vector<amrex::Real>& tau,
       ubar[k] = 2.0;
       vbar[k] = 1.0;
       wbar[k] = 0.0;
-      thetabar[k] = parms.Theta_0;
+     //thetabar[k] = parms.Theta_0;
   }
 }
 
-void
-amrex_probinit(
-  const amrex_real* /*problo*/,
-  const amrex_real* /*probhi*/)
-{
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
-}
+

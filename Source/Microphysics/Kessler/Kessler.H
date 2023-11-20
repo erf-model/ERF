@@ -61,7 +61,7 @@ class Kessler : public NullMoist {
   virtual ~Kessler () = default;
 
   // cloud physics
-  void Kessler ();
+  void AdvanceKessler ();
 
   // diagnose
   void Diagnose ();
@@ -96,7 +96,7 @@ class Kessler : public NullMoist {
   void
   Advance ( ) override
   {
-      this->Kessler();
+      this->AdvanceKessler();
   }
 
  private:

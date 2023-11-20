@@ -1,3 +1,5 @@
+CEXE_sources += Init.cpp
+CEXE_sources += Diagnose.cpp
+CEXE_sources += Update.cpp
 CEXE_sources += Kessler.cpp
 CEXE_headers += Kessler.H
-

@@ -11,7 +11,7 @@ using namespace amrex;
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void Kessler::Kessler() {
+void Kessler::AdvanceKessler() {
 
   Real powr1 = (3.0 + b_rain) / 4.0;
   Real powr2 = (5.0 + b_rain) / 8.0;
@@ -32,8 +32,6 @@ void Kessler::Kessler() {
   auto evaps2_t  = evaps2.table();
   auto evapg1_t  = evapg1.table();
   auto evapg2_t  = evapg2.table();
-  auto qpsrc_t   = qpsrc.table();
-  auto qpevp_t   = qpevp.table();
   auto pres1d_t  = pres1d.table();
 
   auto qt   = mic_fab_vars[MicVar::qt];
