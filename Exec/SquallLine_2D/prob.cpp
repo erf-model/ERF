@@ -395,9 +395,9 @@ Problem::init_custom_pert(
 
     // mean states
 #if defined(ERF_USE_MOISTURE)
-    state(i, j, k, RhoQt_comp) = rho*q_v;
+    state(i, j, k, RhoQt_comp) = rho*q_v_hot;
     state(i, j, k, RhoQp_comp) = 0.0;
-    qv(i, j, k) = q_v;
+    qv(i, j, k) = q_v_hot;
     qc(i, j, k) = 0.0;
     qi(i, j, k) = 0.0;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
