@@ -41,7 +41,7 @@ public:
         m_moist_model->Advance();
     }
 
-	void
+    void
     Diagnose ( )
     {
         m_moist_model->Diagnose();
