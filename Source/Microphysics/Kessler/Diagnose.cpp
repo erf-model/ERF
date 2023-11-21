@@ -31,10 +31,10 @@ void Kessler::Diagnose () {
 
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
        qv_array(i,j,k)  = qt_array(i,j,k) - qn_array(i,j,k);
-       amrex::Real omn  = std::max(0.0, std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
+       amrex::Real omn  = 1.0;
        qcl_array(i,j,k) = qn_array(i,j,k)*omn;
        qci_array(i,j,k) = qn_array(i,j,k)*(1.0-omn);
-       amrex::Real omp  = std::max(0.0, std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+       amrex::Real omp  = 1.0;;
        qpl_array(i,j,k) = qp_array(i,j,k)*omp;
        qpi_array(i,j,k) = qp_array(i,j,k)*(1.0-omp);
      });

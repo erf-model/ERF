@@ -249,13 +249,15 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                                     (qc_data(i,j,k)-qc_d_ptr[k]+
                                      qi_data(i,j,k)-qi_d_ptr[k]+
                                      cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
-                           + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
+                           //+ (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
+						   + (cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) - theta_d_ptr[k  ])/theta_d_ptr[k  ];
 
                 Real qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
                                      (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
                                       qi_data(i,j,k-1)-qi_d_ptr[k-1]+
                                       cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
-                           + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
+                           //+ (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
+							+ (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
 
                 Real qavg  = Real(0.5) * (qplus + qminus);
                 Real r0avg = Real(0.5) * (rho_d_ptr[k] + rho_d_ptr[k-1]);

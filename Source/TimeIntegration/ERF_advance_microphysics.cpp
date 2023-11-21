@@ -12,6 +12,7 @@ void ERF::advance_microphysics (int lev,
                Geom(lev),
                dt_advance);
     micro.Advance();
+	micro.Diagnose();
     micro.Update(cons, qmoist[lev]);
 }
 #endif

@@ -48,7 +48,7 @@ void Kessler::Update (amrex::MultiFab& cons,
        states_arr(i,j,k,RhoQp_comp)    = rho_arr(i,j,k)*qp_arr(i,j,k);
 
        // Graupel == precip total - rain - snow (but must be >= 0)
-       qgraup_arr(i,j,k)  = std::max(0.0, qp_arr(i,j,k)-qpl_arr(i,j,k)-qpi_arr(i,j,k));
+       qgraup_arr(i,j,k)  = 0.0;// 
      });
   }
 

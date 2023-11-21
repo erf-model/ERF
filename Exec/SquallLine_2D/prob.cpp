@@ -346,7 +346,7 @@ Problem::init_custom_pert(
     Real* q_v = d_q_v.data();
     Real* p = d_p.data();
 
-    const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 0.0;
+    const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
   amrex::ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
@@ -385,10 +385,9 @@ Problem::init_custom_pert(
         exit(0);
     }*/
 
-
     // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = rho*theta_total - rho*(1.0 + q_v_hot)*theta_total ;
-    state(i, j, k, Rho_comp)      = rho - rho*(1.0 + q_v_hot);
+    state(i, j, k, RhoTheta_comp) = rho*theta_total;// - rho*(1.0 + q_v_hot)*theta_total ;
+    state(i, j, k, Rho_comp)      = rho;//- rho*(1.0 + q_v_hot);
 
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = rho*scalar;

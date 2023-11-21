@@ -40,7 +40,8 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
 
   // We must initialize to zero since we now need boundary values for the call to getP and we need all values filled
   // The ghost cells of these arrays aren't filled in the boundary condition calls for the state
-  qmoist.setVal(0.);
+
+  //qmoist.setVal(0.);
 
   for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
 
@@ -117,12 +118,14 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
   // Get the temperature, density, theta, qt and qp from input
   for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
+	 auto qv_array_from_moist  = qv.array(mfi);	
      auto qc_array  = qc.array(mfi);
      auto qi_array  = qi.array(mfi);
 
      auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
      auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);
      auto qn_array     = mic_fab_vars[MicVar::qn]->array(mfi);
+	 auto qv_array     = mic_fab_vars[MicVar::qv]->array(mfi);	
      auto rho_array    = mic_fab_vars[MicVar::rho]->array(mfi);
      auto theta_array  = mic_fab_vars[MicVar::theta]->array(mfi);
      auto temp_array   = mic_fab_vars[MicVar::tabs]->array(mfi);
@@ -137,7 +140,8 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
        qt_array(i,j,k)    = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
        qp_array(i,j,k)    = states_array(i,j,k,RhoQp_comp)/states_array(i,j,k,Rho_comp);
        qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
-       temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
+	   qv_array(i,j,k)    = qv_array_from_moist(i,j,k);	
+       temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k));
        pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
      });
   }
@@ -174,7 +178,7 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
   });
 
   // This fills qv
-  Diagnose();
+ //Diagnose();
 
 #if 0
   amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i) {
