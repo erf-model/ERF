@@ -72,6 +72,10 @@ ERF::timeStep (int lev, Real time, int iteration)
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
 
+#ifdef ERF_USE_PARTICLES
+    particleData.Redistribute();
+#endif
+
     ++istep[lev];
 
     if (Verbose())

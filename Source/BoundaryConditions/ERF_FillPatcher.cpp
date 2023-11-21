@@ -224,7 +224,6 @@ void ERFFillPatcher::InterpCell (MultiFab& fine,
                                  Vector<BCRec> const& bcr,
                                  int mask_val)
 {
-
   int ncomp = m_ncomp;
   IntVect ratio = m_ratio;
   IndexType m_ixt = fine.boxArray().ixType();

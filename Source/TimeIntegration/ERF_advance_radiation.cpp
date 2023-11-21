@@ -23,7 +23,7 @@ void ERF::advance_radiation (int lev,
                   do_aero_rad,
                   do_snow_opt,
                   is_cmip6_volcano);
-//   rad.run();
+   rad.run();
    rad.on_complete();
 }
 #endif

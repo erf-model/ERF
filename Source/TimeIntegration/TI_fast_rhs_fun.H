@@ -1,7 +1,7 @@
 /**
  *  Wrapper for calling the routine that creates the fast RHS
  */
-auto fast_rhs_fun = [&](int fast_step, int n_sub, int nrk,
+auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                         Vector<MultiFab>& S_slow_rhs,
                         const Vector<MultiFab>& S_old,
                         Vector<MultiFab>& S_stage,

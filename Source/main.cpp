@@ -38,8 +38,11 @@ void add_par () {
 
    pp.add("max_grid_size",2048);
 
-   int bf=1;
-   pp.queryAdd("blocking_factor",bf);
+   // This will set the default value of blocking_factor to be 1, but will allow
+   //     the user to override it in the inputs file or on command line
+   int blocking_factor = 1;
+   pp.queryAdd("blocking_factor",blocking_factor);
+
    pp.add("n_error_buf",0);
 }
 

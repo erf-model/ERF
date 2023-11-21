@@ -11,13 +11,7 @@ void ERF::advance_microphysics (int lev,
                grids[lev],
                Geom(lev),
                dt_advance);
-
-    micro.Cloud();
-    micro.Diagnose();
-    micro.IceFall();
-    micro.Precip();
-    micro.MicroPrecipFall();
-
+    micro.Advance();
     micro.Update(cons, qmoist[lev]);
 }
 #endif
