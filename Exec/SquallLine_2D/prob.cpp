@@ -130,7 +130,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     //T_b = T0;
 
     FILE *file_IC, *file_parcel;
-    file_IC = fopen("input_sounding_probcpp.txt","w");
+    //file_IC = fopen("input_sounding_probcpp.txt","w");
 
     // Do the first integration from z = 0 (base) to z = 0.5*dz (first cell center)
     z = 0;
@@ -159,7 +159,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     r[0]     = p[0]/(R_d*T_b*(1.0 + R_v_by_R_d*q_v[0]));
 
 
-    fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+    //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
@@ -178,11 +178,11 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
 
         //std::cout << p[k] << "\n";
 
-        fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
+        //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
         //std::cout << "Temperature is " << z << " " << T_b  - 273.15 << " " << T_dp << " " << rho_b  << " " << p[k] << "\n";
 
     }
-    fclose(file_IC);
+    //fclose(file_IC);
 
     //exit(0);
 
