@@ -41,6 +41,12 @@ public:
         m_moist_model->Advance();
     }
 
+	void
+    Diagnose ( )
+    {
+        m_moist_model->Diagnose();
+    }
+
     void
     Update (amrex::MultiFab& cons_in,
             amrex::MultiFab& qmoist)
