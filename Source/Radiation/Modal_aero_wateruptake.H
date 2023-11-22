@@ -15,6 +15,8 @@
 #include "ERF_Constants.H"
 #include "Aero_rad_props.H"
 #include "Cloud_rad_props.H"
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class ModalAeroWateruptake {
   public:
@@ -26,18 +28,8 @@ class ModalAeroWateruptake {
    // The calculation has been enabled for diagnostic mode lists
    // via optional arguments.  If the list_idx arg is present then
    // all the optional args must be present.
-
    static void modal_aero_wateruptake_dr(int list_idx_in, real3d& dgnumdry_m, real3d& dgnumwet_m,
                                          real3d& qaerwat_m, real3d& wetdens_m, real2d& clear_rh_in)
-   // Optional inputs for diagnostic mode
-   //integer,  optional,          intent(in)    :: list_idx_in
-   //real(r8), optional, allocatable, target, intent(in)    :: dgnumdry_m(:,:,:)
-   //real(r8), optional, allocatable, target, intent(inout)   :: dgnumwet_m(:,:,:)
-   //real(r8), optional, allocatable, target, intent(inout)   :: qaerwat_m(:,:,:)
-   //real(r8), optional, allocatable, target, intent(inout)   :: wetdens_m(:,:,:)
-   //! optional input relative humidty (overrides clearsky RH estimate below)
-   //real(r8), optional,          intent(in)    :: clear_rh_in(pcols,pver)
-
    int list_idx;  // radiative constituents list index
 
    int itim_old;
@@ -293,52 +285,13 @@ class ModalAeroWateruptake {
       } // k = top_lev, pver
 
    } // m = 1, nmodes
-
-   // write history output if not in diagnostic mode
-#if 0
-   if (list_idx_in) {
-
-      aerosol_water(:ncol,:) = 0.;
-      for(auto m = 0; m < nmodes; ++m) {
-         // output to history
-         write( trnum, '(i3.3)' ) m
-         call outfld( 'wat_a'//trnum(3:3),  qaerwat(:,:,m),     pcols, lchnk)
-         call outfld( 'dgnd_a'//trnum(2:3), dgncur_a(:,:,m),    pcols, lchnk)
-         call outfld( 'dgnw_a'//trnum(2:3), dgncur_awet(:,:,m), pcols, lchnk)
-         if (history_aerosol .and. .not. history_verbose) &
-         aerosol_water(:ncol,:) = aerosol_water(:ncol,:) + qaerwat(:ncol,:,m)
-      } // m = 1, nmodes
-
-      if (history_aerosol .and. .not. history_verbose) &
-         call outfld( 'aero_water',  aerosol_water(:ncol,:),    ncol, lchnk)
-
-   end if
-#endif
 }
 
-
 // Purpose: Compute aerosol wet radius
-
 void modal_aero_wateruptake_sub(
    ncol, nmodes, real1d& rhcrystal, reaal1d& rhdeliques, real3d& dryrad,
    real3d& hygro, real2d& rh, real3d& dryvol, real3d& wetrad, real3d& wetvol,
    real3d& wtrvol) {
-#if 0
-   ! Arguments
-   integer, intent(in)  :: ncol                    ! number of columns
-   integer, intent(in)  :: nmodes
-
-   real(r8), intent(in) :: rhcrystal(:)
-   real(r8), intent(in) :: rhdeliques(:)
-   real(r8), intent(in) :: dryrad(:,:,:)         ! dry volume mean radius of aerosol (m)
-   real(r8), intent(in) :: hygro(:,:,:)          ! volume-weighted mean hygroscopicity (--)
-   real(r8), intent(in) :: rh(:,:)               ! relative humidity (0-1)
-   real(r8), intent(in) :: dryvol(:,:,:)
-
-   real(r8), intent(out) :: wetrad(:,:,:)        ! wet radius of aerosol (m)
-   real(r8), intent(out) :: wetvol(:,:,:)        ! single-particle-mean wet volume (m3)
-   real(r8), intent(out) :: wtrvol(:,:,:)        ! single-particle-mean water volume in wet aerosol (m3)
-#endif
    // local variables
 
    real hystfac;      // working variable for hysteresis
@@ -387,24 +340,16 @@ void modal_aero_wateruptake_sub(
 // for multiple aerosol types, assumes an internal mixture of aerosols
  void modal_aero_kohler(real1d& rdry_in, real1d& hygro, real1d& s,
                         real1d& rwet_out, int im) {
-#if 0
-! arguments
-      integer :: im         ! number of grid points to be processed
-      real(r8) :: rdry_in(:)    ! aerosol dry radius (m)
-      real(r8) :: hygro(:)      ! aerosol volume-mean hygroscopicity (--)
-      real(r8) :: s(:)          ! relative humidity (1 = saturated)
-      real(r8) :: rwet_out(:)   ! aerosol wet radius (m)
-#endif
       real a, b;
-      real1d p40("p40",imax),p41("p41",imax),p42("p42",imax),p43("p43",imax); // coefficients of polynomial
-      real1d p30("p30",imax),p31("p31",imax),p32("p32",imax); // coefficients of polynomial
+      real1d p40("p40",imax), p41("p41",imax), p42("p42",imax), p43("p43",imax); // coefficients of polynomial
+      real1d p30("p30",imax), p31("p31",imax), p32("p32",imax);                  // coefficients of polynomial
       real p;
       real r3, r4;
-      real1d r("r",im);         // wet radius (microns)
+      real1d r("r",im);            // wet radius (microns)
       real1d rdry("rdry",imax);    // radius of dry particle (microns)
-      real ss;            // relative humidity (1 = saturated)
-      real1d slog("slog",imax);   // log relative humidity
-      real1d vol("vol",imax);     // total volume of particle (microns**3)
+      real ss;                     // relative humidity (1 = saturated)
+      real1d slog("slog",imax);    // log relative humidity
+      real1d vol("vol",imax);      // total volume of particle (microns**3)
       real xi, xr;
 
       complex cx4(4,imax),cx3(3,imax);
@@ -477,9 +422,9 @@ void modal_aero_wateruptake_sub(
         }
 
         if(s(i) > 1.-eps) {
-         // save quartic solution at s=1-eps
+           // save quartic solution at s=1-eps
            r4=r(i);
-        //  cubic for rh=1
+           //  cubic for rh=1
            p=abs(p31(i))/(rdry(i)*rdry(i));
            if(p < eps) {
               r(i)=rdry(i)*(1._r8+p*third);
@@ -545,7 +490,7 @@ void modal_aero_wateruptake_sub(
 
       for(auto i=0; i<im; ++i) {
       if(p1(i) == 0.) {
-       // completely insoluble particle
+         // completely insoluble particle
          cx(1,i)=(-p0(i))**third;
          cx(2,i)=cx(1,i);
          cx(3,i)=cx(1,i);
@@ -574,7 +519,7 @@ void modal_aero_wateruptake_sub(
       // where p0, p1, p2, p3 are real
       void makoh_quartic( cx, p3, p2, p1, p0, im ) {
 
-        constexpr int imx=200;
+      constexpr int imx=200;
       //real(r8) :: p0(imx), p1(imx), p2(imx), p3(imx)
       //complex(r8) :: cx(4,imx)
 

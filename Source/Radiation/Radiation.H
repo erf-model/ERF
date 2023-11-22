@@ -34,7 +34,11 @@
 // Radiation code interface class
 class Radiation {
   public:
-   Radiation() = default;
+   Radiation() {
+     // First, make sure yakl has been initialized
+     if (!yakl::isInitialized()) yakl::init();
+   }
+
    ~Radiation() = default;
 
    // init
@@ -126,11 +130,11 @@ class Radiation {
    real dt;               // time step(s) - needed for aerosol optics call
 
    // Surface and top fluxes
-   real1d fsns;  //(ncols)      ! Surface solar absorbed flux
-   real1d fsnt;  //(ncols)      ! Net column abs solar flux at model top
-   real1d flns;  //(ncols)      ! Srf longwave cooling (up-down) flux
-   real1d flnt;  //(ncols)      ! Net outgoing lw flux at model top
-   real1d fsds;  //(ncols)      ! Surface solar down flux
+   real1d fsns;  // Surface solar absorbed flux
+   real1d fsnt;  // Net column abs solar flux at model top
+   real1d flns;  // Srf longwave cooling (up-down) flux
+   real1d flnt;  // Net outgoing lw flux at model top
+   real1d fsds;  // Surface solar down flux
 
    // radiation data
    const std::vector<std::string> active_gases = {
@@ -170,7 +174,8 @@ class Radiation {
 
    // k-distribution coefficients files to read from. These are set via namelist
    // variables.
-   std::string rrtmgp_coefficients_file_sw, rrtmgp_coefficients_file_lw;
+   std::string rrtmgp_coefficients_file_sw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_sw_20181204.nc";
+   std::string rrtmgp_coefficients_file_lw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_lw_20181204.nc";
 
    // Band midpoints; these need to be module variables because of how cam_history works;
    // add_hist_coord sets up pointers to these, so they need to persist.

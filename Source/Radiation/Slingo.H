@@ -4,6 +4,8 @@
 //------------------------------------------------------------------------------------------------
 #ifndef ERF_SLINGO_H_
 #define ERF_SLINGO_H_
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class Slingo {
   public:
@@ -112,37 +114,25 @@ class Slingo {
     real2d cwp("cwp", ncol, nlev);
     real2d cldtau("cldtau", ncol, nlev);
 
-    real kabs, kabsi;
+    parallel_for(SimpleBounds<2>(nlev, ncol), YAKL_LAMBDA (int k, int i) {
+       cwp   (i,k) = 1000.0 * iclwpth(i,k) + 1000.0 * iciwpth(i, k);
+       ficemr(i,k) = 1000.0 * iciwpth(i,k)/(std::max(1.e-18, cwp(i,k)));
+    });
 
-    // longwave liquid absorption coeff (m**2/g)
-    const real kabsl = 0.090361;
+    parallel_for(SimpleBounds<2>(nlev, ncol), YAKL_LAMBDA (int k, int i) {
+       // Note from Andrew Conley:
+       //  Optics for RK no longer supported, This is constructed to get
+       //  close to bit for bit.  Otherwise we could simply use liquid water path
+       //note that optical properties for ice valid only
+       //in range of 13 > rei > 130 micron (Ebert and Curry 92)
+       real kabsl = 0.090361;
+       auto kabs = kabsl*(1.-ficemr(i,k));
+       cldtau(i,k) = kabs*cwp(i,k);
+    });
 
-    for(auto k=0; k<nlev; ++k) {
-       for(auto i=0; i<ncol; ++i) {
-         cwp   (i,k) = 1000.0 * iclwpth(i,k) + 1000.0 * iciwpth(i, k);
-         ficemr(i,k) = 1000.0 * iciwpth(i,k)/(std::max(1.e-18, cwp(i,k)));
-       }
-    }
-
-    for (auto k=0; k<nlev; ++k) {
-       for (auto i=0; i<ncol; ++i) {
-          // Note from Andrew Conley:
-          //  Optics for RK no longer supported, This is constructed to get
-          //  close to bit for bit.  Otherwise we could simply use liquid water path
-          //note that optical properties for ice valid only
-          //in range of 13 > rei > 130 micron (Ebert and Curry 92)
-          kabs = kabsl*(1.-ficemr(i,k));
-          cldtau(i,k) = kabs*cwp(i,k);
-       }
-    }
-
-    for (auto lwband=0; lwband<nlwbands; ++lwband) {
-       for (auto icol=0; icol<ncol; ++icol) {
-          for (auto ilev=0; ilev<nlev; ++ilev) {
-            abs_od(lwband,icol,ilev)=cldtau(icol,ilev);
-          }
-       }
-    }
+    parallel_for(SimpleBounds<3>(nlwbands, ncol, nlev), YAKL_LAMBDA (int lwband, int icol, int ilev) {
+       abs_od(lwband,icol,ilev) = cldtau(icol,ilev);
+    });
   }
 };
 #endif

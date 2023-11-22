@@ -6,6 +6,8 @@
 #include "Ebert_curry.H"
 #include "Rad_constants.H"
 #include "AMReX_Random.H"
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 void Optics::initialize() {
    cloud_optics.initialize();
@@ -47,8 +49,6 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
       real3d combined_tau_ssa("combined_tau_ssa", nbnd, ncol, nlev);
       real3d combined_tau_ssa_g("combined_tau_ssa_g", nbnd, ncol, nlev);
       real3d combined_tau_ssa_f("combined_tau_ssa_f", nbnd, ncol, nlev);
-
-      int iband, ilev, icol;
 
       // Initialize outputs
       yakl::memset(tau_out, 0.);
@@ -118,15 +118,11 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
       }
 
       // Combine all cloud optics from CAM routines
-      for (auto ibnd=0; ibnd<nbnd; ++ibnd) {
-         for (auto icol=0; icol<ncol; ++icol) {
-            for (auto ilev=0; ilev<nlev; ++ilev) {
-              cld_tau(ibnd, icol, ilev) = ice_tau(ibnd, icol, ilev) + liq_tau(ibnd, icol, ilev);
-              cld_tau_ssa(ibnd, icol, ilev) = ice_tau_ssa(ibnd, icol, ilev) + liq_tau_ssa(ibnd, icol, ilev);
-              cld_tau_ssa_g(ibnd, icol, ilev) = ice_tau_ssa_g(ibnd, icol, ilev) + liq_tau_ssa_g(ibnd, icol, ilev);
-            }
-         }
-      }
+      parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int ibnd, int icol, int ilev) {
+         cld_tau(ibnd, icol, ilev) = ice_tau(ibnd, icol, ilev) + liq_tau(ibnd, icol, ilev);
+         cld_tau_ssa(ibnd, icol, ilev) = ice_tau_ssa(ibnd, icol, ilev) + liq_tau_ssa(ibnd, icol, ilev);
+         cld_tau_ssa_g(ibnd, icol, ilev) = ice_tau_ssa_g(ibnd, icol, ilev) + liq_tau_ssa_g(ibnd, icol, ilev);
+      });
 
       if (do_snow) {
          combine_properties( nbnd, ncol, nlev,
@@ -139,46 +135,38 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
             cld, cld_tau_ssa_g, cldfsnow, snow_tau_ssa_g, combined_tau_ssa_g);
       }
       else {
-        for (auto ibnd=0; ibnd<nbnd; ++ibnd) {
-           for (auto icol=0; icol<ncol; ++icol) {
-              for (auto ilev=0; ilev<nlev; ++ilev) {
-                combined_tau(ibnd, icol, ilev) = cld_tau(ibnd, icol, ilev);
-                combined_tau_ssa(ibnd, icol, ilev) = cld_tau_ssa(ibnd, icol, ilev);
-               combined_tau_ssa_g(ibnd, icol, ilev) = cld_tau_ssa_g(ibnd, icol, ilev);
-             }
-           }
-        }
+        parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int ibnd, int icol, int ilev) {
+           combined_tau(ibnd, icol, ilev) = cld_tau(ibnd, icol, ilev);
+           combined_tau_ssa(ibnd, icol, ilev) = cld_tau_ssa(ibnd, icol, ilev);
+           combined_tau_ssa_g(ibnd, icol, ilev) = cld_tau_ssa_g(ibnd, icol, ilev);
+        });
       }
 
       // Copy to output arrays, converting to optical depth, single scattering
       // albedo, and assymmetry parameter from the products that the CAM routines
       // return. Make sure we do not try to divide by zero...
-      for (auto iband = 0;  iband < nbnd; ++iband) {
-         for (auto icol = 0; icol < ncol; ++icol) {
-            for (auto ilev = 0; ilev < nlev; ++ilev) {
-               tau_out(icol,ilev,iband) = combined_tau(iband,icol,ilev);
-               if (combined_tau(iband,icol,ilev) > 0) {
-                 ssa_out(icol,ilev,iband)
-                   = combined_tau_ssa(iband,icol,ilev) / combined_tau(iband,icol,ilev);
-               } else {
-                 ssa_out(icol,ilev,iband) = 1.;
-               }
+      parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int iband, int icol, int ilev) {
+          tau_out(icol,ilev,iband) = combined_tau(iband,icol,ilev);
+          if (combined_tau(iband,icol,ilev) > 0) {
+             ssa_out(icol,ilev,iband)
+                 = combined_tau_ssa(iband,icol,ilev) / combined_tau(iband,icol,ilev);
+          } else {
+             ssa_out(icol,ilev,iband) = 1.;
+          }
 
-               if (combined_tau_ssa(iband,icol,ilev) > 0) {
-                 asm_out(icol,ilev,iband)
-                    = combined_tau_ssa_g(iband,icol,ilev) / combined_tau_ssa(iband,icol,ilev);
-               } else {
-                  asm_out(icol,ilev,iband) = 0.;
-               }
+          if (combined_tau_ssa(iband,icol,ilev) > 0) {
+             asm_out(icol,ilev,iband)
+                 = combined_tau_ssa_g(iband,icol,ilev) / combined_tau_ssa(iband,icol,ilev);
+          } else {
+             asm_out(icol,ilev,iband) = 0.;
+          }
 
-               // Re-order diagnostics outputs
-               liq_tau_out(icol,ilev,iband) = liq_tau(iband,icol,ilev);
-               ice_tau_out(icol,ilev,iband) = ice_tau(iband,icol,ilev);
-               snw_tau_out(icol,ilev,iband) = snow_tau(iband,icol,ilev);
-            }
-         }
-      }
-   }
+          // Re-order diagnostics outputs
+          liq_tau_out(icol,ilev,iband) = liq_tau(iband,icol,ilev);
+          ice_tau_out(icol,ilev,iband) = ice_tau(iband,icol,ilev);
+          snw_tau_out(icol,ilev,iband) = snow_tau(iband,icol,ilev);
+     });
+ }
 
    //----------------------------------------------------------------------------
 void Optics::get_cloud_optics_lw(
@@ -193,7 +181,6 @@ void Optics::get_cloud_optics_lw(
       real3d snow_tau("snow_tau", nbnd, ncol, nlev);
       real3d cld_tau("cld_tau", nbnd, ncol, nlev);
       real3d combined_tau("combined_tau", nbnd, ncol, nlev);
-
 
       // Initialize outputs
       yakl::memset(tau_out, 0.);
@@ -225,13 +212,9 @@ void Optics::get_cloud_optics_lw(
       }
 
       // Combined cloud optics
-      for (auto ibnd=0; ibnd<nbnd; ++ibnd) {
-         for (auto icol=0; icol<ncol; ++icol) {
-            for (auto ilev=0; ilev<nlev; ++ilev) {
-               cld_tau(ibnd, icol, ilev) = liq_tau(ibnd, icol, ilev) + ice_tau(ibnd, icol, ilev);
-            }
-         }
-       }
+      parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int ibnd, int icol, int ilev) {
+          cld_tau(ibnd, icol, ilev) = liq_tau(ibnd, icol, ilev) + ice_tau(ibnd, icol, ilev);
+       });
 
       // Get snow optics?
       if (do_snow) {
@@ -240,27 +223,19 @@ void Optics::get_cloud_optics_lw(
                             cld, cld_tau, cldfsnow, snow_tau, combined_tau);
       }
       else {
-         for (auto ibnd=0; ibnd<nbnd; ++ibnd) {
-            for (auto icol=0; icol<ncol; ++icol) {
-               for (auto ilev=0; ilev<nlev; ++ilev) {
-                 combined_tau(ibnd,icol,ilev) = cld_tau(ibnd,icol,ilev);
-               }
-            }
-         }
+         parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int ibnd, int icol, int ilev) {
+            combined_tau(ibnd,icol,ilev) = cld_tau(ibnd,icol,ilev);
+         });
       }
 
       // Set output optics
-      for (auto iband = 0; iband < nbnd; ++iband) {
-         for (auto icol = 0; icol < ncol; ++icol) {
-            for (auto ilev = 0; ilev < nlev; ++ilev) {
-               tau_out(icol,ilev,iband) = combined_tau(iband,icol,ilev);
-               liq_tau_out(icol,ilev,iband) = liq_tau(iband,icol,ilev);
-               ice_tau_out(icol,ilev,iband) = ice_tau(iband,icol,ilev);
-               snw_tau_out(icol,ilev,iband) = snow_tau(iband,icol,ilev);
-            }
-         }
-      }
-   }
+      parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int ibnd, int icol, int ilev) {
+         tau_out(icol,ilev,ibnd) = combined_tau(ibnd,icol,ilev);
+         liq_tau_out(icol,ilev,ibnd) = liq_tau(ibnd,icol,ilev);
+         ice_tau_out(icol,ilev,ibnd) = ice_tau(ibnd,icol,ilev);
+         snw_tau_out(icol,ilev,ibnd) = snow_tau(ibnd,icol,ilev);
+     });
+  }
 
 //----------------------------------------------------------------------------
 // Provide a procedure to combine cloud optical properties by weighting
@@ -275,26 +250,20 @@ void Optics::combine_properties(int nbands, int ncols, int nlevs,
       real2d combined_fraction("combined_fraction", ncols,nlevs);
 
       // Combined fraction
-      for (auto icol=0; icol<ncols; ++icol) {
-         for (auto ilev=0; ilev<nlevs; ++ilev) {
-           combined_fraction(icol, ilev) = std::max(fraction1(icol, ilev), fraction2(icol, ilev));
-         }
-      }
+      parallel_for(SimpleBounds<2>(ncols, nlevs), YAKL_LAMBDA (int icol, int ilev) {
+         combined_fraction(icol, ilev) = std::max(fraction1(icol, ilev), fraction2(icol, ilev));
+      });
 
       // Combine optical properties by weighting by amount of cloud and snow
       yakl::memset(combined_property, 0.);
-      for (auto ilev = 0; ilev < nlevs; ++ilev) {
-         for (auto icol = 0; icol < ncols; ++icol) {
-            for (auto iband = 0; iband < nbands; ++iband) {
-               if (combined_fraction(icol,ilev) > 0) {
-                  combined_property(iband,icol,ilev) = (
-                     fraction1(icol,ilev) * property1(iband,icol,ilev)
-                   + fraction2(icol,ilev) * property2(iband,icol,ilev)
-                  ) / combined_fraction(icol,ilev);
-               }
-           }
-        }
-    }
+      parallel_for(SimpleBounds<3>(nlevs, ncols, nbands), YAKL_LAMBDA (int ilev, int icol, int iband) {
+         if (combined_fraction(icol,ilev) > 0) {
+              combined_property(iband,icol,ilev) = (
+                fraction1(icol,ilev) * property1(iband,icol,ilev)
+                + fraction2(icol,ilev) * property2(iband,icol,ilev)
+              ) / combined_fraction(icol,ilev);
+         }
+     });
 }
 
 //----------------------------------------------------------------------------
@@ -313,32 +282,26 @@ void Optics::sample_cloud_optics_sw(
       bool3d iscloudy("iscloudy", ngpt, ncol, nlev);
 
       // Combined snow and cloud fraction
-      for (auto icol=0; icol<ncol; ++icol) {
-         for (auto ilev=0; ilev<nlev; ++ilev) {
-            combined_cld(icol,ilev) = std::max(cld(icol,ilev), cldfsnow(icol,ilev));
-         }
-      }
+      parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+          combined_cld(icol,ilev) = std::max(cld(icol,ilev), cldfsnow(icol,ilev));
+      });
 
       // Get stochastic subcolumn cloud mask
       mcica_subcol_mask(ngpt, ncol, nlev, combined_cld, iscloudy);
 
       // Generate subcolumns for homogeneous clouds
-      for (auto igpt=0; igpt<ngpt; ++igpt) {
-         for (auto ilev=0; ilev<nlev; ++ilev) {
-            for (auto icol=0; icol<ncol; ++icol) {
-               if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
-                 tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
-                 ssa_gpt(icol,ilev,igpt) = ssa_bnd(icol,ilev,gpt2bnd(igpt));
-                 asm_gpt(icol,ilev,igpt) = asm_bnd(icol,ilev,gpt2bnd(igpt));
-               } else {
-                 tau_gpt(icol,ilev,igpt) = 0.;
-                 ssa_gpt(icol,ilev,igpt) = 1.;
-                 asm_gpt(icol,ilev,igpt) = 0.;
-               }
-             }
-         }
-      }
-}
+      parallel_for(SimpleBounds<3>(ngpt, nlev, ncol), YAKL_LAMBDA (int igpt, int ilev, int icol) {
+          if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
+             tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
+             ssa_gpt(icol,ilev,igpt) = ssa_bnd(icol,ilev,gpt2bnd(igpt));
+             asm_gpt(icol,ilev,igpt) = asm_bnd(icol,ilev,gpt2bnd(igpt));
+          } else {
+             tau_gpt(icol,ilev,igpt) = 0.;
+             ssa_gpt(icol,ilev,igpt) = 1.;
+             asm_gpt(icol,ilev,igpt) = 0.;
+          }
+     });
+ }
 
 //----------------------------------------------------------------------------
 // Do MCICA sampling of optics here. This will map bands to gpoints,
@@ -354,11 +317,9 @@ void Optics::sample_cloud_optics_lw(
       bool3d iscloudy("iscloudy", ngpt, ncol, nlev);
 
       // Combine cloud and snow fractions for MCICA sampling
-      for (auto icol=0; icol<ncol; ++icol) {
-         for (auto ilev=0; ilev<nlev; ++ilev) {
-            combined_cld(icol,ilev) = std::max(cld(icol,ilev), cldfsnow(icol,ilev));
-         }
-       }
+      parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+          combined_cld(icol,ilev) = std::max(cld(icol,ilev), cldfsnow(icol,ilev));
+      });
 
       // Get the stochastic subcolumn cloudy mask
       mcica_subcol_mask(ngpt, ncol, nlev, combined_cld, iscloudy);
@@ -367,18 +328,14 @@ void Optics::sample_cloud_optics_lw(
       // g-point. This implementation generates homogeneous clouds, but it would be
       // straightforward to extend this to handle horizontally heterogeneous clouds
       // as well.
-      for (auto igpt=0; igpt<ngpt; ++igpt) {
-         for (auto ilev=0; ilev<nlev; ++ilev) {
-            for (auto icol=0; icol<ncol; ++icol) {
-               if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
-                  tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
-               } else {
-                  tau_gpt(icol,ilev,igpt) = 0.;
-               }
-            }
+      parallel_for(SimpleBounds<3>(ngpt, nlev, ncol), YAKL_LAMBDA (int igpt, int ilev, int icol) {
+         if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
+             tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
+         } else {
+            tau_gpt(icol,ilev,igpt) = 0.;
          }
-      }
-}
+      });
+ }
 
 //----------------------------------------------------------------------------
 void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, int1d& night_indices,
@@ -404,38 +361,36 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
       yakl::memset(tau_w_g, 0.);
       yakl::memset(tau_w_f, 0.);
 
-      int icount = 0;
-      for (auto i=0; i<ncol; ++i) {
-         if (night_indices(i) > 0) ++icount;
-      }
-
+      int1d ic("icount",1); 
+      intHost1d ic_host("ic_host",1);
+      parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int i) {
+        if (night_indices(i) > 0) ++ic(1);
+      });
+      ic.deep_copy_to(ic_host);
+ 
       aero_optics.aer_rad_props_sw(icall, dt,
-           icount, night_indices, is_cmip6_volc,
+           ic_host(1), night_indices, is_cmip6_volc,
            tau, tau_w, tau_w_g, tau_w_f, clear_rh);
 
       // Extract quantities from products
-      for (auto icol=0; icol<ncol; ++icol) {
-        for (auto ilev=0; ilev<nlev; ++ilev) {
-            for (auto iband=0; iband<nswbands; ++iband) {
-               // Copy cloud optical depth over directly
-              tau_out(icol,ilev,iband) = tau(icol,ilev,iband);
-              // Extract single scattering albedo from the product-defined fields
-              if (tau(icol,ilev,iband) > 0) {
-                ssa_out(icol,ilev,iband) = tau_w(icol,ilev,iband) / tau(icol,ilev,iband);
-              } else {
-                ssa_out(icol,ilev,iband) = 1.;
-              }
-
-              // Extract assymmetry parameter from the product-defined fields
-              if (tau_w(icol,ilev,iband) > 0) {
-                asm_out(icol,ilev,iband) = tau_w_g(icol,ilev,iband) / tau_w(icol,ilev,iband);
-              } else {
-                asm_out(icol,ilev,iband) = 0.;
-              }
-           }
+      parallel_for(SimpleBounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int iband) {
+        // Copy cloud optical depth over directly
+        tau_out(icol,ilev,iband) = tau(icol,ilev,iband);
+        // Extract single scattering albedo from the product-defined fields
+        if (tau(icol,ilev,iband) > 0) {
+          ssa_out(icol,ilev,iband) = tau_w(icol,ilev,iband) / tau(icol,ilev,iband);
+        } else {
+          ssa_out(icol,ilev,iband) = 1.;
         }
-    }
-}
+
+        // Extract assymmetry parameter from the product-defined fields
+        if (tau_w(icol,ilev,iband) > 0) {
+          asm_out(icol,ilev,iband) = tau_w_g(icol,ilev,iband) / tau_w(icol,ilev,iband);
+        } else {
+           asm_out(icol,ilev,iband) = 0.;
+        }
+     });
+  }
 
 //----------------------------------------------------------------------------
 void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, real2d& zi, real3d& tau, real2d& clear_rh) {
@@ -458,39 +413,29 @@ void Optics::mcica_subcol_mask(int ngpt, int ncol, int nlev,
    real3d cdf("cdf", ngpt, ncol, nlev);   // random numbers
 
    // clip cloud fraction
-   for (auto icol=0; icol<ncol; ++icol) {
-      for (auto ilev=0; ilev<nlev; ++ilev) {
-         cldf(icol,ilev) = cldfrac(icol,ilev);
-         if (cldf(icol,ilev) < cldmin) cldf(icol,ilev) = 0.;
-      }
-    }
+   parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+      cldf(icol,ilev) = cldfrac(icol,ilev);
+      if (cldf(icol,ilev) < cldmin) cldf(icol,ilev) = 0.;
+   });
 
    amrex::RandomEngine engine;
    // Generate random numbers in each subcolumn at every level
-   for (auto isubcol=0; isubcol<ngpt; ++isubcol) {
-      for (auto icol=0; icol<ncol; ++icol) {
-        for (auto ilev=0; ilev<nlev; ++ilev) {
-          cdf(isubcol,icol,ilev) = amrex::Random(engine);
-        }
-      }
-   }
+    parallel_for(SimpleBounds<3>(ngpt, ncol, nlev), YAKL_LAMBDA (int isubcol, int icol, int ilev) {
+      cdf(isubcol,icol,ilev) = amrex::Random(engine);
+   });
 
    // Maximum-Random overlap
    // i) pick a random number for top layer.
    // ii) walk down the column:
    //    - if the layer above is cloudy, use the same random number as in the layer above
    //    - if the layer above is clear, use a new random number
-   for (auto k=1; k<nlev; ++k) {
-      for (auto i=0; i<ncol; ++i) {
-         for (auto isubcol=0; isubcol<ngpt; ++isubcol) {
-            if (cdf(isubcol,i,k-1) > 1. - cldf(i,k-1) ) {
-               cdf(isubcol,i,k) = cdf(isubcol,i,k-1);
-            } else {
-               cdf(isubcol,i,k) = cdf(isubcol,i,k) * (1. - cldf(i,k-1));
-            }
-            iscloudy(isubcol,i,k) = cdf(isubcol,i,k) >= 1.-cldf(i,k) ? true : false;
-         }
-      }
-   }
+   parallel_for(SimpleBounds<3>(nlev, ncol, ngpt), YAKL_LAMBDA (int k, int i, int isubcol) {
+     if (cdf(isubcol,i,k-1) > 1. - cldf(i,k-1) ) {
+        cdf(isubcol,i,k) = cdf(isubcol,i,k-1);
+     } else {
+        cdf(isubcol,i,k) = cdf(isubcol,i,k) * (1. - cldf(i,k-1));
+     }
+     iscloudy(isubcol,i,k) = cdf(isubcol,i,k) >= 1.-cldf(i,k) ? true : false;
+   });
 }
 
