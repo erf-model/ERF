@@ -45,6 +45,7 @@ erf.use_gravity = true
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 
+erf.moisture_model = "SAM"
 erf.les_type = "Deardorff"
 #erf.les_type = "None"
 #

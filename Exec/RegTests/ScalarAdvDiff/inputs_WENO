@@ -15,7 +15,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.use_lowM_dt    = 1
 erf.cfl            = 0.5     # cfl number for hyperbolic system
 
 erf.dycore_horiz_adv_type    = "Centered_2nd"
