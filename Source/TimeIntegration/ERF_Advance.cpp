@@ -133,6 +133,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     advance_microphysics(lev, S_new, dt_lev);
 #endif
 
+#if defined(ERF_USE_MOISTURE)
+    // Update the microphysics
+    advance_radiation(lev, S_new, dt_lev);
+#endif
+
 #ifdef ERF_USE_PARTICLES
     // Update tracer particles on level 0
     if (lev == 0 && use_tracer_particles) {

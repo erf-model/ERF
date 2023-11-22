@@ -361,13 +361,13 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
       yakl::memset(tau_w_g, 0.);
       yakl::memset(tau_w_f, 0.);
 
-      int1d ic("icount",1); 
+      int1d ic("icount",1);
       intHost1d ic_host("ic_host",1);
       parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int i) {
         if (night_indices(i) > 0) ++ic(1);
       });
       ic.deep_copy_to(ic_host);
- 
+
       aero_optics.aer_rad_props_sw(icall, dt,
            ic_host(1), night_indices, is_cmip6_volc,
            tau, tau_w, tau_w_g, tau_w_f, clear_rh);

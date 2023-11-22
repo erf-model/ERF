@@ -146,15 +146,15 @@ void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
    qrsc = real2d("qrsc", ncol, nlev);
    qrlc = real2d("qrlc", ncol, nlev);
 
-   amrex::Print() << "  LW coefficents file: \n"                                
-                  << "  SW coefficents file: \n"                                 
-                  << "  Frequency (timesteps) of Shortwave Radiation calc: \n " 
-                  << "  Frequency (timesteps) of Longwave Radiation calc: \n  " 
-                  << "  SW/LW calc done every timestep for first N steps. N= \n" 
+   amrex::Print() << "  LW coefficents file: \n"
+                  << "  SW coefficents file: \n"
+                  << "  Frequency (timesteps) of Shortwave Radiation calc: \n "
+                  << "  Frequency (timesteps) of Longwave Radiation calc: \n  "
+                  << "  SW/LW calc done every timestep for first N steps. N= \n"
                   << "  Use average zenith angle:                          \n "
-                  << "  Output spectrally resolved fluxes:                 \n " 
-                  << "  Do aerosol radiative calculations:                 \n " 
-                  << "  Fixed solar consant (disabled with -1):            \n " 
+                  << "  Output spectrally resolved fluxes:                 \n "
+                  << "  Do aerosol radiative calculations:                 \n "
+                  << "  Fixed solar consant (disabled with -1):            \n "
                   << "  Enable temperature warnings:                       \n ";
 
 }

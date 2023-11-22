@@ -28,9 +28,9 @@ void Rrtmgp::initialize(int num_gas, const std::vector<std::string>& active_gas_
     coefficients_file_lw = rrtmgp_coefficients_file_lw;
 
     active_gases = string1d("active_gases", ngas);
-    for (int igas=0; igas<ngas; igas++) 
+    for (int igas=0; igas<ngas; igas++)
         active_gases(igas+1) = active_gas_names[igas];
-    
+
     GasConcs available_gases;
     available_gases.init(active_gases, 1, 1);
     load_and_init(k_dist_sw, coefficients_file_sw, available_gases);

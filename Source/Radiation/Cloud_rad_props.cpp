@@ -71,7 +71,7 @@ void CloudRadProps::initialize() {
    ice.read( asm_sw_ice_h, "sw_asm");
    ice.read( abs_lw_ice_h, "lw_abs");
 
-   g_d_eff = real1d("g_d_eff",n_g_d);  
+   g_d_eff = real1d("g_d_eff",n_g_d);
    ext_sw_ice = real2d("ext_sw_ice", n_g_d, nswbands);
    ssa_sw_ice = real2d("ssa_sw_ice", n_g_d, nswbands);
    asm_sw_ice = real2d("asm_sw_ice", n_g_d, nswbands);

@@ -172,7 +172,7 @@ class LinInterp
          avgdyin = abs(yin(nin)-yin(1))/(nin-1.);
          auto ratio = dyinwrap/avgdyin;
          if (ratio < 0.9 || ratio > 1.1) {
-            printf("ratio is too large, dyinwrap= %13.6e, avgdyin= %13.6e, yin(1) = %13.6e, yin(nin)= %13.6e\n", 
+            printf("ratio is too large, dyinwrap= %13.6e, avgdyin= %13.6e, yin(1) = %13.6e, yin(nin)= %13.6e\n",
                   dyinwrap, avgdyin, yin(1), yin(nin));
          }
 
