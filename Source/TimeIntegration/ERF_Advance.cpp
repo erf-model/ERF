@@ -133,7 +133,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     advance_microphysics(lev, S_new, dt_lev);
 #endif
 
-#if defined(ERF_USE_MOISTURE)
+#if defined(ERF_USE_RRTMGP)
     // Update the microphysics
     advance_radiation(lev, S_new, dt_lev);
 #endif
