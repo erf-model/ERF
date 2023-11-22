@@ -26,6 +26,9 @@ class NullMoist {
     Advance ( ) { };
 
     virtual void
+    Diagnose ( ) { };
+
+    virtual void
     Update (amrex::MultiFab& /*cons_in*/,
             amrex::MultiFab& /*qmoist*/) { };
 
