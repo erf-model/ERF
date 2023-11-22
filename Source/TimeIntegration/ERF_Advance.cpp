@@ -133,6 +133,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     advance_microphysics(lev, S_new, dt_lev);
 #endif
 
+#if defined(ERF_USE_RRTMGP)
+    // Update the microphysics
+    advance_radiation(lev, S_new, dt_lev);
+#endif
+
 #ifdef ERF_USE_PARTICLES
     particleData.advance_particles(lev, dt_lev, vars_new, z_phys_nd);
 #endif

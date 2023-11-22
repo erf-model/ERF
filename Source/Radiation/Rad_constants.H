@@ -6,6 +6,8 @@
 #define ERF_RAD_CONSTANTS_H
 
 #include "rrtmgp_const.h"
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class RadConstants {
   public:

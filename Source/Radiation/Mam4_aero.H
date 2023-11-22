@@ -14,6 +14,8 @@
 #include "Mam4_constituents.H"
 #include "Rad_constants.H"
 #include "ERF_Constants.H"
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class Mam4_aer {
    public:
@@ -465,7 +467,7 @@ class Mam4_aer {
             real1d refitabswr("refitabswr", prefi);
             real1d refrtabswr("refrtabswr", prefr);
 
-            yakl::c::parallel_for(yakl::c::Bounds<3>(ncoef,prefr,prefi) , YAKL_LAMBDA (int icoef, int irefr, int irefi) {
+            parallel_for(SimpleBounds<3>(ncoef,prefr,prefi) , YAKL_LAMBDA (int icoef, int irefr, int irefi) {
                extpswr(icoef,irefr,irefi) = extpsw(icoef,irefr,irefi,isw);
                abspswr(icoef,irefr,irefi) = abspsw(icoef,irefr,irefi,isw);
                asmpswr(icoef,irefr,irefi) = asmpsw(icoef,irefr,irefi,isw);
@@ -701,7 +703,7 @@ class Mam4_aer {
             real1d refitablwr("refitablwr", prefi);
             real1d refrtablwr("refrtablwr", prefr);
 
-            yakl::c::parallel_for(yakl::c::Bounds<3>(ncoef,prefr,prefi) , YAKL_LAMBDA (int icoef, int irefr, int irefi) {
+            parallel_for(SimpleBounds<3>(ncoef,prefr,prefi) , YAKL_LAMBDA (int icoef, int irefr, int irefi) {
                absplwr(icoef,irefr,irefi) = absplw(icoef,irefr,irefi,ilw);
                refitablwr(irefi)          = refitablw(irefi,ilw);
                refrtablwr(irefr)          = refrtablw(irefr,ilw);

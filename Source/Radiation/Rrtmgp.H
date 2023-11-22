@@ -37,11 +37,12 @@ class Rrtmgp {
   public:
     // constructor
     Rrtmgp() = default;
+
     // deconstructor
     ~Rrtmgp() = default;
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize(int num_gas, std::vector<std::string> active_gas_names,
+    void initialize(int num_gas, const std::vector<std::string>& active_gas_names,
                     const char* rrtmgp_coefficients_file_sw,
                     const char* rrtmgp_coefficients_file_lw);
 
@@ -49,8 +50,7 @@ class Rrtmgp {
     void finalize();
 
     // run rrtmgp short wave model
-    void run_shortwave_rrtmgp (
-        int ngas, int ncol, int nlay,
+    void run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
         real3d& gas_vmr, real2d& pmid      , real2d& tmid      , real2d& pint,
         real1d& coszrs , real2d& albedo_dir, real2d& albedo_dif,
         real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
@@ -62,9 +62,7 @@ class Rrtmgp {
         double tsi_scaling);
 
     // run rrtmgp long wave model
-    void run_longwave_rrtmgp (
-        int ngas, int ncol, int nlay,
-        real3d& gas_vmr           ,
+    void run_longwave_rrtmgp (int ngas, int ncol, int nlay, real3d& gas_vmr,
         real2d& pmid              , real2d& tmid              , real2d& pint               , real2d& tint,
         real2d& emis_sfc          ,
         real3d& cld_tau_gpt       , real3d& aer_tau_bnd       ,
@@ -117,8 +115,6 @@ class Rrtmgp {
 
    // number of gas for radiation model
    int ngas;
-   const char** gas_names;
-
    string1d active_gases;
 
    // coefficient files

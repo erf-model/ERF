@@ -10,15 +10,10 @@
 // Rrtmgp
 #include "Rrtmgp.H"
 
-void Rrtmgp::initialize(int num_gas, std::vector<std::string> active_gas_names,
+void Rrtmgp::initialize(int num_gas, const std::vector<std::string>& active_gas_names,
                         const char* rrtmgp_coefficients_file_sw,
                         const char* rrtmgp_coefficients_file_lw)
 {
-    // First, make sure yakl has been initialized
-    if (!yakl::isInitialized()) {
-        yakl::init();
-    }
-
     // Read gas optics coefficients from file
     // Need to initialize available_gases here! The only field of the
     // available_gases type that is used in the kdist initialize is
@@ -28,17 +23,14 @@ void Rrtmgp::initialize(int num_gas, std::vector<std::string> active_gas_names,
     // impossible from this initialization routine because I do not think the
     // rad_cnst objects are setup yet.
     // the other tasks!
-    ngas      = num_gas;
-    for (auto i = 0; i < ngas; ++i)
-       gas_names[i] = active_gas_names[i].c_str();
-
+    ngas  = num_gas;
     coefficients_file_sw = rrtmgp_coefficients_file_sw;
     coefficients_file_lw = rrtmgp_coefficients_file_lw;
 
-    auto active_gases = string1d("active_gases", ngas);
-    for (int igas=0; igas<ngas; igas++) {
-        active_gases(igas+1) = gas_names[igas];
-    }
+    active_gases = string1d("active_gases", ngas);
+    for (int igas=0; igas<ngas; igas++)
+        active_gases(igas+1) = active_gas_names[igas];
+
     GasConcs available_gases;
     available_gases.init(active_gases, 1, 1);
     load_and_init(k_dist_sw, coefficients_file_sw, available_gases);

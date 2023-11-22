@@ -1,6 +1,8 @@
 
 #ifndef ERF_EBERT_CURRY_H_
 #define ERF_EBERT_CURRY_H_
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class EbertCurry {
   public:
