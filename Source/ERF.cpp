@@ -314,6 +314,10 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
 {
     BL_PROFILE("ERF::post_timestep()");
 
+#ifdef ERF_USE_PARTICLES
+    particleData.Redistribute();
+#endif
+
     if (solverChoice.coupling_type == CouplingType::TwoWay ||
         solverChoice.coupling_type == CouplingType::Mixed)
     {
