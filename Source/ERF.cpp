@@ -27,7 +27,8 @@ amrex::Real ERF::previousCPUTimeUsed = 0.0;
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
-#ifdef ERF_USE_MULTIBLOCK
+
+#ifdef ERF_USE_PARTICLES
 ParticleData ERF::particleData;
 #endif
 
@@ -953,7 +954,6 @@ ERF::ReadParameters ()
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
 #ifdef ERF_USE_PARTICLES
-        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
         particleData.init_particle_params();
 #endif
 
@@ -1116,8 +1116,8 @@ ERF::ReadParameters ()
     solverChoice.pp_prefix = pp_prefix;
 #endif
 
-#ifdef ERF_USE_MULTIBLOCK
-    Particleinit_particle_params();
+#ifdef ERF_USE_PARTICLES
+    particleData.init_particle_params();
 #endif
 
     solverChoice.init_params(max_level);
