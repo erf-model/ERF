@@ -8,7 +8,7 @@ using namespace amrex;
 /**
  * Computes contributions to Microphysics and thermodynamic variables from falling cloud ice in each column.
  */
-void Microphysics::IceFall () {
+void SAM::IceFall () {
 
   Real dz  = m_geom.CellSize(2);
   Real dtn = dt;

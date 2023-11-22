@@ -139,10 +139,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 #endif
 
 #ifdef ERF_USE_PARTICLES
-    // Update tracer particles on level 0
-    if (lev == 0 && use_tracer_particles) {
-        MultiFab* Umac = &vars_new[lev][Vars::xvel];
-        tracer_particles->AdvectWithUmac(Umac, lev, dt_lev, *z_phys_nd[0]);
-    }
+    particleData.advance_particles(lev, dt_lev, vars_new, z_phys_nd);
 #endif
 }

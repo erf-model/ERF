@@ -10,8 +10,8 @@
  * @param[out] cons Conserved variables
  * @param[out] qmoist: qv, qc, qi, qr, qs, qg
  */
-void Microphysics::Update (amrex::MultiFab& cons,
-                           amrex::MultiFab& qmoist)
+void SAM::Update (amrex::MultiFab& cons,
+                  amrex::MultiFab& qmoist)
 {
   // copy multifab data to qc, qv, and qi
   amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qv],  0, 0, 1, mic_fab_vars[MicVar::qv]->nGrowVect());  // vapor

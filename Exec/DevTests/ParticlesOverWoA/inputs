@@ -24,7 +24,7 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # PARTICLES
-erf.use_tracer_particles = true
+erf.use_tracer_particles = 1
 
 # TIME STEP CONTROL
 erf.no_substepping     = 1
@@ -45,7 +45,7 @@ erf.check_int       = 10  # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
 erf.plot_int_1      = 1       # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y particle_count
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particle_count
 
 # SOLVER CHOICE
 erf.use_gravity = true

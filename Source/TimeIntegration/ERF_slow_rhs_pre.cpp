@@ -478,7 +478,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
-        Box valid_bx = mfi.validbox();
 
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
