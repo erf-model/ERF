@@ -175,8 +175,8 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
 
    //----------------------------------------------------------------------------
 void Optics::get_cloud_optics_lw(
-         int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp, 
-         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des, 
+         int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des,
          const real2d& rei, const real3d& tau_out, const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out) {
       // Temporary variables to hold absorption optical depth
       real3d ice_tau("ice_tau", nbnd, ncol, nlev);
@@ -393,7 +393,7 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
   }
 
 //----------------------------------------------------------------------------
-void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi, 
+void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi,
              const real3d& tau, const real2d& clear_rh) {
    // Get aerosol absorption optical depth from CAM routine
    yakl::memset(tau, 0.);

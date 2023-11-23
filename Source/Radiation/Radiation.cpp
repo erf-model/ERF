@@ -163,8 +163,8 @@ void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
    auto geom_radius = real2d("geom_radius", ncol, nlev);
    yakl::memset(geom_radius, 0.1);
 
-   optics.initialize(ngas, nmodes, naer, nswbands, nlwbands, 
-                     ncol, nlev, nrh, top_lev, aero_names, zi, 
+   optics.initialize(ngas, nmodes, naer, nswbands, nlwbands,
+                     ncol, nlev, nrh, top_lev, aero_names, zi,
                      pmid, tmid, qt, geom_radius);
 
    amrex::Print() << "  LW coefficents file: \n"
@@ -275,7 +275,7 @@ void Radiation::run() {
      real1d cld_tau_bnd_sw_o_1d("cld_tau_bnd_sw_1d", nswbands);
      real1d cld_ssa_bnd_sw_o_1d("cld_ssa_bnd_sw_1d", nswbands);
      real1d cld_asm_bnd_sw_o_1d("cld_asm_bnd_sw_1d", nswbands);
-     
+
      parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilay) {
         for (auto ibnd = 1; ibnd <= nswbands; ++ibnd) {
            cld_tau_bnd_sw_1d(ibnd) = cld_tau_bnd_sw(icol,ilay,ibnd);
@@ -336,7 +336,7 @@ void Radiation::run() {
            real1d aer_tau_bnd_sw_o_1d("cld_tau_bnd_sw_1d", nswbands);
            real1d aer_ssa_bnd_sw_o_1d("cld_ssa_bnd_sw_1d", nswbands);
            real1d aer_asm_bnd_sw_o_1d("cld_asm_bnd_sw_1d", nswbands);
-           
+
            parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilay) {
              for (auto ibnd = 1; ibnd < nswbands; ++ibnd) {
                 aer_tau_bnd_sw_1d(ibnd) = aer_tau_bnd_sw(icol,ilay,ibnd);

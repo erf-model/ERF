@@ -38,8 +38,8 @@ class Optics {
          const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
 
     // get long wave cloud optics property
-    void get_cloud_optics_lw(int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp, 
-         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des, 
+    void get_cloud_optics_lw(int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des,
          const real2d& rei, const real3d& tau_out, const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
 
     // sample short wave cloud optics property
@@ -55,11 +55,11 @@ class Optics {
 
     // set the short wave aerosol optics property
     void set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, const int1d& night_indices,
-             bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out, 
+             bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
              const real2d& clear_rh);
 
     // set the long wave aerosol optics property
-    void set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi, 
+    void set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi,
              const real3d& tau, const real2d& clear_rh);
 
     // mcica subcol mask
@@ -78,7 +78,7 @@ class Optics {
                     const std::vector<std::string>& aero_names,
                     const real2d& zi, const real2d& pmid, const real2d& temp,
                     const real2d& qi, const real2d& geom_radius);
-   
+
     // finalize/clean up
     void finalize();
 

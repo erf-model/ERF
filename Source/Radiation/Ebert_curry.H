@@ -24,28 +24,28 @@ class EbertCurry {
 
     parallel_for(SimpleBounds<1>(1), YAKL_LAMBDA (int i) {
       abari(1) = 3.448e-03;
-      abari(2) = 3.448e-03; 
-      abari(3) = 3.448e-03; 
+      abari(2) = 3.448e-03;
+      abari(3) = 3.448e-03;
       abari(4) = 3.448e-03;
-      bbari(1) = 2.431; 
-      bbari(2) = 2.431; 
-      bbari(3) = 2.431; 
+      bbari(1) = 2.431;
+      bbari(2) = 2.431;
+      bbari(3) = 2.431;
       bbari(4) = 2.431;
-      cbari(1) = 1.00e-05; 
-      cbari(2) = 1.10e-04; 
+      cbari(1) = 1.00e-05;
+      cbari(2) = 1.10e-04;
       cbari(3) = 1.861e-02;
       cbari(4) = 0.46658;
-      dbari(1) = 0.0; 
-      dbari(2) = 1.405e-05; 
-      dbari(3) = 8.328e-04; 
+      dbari(1) = 0.0;
+      dbari(2) = 1.405e-05;
+      dbari(3) = 8.328e-04;
       dbari(4) = 2.05e-05;
-      ebari(1) = 0.7661; 
-      ebari(2) = 0.7730; 
-      ebari(3) = 0.794; 
+      ebari(1) = 0.7661;
+      ebari(2) = 0.7730;
+      ebari(3) = 0.794;
       ebari(4) = 0.9595;
-      fbari(1) = 5.851e-04; 
-      fbari(2) = 5.665e-04; 
-      fbari(3) = 7.267e-04; 
+      fbari(1) = 5.851e-04;
+      fbari(2) = 5.665e-04;
+      fbari(3) = 7.267e-04;
       fbari(4) = 1.076e-04;
     });
 
@@ -111,7 +111,7 @@ class EbertCurry {
   }
 
 
-  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands, const real2d& cldn, const real2d& iclwpth, 
+  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands, const real2d& cldn, const real2d& iclwpth,
               const real2d& iciwpth, const real2d& rei, const real3d& abs_od) {
      real2d ficemr("ficemr",ncol,nlev);
      real2d cwp("cwp",ncol,nlev);

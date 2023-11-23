@@ -57,7 +57,7 @@ class Mam4_aer {
     MamConstituents mam_consti;
 
    // initialization
-   inline 
+   inline
    void initialize(int ncol_, int nlev_, int top_lev_, int nswbands_, int nlwbands_) {
       ncol = ncol_;
       nlev = nlev_;
@@ -321,7 +321,7 @@ class Mam4_aer {
    void  modal_aero_sw(int list_idx, real dt, int nnite,
                        const int1d& idxnite, const bool& is_cmip6_volc,
                        const real2d& ext_cmip6_sw, const int1d& trop_level,
-                       const real3d& tauxar, const real3d& wa, const real3d& ga, 
+                       const real3d& tauxar, const real3d& wa, const real3d& ga,
                        const real3d& fa, const real2d& clear_rh) {
      int ilev_tropp;
 

@@ -11,25 +11,25 @@ using yakl::fortran::SimpleBounds;
 
 void AerRadProps::initialize(int ngas_, int nmodes_, int num_aeroes_,
                              int nswbands_, int nlwbands_,
-                             int ncol_, int nlev_, int nrh_, int top_lev_, 
+                             int ncol_, int nlev_, int nrh_, int top_lev_,
                              const std::vector<std::string>& aero_names_,
-                             const real2d& zi_, const real2d& pmid_, const real2d& temp_, 
+                             const real2d& zi_, const real2d& pmid_, const real2d& temp_,
                              const real2d& qt_, const real2d& geom_radius) {
    nmodes = nmodes_;
-   ngas = ngas_; 
+   ngas = ngas_;
    num_aeroes = num_aeroes_;
    aero_names = aero_names_;
 
-   nswbands = nswbands_; 
+   nswbands = nswbands_;
    nlwbands = nlwbands_;
-   ncol     = ncol_; 
-   nlev     = nlev_; 
-   nrh      = nrh_; 
+   ncol     = ncol_;
+   nlev     = nlev_;
+   nrh      = nrh_;
    top_lev  = top_lev_;
 
    pmid = pmid_;
-   pdeldry = pmid_; 
-   temp = temp_; 
+   pdeldry = pmid_;
+   temp = temp_;
    qt   = qt_;
    // geometric radius
    geometric_radius = geom_radius;

@@ -33,29 +33,29 @@ class Slingo {
     real1d fbarl("fbarl", 4);  // F coefficient for extinction optical depth
     parallel_for(SimpleBounds<1>(1), YAKL_LAMBDA (int i) {
        abarl(1) = 2.817e-02;
-       abarl(2) = 2.682e-02; 
-       abarl(3) = 2.264e-02; 
+       abarl(2) = 2.682e-02;
+       abarl(3) = 2.264e-02;
        abarl(4) = 1.281e-02;
-       bbarl(1) = 1.305; 
-       bbarl(2) = 1.346; 
-       bbarl(3) = 1.454; 
+       bbarl(1) = 1.305;
+       bbarl(2) = 1.346;
+       bbarl(3) = 1.454;
        bbarl(4) = 1.641;
        cbarl(1) = -5.62e-08;
        cbarl(2) = -6.94e-06;
        cbarl(3) = 4.64e-04;
        abarl(4) = 0.201;
-       dbarl(1) = 1.63e-07; 
+       dbarl(1) = 1.63e-07;
        dbarl(2) = 2.35e-05;
        dbarl(3) = 1.24e-03;
        dbarl(4) = 7.56e-03;
-       ebarl(1) = 0.829; 
-       ebarl(2) = 0.794; 
-       ebarl(3) = 0.754; 
+       ebarl(1) = 0.829;
+       ebarl(2) = 0.794;
+       ebarl(3) = 0.754;
        ebarl(4) = 0.826;
        fbarl(1) = 2.482e-03;
-       fbarl(2) = 4.226e-03; 
-       fbarl(3) = 6.560e-03; 
-       fbarl(4) = 4.353e-03; 
+       fbarl(2) = 4.226e-03;
+       fbarl(3) = 6.560e-03;
+       fbarl(4) = 4.353e-03;
      });
 
     // Caution... A. Slingo recommends no less than 4.0 micro-meters nor
@@ -118,7 +118,7 @@ class Slingo {
      } // nswbands
   }
 
-  static void slingo_liq_optics_lw(int ncol, int nlev, int nlwbands, const real2d& cldn, 
+  static void slingo_liq_optics_lw(int ncol, int nlev, int nlwbands, const real2d& cldn,
                                    const real2d& iclwpth, const real2d& iciwpth, const real3d& abs_od) {
     real2d ficemr("ficemr", ncol, nlev);
     real2d cwp("cwp", ncol, nlev);
