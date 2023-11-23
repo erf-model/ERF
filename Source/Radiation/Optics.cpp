@@ -9,9 +9,16 @@
 using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;
 
-void Optics::initialize() {
+void Optics::initialize(int ngas, int nmodes, int num_aeros,
+                        int nswbands, int nlwbands,
+                        int ncol, int nlev, int nrh, int top_lev,
+                        const std::vector<std::string>& aero_names,
+                        const real2d& zi, const real2d& pmid, const real2d& temp,
+                        const real2d& qi, const real2d& geom_radius) {
    cloud_optics.initialize();
-   aero_optics.initialize();
+   aero_optics.initialize(ngas, nmodes, num_aeros,
+                          nswbands, nlwbands, ncol, nlev, nrh, top_lev,
+                          aero_names, zi, pmid, temp, qi, geom_radius);
 }
 
 void Optics::finalize() {
@@ -20,15 +27,13 @@ void Optics::finalize() {
 
 
 void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
-         bool do_snow, real2d cld, real2d cldfsnow, real2d iclwp,
-         real2d iciwp, real2d icswp, real2d lambdac, real2d mu,
-         real2d dei, real2d des, real2d rel, real2d rei,
-         real3d tau_out, real3d ssa_out, real3d asm_out,
-         real3d liq_tau_out, real3d ice_tau_out, real3d snw_tau_out) {
-
+         bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu,
+         const real2d& dei, const real2d& des, const real2d& rel, const real2d& rei,
+         const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
+         const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out) {
       //Temporary variables to hold cloud optical properties before combining into
       // output arrays. Same shape as output arrays, so get shapes from output.
-      //real(r8), dimension(nbnd,ncol,nlev) ::
       real3d liq_tau("liq_tau",nbnd, ncol, nlev);
       real3d liq_tau_ssa("liq_tau_ssa",nbnd, ncol, nlev);
       real3d liq_tau_ssa_g("liq_tau_ssa_g", nbnd, ncol, nlev);
@@ -170,12 +175,10 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
 
    //----------------------------------------------------------------------------
 void Optics::get_cloud_optics_lw(
-         int ncol, int nlev, int nbnd, bool do_snow, real2d& cld, real2d& cldfsnow, real2d& iclwp, real2d& iciwp, real2d& icswp,
-         real2d& lambdac, real2d& mu, real2d& dei, real2d& des, real2d& rei,
-         real3d& tau_out, real3d& liq_tau_out, real3d& ice_tau_out, real3d& snw_tau_out) {
-
+         int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des,
+         const real2d& rei, const real3d& tau_out, const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out) {
       // Temporary variables to hold absorption optical depth
-      //real(r8), dimension(nbnd,ncol,nlev) :: &
       real3d ice_tau("ice_tau", nbnd, ncol, nlev);
       real3d liq_tau("liq_tau", nbnd, ncol, nlev);
       real3d snow_tau("snow_tau", nbnd, ncol, nlev);
@@ -243,9 +246,9 @@ void Optics::get_cloud_optics_lw(
 // optical properties, we weight the cloud and snow properties by the fraction
 // of cloud and snow present.
 void Optics::combine_properties(int nbands, int ncols, int nlevs,
-                                real2d& fraction1, real3d& property1,
-                                real2d& fraction2, real3d& property2,
-                                real3d& combined_property) {
+                                const real2d& fraction1, const real3d& property1,
+                                const real2d& fraction2, const real3d& property2,
+                                const real3d& combined_property) {
       // Combined fraction (max of property 1 and 2)
       real2d combined_fraction("combined_fraction", ncols,nlevs);
 
@@ -270,10 +273,10 @@ void Optics::combine_properties(int nbands, int ncols, int nlevs,
 // Do MCICA sampling of optics here. This will map bands to gpoints,
 // while doing stochastic sampling of cloud state
 void Optics::sample_cloud_optics_sw(
-         int ncol, int nlev, int ngpt, int1d& gpt2bnd,
-         real2d& pmid, real2d& cld, real2d& cldfsnow,
-         real3d& tau_bnd, real3d& ssa_bnd, real3d& asm_bnd,
-         real3d& tau_gpt, real3d& ssa_gpt, real3d& asm_gpt) {
+         int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
+         const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
+         const real3d& tau_bnd, const real3d& ssa_bnd, const real3d& asm_bnd,
+         const real3d& tau_gpt, const real3d& ssa_gpt, const real3d& asm_gpt) {
 
       //real(r8), dimension(ncol,nlev) :: combined_cld
       real2d combined_cld("combined_cld", ncol, nlev);
@@ -306,10 +309,9 @@ void Optics::sample_cloud_optics_sw(
 //----------------------------------------------------------------------------
 // Do MCICA sampling of optics here. This will map bands to gpoints,
 // while doing stochastic sampling of cloud state
-void Optics::sample_cloud_optics_lw(
-         int ncol, int nlev, int ngpt, int1d& gpt2bnd,
-         real2d& pmid, real2d& cld, real2d& cldfsnow,
-         real3d& tau_bnd, real3d& tau_gpt) {
+void Optics::sample_cloud_optics_lw(int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
+         const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
+         const real3d& tau_bnd, const real3d& tau_gpt) {
       //real(r8), dimension(ncol,nlev) :: combined_cld
       real2d combined_cld("combined_cld", ncol, nlev);
 
@@ -338,10 +340,8 @@ void Optics::sample_cloud_optics_lw(
  }
 
 //----------------------------------------------------------------------------
-void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, int1d& night_indices,
-                                   bool is_cmip6_volc,
-                                   real3d& tau_out, real3d& ssa_out, real3d& asm_out,
-                                   real2d& clear_rh) {
+void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, const int1d& night_indices,
+             bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out, const real2d& clear_rh) {
       // NOTE: aer_rad_props expects 0:pver indexing on these! It appears this is to
       // account for the extra layer added above model top, but it is not entirely
       // clear. This is not done for the longwave, and it is not really documented
@@ -393,7 +393,8 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
   }
 
 //----------------------------------------------------------------------------
-void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, real2d& zi, real3d& tau, real2d& clear_rh) {
+void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi,
+             const real3d& tau, const real2d& clear_rh) {
    // Get aerosol absorption optical depth from CAM routine
    yakl::memset(tau, 0.);
    aero_optics.aer_rad_props_lw(is_cmip6_volc, icall, dt, zi, tau, clear_rh);
@@ -406,7 +407,7 @@ void Optics::set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, real2
 // of the layer above it.
 //
 void Optics::mcica_subcol_mask(int ngpt, int ncol, int nlev,
-                               real2d& cldfrac, bool3d& iscloudy) {
+                               const real2d& cldfrac, const bool3d& iscloudy) {
    // Local vars
    const real cldmin = 1.0e-80;      // min cloud fraction
    real2d cldf("cldf",ncol,nlev);    // cloud fraction clipped to cldmin
@@ -430,12 +431,14 @@ void Optics::mcica_subcol_mask(int ngpt, int ncol, int nlev,
    //    - if the layer above is cloudy, use the same random number as in the layer above
    //    - if the layer above is clear, use a new random number
    parallel_for(SimpleBounds<3>(nlev, ncol, ngpt), YAKL_LAMBDA (int k, int i, int isubcol) {
-     if (cdf(isubcol,i,k-1) > 1. - cldf(i,k-1) ) {
-        cdf(isubcol,i,k) = cdf(isubcol,i,k-1);
-     } else {
-        cdf(isubcol,i,k) = cdf(isubcol,i,k) * (1. - cldf(i,k-1));
+     if (k > 1) {
+        if (cdf(isubcol,i,k-1) > 1. - cldf(i,k-1) ) {
+           cdf(isubcol,i,k) = cdf(isubcol,i,k-1);
+        } else {
+           cdf(isubcol,i,k) = cdf(isubcol,i,k) * (1. - cldf(i,k-1));
+        }
+        iscloudy(isubcol,i,k) = cdf(isubcol,i,k) >= 1.-cldf(i,k) ? true : false;
      }
-     iscloudy(isubcol,i,k) = cdf(isubcol,i,k) >= 1.-cldf(i,k) ? true : false;
    });
 }
 

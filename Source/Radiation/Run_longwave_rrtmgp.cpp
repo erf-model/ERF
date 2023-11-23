@@ -9,14 +9,14 @@
 
 void Rrtmgp::run_longwave_rrtmgp (
         int ngas, int ncol, int nlay,
-        real3d& gas_vmr           ,
-        real2d& pmid              , real2d& tmid              , real2d& pint               , real2d& tint,
-        real2d& emis_sfc          ,
-        real3d& cld_tau_gpt       , real3d& aer_tau_bnd       ,
-        real2d& allsky_flux_up    , real2d& allsky_flux_dn    , real2d& allsky_flux_net    ,
-        real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net,
-        real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    ,
-        real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net)
+        const real3d& gas_vmr,
+        const real2d& pmid, const real2d& tmid, const real2d& pint, const real2d& tint,
+        const real2d& emis_sfc          ,
+        const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
+        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
+        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
+        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
+        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net)
 {
     // Wrap pointers in YAKL arrays
     int nlwbands = k_dist_lw.get_nband();

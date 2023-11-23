@@ -56,6 +56,16 @@ class Mam4_aer {
     // aerosol constitutents
     MamConstituents mam_consti;
 
+   // initialization
+   inline
+   void initialize(int ncol_, int nlev_, int top_lev_, int nswbands_, int nlwbands_) {
+      ncol = ncol_;
+      nlev = nlev_;
+      top_lev = top_lev_;
+      nswbands = nswbands_;
+      nlwbands = nlwbands_;
+   }
+
    // read water refractive index file and set module data
    inline
    void read_water_refindex(std::string infilename) {
@@ -81,8 +91,8 @@ class Mam4_aer {
    // modal size  parameters
    inline
    void modal_size_parameters(int ncol, real sigma_logr_aer,
-                              real2d& dgnumwet, real2d& radsurf,
-                              real2d& logradsurf, real3d& cheb) {
+                              const real2d& dgnumwet, const real2d& radsurf,
+                              const real2d& logradsurf, const real3d& cheb) {
      real alnsg_amode;
      real explnsigma;
      real1d xrad("xrad", ncol); // normalized aerosol radius
@@ -91,7 +101,7 @@ class Mam4_aer {
      explnsigma = std::exp(2.0*alnsg_amode*alnsg_amode);
 
      for(auto k = top_lev; k > nlev; --k) {
-       for(auto i = 0; i < ncol; ++i) {
+       for(auto i = 1; i <= ncol; ++i) {
          // convert from number mode diameter to surface area
          radsurf(i,k) = 0.5*dgnumwet(i,k)*explnsigma;
          logradsurf(i,k) = std::log(radsurf(i,k));
@@ -114,8 +124,8 @@ class Mam4_aer {
    // bilinear interpolation of table
    inline
    void binterp(real3d& table, int ncol, int km, int im, int jm,
-                real1d& x, real1d& y, real1d& xtab, real1d& ytab,
-                int1d& ix, int1d& jy, real1d& t, real1d& u, real2d out) {
+                const real1d& x, const real1d& y, const real1d& xtab, const real1d& ytab,
+                const int1d& ix, const int1d& jy, const real1d& t, const real1d& u, real2d out) {
       real1d tu("tu", ncol), tuc("tuc", ncol), tcu("tcu", ncol), tcuc("tcuc", ncol);
       int i, j, ip1, jp1;
       real dx, dy;
@@ -141,14 +151,14 @@ class Mam4_aer {
         }
       }
       else {
-        for(auto i=0; i<ncol; ++i) {
+        for(auto i=1; i<=ncol; ++i) {
            ix(i) = 1;
            t(i)  = 0.;
         }
       }
 
       if(jm > 1) {
-        for(auto ic=0; ic<ncol; ++ic) {
+        for(auto ic=1; ic<=ncol; ++ic) {
           for(auto j=1; j<jm; ++j)
             if(y(ic) < ytab(j)) goto label_20;
 
@@ -167,21 +177,21 @@ class Mam4_aer {
         }
       }
       else {
-        for(auto i=0; i<ncol; ++i) {
+        for(auto i=1; i<=ncol; ++i) {
           jy(i) = 1;
           u(i)  = 0.;
         }
       }
 
     label_30:
-      for(auto ic=0; ic<ncol; ++ic) {
+      for(auto ic=1; ic<=ncol; ++ic) {
          tu(ic)   = t(ic)*u(ic);
          tuc(ic)  = t(ic)-tu(ic);
          tcuc(ic) = 1.-tuc(ic)-u(ic);
          tcu(ic)  = u(ic)-tu(ic);
          jp1      = std::min(jy(ic)+1,jm);
          ip1      = std::min(ix(ic)+1,im);
-         for(auto k=0; k<km; ++k) {
+         for(auto k=1; k<=km; ++k) {
             out(ic,k) = tcuc(ic)*table(k,ix(ic),jy(ic))+tuc(ic)*table(k,ip1,jy(ic))
                        +tu(ic)*table(k,ip1,jp1)+tcu(ic)*table(k,ix(ic),jp1);
          }
@@ -189,7 +199,7 @@ class Mam4_aer {
    } // subroutine binterp
 
    inline
-   void modal_aero_calcsize_diag(int list_idx, real3d& dgnum_m)
+   void modal_aero_calcsize_diag(int list_idx, const real3d& dgnum_m)
    {
      real2d dgncur_a("dgncur",ncol,nlev); // (pcols,pver)
 
@@ -212,8 +222,8 @@ class Mam4_aer {
      int nmodes;
      mam_consti.get_nmodes(list_idx, nmodes);
 
-     for (auto n = 0; n < nmodes; ++n) {
-        yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k) {
+     for (auto n = 1; n <= nmodes; ++n) {
+        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k) {
           dgncur_a(i,k) = dgnum_m(i,k,n);
         });
 
@@ -237,8 +247,8 @@ class Mam4_aer {
            // need qmass*dummwdens = (kg/kg-air) * [1/(kg/m3)] = m3/kg-air
            dummwdens = 1.0 / specdens;
 
-           for (auto k=top_lev; k < nlev; ++k) {
-             for (auto i=0; i<ncol; ++i) {
+           for (auto k=top_lev; k <= nlev; ++k) {
+             for (auto i=1; i<=ncol; ++i) {
                 dryvol_a(i,k) = dryvol_a(i,k) + std::max(0.0, specmmr(i,k))*dummwdens;
              }
            }
@@ -253,8 +263,8 @@ class Mam4_aer {
         dgnxx = dgnumhi;
         dgnyy = dgnumlo;
 
-        for (auto k = top_lev; k < nlev; ++k) {
-           for (auto i = 0; i < ncol; ++i) {
+        for (auto k = top_lev; k <= nlev; ++k) {
+           for (auto i = 1; i <= ncol; ++i) {
 
               drv_a = dryvol_a(i,k);
               num_a0 = mode_num(i,k);
@@ -285,9 +295,9 @@ class Mam4_aer {
       // parameterize aerosol radiative properties are consistent between this
       // module and the mode physprop files.
 
-      for(auto ilist = 0; ilist < n_diag; ++ilist) {
+      for(auto ilist = 1; ilist <= n_diag; ++ilist) {
         mam_consti.get_nmodes(ilist, nmodes);
-        for(auto m = 0; m < nmodes; ++m) {
+        for(auto m = 1; m <= nmodes; ++m) {
            //  mam_consti.rad_cnst_get_mode_props(ilist, m, ncoef, prefr, prefi);
            if (m_ncoef != ncoef || m_prefr != prefr || m_prefi != prefi)
                amrex::Print() << "ERROR - file and module values do not match: "
@@ -311,7 +321,8 @@ class Mam4_aer {
    void  modal_aero_sw(int list_idx, real dt, int nnite,
                        const int1d& idxnite, const bool& is_cmip6_volc,
                        const real2d& ext_cmip6_sw, const int1d& trop_level,
-                       real3d& tauxar, real3d& wa, real3d& ga, real3d& fa, real2d& clear_rh) {
+                       const real3d& tauxar, const real3d& wa, const real3d& ga,
+                       const real3d& fa, const real2d& clear_rh) {
      int ilev_tropp;
 
      real2d mass("mass",ncol,nlev);               // layer mass
@@ -372,11 +383,11 @@ class Mam4_aer {
      yakl::memset(fa, 0.);
 
      // zero'th layer does not contain aerosol
-     yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int j) {
-        tauxar(i,0,j)  = 0.;
-        wa(i,0,j)      = 0.925;
-        ga(i,0,j)      = 0.850;
-        fa(i,0,j)      = 0.7225;
+     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int j) {
+        tauxar(i,1,j)  = 0.;
+        wa(i,1,j)      = 0.925;
+        ga(i,1,j)      = 0.850;
+        fa(i,1,j)      = 0.7225;
      });
 
      //mass(:ncol,:)        = state%pdeldry(:ncol,:)*rga
@@ -401,7 +412,7 @@ class Mam4_aer {
      mam_consti.get_nmodes(list_idx, nmodes);
 
      for(auto m = 0; m < nmodes; ++m) {
-        yakl::c::parallel_for(yakl::c::Bounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
           dgnumwet(icol,ilev) = dgnumwet_m(icol,ilev,m);
           qaerwat(icol,ilev)  = qaerwat_m(icol,ilev,m);
         });
@@ -417,20 +428,20 @@ class Mam4_aer {
         modal_size_parameters(ncol, sigma_logr_aer, dgnumwet, radsurf, logradsurf, cheb);
 
         int nswbands; // added by xyuan to be able compile the code
-        for(auto isw = 1; isw < nswbands; isw++) {
-           for(auto k = top_lev; k < nlev; ++k) {
+        for(auto isw = 1; isw <= nswbands; isw++) {
+           for(auto k = top_lev; k <= nlev; ++k) {
               // form bulk refractive index
               yakl::memset(crefin_real, 0.);
               yakl::memset(crefin_im, 0.);
               yakl::memset(dryvol, 0.);
 
               // aerosol species loop
-              for(auto l = 1; l < nspec; ++l) {
+              for(auto l = 1; l <= nspec; ++l) {
 //               mam_consti.rad_cnst_get_aer_mmr(list_idx, m, l, "a", specmmr);
                  mam_consti.get_mam_props(list_idx, m, l, specdens, spectype, hygro_aer,
                                           specrefindex_real, specrefindex_im);
 
-                 for(auto i = 0; i < ncol; ++i) {
+                 for(auto i = 1; i <= ncol; ++i) {
                     vol(i)          = specmmr(i,k)/specdens;
                     dryvol(i)       = dryvol(i) + vol(i);
                     crefin_real(i)  = crefin_real(i) + vol(i)*specrefindex_real(isw);
@@ -438,7 +449,7 @@ class Mam4_aer {
                  }
               }
 
-              for(auto i = 1; i < ncol; ++i) {
+              for(auto i = 1; i <= ncol; ++i) {
                  watervol(i) = qaerwat(i,k)/rhoh2o;
                  wetvol(i) = watervol(i) + dryvol(i);
                  if (watervol(i) < 0.) {
@@ -485,7 +496,7 @@ class Mam4_aer {
                     itab, jtab, ttab, utab, casm);
 
               // parameterized optical properties
-              for(auto i=1; i < ncol; ++i) {
+              for(auto i=1; i <= ncol; ++i) {
 
                  if (logradsurf(i,k) <= xrmax) {
                     pext(i) = 0.5*cext(i,1);
@@ -517,7 +528,7 @@ class Mam4_aer {
                  dopaer(i) = pext(i)*mass(i,k);
               }
 
-              for(auto i = 1; i < ncol; ++i) {
+              for(auto i = 1; i <= ncol; ++i) {
                  if ((dopaer(i) <= -1.e-10) || (dopaer(i) >= 30.)) {
 
                     if (dopaer(i) <= -1.e-10) {
@@ -540,7 +551,7 @@ class Mam4_aer {
                     }
                }
 
-              for(auto i=1; i < ncol; ++i) {
+              for(auto i=1; i <= ncol; ++i) {
                  tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
                  wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i);
                  ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i);
@@ -556,7 +567,7 @@ class Mam4_aer {
   //
   // calcualtes aerosol lw radiative properties
   //
-  void  modal_aero_lw(int list_idx, real dt, real3d& tauxar, real2d& clear_rh) {
+  void  modal_aero_lw(int list_idx, real dt, const real3d& tauxar, const real2d& clear_rh) {
      real   sigma_logr_aer;          // geometric standard deviation of number distribution
      real   alnsg_amode;
      real1d xrad("xrad", ncol);
@@ -636,7 +647,7 @@ class Mam4_aer {
       // some intermediate results are saved and the chebyshev polynomials are stored
       // in a array with different index order.  Could be unified.
       for(auto k = top_lev; k > nlev; --k) {
-         for(auto i = 0; i < ncol; ++i) {
+         for(auto i = 1; i <= ncol; ++i) {
             alnsg_amode = std::log( sigma_logr_aer );
             // convert from number diameter to surface area
             xrad(i) = std::log(0.5*dgnumwet(i,k)) + 2.0*alnsg_amode*alnsg_amode;
@@ -654,7 +665,7 @@ class Mam4_aer {
       }
 
       int nlwbands; // add by xyuan to be compiled
-      for(auto ilw = 0; ilw < nlwbands; ++ilw) {
+      for(auto ilw = 1; ilw <= nlwbands; ++ilw) {
          for(auto k = top_lev; k > nlev; --k) {
             // form bulk refractive index. Use volume mixing for infrared
             yakl::memset(crefinr, 0.0);
@@ -662,11 +673,11 @@ class Mam4_aer {
             yakl::memset(dryvol, 0.0);
 
             // aerosol species loop
-            for(auto l = 1; l < nspec; ++l) {
+            for(auto l = 1; l <= nspec; ++l) {
 //             rad_cnst_get_aer_mmr(list_idx, m, l, 'a', state, pbuf, specmmr);
                mam_consti.get_mam_props_lw(list_idx, m, l, specdens, specrefrindex, specrefiindex);
 
-               for(auto i = 0; i < ncol; ++i) {
+               for(auto i = 1; i <= ncol; ++i) {
                   vol(i)     = specmmr(i,k)/specdens;
                   dryvol(i)  = dryvol(i) + vol(i);
                   crefinr(i) = crefinr(i) + vol(i)*specrefrindex(ilw);
@@ -674,7 +685,7 @@ class Mam4_aer {
                }
             }
 
-            for(auto i = 1; i < ncol; ++i) {
+            for(auto i = 1; i <= ncol; ++i) {
                watervol(i) = qaerwat(i,k)/rhoh2o;
                wetvol(i)   = watervol(i) + dryvol(i);
                if (watervol(i) < 0.0) {
@@ -713,7 +724,7 @@ class Mam4_aer {
                     itab, jtab, ttab, utab, cabs);
 
             // parameterized optical properties
-            for(auto i = 1; i < ncol; ++i) {
+            for(auto i = 1; i <= ncol; ++i) {
                pabs(i) = 0.5*cabs(i,1);
                for(auto nc = 2; nc < ncoef; ++nc) {
                   pabs(i) = pabs(i) + cheby(nc,i,k)*cabs(i,nc);
@@ -723,14 +734,14 @@ class Mam4_aer {
                dopaer(i) = pabs(i)*mass(i,k);
             }
 
-            for(auto i = 0; i < ncol; ++i) {
+            for(auto i = 1; i <= ncol; ++i) {
                if ((dopaer(i) <= -1.e-10) || (dopaer(i) >= 20.)) {
                   if (dopaer(i) <= -1.e-10)
                     amrex::Print() <<  "ERROR: Negative aerosol optical depth in this layer.";
                   else
                     amrex::Print() << "WARNING: Aerosol optical depth is unreasonably high in this layer.";
 
-                  for(auto l = 1; l < nspec; ++l) {
+                  for(auto l = 1; l <= nspec; ++l) {
 //                   rad_cnst_get_aer_mmr(list_idx, m, l, 'a', state, pbuf, specmmr);
                     mam_consti.get_mam_props_lw(list_idx, m, l, specdens,specrefrindex, specrefiindex);
                     volf = specmmr(i,k)/specdens;
@@ -743,7 +754,7 @@ class Mam4_aer {
                   }
               }
             }
-            for(auto i = 1; i < ncol; ++i) tauxar(i,k,ilw) = tauxar(i,k,ilw) + dopaer(i);
+            for(auto i = 1; i <= ncol; ++i) tauxar(i,k,ilw) = tauxar(i,k,ilw) + dopaer(i);
          } // k = top_lev, nlev
        }  // nlwbands
      } // m = 1, nmodes
