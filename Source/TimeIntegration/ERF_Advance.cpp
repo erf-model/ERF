@@ -134,7 +134,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 #endif
 
 #if defined(ERF_USE_RRTMGP)
-    // Update the microphysics
+    // Update the radiation
     advance_radiation(lev, S_new, dt_lev);
 #endif
 
