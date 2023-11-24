@@ -93,10 +93,9 @@ ERF::timeStep (int lev, Real time, int iteration)
             timeStep(lev+1, strt_time_for_fine, i);
         }
 
-        if (solverChoice.coupling_type == CouplingType::TwoWay ||
-            solverChoice.coupling_type == CouplingType::Mixed) {
-            int  scomp = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
-            int  ncomp = NVAR - scomp;
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+            int  scomp = 0;
+            int  ncomp = NVAR;
             AverageDownTo(lev, scomp, ncomp); // average lev+1 down to lev
         }
     }

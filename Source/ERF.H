@@ -354,6 +354,8 @@ private:
 
     void init_uniform (int lev);
 
+    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -

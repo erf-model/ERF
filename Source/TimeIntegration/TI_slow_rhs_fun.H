@@ -297,16 +297,10 @@
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
-        if (solverChoice.coupling_type == CouplingType::TwoWay ||
-            solverChoice.coupling_type == CouplingType::Mixed)
+        if (solverChoice.coupling_type == CouplingType::TwoWay)
         {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                // For Mixed we haven't reset this in erf_slow_rhs_pre but we need to here.
-                if (solverChoice.coupling_type == CouplingType::Mixed)
-                {
-                    fr_as_crse->reset();
-                }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);

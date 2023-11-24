@@ -42,6 +42,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     auto& lev_new = vars_new[lev];
     auto& lev_old = vars_old[lev];
 
+    init_stuff(lev, ba, dm);
+
     lev_new[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
     lev_old[Vars::cons].define(ba, dm, Cons::NumVars, ngrow_state);
 
@@ -54,18 +56,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
@@ -75,29 +65,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     // Build the data structures for calculating diffusive/turbulent terms
     update_arrays(lev, ba, dm);
-
-    // ********************************************************************************************
-    // Map factors
-    // ********************************************************************************************
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
-        b.setRange(2,0);
-    }
-    BoxArray ba2d(std::move(bl2d));
-
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if (solverChoice.test_mapfactor) {
-        mapfac_m[lev]->setVal(0.5);
-        mapfac_u[lev]->setVal(0.5);
-        mapfac_v[lev]->setVal(0.5);
-    }
-    else {
-        mapfac_m[lev]->setVal(1.);
-        mapfac_u[lev]->setVal(1.);
-        mapfac_v[lev]->setVal(1.);
-    }
 
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
@@ -147,15 +114,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
-
-    // ********************************************************************************************
-    // Define Theta_prim storage if using MOST BC
-    // ********************************************************************************************
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-      Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
-    } else {
-      Theta_prim[lev] = nullptr;
-    }
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -217,17 +175,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
 
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, crse_new[Vars::xvel].nGrowVect());
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, crse_new[Vars::yvel].nGrowVect());
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
+    init_stuff(lev, ba, dm);
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
@@ -269,17 +217,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
-    // ********************************************************************************************
-    // These are just used for scratch in the time integrator but we might as well define them here
-    // ********************************************************************************************
-    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
-
-    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
-
-    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
-    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    init_stuff(lev,ba,dm);
 
     // ********************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
@@ -318,29 +256,6 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     base_state[lev].define(ba,dm,3,1);
     base_state[lev].setVal(0.);
     initHSE(lev);
-
-    // ********************************************************************************************
-    // Map factors
-    // ********************************************************************************************
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
-        b.setRange(2,0);
-    }
-    BoxArray ba2d(std::move(bl2d));
-
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
-    if (solverChoice.test_mapfactor) {
-        mapfac_m[lev]->setVal(0.5);
-        mapfac_u[lev]->setVal(0.5);
-        mapfac_v[lev]->setVal(0.5);
-    }
-    else {
-        mapfac_m[lev]->setVal(1.);
-        mapfac_u[lev]->setVal(1.);
-        mapfac_v[lev]->setVal(1.);
-    }
 
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
 }
@@ -463,6 +378,58 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                      solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
                                                      z_phys_nd[lev], detJ_cc[lev]);
+}
+
+void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
+{
+    // The number of ghost cells for density must be 1 greater than that for velocity
+    //     so that we can go back in forth betwen velocity and momentum on all faces
+    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+    int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
+
+    // ********************************************************************************************
+    // These are just used for scratch in the time integrator but we might as well define them here
+    // ********************************************************************************************
+    rU_old[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+    rU_new[lev].define(convert(ba, IntVect(1,0,0)), dm, 1, ngrow_vels);
+
+    rV_old[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+    rV_new[lev].define(convert(ba, IntVect(0,1,0)), dm, 1, ngrow_vels);
+
+    rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+    rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    // ********************************************************************************************
+    // Define Theta_prim storage if using MOST BC
+    // ********************************************************************************************
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
+      Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+    } else {
+      Theta_prim[lev] = nullptr;
+    }
+
+    // ********************************************************************************************
+    // Map factors
+    // ********************************************************************************************
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+
+    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
+    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
+    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
+    if (solverChoice.test_mapfactor) {
+        mapfac_m[lev]->setVal(0.5);
+        mapfac_u[lev]->setVal(0.5);
+        mapfac_v[lev]->setVal(0.5);
+    }
+    else {
+        mapfac_m[lev]->setVal(1.);
+        mapfac_u[lev]->setVal(1.);
+        mapfac_v[lev]->setVal(1.);
+    }
 }
 
 //
