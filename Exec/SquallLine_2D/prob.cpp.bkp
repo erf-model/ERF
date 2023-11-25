@@ -120,16 +120,6 @@ Real compute_dewpoint_temperature(const Real z, const Real p_b, const Real T_b, 
 
 }
 
-void compute_rho(Real z, Real pressure, Real &theta, Real& rho, Real& q_v, Real& T_dp)
-{
-
-	theta = compute_theta(z);
-    Real T     = compute_temperature(pressure, theta);
-    Real RH     = compute_relative_humidity(z, pressure, T);
-    q_v   = vapor_mixing_ratio(z, pressure, T, RH);
-    rho   = pressure/(R_d*T*(1.0 + R_v_by_R_d*q_v));
-}
-
 void
 init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real& dz, const Real&  prob_lo_z,
@@ -140,11 +130,15 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     //T_b = T0;
 
     FILE *file_IC, *file_parcel;
-    file_IC = fopen("input_sounding_probcpp.txt","w");
+    //file_IC = fopen("input_sounding_probcpp.txt","w");
 
     // Do the first integration from z = 0 (base) to z = 0.5*dz (first cell center)
     z = 0;
-    compute_rho(z, p_0, theta0, rho0, q_v0, T_dp);
+    theta0 = compute_theta(z);
+    T0     = compute_temperature(p_0, theta0);
+    RH     = compute_relative_humidity(z, p_0, T0);
+    q_v0   = vapor_mixing_ratio(z, p_0, T0, RH);
+    rho0   = p_0/(R_d*T0*(1.0 + R_v_by_R_d*q_v0));
 
     //printf("%0.15g\n", rho0);
     //exit(0);
@@ -152,18 +146,18 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     // Compute p at z = 0.5 dz - the first cell center
     p[0]   = p_0 - rho0*(1.0 + q_v0)*CONST_GRAV*dz/2.0;
 
-	std::cout << "Pressure is " << p[0] << " " << rho0 << " " << q_v[0] << "\n";
-
     // Compute the quantities at z = 0.5*dz (first cell center)
 
     z = prob_lo_z + 0.5*dz;
+    theta[0] = compute_theta(z);
+    T_b      = compute_temperature(p[0], theta[0]);
+    RH       = compute_relative_humidity(z, p[0], T_b);
+    q_v[0]   = vapor_mixing_ratio(z, p[0], T_b, RH);
+    T_dp     = compute_dewpoint_temperature(z, p[0], T_b, RH);
+    r[0]     = p[0]/(R_d*T_b*(1.0 + R_v_by_R_d*q_v[0]));
 
-	compute_rho(z, p[0], theta[0], r[0], q_v[0], T_dp);
 
-	//compute_rho(z, p[0], r[0], q_v[0], T_dp); 
-
-
-    fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+    //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
@@ -172,19 +166,23 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
         // Do forward integration from k-1 to k using values at k-1
         p[k] = p[k-1] - r[k-1]*(1.0 + q_v[k-1])*CONST_GRAV*dz;
 
-	
-		compute_rho(z, p[k], theta[k], r[k], q_v[k], T_dp);
+        // Now compute the values at k
+        theta[k] = compute_theta(z);
+        T_b      = compute_temperature(p[k], theta[k]);
+        RH       = compute_relative_humidity(z, p[k], T_b);
+        q_v[k]   = vapor_mixing_ratio(z, p[k], T_b, RH);
+        r[k]     = p[k]/(R_d*T_b*(1.0 + R_v_by_R_d*q_v[k]));
+        T_dp     = compute_dewpoint_temperature(z, p[k], T_b, RH);
 
         //std::cout << p[k] << "\n";
 
-        fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
+        //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n " , z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
         //std::cout << "Temperature is " << z << " " << T_b  - 273.15 << " " << T_dp << " " << rho_b  << " " << p[k] << "\n";
 
     }
-    fclose(file_IC);
+    //fclose(file_IC);
 
     //exit(0);
-
 
   r[khi+1] = r[khi];
 }
@@ -249,7 +247,6 @@ Problem::erf_init_dens_hse_moist (Real rho_hse_bottom, MultiFab& rho_hse,
 		amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
 
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
-		std::cout << "Reacheed here #####" << "\n";
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
@@ -259,7 +256,6 @@ Problem::erf_init_dens_hse_moist (Real rho_hse_bottom, MultiFab& rho_hse,
         Real* r = d_r.data();
         Real* q_v = d_q_v.data();
         Real* theta = d_t.data();
-
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
