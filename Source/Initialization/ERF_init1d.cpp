@@ -135,10 +135,10 @@ ERF::initHSE (int lev)
 	#else
     	prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
 	#endif
+	    // This integrates up through column to update p_hse, pi_hse;
+    	// r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
+    	erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
 
-    // This integrates up through column to update p_hse, pi_hse;
-    // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
 }
 
 void
@@ -165,7 +165,7 @@ void
 ERF::erf_enforce_hse (int lev,
                       MultiFab& dens, MultiFab& pres, MultiFab& pi,
                       std::unique_ptr<MultiFab>& z_cc,
-                      std::unique_ptr<MultiFab>& z_nd)
+                      std::unique_ptr<MultiFab>& z_nd, Real r_hse_bottom)
 {
     amrex::Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;
@@ -219,11 +219,11 @@ ERF::erf_enforce_hse (int lev,
 
             // Set value at surface from Newton iteration for rho
             pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
-              pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
+            pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
 
             // Set ghost cell with dz and rho at boundary
             pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
-              pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
+            pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
 
             Real dens_interp;
             if (l_use_terrain) {
@@ -235,7 +235,7 @@ ERF::erf_enforce_hse (int lev,
                 }
             } else {
                 for (int k = 1; k <= nz; k++) {
-                    dens_interp = 0.5*(rho_arr(i,j,k-1) + rho_arr(i,j,k-1));
+					dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                 }
@@ -252,7 +252,7 @@ ERF::erf_enforce_hse (int lev,
             bx.setBig(0,domlo_x-1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
-                  pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
             });
         }
 

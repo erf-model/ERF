@@ -53,8 +53,8 @@ ERF::init_from_hse (int lev)
 
         amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            cons_arr(i,j,k,Rho_comp)      = 0.0;//r_hse_arr(i,j,k);
-            cons_arr(i,j,k,RhoTheta_comp) = 0.0;//getRhoThetagivenP(p_hse_arr(i,j,k));
+            cons_arr(i,j,k,Rho_comp)      = r_hse_arr(i,j,k);
+            cons_arr(i,j,k,RhoTheta_comp) = getRhoThetagivenP(p_hse_arr(i,j,k));
         });
     } //mfi
 }

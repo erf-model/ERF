@@ -6,15 +6,15 @@
  */
 void Kessler::Diagnose () {
 
-  auto qt   = mic_fab_vars[MicVar::qt];
-  auto qp   = mic_fab_vars[MicVar::qp];
-  auto qv   = mic_fab_vars[MicVar::qv];
-  auto qn   = mic_fab_vars[MicVar::qn];
-  auto qcl  = mic_fab_vars[MicVar::qcl];
-  auto qci  = mic_fab_vars[MicVar::qci];
-  auto qpl  = mic_fab_vars[MicVar::qpl];
-  auto qpi  = mic_fab_vars[MicVar::qpi];
-  auto tabs = mic_fab_vars[MicVar::tabs];
+  auto qt   = mic_fab_vars[MicVar_Kess::qt];
+  auto qp   = mic_fab_vars[MicVar_Kess::qp];
+  auto qv   = mic_fab_vars[MicVar_Kess::qv];
+  auto qn   = mic_fab_vars[MicVar_Kess::qn];
+  auto qcl  = mic_fab_vars[MicVar_Kess::qcl];
+  auto qci  = mic_fab_vars[MicVar_Kess::qci];
+  auto qpl  = mic_fab_vars[MicVar_Kess::qpl];
+  auto qpi  = mic_fab_vars[MicVar_Kess::qpi];
+  auto tabs = mic_fab_vars[MicVar_Kess::tabs];
 
   for ( amrex::MFIter mfi(*tabs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto qt_array    = qt->array(mfi);

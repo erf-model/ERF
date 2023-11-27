@@ -34,15 +34,15 @@ void Kessler::AdvanceKessler() {
   auto evapg2_t  = evapg2.table();
   auto pres1d_t  = pres1d.table();
 
-  auto qt   = mic_fab_vars[MicVar::qt];
-  auto qp   = mic_fab_vars[MicVar::qp];
-  auto qn   = mic_fab_vars[MicVar::qn];
-  auto tabs = mic_fab_vars[MicVar::tabs];
+  auto qt   = mic_fab_vars[MicVar_Kess::qt];
+  auto qp   = mic_fab_vars[MicVar_Kess::qp];
+  auto qn   = mic_fab_vars[MicVar_Kess::qn];
+  auto tabs = mic_fab_vars[MicVar_Kess::tabs];
 
-  auto qcl   = mic_fab_vars[MicVar::qcl];
-  auto theta  = mic_fab_vars[MicVar::theta];
-  auto qv    = mic_fab_vars[MicVar::qv];
-  auto rho   = mic_fab_vars[MicVar::rho];
+  auto qcl   = mic_fab_vars[MicVar_Kess::qcl];
+  auto theta  = mic_fab_vars[MicVar_Kess::theta];
+  auto qv    = mic_fab_vars[MicVar_Kess::qv];
+  auto rho   = mic_fab_vars[MicVar_Kess::rho];
 
   auto dz = m_geom.CellSize(2);
   auto domain = m_geom.Domain();
@@ -56,8 +56,8 @@ void Kessler::AdvanceKessler() {
   fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
  for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
-    auto rho_array  = mic_fab_vars[MicVar::rho]->array(mfi);
-    auto qp_array  = mic_fab_vars[MicVar::qp]->array(mfi);
+    auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+    auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
     auto fz_array  = fz.array(mfi);
     const Box& tbz = mfi.tilebox();
 
@@ -92,10 +92,10 @@ void Kessler::AdvanceKessler() {
 
  /*for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-     auto qn_array   = mic_fab_vars[MicVar::qn]->array(mfi);
-     auto qt_array   = mic_fab_vars[MicVar::qt]->array(mfi);
-     auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
-     auto qv_array   = mic_fab_vars[MicVar::qv]->array(mfi);
+     auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
+     auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
+     auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+     auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
 
     const auto& box3d = mfi.tilebox();
 
@@ -114,8 +114,8 @@ void Kessler::AdvanceKessler() {
 
 
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
-        auto rho_array  = mic_fab_vars[MicVar::rho]->array(mfi);
+        auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
          auto fz_array  = fz.array(mfi);
@@ -131,15 +131,15 @@ void Kessler::AdvanceKessler() {
 
   // get the temperature, dentisy, theta, qt and qp from input
   for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-     auto tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
-     auto qn_array   = mic_fab_vars[MicVar::qn]->array(mfi);
-     auto qt_array   = mic_fab_vars[MicVar::qt]->array(mfi);
-     auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
+     auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+     auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
+     auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
+     auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
 
-     auto qcl_array   = mic_fab_vars[MicVar::qcl]->array(mfi);
+     auto qcl_array   = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
      auto theta_array = theta->array(mfi);
      auto qv_array    = qv->array(mfi);
-     auto rho_array  = mic_fab_vars[MicVar::rho]->array(mfi);
+     auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
      const auto& box3d = mfi.tilebox();
 

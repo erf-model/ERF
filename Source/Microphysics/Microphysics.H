@@ -2,12 +2,8 @@
 #define MICROPHYSICS_H
 
 #include <NullMoist.H>
-#ifdef ERF_USE_SAM
-	#include <SAM.H>
-#endif
-#ifdef ERF_USE_KESSLER
-	#include <Kessler.H>
-#endif
+#include <SAM.H>
+#include <Kessler.H>
 
 class Microphysics {
 
@@ -45,13 +41,6 @@ public:
     {
         m_moist_model->Advance();
     }
-
-	void
-    Diagnose ( )
-    {
-        m_moist_model->Diagnose();
-    }
-
 
     void
     Update (amrex::MultiFab& cons_in,

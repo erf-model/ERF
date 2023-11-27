@@ -33,7 +33,7 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
   dt = dt_advance;
 
   // initialize microphysics variables
-  for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {
+  for (auto ivar = 0; ivar < MicVar_Kess::NumVars; ++ivar) {
      mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
      mic_fab_vars[ivar]->setVal(0.);
   }
@@ -122,14 +122,14 @@ void Kessler::Init (const MultiFab& cons_in, MultiFab& qmoist,
      auto qc_array  = qc.array(mfi);
      auto qi_array  = qi.array(mfi);
 
-     auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
-     auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);
-     auto qn_array     = mic_fab_vars[MicVar::qn]->array(mfi);
-	 auto qv_array     = mic_fab_vars[MicVar::qv]->array(mfi);	
-     auto rho_array    = mic_fab_vars[MicVar::rho]->array(mfi);
-     auto theta_array  = mic_fab_vars[MicVar::theta]->array(mfi);
-     auto temp_array   = mic_fab_vars[MicVar::tabs]->array(mfi);
-     auto pres_array   = mic_fab_vars[MicVar::pres]->array(mfi);
+     auto qt_array     = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
+     auto qp_array     = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+     auto qn_array     = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
+	 auto qv_array     = mic_fab_vars[MicVar_Kess::qv]->array(mfi);	
+     auto rho_array    = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+     auto theta_array  = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+     auto temp_array   = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+     auto pres_array   = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
      const auto& box3d = mfi.tilebox();
 

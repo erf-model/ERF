@@ -14,14 +14,14 @@ void Kessler::Update (amrex::MultiFab& cons,
                   amrex::MultiFab& qmoist)
 {
   // copy multifab data to qc, qv, and qi
-  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qv],  0, 0, 1, mic_fab_vars[MicVar::qv]->nGrowVect());  // vapor
-  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qcl], 0, 1, 1, mic_fab_vars[MicVar::qcl]->nGrowVect()); // cloud water
-  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qci], 0, 2, 1, mic_fab_vars[MicVar::qci]->nGrowVect()); // cloud ice
-  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qpl], 0, 3, 1, mic_fab_vars[MicVar::qpl]->nGrowVect()); // rain
-  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qpi], 0, 4, 1, mic_fab_vars[MicVar::qpi]->nGrowVect()); // snow
+  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qv],  0, 0, 1, mic_fab_vars[MicVar_Kess::qv]->nGrowVect());  // vapor
+  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qcl], 0, 1, 1, mic_fab_vars[MicVar_Kess::qcl]->nGrowVect()); // cloud water
+  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qci], 0, 2, 1, mic_fab_vars[MicVar_Kess::qci]->nGrowVect()); // cloud ice
+  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qpl], 0, 3, 1, mic_fab_vars[MicVar_Kess::qpl]->nGrowVect()); // rain
+  amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qpi], 0, 4, 1, mic_fab_vars[MicVar_Kess::qpi]->nGrowVect()); // snow
 
   // Don't need to copy this since it is filled below
-  // amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar::qpi], 0, 5, 1, mic_fab_vars[MicVar::qci]->nGrowVect()); // graupel
+  // amrex::MultiFab::Copy(qmoist, *mic_fab_vars[MicVar_Kess::qpi], 0, 5, 1, mic_fab_vars[MicVar_Kess::qci]->nGrowVect()); // graupel
 
   amrex::MultiFab qgraup_mf(qmoist, amrex::make_alias, 5, 1);
 
@@ -29,12 +29,12 @@ void Kessler::Update (amrex::MultiFab& cons,
   for ( amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
      auto states_arr = cons.array(mfi);
 
-     auto rho_arr    = mic_fab_vars[MicVar::rho]->array(mfi);
-     auto theta_arr  = mic_fab_vars[MicVar::theta]->array(mfi);
-     auto qt_arr     = mic_fab_vars[MicVar::qt]->array(mfi);
-     auto qp_arr     = mic_fab_vars[MicVar::qp]->array(mfi);
-     auto qpl_arr    = mic_fab_vars[MicVar::qpl]->array(mfi);
-     auto qpi_arr    = mic_fab_vars[MicVar::qpi]->array(mfi);
+     auto rho_arr    = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+     auto theta_arr  = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+     auto qt_arr     = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
+     auto qp_arr     = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+     auto qpl_arr    = mic_fab_vars[MicVar_Kess::qpl]->array(mfi);
+     auto qpi_arr    = mic_fab_vars[MicVar_Kess::qpi]->array(mfi);
 
      auto qgraup_arr= qgraup_mf.array(mfi);
 

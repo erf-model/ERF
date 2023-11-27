@@ -23,7 +23,7 @@
 #include "IndexDefines.H"
 #include "DataStruct.H"
 
-namespace MicVar {
+namespace MicVar_Kess {
    enum {
       // independent variables
       qt = 0,
@@ -97,6 +97,7 @@ class Kessler : public NullMoist {
   Advance ( ) override
   {
       this->AdvanceKessler();
+	  this->Diagnose();	
   }
 
  private:
@@ -146,7 +147,7 @@ class Kessler : public NullMoist {
   amrex::TableData<amrex::Real, 1> qn1d;
 
   // independent variables
-  amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+  amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
 
   amrex::TableData<amrex::Real, 1> gamaz;
   amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
