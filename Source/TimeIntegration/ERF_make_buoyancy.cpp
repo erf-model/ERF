@@ -245,35 +245,35 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
                 Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
 
-				Real qplus, qminus;
+                Real qplus, qminus;
 
-				if(solverChoice.buoyancy_type == 2){
-                	qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
+                if(solverChoice.buoyancy_type == 2){
+                    qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
                                     (qc_data(i,j,k)-qc_d_ptr[k]+
                                      qi_data(i,j,k)-qi_d_ptr[k]+
                                      cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
                            + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
 
-                	qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
+                    qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
                                      (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
                                       qi_data(i,j,k-1)-qi_d_ptr[k-1]+
                                       cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
                            + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
-				}
+                }
 
-				if(solverChoice.buoyancy_type == 4){
-                	qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
+                if(solverChoice.buoyancy_type == 4){
+                    qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
                                     (qc_data(i,j,k)-qc_d_ptr[k]+
                                      qi_data(i,j,k)-qi_d_ptr[k]+
                                      cell_prim(i,j,k,PrimQp_comp)-qp_d_ptr[k])
-						   + (cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) - theta_d_ptr[k  ])/theta_d_ptr[k  ];
+                           + (cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) - theta_d_ptr[k  ])/theta_d_ptr[k  ];
 
-                	qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
+                    qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
                                      (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
                                       qi_data(i,j,k-1)-qi_d_ptr[k-1]+
                                       cell_prim(i,j,k-1,PrimQp_comp)-qp_d_ptr[k-1])
-							+ (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
-				}
+                            + (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
+                }
 
 
 

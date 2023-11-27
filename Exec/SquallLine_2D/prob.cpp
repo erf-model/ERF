@@ -123,48 +123,48 @@ Real compute_dewpoint_temperature(const Real z, const Real p_b, const Real T_b, 
 void compute_rho(const Real z, const Real pressure, Real &theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
 {
 
-	theta   = compute_theta(z);
+    theta   = compute_theta(z);
     T_b     = compute_temperature(pressure, theta);
     Real RH = compute_relative_humidity(z, pressure, T_b);
     q_v     = vapor_mixing_ratio(z, pressure, T_b, RH);
     rho     = pressure/(R_d*T_b*(1.0 + R_v_by_R_d*q_v));
-	rho     = rho*(1.0 + q_v);
+    rho     = rho*(1.0 + q_v);
 }
 
-double compute_F(const Real p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k, 
-			   Real& T_dp, Real& T_b, const Real dz, const Real z, const Real rho_k_minus_1) 
+double compute_F(const Real p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
+               Real& T_dp, Real& T_b, const Real dz, const Real z, const Real rho_k_minus_1)
 {
 
-	Real F;
+    Real F;
 
-	if(rho_k_minus_1 == 0.0) // This loop is for the first point above the ground
-	{
-		compute_rho(z, p_k, theta_k, rho_k, q_v_k, T_dp, T_b);
-		F = p_k - p_k_minus_1 + rho_k*CONST_GRAV*dz/2.0;
-	}
-	else
-	{
-		compute_rho(z, p_k, theta_k, rho_k, q_v_k, T_dp, T_b);
-		F = p_k - p_k_minus_1 + rho_k_minus_1*CONST_GRAV*dz/2.0 + rho_k*CONST_GRAV*dz/2.0;
-	}
+    if(rho_k_minus_1 == 0.0) // This loop is for the first point above the ground
+    {
+        compute_rho(z, p_k, theta_k, rho_k, q_v_k, T_dp, T_b);
+        F = p_k - p_k_minus_1 + rho_k*CONST_GRAV*dz/2.0;
+    }
+    else
+    {
+        compute_rho(z, p_k, theta_k, rho_k, q_v_k, T_dp, T_b);
+        F = p_k - p_k_minus_1 + rho_k_minus_1*CONST_GRAV*dz/2.0 + rho_k*CONST_GRAV*dz/2.0;
+    }
 
-	return F;
+    return F;
 }
 
 Real compute_p_k(Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                Real& T_dp, Real& T_b, const Real dz, const Real z, const Real rho_k_minus_1)
 {
 
-	for(int iter=0;iter<20;iter++)	
-	{
-		Real F 		   = compute_F(p_k, p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, z, rho_k_minus_1);
-		Real F_plus_dF = compute_F(p_k+1e-10, p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, z, rho_k_minus_1);
-		Real F_prime   = (F_plus_dF - F)/1e-10;
-		Real delta_p_k = -F/F_prime;
-		p_k 		   = p_k + delta_p_k;
-	}
+    for(int iter=0;iter<20;iter++)
+    {
+        Real F            = compute_F(p_k, p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, z, rho_k_minus_1);
+        Real F_plus_dF = compute_F(p_k+1e-10, p_k_minus_1, theta_k, rho_k, q_v_k, T_dp, T_b, dz, z, rho_k_minus_1);
+        Real F_prime   = (F_plus_dF - F)/1e-10;
+        Real delta_p_k = -F/F_prime;
+        p_k            = p_k + delta_p_k;
+    }
 
-	return p_k;
+    return p_k;
 }
 
 
@@ -182,21 +182,21 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
 
     // Compute the quantities at z = 0.5*dz (first cell center)
     z = prob_lo_z + 0.5*dz;
-	p[0] = p_0;
-	compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);	
+    p[0] = p_0;
+    compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);
 
-	std::cout << "p[0] val is " << p[0] << " " << r[0] << "\n";
-	//exit(0);
+    std::cout << "p[0] val is " << p[0] << " " << r[0] << "\n";
+    //exit(0);
 
     fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
     for (int k=1;k<=khi;k++){
         z = prob_lo_z + (k+0.5)*dz;
 
-		p[k] = p[k-1];
-		compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
-		std::cout << "Value at " << k << " " << p[k] << "\n";
-	
+        p[k] = p[k-1];
+        compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
+        std::cout << "Value at " << k << " " << p[k] << "\n";
+
         fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
     }
     fclose(file_IC);
@@ -255,19 +255,19 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         Vector<Real> h_r(khi+2);
         Vector<Real> h_p(khi+2);
         Vector<Real> h_t(khi+2);
-		Vector<Real> h_q_v(khi+2);
+        Vector<Real> h_q_v(khi+2);
 
         amrex::Gpu::DeviceVector<Real> d_r(khi+2);
         amrex::Gpu::DeviceVector<Real> d_p(khi+2);
         amrex::Gpu::DeviceVector<Real> d_t(khi+2);
-		amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
+        amrex::Gpu::DeviceVector<Real> d_q_v(khi+2);
 
         init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(), h_q_v.data(), dz,prob_lo_z,khi);
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_t.begin(), h_t.end(), d_t.begin());
-		amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
+        amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r = d_r.data();
         Real* q_v = d_q_v.data();
@@ -388,19 +388,19 @@ Problem::init_custom_pert(
         scalar = 0.0;
     }
 
-    theta_total 	= d_t[k] + delta_theta;
-    temperature 	= compute_temperature(p[k], theta_total);
-    Real T_b 		= compute_temperature(p[k], d_t[k]);
-    RH     			= compute_relative_humidity(z, p[k], T_b);
+    theta_total     = d_t[k] + delta_theta;
+    temperature     = compute_temperature(p[k], theta_total);
+    Real T_b         = compute_temperature(p[k], d_t[k]);
+    RH                 = compute_relative_humidity(z, p[k], T_b);
     Real q_v_hot    = vapor_mixing_ratio(z, p[k], T_b, RH);
-    rho 			= p[k]/(R_d*temperature*(1.0 + R_v_by_R_d*q_v_hot));
+    rho             = p[k]/(R_d*temperature*(1.0 + R_v_by_R_d*q_v_hot));
 
-	// Compute background quantities
+    // Compute background quantities
     Real temperature_back = compute_temperature(p[k], d_t[k]);
-    Real T_back 		  = compute_temperature(p[k], d_t[k]);
-    Real RH_back     	  = compute_relative_humidity(z, p[k], T_back);
-    Real q_v_back    	  = vapor_mixing_ratio(z, p[k], T_back, RH_back);
-    Real rho_back 	      = p[k]/(R_d*temperature_back*(1.0 + R_v_by_R_d*q_v_back));
+    Real T_back           = compute_temperature(p[k], d_t[k]);
+    Real RH_back           = compute_relative_humidity(z, p[k], T_back);
+    Real q_v_back          = vapor_mixing_ratio(z, p[k], T_back, RH_back);
+    Real rho_back           = p[k]/(R_d*temperature_back*(1.0 + R_v_by_R_d*q_v_back));
 
     // This version perturbs rho but not p
     state(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*d_t[k]*(1.0 + R_v_by_R_d*q_v_back);// rho*d_t[k]*(1.0 + R_v_by_R_d*q_v_hot);

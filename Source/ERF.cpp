@@ -958,15 +958,15 @@ ERF::ReadParameters ()
 #endif
 
 #ifdef ERF_USE_MOISTURE
-		// What type of moisture model to use
+        // What type of moisture model to use
         pp.query("moisture_model", moisture_model);
         if (moisture_model == "SAM") {
             micro.SetModel<SAM>();
         }
-		else if (moisture_model == "Kessler") {
-			micro.SetModel<Kessler>();
-		}
-		 else {
+        else if (moisture_model == "Kessler") {
+            micro.SetModel<Kessler>();
+        }
+         else {
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
         }
 #endif
