@@ -30,7 +30,7 @@ void Kessler::Diagnose () {
      const auto& box3d = mfi.tilebox();
 
      amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-       qv_array(i,j,k)  = qt_array(i,j,k) - qn_array(i,j,k);
+       qv_array(i,j,k)  = std::max(0.0,qt_array(i,j,k) - qn_array(i,j,k));
        amrex::Real omn  = 1.0;
        qcl_array(i,j,k) = qn_array(i,j,k)*omn;
        qci_array(i,j,k) = qn_array(i,j,k)*(1.0-omn);
