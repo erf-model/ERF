@@ -28,8 +28,6 @@ erf.sponge_x_velocity = 0.0
 erf.sponge_y_velocity = 0.0
 erf.sponge_z_velocity = 0.0
 
-
-
 # TIME STEP CONTROL
 erf.use_native_mri = 1
 erf.fixed_dt       = 1.0      # fixed time step [s] -- Straka et al 1993
