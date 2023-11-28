@@ -145,6 +145,9 @@ void Kessler::AdvanceKessler() {
 
      auto fz_array  = fz.array(mfi);
 
+     // Expose for GPU
+     Real d_fac_cond = m_fac_cond;
+
      ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
 
         qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
@@ -224,7 +227,7 @@ void Kessler::AdvanceKessler() {
          qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
          qn_array(i,j,k) = qn_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
 
-         theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*m_fac_cond*(dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
+         theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*(dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
 
          qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
          qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
