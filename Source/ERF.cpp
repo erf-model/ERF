@@ -966,6 +966,7 @@ ERF::ReadParameters ()
         if (moisture_model == "SAM") {
             micro.SetModel<SAM>();
         } else {
+            micro.SetModel<NullMoist>();
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
         }
 #endif
