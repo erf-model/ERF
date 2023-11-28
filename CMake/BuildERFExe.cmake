@@ -65,7 +65,11 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SAM/Precip.cpp
        ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
        ${SRC_DIR}/Microphysics/SAM/Diagnose.cpp
-       ${SRC_DIR}/Microphysics/SAM/Update.cpp)
+       ${SRC_DIR}/Microphysics/SAM/Update.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
@@ -187,6 +191,7 @@ function(build_erf_lib erf_lib_name)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
