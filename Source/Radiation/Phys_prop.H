@@ -86,6 +86,7 @@ class PhysProp {
     // array.
     std::vector<std::string> uniquefilenames;
 
+  public:
     void physprop_accum_unique_files(const std::string& filename,
                                      const std::string& type)
     {

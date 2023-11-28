@@ -314,7 +314,7 @@ void Radiation::run() {
         if (night_indices(icol) > 0) nnight(1)++;
      }
 
-     for (auto icall = ngas /*N_DIAG*/; icall > 0; --icall) {
+     for (auto icall = 0; icall < 1; ++icall) {
         // Get gas concentrations
         get_gas_vmr(active_gases, gas_vmr);
 

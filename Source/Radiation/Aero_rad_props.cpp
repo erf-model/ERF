@@ -284,7 +284,6 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
 // lw extinction is the same representation for all
 // species.  If this changes, this routine will need to do something
 // similar to the sw with routines like get_hygro_lw_abs
-
 void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
                                    const int& list_idx,
                                    const real& dt,

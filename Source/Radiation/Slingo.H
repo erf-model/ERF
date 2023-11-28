@@ -9,8 +9,10 @@ using yakl::fortran::SimpleBounds;
 
 class Slingo {
   public:
-  static void slingo_liq_optics_sw(int ncol, int nlev, int nswbands, const real2d& cldn, const real2d& cliqwp, const real2d& rel,
-                                   const real3d& liq_tau, const real3d& liq_tau_w, const real3d& liq_tau_w_g, const real3d& liq_tau_w_f) {
+  static void slingo_liq_optics_sw(int ncol, int nlev, int nswbands, 
+                                   const real2d& cldn, const real2d& cliqwp, const real2d& rel,
+                                   const real3d& liq_tau, const real3d& liq_tau_w, 
+                                   const real3d& liq_tau_w_g, const real3d& liq_tau_w_f) {
     real1d wavmin("wavmin", nswbands);
     real1d wavmax("wavmax", nswbands);
 
