@@ -5,6 +5,7 @@
 // The logic to control which constituents are used in the climate calculations
 // and which are used in diagnostic radiation calculations is contained in this module.
 //
+#include <cstdlib>
 #include "YAKL_netcdf.h"
 #include "rrtmgp_const.h"
 #include "Phys_prop.H"
@@ -121,6 +122,9 @@ class MamConstituents {
      // we hard-coded the use nmodes = 3, and nspeces = {6, 3, 3}
      //
      // allocate components that depend on nmodes
+     const char* erf_home = std::getenv("ERF_HOME");
+     auto erf_rad_data_dir = (std::string)erf_home + "/Source/Radiation/data/";
+     
      int nmodes = 3;
      std::vector<int> num_spec{6, 3, 3};
 
@@ -147,12 +151,12 @@ class MamConstituents {
      modes.comps[0].type[5] = "seasalt";
 
      modes.comps[0].props.resize(num_spec[0]);
-     modes.comps[0].props[0] = "data/sulfate_rrtmg_c080918.nc";
-     modes.comps[0].props[1] = "data/ocpho_rrtmg_c101112.nc";
-     modes.comps[0].props[2] = "data/ocphi_rrtmg_c100508.nc";
-     modes.comps[0].props[3] = "data/bcpho_rrtmg_c100508.nc";
-     modes.comps[0].props[4] = "data/dust_aeronet_rrtmg_c141106.nc";
-     modes.comps[0].props[5] = "data/ssam_rrtmg_c100508.nc";
+     modes.comps[0].props[0] = erf_rad_data_dir + "sulfate_rrtmg_c080918.nc";
+     modes.comps[0].props[1] = erf_rad_data_dir + "ocpho_rrtmg_c101112.nc";
+     modes.comps[0].props[2] = erf_rad_data_dir + "ocphi_rrtmg_c100508.nc";
+     modes.comps[0].props[3] = erf_rad_data_dir + "bcpho_rrtmg_c100508.nc";
+     modes.comps[0].props[4] = erf_rad_data_dir + "dust_aeronet_rrtmg_c141106.nc";
+     modes.comps[0].props[5] = erf_rad_data_dir + "ssam_rrtmg_c100508.nc";
 
      modes.comps[1].nspec = num_spec[1];
      modes.names[1] = "mam3_mode_1";
@@ -169,9 +173,9 @@ class MamConstituents {
      modes.comps[1].type[2] = "seasalt";
 
      modes.comps[1].props.resize(num_spec[1]);
-     modes.comps[1].props[0] = "data/sulfate_rrtmg_c080918.nc";
-     modes.comps[1].props[1] = "data/ocphi_rrtmg_c100508.nc";
-     modes.comps[1].props[2] = "data/ssam_rrtmg_c100508.nc";
+     modes.comps[1].props[0] = erf_rad_data_dir + "sulfate_rrtmg_c080918.nc";
+     modes.comps[1].props[1] = erf_rad_data_dir + "ocphi_rrtmg_c100508.nc";
+     modes.comps[1].props[2] = erf_rad_data_dir + "ssam_rrtmg_c100508.nc";
 
      modes.comps[2].nspec = num_spec[2];
      modes.names[2] = "mam3_mode_2";
@@ -188,9 +192,9 @@ class MamConstituents {
      modes.comps[2].type[2] = "sulfate";
 
      modes.comps[2].props.resize(num_spec[2]);
-     modes.comps[2].props[0] = "data/dust_aeronet_rrtmg_c141106.nc";
-     modes.comps[2].props[1] = "data/ssam_rrtmg_c100508.nc";
-     modes.comps[2].props[2] = "data/sulfate_rrtmg_c080918.nc";
+     modes.comps[2].props[0] = erf_rad_data_dir + "dust_aeronet_rrtmg_c141106.nc";
+     modes.comps[2].props[1] = erf_rad_data_dir + "ssam_rrtmg_c100508.nc";
+     modes.comps[2].props[2] = erf_rad_data_dir + "sulfate_rrtmg_c080918.nc";
 
      gaslist.resize(N_DIAG);
      aerosollist.resize(N_DIAG);
@@ -233,9 +237,9 @@ class MamConstituents {
      ma_list[0].idx_props.resize(ma_list[0].nmodes);
 
      ma_list[0].physprop_files.resize(ma_list[0].nmodes);
-     ma_list[0].physprop_files[0] = "data/mam3_mode1_rrtmg_c110318.nc";
-     ma_list[0].physprop_files[1] = "data/mam3_mode2_rrtmg_c110318.nc";
-     ma_list[0].physprop_files[2] = "data/mam3_mode3_rrtmg_c110318.nc";
+     ma_list[0].physprop_files[0] = erf_rad_data_dir + "mam3_mode1_rrtmg_c110318.nc";
+     ma_list[0].physprop_files[1] = erf_rad_data_dir + "data/mam3_mode2_rrtmg_c110318.nc";
+     ma_list[0].physprop_files[2] = erf_rad_data_dir + "mam3_mode3_rrtmg_c110318.nc";
 
      ma_list[0].idx_props.resize(ma_list[0].nmodes);
      ma_list[0].idx_props[0] = 78384393;

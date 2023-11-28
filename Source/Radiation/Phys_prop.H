@@ -9,6 +9,8 @@
 #include "Rad_constants.H"
 #include <complex>
 #include <cstring>
+#include <fstream>
+
 using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;
 
@@ -404,7 +406,6 @@ class PhysProp {
       using charHost1d = FArray<char,1,yakl::memHost>;
       yakl::SimpleNetCDF prop;
       prop.open(phys_prop.sourcefile, yakl::NETCDF_MODE_READ);
-
       charHost1d temp;
       prop.read(temp, "opticsmethod");
       phys_prop.opticsmethod = "";

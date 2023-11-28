@@ -74,8 +74,8 @@ class CloudRadProps {
                                LinInterp::InterpType& lambda_wgts);
   private:
     std::string name{"CloudRadProps"};
-    std::string liquid_file{"/ccs/home/yuanx/erf.radiation/Source/Radiation/data/F_nwvl200_mu20_lam50_res64_t298_c080428.nc"};
-    std::string ice_file{"/ccs/home/yuanx/erf.radiation/Source/Radiation/data/iceoptics_c080917.nc"};
+    std::string liquid_file;
+    std::string ice_file;
 
     int nlwbands, nswbands, nlambda, nmu, n_g_d;
 
