@@ -129,7 +129,7 @@ void compute_rho(const Real z, const Real pressure, Real &theta, Real& rho, Real
     q_v     = vapor_mixing_ratio(z, pressure, T_b, RH);
     rho     = pressure/(R_d*T_b*(1.0 + R_v_by_R_d*q_v));
     rho     = rho*(1.0 + q_v);
-	T_dp    = compute_dewpoint_temperature(z, pressure, T_b, RH);
+    T_dp    = compute_dewpoint_temperature(z, pressure, T_b, RH);
 }
 
 double compute_F(const Real p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
