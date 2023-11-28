@@ -8,9 +8,9 @@ class EbertCurry {
   public:
    static constexpr real scalefactor = 1.;  //500._r8/917._r8
 
-   static void ec_ice_optics_sw(int ncol, int nlev, int nswbands, 
+   static void ec_ice_optics_sw(int ncol, int nlev, int nswbands,
                                 const real2d& cldn, const real2d& cicewp, const real2d& rei,
-                                const real3d& ice_tau, const real3d& ice_tau_w, 
+                                const real3d& ice_tau, const real3d& ice_tau_w,
                                 const real3d& ice_tau_w_g, const real3d& ice_tau_w_f) {
     real1d wavmin("wavmin", nswbands);
     real1d wavmax("wavmax", nswbands);
@@ -110,7 +110,7 @@ class EbertCurry {
   }
 
 
-  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands, 
+  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands,
                                const real2d& cldn, const real2d& iclwpth,
                                const real2d& iciwpth, const real2d& rei, const real3d& abs_od) {
      real2d ficemr("ficemr",ncol,nlev);

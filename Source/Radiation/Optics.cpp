@@ -340,8 +340,8 @@ void Optics::sample_cloud_optics_lw(int ncol, int nlev, int ngpt, const int1d& g
  }
 
 //----------------------------------------------------------------------------
-void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, 
-                                   const int1d& night_indices, bool is_cmip6_volc, const real3d& tau_out, 
+void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt,
+                                   const int1d& night_indices, bool is_cmip6_volc, const real3d& tau_out,
                                    const real3d& ssa_out, const real3d& asm_out, const real2d& clear_rh) {
       // NOTE: aer_rad_props expects 0:pver indexing on these! It appears this is to
       // account for the extra layer added above model top, but it is not entirely

@@ -253,7 +253,7 @@ class MamConstituents {
          for(auto j = 0; j < modes.comps[i].nspec; ++j)
            prop.physprop_accum_unique_files(modes.comps[i].props[j], "M");
      }
-    
+
      // initialize the gas and aerosol lists
      rad_cnst_init();
    }
@@ -300,7 +300,7 @@ class MamConstituents {
 
   // Return pointer to mass mixing ratio for the gas from the specified
   // climate or diagnostic list.
-  const inline 
+  const inline
   void rad_cnst_get_gas(int list_idx, std::string gasname, real2d mmr) {
      gaslist_t list;
      if (list_idx >= 0 && list_idx <= N_DIAG) {
@@ -327,7 +327,7 @@ class MamConstituents {
 //   end select
  }
 
- const 
+ const
  void get_nmodes(int list_idx, int nmodes) {
     auto m_list = ma_list[list_idx];
     nmodes = m_list.nmodes;
@@ -873,7 +873,7 @@ class MamConstituents {
  }
 
  const inline
- void get_mam_density_aer(int list_idx, int mode_idx, int spec_idx, 
+ void get_mam_density_aer(int list_idx, int mode_idx, int spec_idx,
                           real& density_aer)
  {
    modelist_t mlist;
@@ -887,7 +887,7 @@ class MamConstituents {
  }
 
  const inline
- void get_mam_hygro_aer(int list_idx, int mode_idx, int spec_idx, 
+ void get_mam_hygro_aer(int list_idx, int mode_idx, int spec_idx,
                        real& hygro_aer)
  {
    modelist_t mlist;

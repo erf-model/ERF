@@ -120,7 +120,7 @@ class Mam4_aer {
      water_ref_file.read( refiwsw, "refindex_im_water_sw");
      water_ref_file.read( refrwlw, "refindex_real_water_lw");
      water_ref_file.read( refiwlw, "refindex_im_water_lw");
-   } 
+   }
 
    //
    // modal size  parameters
@@ -404,7 +404,7 @@ class Mam4_aer {
      }
 
      // clear_rh provides alternate estimate non-cloudy relative humidity
-     ModalAeroWateruptake::modal_aero_wateruptake_dr(list_idx, ncol, nlev, nmodes, top_lev, 
+     ModalAeroWateruptake::modal_aero_wateruptake_dr(list_idx, ncol, nlev, nmodes, top_lev,
                                                      mam_consti, dgnumdry_m, dgnumwet_m,
                                                      qaerwat_m, wetdens_m, clear_rh);
 
@@ -483,11 +483,11 @@ class Mam4_aer {
                refrtabswr(irefr)          = refrtabsw(irefr,isw);
             });
 
-            binterp(extpswr, ncol, ncoef, prefr, prefi, refr, refi, 
+            binterp(extpswr, ncol, ncoef, prefr, prefi, refr, refi,
                     refrtabswr, refitabswr, itab, jtab, ttab, utab, cext);
-            binterp(abspswr, ncol, ncoef, prefr, prefi, refr, refi, 
+            binterp(abspswr, ncol, ncoef, prefr, prefi, refr, refi,
                     refrtabswr, refitabswr, itab, jtab, ttab, utab, cabs);
-            binterp(asmpswr, ncol, ncoef, prefr, prefi, refr, refi, 
+            binterp(asmpswr, ncol, ncoef, prefr, prefi, refr, refi,
                     refrtabswr, refitabswr, itab, jtab, ttab, utab, casm);
 
               // parameterized optical properties
@@ -521,7 +521,7 @@ class Mam4_aer {
 
               for(auto i = 1; i <= ncol; ++i) {
                  if ((dopaer(i) <= -1.e-10) || (dopaer(i) >= 30.)) {
-                    if (dopaer(i) <= -1.e-10) 
+                    if (dopaer(i) <= -1.e-10)
                        amrex::Print() << "ERROR: Negative aerosol optical depth in this layer.\n";
                     else {
                        amrex::Print() << "WARNING: Aerosol optical depth is unreasonably high in this layer.\n";
@@ -622,7 +622,7 @@ class Mam4_aer {
       });
 
       // get mode properties
-      mam_consti.get_mode_props(list_idx, m, sigma_logr_aer, 
+      mam_consti.get_mode_props(list_idx, m, sigma_logr_aer,
                                 refrtablw, refitablw, absplw);
       // get mode info
       mam_consti.get_mode_nspec(list_idx, m, nspec);
@@ -701,7 +701,7 @@ class Mam4_aer {
                refrtablwr(irefr)          = refrtablw(irefr,ilw);
             });
 
-            binterp(absplwr, ncol, ncoef, prefr, prefi, refr, refi, 
+            binterp(absplwr, ncol, ncoef, prefr, prefi, refr, refi,
                     refrtablwr, refitablwr, itab, jtab, ttab, utab, cabs);
 
             // parameterized optical properties
@@ -723,7 +723,7 @@ class Mam4_aer {
                     amrex::Print() << "WARNING: Aerosol optical depth is unreasonably high in this layer.\n";
 
                   for(auto l = 1; l <= nspec; ++l) {
-                    mam_consti.rad_cnst_get_mam_mmr_by_idx(list_idx, m, l, "a", specmmr);                  
+                    mam_consti.rad_cnst_get_mam_mmr_by_idx(list_idx, m, l, "a", specmmr);
                     mam_consti.get_mam_props_lw(list_idx, m, l, specdens,specrefrindex, specrefiindex);
                     volf = specmmr(i,k)/specdens;
                   }

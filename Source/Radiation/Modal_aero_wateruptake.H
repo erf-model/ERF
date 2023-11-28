@@ -29,10 +29,10 @@ class ModalAeroWateruptake {
    // The calculation has been enabled for diagnostic mode lists
    // via optional arguments.  If the list_idx arg is present then
    // all the optional args must be present.
-   static 
-   void modal_aero_wateruptake_dr(int list_idx, int ncol, int nlev, int nmodes, int top_lev, 
-                                  MamConstituents& consti, const real3d& dgnumdry_m, 
-                                  const real3d& dgnumwet_m, const real3d& qaerwat_m, 
+   static
+   void modal_aero_wateruptake_dr(int list_idx, int ncol, int nlev, int nmodes, int top_lev,
+                                  MamConstituents& consti, const real3d& dgnumdry_m,
+                                  const real3d& dgnumwet_m, const real3d& qaerwat_m,
                                   const real3d& wetdens_m, const real2d& clear_rh_in) {
    int itim_old;
    int nspec;
@@ -227,7 +227,7 @@ class ModalAeroWateruptake {
          } // i = 1, ncol
       } // k = top_lev, pver
 #endif
-   } 
+   }
 
    // compute aerosol wet radius and aerosol water
    modal_aero_wateruptake_sub(ncol, nlev, nmodes, top_lev,
@@ -257,10 +257,10 @@ class ModalAeroWateruptake {
   }
 
   // Purpose: Compute aerosol wet radius
-  static 
-  void modal_aero_wateruptake_sub(int ncol, int nlev, int nmodes, int top_lev, 
+  static
+  void modal_aero_wateruptake_sub(int ncol, int nlev, int nmodes, int top_lev,
                                   const real1d& rhcrystal, const real1d& rhdeliques, const real3d& dryrad,
-                                  const real3d& hygro, const real2d& rh, const real3d& dryvol, 
+                                  const real3d& hygro, const real2d& rh, const real3d& dryvol,
                                   const real3d& wetrad, const real3d& wetvol, const real3d& wtrvol) {
    // loop over all aerosol modes
    for(auto m = 1; m <= nmodes; ++m) {
@@ -284,7 +284,7 @@ class ModalAeroWateruptake {
                wetrad(i,k,m) = dryrad(i,k,m);
                wetvol(i,k,m) = dryvol(i,k,m);
                wtrvol(i,k,m) = 0.0;
-            } 
+            }
             else if (rh(i,k) < rhdeliques(m)) {
                wtrvol(i,k,m) = wtrvol(i,k,m)*hystfac*(rh(i,k) - rhcrystal(m));
                wtrvol(i,k,m) = std::max(wtrvol(i,k,m), 0.0);
@@ -356,7 +356,7 @@ class ModalAeroWateruptake {
       if(p < eps) {
          //approximate solution for small particles
          r=rdry*(1.+p*third/(1.-slog*rdry/a));
-      } 
+      }
       else {
          makoh_quartic(cx4r,cx4i,p43,p42,p41,p40);
          //find smallest real(r8) solution
@@ -411,7 +411,7 @@ class ModalAeroWateruptake {
          r3=r;
          //now interpolate between quartic, cubic solutions
          r=(r4*(1.-s)+r3*(s-1.+eps))/eps;
-       }       
+       }
 
      // bound and convert from microns to m
      r = std::min(r,30.); // upper bound based on 1 day lifetime
@@ -422,7 +422,7 @@ class ModalAeroWateruptake {
    //where p0, p1, p2 are real
    static
    void makoh_cubic(const real1d& cxr, const real1d& cxi,
-                    const real& p2, const real& p1, const real& p0) 
+                    const real& p2, const real& p1, const real& p0)
    {
       real q, r;
       real cradr, cyr, czr, cradi, cyi, czi;
@@ -448,7 +448,7 @@ class ModalAeroWateruptake {
          auto r2q3 = r*r+q*q*q;
          if (r2q3 >= 0.) {
            cradr = sqrt(r2q3);
-         } 
+         }
          else {
            cradi = sqrt(abs(r2q3));
          }
@@ -456,7 +456,7 @@ class ModalAeroWateruptake {
          cyr = r-cradr;
          cyi = cradi;
 
-         if (abs(cyr) > eps) cyr = std::pow(cyr, 1./3.); 
+         if (abs(cyr) > eps) cyr = std::pow(cyr, 1./3.);
          auto cq = q;
          czr = -cq/cyr;
          czi = -cq/cyi;
@@ -473,9 +473,9 @@ class ModalAeroWateruptake {
 
     // solves x**4 + p3 x**3 + p2 x**2 + p1 x + p0 = 0
     // where p0, p1, p2, p3 are real
-    static 
-    void makoh_quartic(const real1d& cxr, const real1d& cxi, 
-                       const real& p3, const real& p2,  const real& p1, const real& p0) 
+    static
+    void makoh_quartic(const real1d& cxr, const real1d& cxi,
+                       const real& p3, const real& p2,  const real& p1, const real& p0)
     {
       real q, r;
       real cbr, cb0r, cb1r, cbi, cb0i, cb1i;
@@ -491,7 +491,7 @@ class ModalAeroWateruptake {
       cbr = r-cradr;
       if(cbr == 0.0) {
          //insoluble particle
-         cxr(1) = std::pow(-p1, 1./3.); 
+         cxr(1) = std::pow(-p1, 1./3.);
          cxr(2) = cxr(1);
          cxr(3) = cxr(1);
          cxr(4) = cxr(1);
