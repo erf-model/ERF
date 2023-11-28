@@ -77,8 +77,7 @@ class CloudRadProps {
     std::string liquid_file{"/ccs/home/yuanx/erf.radiation/Source/Radiation/data/F_nwvl200_mu20_lam50_res64_t298_c080428.nc"};
     std::string ice_file{"/ccs/home/yuanx/erf.radiation/Source/Radiation/data/iceoptics_c080917.nc"};
 
-    int nlw_band, nsw_band, nmu, nlambda;
-    int nlwbands, nswbands, n_g_d;
+    int nlwbands, nswbands, nlambda, nmu, n_g_d;
 
     real1d g_mu;         // mu samples on grid
     real2d g_lambda;     // lambda scale samples on grid

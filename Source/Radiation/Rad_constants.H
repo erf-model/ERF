@@ -6,6 +6,8 @@
 #define ERF_RAD_CONSTANTS_H
 
 #include "rrtmgp_const.h"
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class RadConstants {
   public:
@@ -57,7 +59,7 @@ class RadConstants {
    // These are indices to the band for diagnostic output
    static constexpr int idx_sw_diag = 10; // index to sw visible band
    static constexpr int idx_nir_diag = 8; // index to sw near infrared (778-1240 nm) band
-   static constexpr int  idx_uv_diag = 11; // index to sw uv (345-441 nm) band
+   static constexpr int idx_uv_diag = 11; // index to sw uv (345-441 nm) band
 
    static constexpr int rrtmg_sw_cloudsim_band = 9;  // rrtmg band for .67 micron
 

@@ -607,14 +607,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         //-----------------------------------------
         // Diffusive terms (pre-computed above)
         //-----------------------------------------
-        // Expansion
-        Array4<Real> er_arr;
-        if (expr) {
-            er_arr = expr->array(mfi);
-        } else {
-            er_arr = Array4<Real>{};
-        }
-
         // No terrain diffusion
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;

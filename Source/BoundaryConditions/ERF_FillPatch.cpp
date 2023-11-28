@@ -73,7 +73,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_set_width>0 && fillset) {
+    if (lev>0 && cf_set_width>0 && fillset) {
         FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
         FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
         FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);

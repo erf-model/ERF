@@ -1,5 +1,4 @@
 #include <ERF.H>
-#include <TileNoZ.H>
 #include <Utils.H>
 
 using namespace amrex;
@@ -25,26 +24,15 @@ ERF::timeStep (int lev, Real time, int iteration)
         // regrid changes level "lev+1" so we don't regrid on max_level
         // also make sure we don't regrid fine levels again if
         // it was taken care of during a coarser regrid
-        if (lev < max_level && istep[lev] > last_regrid_step[lev])
+        if (lev < max_level)
         {
-            if (istep[lev] % regrid_int == 0)
+            if ( (istep[lev] % regrid_int == 0) && (istep[lev] > last_regrid_step[lev]) )
             {
                 // regrid could add newly refine levels (if finest_level < max_level)
                 // so we save the previous finest level index
                 int old_finest = finest_level;
-                regrid(lev, time);
 
-                // NOTE: Define & Register index lev backwards (so we add 1 here)
-                // Redefine & register the ERFFillpatcher objects
-                if (solverChoice.coupling_type != CouplingType::TwoWay && cf_width > 0)
-                {
-                    Define_ERFFillPatchers(lev+1);
-                    Register_ERFFillPatchers(lev+1);
-                    if (lev < max_level-1) {
-                        Define_ERFFillPatchers(lev+2);
-                        Register_ERFFillPatchers(lev+2);
-                    }
-                }
+                regrid(lev, time);
 
                 // mark that we have regridded this level already
                 for (int k = lev; k <= finest_level; ++k) {
@@ -55,8 +43,8 @@ ERF::timeStep (int lev, Real time, int iteration)
                 for (int k = old_finest+1; k <= finest_level; ++k) {
                     dt[k] = dt[k-1] / MaxRefRatio(k-1);
                 }
-            }
-        }
+            } // if
+        } // lev
     }
 
     // Update what we call "old" and "new" time
@@ -72,9 +60,10 @@ ERF::timeStep (int lev, Real time, int iteration)
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
 
-#ifdef ERF_USE_PARTICLES
-    particleData.Redistribute();
-#endif
+    // We store the old and new data at level "lev" once we have finished the full advance at this level
+    if (finest_level > 0 && lev < finest_level && cf_set_width > 0) {
+        Register_ERFFillPatchers(lev);
+    }
 
     ++istep[lev];
 
@@ -91,13 +80,6 @@ ERF::timeStep (int lev, Real time, int iteration)
         {
             Real strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
-        }
-
-        if (solverChoice.coupling_type == CouplingType::TwoWay ||
-            solverChoice.coupling_type == CouplingType::Mixed) {
-            int  scomp = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
-            int  ncomp = NVAR - scomp;
-            AverageDownTo(lev, scomp, ncomp); // average lev+1 down to lev
         }
     }
 }

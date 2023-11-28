@@ -68,7 +68,7 @@ coefficients are then applied in evaluating the vertical component of turbulent
 fluxes in a similar manner as is described for the
 :ref:`Smagorinsky LES model<SmagorinskyModel>`. Computation of the stability parameters
 and lengthscale depend on the Obukhov length and surface heat flux, which are
-obtained from the :ref:`MOST module<MostBoundary>`. Further detail on these
+obtained from the :ref:`sec:MOST`. Further detail on these
 computations can be found in the cited works. Several model coefficients are
 required, with default values in ERF taken from the work of Nakanishi and Niino.
 
