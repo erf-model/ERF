@@ -4,8 +4,13 @@
 #include <string>
 
 #include "AMReX_REAL.H"
+#include "AMReX_ParmParse.H"
+#include "AMReX_MultiFab.H"
 
 #include "prob_common.H"
+#include "EOS.H"
+#include "IndexDefines.H"
+#include "TileNoZ.H"
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
@@ -19,6 +24,7 @@ struct ProbParm : ProbParmDefaults {
   // overridden physical constants
   amrex::Real C_p = 1004.0;
 }; // namespace ProbParm
+
 
 class Problem : public ProblemBase
 {
@@ -56,9 +62,9 @@ public:
 
 
     void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
-                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
-                  amrex::Geometry const& geom) override;
+                                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
+                                  amrex::Geometry const& geom) override;
 
     void init_custom_terrain (
         const amrex::Geometry& geom,
@@ -74,7 +80,7 @@ public:
         amrex::Geometry      const& geom) override;
 
 protected:
-    std::string name() override { return "Supercell"; }
+    std::string name () override { return "Supercell"; }
 
 private:
     ProbParm parms;
