@@ -63,8 +63,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
 #endif
 
+    // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
-    update_arrays(lev, ba, dm);
+    // ********************************************************************************************
+    update_diffusive_arrays(lev, ba, dm);
 
     // ********************************************************************************************
     // Base state holds r_0, pres_0, pi_0 (in that order)
@@ -114,6 +116,21 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
+
+    // ********************************************************************************************
+    // Create the ERFFillPatcher object
+    // ********************************************************************************************
+    if (cf_width > 0 && lev > 0) {
+        Construct_ERFFillPatchers(lev);
+           Define_ERFFillPatchers(lev);
+    }
+
+    // ********************************************************************************************
+    // Initialize the boundary conditions
+    // ********************************************************************************************
+    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
+                                                     z_phys_nd[lev], detJ_cc[lev]);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -175,21 +192,73 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
 
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+#if defined(ERF_USE_MOISTURE)
+    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
+#endif
+
     init_stuff(lev, ba, dm);
 
     t_new[lev] = time;
     t_old[lev] = time - 1.e200;
 
+    // ********************************************************************************************
     // Build the data structures for terrain-related quantities
+    // ********************************************************************************************
     update_terrain_arrays(lev, time);
 
-    // Build the data structures for calculating diffusive/turbulent terms
-    update_arrays(lev, ba, dm);
+    // ********************************************************************************************
+    // Update the base state at this level
+    // ********************************************************************************************
+    base_state[lev].define(ba,dm,3,1);
+    base_state[lev].setVal(0.);
+    initHSE(lev);
 
+    // ********************************************************************************************
+    // Build the data structures for calculating diffusive/turbulent terms
+    // ********************************************************************************************
+    update_diffusive_arrays(lev, ba, dm);
+
+    // ********************************************************************************************
+    // Initialize flux register at new level
+    // ********************************************************************************************
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        advflux_reg.resize(lev+1);
+        advflux_reg[lev] = new YAFluxRegister(ba, grids[lev-1],
+                                              dm,  dmap[lev-1],
+                                              geom[lev],  geom[lev-1],
+                                              ref_ratio[lev-1], lev, NVAR);
+    }
+
+    // *****************************************************************************************************
+    // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
+    // *****************************************************************************************************
+    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
+                                                     z_phys_nd[lev], detJ_cc[lev]);
+
+    // ********************************************************************************************
+    // Fill data at the new level by interpolation from the coarser level
+    // ********************************************************************************************
     FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
                                 &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
 
+    // ********************************************************************************************
+    // Initialize the integrator class
+    // ********************************************************************************************
+    dt_mri_ratio[lev] = dt_mri_ratio[lev-1];
     initialize_integrator(lev, lev_new[Vars::cons], lev_new[Vars::xvel]);
+
+    // ********************************************************************************************
+    // If we are making a new level then the FillPatcher for this level hasn't been allocated yet
+    // ********************************************************************************************
+    if (cf_width > 0) {
+        Construct_ERFFillPatchers(lev);
+          Define_ERFFillPatchers(lev);
+    }
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -217,7 +286,28 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     temp_lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     temp_lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+    // ********************************************************************************************
+    // Remake the flux registers
+    // ********************************************************************************************
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        delete advflux_reg[lev];
+        advflux_reg[lev] = new YAFluxRegister(ba, grids[lev-1],
+                                              dm,  dmap[lev-1],
+                                              geom[lev],  geom[lev-1],
+                                              ref_ratio[lev-1], lev, NVAR);
+    }
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+#if defined(ERF_USE_MOISTURE)
+    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
+#endif
+
     init_stuff(lev,ba,dm);
+
+    BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
+    DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
 
     // ********************************************************************************************
     // This will fill the temporary MultiFabs with data from vars_new
@@ -245,7 +335,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     t_old[lev] = time - 1.e200;
 
     // Build the data structures for calculating diffusive/turbulent terms
-    update_arrays(lev, ba, dm);
+    update_diffusive_arrays(lev, ba, dm);
 
     // Build the data structures for terrain-related quantities
     update_terrain_arrays(lev, time);
@@ -257,12 +347,32 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     base_state[lev].setVal(0.);
     initHSE(lev);
 
+    // ********************************************************************************************
+    // Initialize the boundary conditions
+    // ********************************************************************************************
+    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
+                                                     z_phys_nd[lev], detJ_cc[lev]);
+
+    // ********************************************************************************************
+    // Initialize the integrator class
+    // ********************************************************************************************
+
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
+
+    // We need to re-define the FillPatcher if the grids have changed
+    if (lev > 0 && cf_width > 0) {
+        bool ba_changed = (ba != ba_old);
+        bool dm_changed = (dm != dm_old);
+        if (ba_changed || dm_changed) {
+          Define_ERFFillPatchers(lev);
+        }
+    }
 }
 
 
 void
-ERF::update_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
+ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
     // ********************************************************************************************
     // Diffusive terms
@@ -374,10 +484,6 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
     mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
-
-    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
-                                                     z_phys_nd[lev], detJ_cc[lev]);
 }
 
 void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)

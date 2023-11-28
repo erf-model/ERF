@@ -681,21 +681,24 @@ ERF::InitData ()
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        //
-        // NOTE: we must set up the FillPatcher object before calling FillPatch at a fine level
-        //
-        if (solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0 && lev>0) {
+        if (lev > 0 && cf_width > 0) {
             Construct_ERFFillPatchers(lev);
-            Register_ERFFillPatchers(lev);
         }
 
+
+        //
+        // We don't use the FillPatcher in this call because
+        //    we don't need to fill the interior data at this point.
+        //
+        bool fillset = false;
         auto& lev_new = vars_new[lev];
-
         FillPatch(lev, t_new[lev],
-                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
+                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                  fillset);
 
-        // We need to fill the ghost cell values of the base state in case it wasn't
-        //    done in the initialization
+        //
+        // We fill the ghost cell values of the base state in case it wasn't done in the initialization
+        //
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
@@ -1102,9 +1105,9 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
-        AMREX_ALWAYS_ASSERT(cf_width >= 0);
-        AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+        if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
+            amrex::Abort("You must set cf_width >= cf_set_width >= 0");
+        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -1123,6 +1126,10 @@ ERF::ReadParameters ()
     solverChoice.init_params(max_level);
     if (verbose > 0) {
         solverChoice.display();
+    }
+
+    if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
+        amrex::Abort("For two-way coupling you must set cf_width = 0");
     }
 }
 
@@ -1402,12 +1409,12 @@ ERF::Define_ERFFillPatchers (int lev)
 void
 ERF::Register_ERFFillPatchers (int lev)
 {
-    auto& lev_new = vars_new[lev-1];
-    auto& lev_old = vars_old[lev-1];
-    FPr_c[lev-1].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_u[lev-1].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_v[lev-1].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_w[lev-1].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
+    auto& lev_new = vars_new[lev];
+    auto& lev_old = vars_old[lev];
+    FPr_c[lev].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev], t_new[lev]});
+    FPr_u[lev].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev], t_new[lev]});
+    FPr_v[lev].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev], t_new[lev]});
+    FPr_w[lev].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev], t_new[lev]});
 }
 
 #ifdef ERF_USE_MULTIBLOCK
