@@ -64,7 +64,7 @@ class Kessler : public NullMoist {
   void AdvanceKessler ();
 
   // diagnose
-  void Diagnose ();
+  void Diagnose () override;
 
   // Set up for first time
   void

@@ -75,11 +75,11 @@ class SAM : public NullMoist {
   // micro interface for precip fall
   void MicroPrecipFall ();
 
-  // diagnose
-  void Diagnose ();
-
   // process microphysics
   void Proc ();
+
+  // diagnose
+  void Diagnose () override;
 
   // Set up for first time
   void
