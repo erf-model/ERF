@@ -228,7 +228,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
+        if (level > 0 && cf_width > 0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -293,7 +293,7 @@
 #endif
 
         // *************************************************************************
-        // Set up flux registers if using mixed or two_way coupling
+        // Set up flux registers if using two_way coupling
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
@@ -401,7 +401,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
+        if (level > 0 && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
