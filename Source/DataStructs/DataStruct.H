@@ -162,6 +162,7 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
+        pp.query("use_moist_background", use_moist_background);
 #endif
 
         // Use numerical diffusion?
@@ -363,6 +364,7 @@ struct SolverChoice {
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
+    bool use_moist_background {false};
 #endif
 };
 #endif
