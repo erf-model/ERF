@@ -59,7 +59,13 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
+#ifdef ERF_USE_PARTICLES
+            if ( (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) &&
+                 (particleData.use_tracer_particles || (derived_names[i] != "tracer_particle_count")       ) &&
+                 (particleData.use_hydro_particles  || (derived_names[i] != "hydro_particle_count")        ) ) {
+#else
             if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+#endif
                tmp_plot_names.push_back(derived_names[i]);
             }
         }
