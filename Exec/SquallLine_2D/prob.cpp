@@ -172,24 +172,24 @@ Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v
                                const int& khi)
 {
 
-    FILE *file_IC;
-    file_IC = fopen("input_sounding_probcpp.txt","w");
+    //FILE *file_IC;
+    //file_IC = fopen("input_sounding_probcpp.txt","w");
     Real z, T_b, T_dp;
 
     // Compute the quantities at z = 0.5*dz (first cell center)
     z = prob_lo_z + 0.5*dz;
     p[0] = p_0;
     compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);
-    fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+    //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
         z = prob_lo_z + (k+0.5)*dz;
         p[k] = p[k-1];
         compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
-        fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
+        //fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
     }
-    fclose(file_IC);
+    //fclose(file_IC);
 
 
     r[khi+1] = r[khi];
