@@ -64,8 +64,8 @@ struct SolverChoice {
 
         // Which expression (1,2 or 3) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3) {
-            amrex::Abort("buoyancy_type must be 1, 2 or 3");
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
         // Is the terrain static or moving?
@@ -162,6 +162,7 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
+        pp.query("use_moist_background", use_moist_background);
 #endif
 
         // Use numerical diffusion?
@@ -359,6 +360,7 @@ struct SolverChoice {
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
+    bool use_moist_background {false};
 #endif
 };
 #endif

@@ -1,13 +1,13 @@
 /*
  * Implementation 1-moment microphysics model
- * NOTE: this model is based on the SAM code, and the Klemp's paper
+ * NOTE: this model is based on the Kessler code, and the Klemp's paper
  * 1): Joseph, Klemp, the simulation of three-dimensional convective storm dynamics,
  * Journal of the atmospheric sciences, vol35, p1070
  * 2): Marat Khairoutdinov and David Randall, cloud resolving modeling of the ARM summer 1997 IOP:
  * model formulation, results, unvertainties, and sensitivities, Journal of the atmospheric sciences, vol60, p607
  */
-#ifndef SAM_H
-#define SAM_H
+#ifndef Kessler_H
+#define Kessler_H
 
 #include <string>
 #include <vector>
@@ -23,7 +23,7 @@
 #include "IndexDefines.H"
 #include "DataStruct.H"
 
-namespace MicVar {
+namespace MicVar_Kess {
    enum {
       // independent variables
       qt = 0,
@@ -49,34 +49,19 @@ namespace MicVar {
 //
 // use MultiFab for 3D data, but table for 1D data
 //
-class SAM : public NullMoist {
+class Kessler : public NullMoist {
 
  using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
  public:
   // constructor
-  SAM () {}
+  Kessler () {}
 
   // destructor
-  virtual ~SAM () = default;
+  virtual ~Kessler () = default;
 
   // cloud physics
-  void Cloud ();
-
-  // ice physics
-  void IceFall ();
-
-  // precip
-  void Precip ();
-
-  // precip fall
-  void PrecipFall (int hydro_type);
-
-  // micro interface for precip fall
-  void MicroPrecipFall ();
-
-  // process microphysics
-  void Proc ();
+  void AdvanceKessler ();
 
   // diagnose
   void Diagnose () override;
@@ -111,11 +96,8 @@ class SAM : public NullMoist {
   void
   Advance ( ) override
   {
-      this->Cloud();
+      this->AdvanceKessler();
       this->Diagnose();
-      this->IceFall();
-      this->Precip();
-      this->MicroPrecipFall();
   }
 
  private:
@@ -165,7 +147,7 @@ class SAM : public NullMoist {
   amrex::TableData<amrex::Real, 1> qn1d;
 
   // independent variables
-  amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+  amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
 
   amrex::TableData<amrex::Real, 1> gamaz;
   amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
