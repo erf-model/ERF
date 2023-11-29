@@ -87,12 +87,15 @@ public:
     AMREX_FORCE_INLINE
     AMREX_GPU_HOST_DEVICE
     amrex::Real compute_relative_humidity (const amrex::Real z,
+                                           const amrex::Real height,
+                                           const amrex::Real z_tr,
                                            const amrex::Real p_b,
                                            const amrex::Real T_b);
 
     AMREX_FORCE_INLINE
     AMREX_GPU_HOST_DEVICE
     amrex::Real vapor_mixing_ratio (const amrex::Real z,
+                                    const amrex::Real height,
                                     const amrex::Real p_b,
                                     const amrex::Real T_b,
                                     const amrex::Real RH);
