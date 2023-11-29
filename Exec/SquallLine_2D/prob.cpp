@@ -14,11 +14,21 @@ Problem::Problem ()
 {
   // Parse params
   amrex::ParmParse pp("prob");
+  pp.query("z_tr", parms.z_tr);
+  pp.query("height", parms.height);
+  pp.query("theta_0", parms.theta_0);
+  pp.query("theta_tr", parms.theta_tr);
+  pp.query("T_tr", parms.T_tr);
+  pp.query("x_c", parms.x_c);
+  pp.query("z_c", parms.z_c);
+  pp.query("x_r", parms.x_r);
+  pp.query("z_r", parms.z_r);
+  pp.query("theta_c", parms.theta_c);
 }
 
-Real compute_theta (Real z)
+Real Problem::compute_theta (const Real z)
 {
-    Real theta_0=300.0, theta_tr=343.0, T_tr=213.0, z_tr = 12000.0;
+    Real theta_0 = parms.theta_0, theta_tr = parms.theta_tr, T_tr = parms.T_tr, z_tr = parms.z_tr;
     if(z <= z_tr) {
         return theta_0 + (theta_tr - theta_0)*std::pow(z/z_tr,1.25);
     } else {
@@ -43,10 +53,10 @@ Real compute_saturation_pressure (const Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_relative_humidity (Real z, Real p_b, Real T_b)
+Real Problem::compute_relative_humidity (const Real& z, const Real& p_b, const Real& T_b)
 {
-    Real height = 1200.0;
-    Real z_tr = 12000.0;
+    Real height = parms.height;
+    Real z_tr = parms.z_tr;
 
     Real p_s = compute_saturation_pressure(T_b);
 
@@ -63,14 +73,14 @@ Real compute_relative_humidity (Real z, Real p_b, Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_vapor_pressure (Real p_s, Real RH)
+Real compute_vapor_pressure (const Real p_s, const Real RH)
 {
     return p_s*RH;
 }
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real vapor_mixing_ratio (const Real z, const Real p_b, const Real T_b, const Real RH)
+Real Problem::vapor_mixing_ratio (const Real& z, const Real& p_b, const Real& T_b, const Real& RH)
 {
     Real height = 1200.0;
     Real p_s = compute_saturation_pressure(T_b);
@@ -87,14 +97,14 @@ Real vapor_mixing_ratio (const Real z, const Real p_b, const Real T_b, const Rea
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_temperature (const Real p_b, const Real theta_b)
+Real compute_temperature (const Real& p_b, const Real& theta_b)
 {
     return theta_b*std::pow(p_b/p_0,R_d/Cp_d);
 }
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_dewpoint_temperature (const Real T_b, const Real RH)
+Real compute_dewpoint_temperature (const Real& T_b, const Real& RH)
 {
 
     Real T_dp, gamma, T;
@@ -108,7 +118,7 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
     return T_dp;
 }
 
-void compute_rho (const Real z, const Real pressure, Real &theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
+void Problem::compute_rho (const Real& z, const Real& pressure, Real& theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
 {
 
     theta   = compute_theta(z);
@@ -120,7 +130,7 @@ void compute_rho (const Real z, const Real pressure, Real &theta, Real& rho, Rea
     T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
 
-double compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
+Real Problem::compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                   Real& T_dp, Real& T_b, const Real& dz, const Real& z, const Real& rho_k_minus_1)
 {
 
@@ -140,7 +150,7 @@ double compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real&
     return F;
 }
 
-Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
+Real Problem::compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                   Real& T_dp, Real& T_b, const Real dz, const Real z, const Real rho_k_minus_1)
 {
 
@@ -157,10 +167,11 @@ Real compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k,
 }
 
 void
-init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
+Problem::init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real& dz, const Real&  prob_lo_z,
                                const int& khi)
 {
+
     FILE *file_IC;
     file_IC = fopen("input_sounding_probcpp.txt","w");
     Real z, T_b, T_dp;
@@ -189,6 +200,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
                                   std::unique_ptr<MultiFab>& z_phys_nd,
                                   Geometry const& geom)
 {
+
 
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
@@ -319,7 +331,7 @@ Problem::init_custom_pert (
     Real* p   = d_p.data();
 
 
-    const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
+    const Real x_c = parms.x_c, z_c = parms.z_c, x_r = parms.x_r, z_r = parms.z_r, theta_c = parms.theta_c, r_c = 1.0;
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
     Real Rd_by_Cp = sc.rdOcp;

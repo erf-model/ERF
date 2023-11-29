@@ -13,6 +13,18 @@
 #include "TileNoZ.H"
 
 struct ProbParm : ProbParmDefaults {
+  amrex::Real z_tr = 12000.0;
+  amrex::Real height = 1200.0;
+  amrex::Real theta_0 = 300.0;
+  amrex::Real theta_tr = 343.0;
+  amrex::Real T_tr = 213.0;
+
+  amrex::Real x_c = 0.0;
+  amrex::Real z_c = 1.5e3;
+  amrex::Real x_r = 4.0e3;
+  amrex::Real z_r = 1.5e3;
+  amrex::Real theta_c = 3.0;
+
   amrex::Real C_p = 1004.0;
   amrex::Real Theta_0 = 300.0;
 }; // namespace ProbParm
@@ -69,6 +81,55 @@ public:
         amrex::Vector<amrex::Real>& wbar,
         amrex::Vector<amrex::Real>& thetabar,
         amrex::Geometry      const& geom) override;
+
+    amrex::Real compute_theta (amrex::Real z);
+
+    amrex::Real compute_relative_humidity (const amrex::Real& z,
+                                           const amrex::Real& p_b,
+                                           const amrex::Real& T_b);
+
+    amrex::Real vapor_mixing_ratio (const amrex::Real& z,
+                                    const amrex::Real& p_b,
+                                    const amrex::Real& T_b,
+                                    const amrex::Real& RH);
+
+    amrex::Real compute_p_k (amrex::Real& p_k,
+                             const amrex::Real p_k_minus_1,
+                             amrex::Real& theta_k,
+                             amrex::Real& rho_k,
+                             amrex::Real& q_v_k,
+                               amrex::Real& T_dp,
+                             amrex::Real& T_b,
+                             const amrex::Real dz,
+                             const amrex::Real z,
+                             const amrex::Real rho_k_minus_1);
+
+    amrex::Real compute_F (const amrex::Real& p_k,
+                           const amrex::Real& p_k_minus_1,
+                           amrex::Real &theta_k,
+                           amrex::Real& rho_k,
+                           amrex::Real& q_v_k,
+                             amrex::Real& T_dp,
+                           amrex::Real& T_b,
+                           const amrex::Real& dz,
+                           const amrex::Real& z,
+                           const amrex::Real& rho_k_minus_1);
+
+    void compute_rho (const amrex::Real& z,
+                      const amrex::Real& pressure,
+                      amrex::Real &theta,
+                      amrex::Real& rho,
+                      amrex::Real& q_v,
+                      amrex::Real& T_dp,
+                      amrex::Real& T_b);
+
+    void init_isentropic_hse_no_terrain(amrex::Real *theta,
+                                        amrex::Real* r,
+                                        amrex::Real* p,
+                                        amrex::Real *q_v,
+                                           const amrex::Real& dz,
+                                        const amrex::Real&  prob_lo_z,
+                                           const int& khi);
 
 protected:
     std::string name () override { return "Supercell"; }
