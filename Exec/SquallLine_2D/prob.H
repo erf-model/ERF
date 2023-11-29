@@ -13,16 +13,8 @@
 #include "TileNoZ.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
-  amrex::Real U_0 = 10.0;
-  amrex::Real V_0 = 0.0;
-  amrex::Real x_c = 0.0; // center of thermal perturbation
-  amrex::Real z_c = 3200.0;
-  amrex::Real x_r = 1000.0;
-  amrex::Real z_r = 1000.0;
-  amrex::Real T_pert = 5.0; // perturbation temperature
-  // overridden physical constants
   amrex::Real C_p = 1004.0;
+  amrex::Real Theta_0 = 300.0;
 }; // namespace ProbParm
 
 
@@ -63,7 +55,6 @@ public:
 
     void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                  std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                                   amrex::Geometry const& geom) override;
 
     void init_custom_terrain (

@@ -14,23 +14,11 @@ Problem::Problem ()
 {
   // Parse params
   amrex::ParmParse pp("prob");
-  pp.query("T_0", parms.T_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("x_c", parms.x_c);
-  pp.query("z_c", parms.z_c);
-  pp.query("x_r", parms.x_r);
-  pp.query("z_r", parms.z_r);
-  pp.query("T_pert", parms.T_pert);
 }
-
-
-Real z_tr = 12000.0;
-Real height = 1200.0;
-Real R_v_by_R_d = R_v/R_d;
 
 Real compute_theta (Real z)
 {
-    Real theta_0=300.0, theta_tr=343.0, T_tr=213.0;
+    Real theta_0=300.0, theta_tr=343.0, T_tr=213.0, z_tr = 12000.0;
     if(z <= z_tr) {
         return theta_0 + (theta_tr - theta_0)*std::pow(z/z_tr,1.25);
     } else {
@@ -46,7 +34,7 @@ Real compute_saturation_pressure (const Real T_b)
 
     Real p_s = exp(34.494 - 4924.99/(T_b - 273.15 + 237.1))/std::pow(T_b - 273.15 + 105.0,1.57);
 
-    Real T = T_b - 273.15;
+    //Real T = T_b - 273.15;
 
     //Real p_s = 0.61121e3*exp((18.678 - T/234.5)*(T/(257.14 + T)));
 
@@ -55,8 +43,11 @@ Real compute_saturation_pressure (const Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_relative_humidity (Real z, Real height, Real z_tr, Real p_b, Real T_b)
+Real compute_relative_humidity (Real z, Real p_b, Real T_b)
 {
+	Real height = 1200.0;
+	Real z_tr = 12000.0;
+
     Real p_s = compute_saturation_pressure(T_b);
 
     Real q_s = 0.622*p_s/(p_b - p_s);
@@ -79,8 +70,9 @@ Real compute_vapor_pressure (Real p_s, Real RH)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const Real T_b, const Real RH){
-
+Real vapor_mixing_ratio (const Real z, const Real p_b, const Real T_b, const Real RH)
+{
+	Real height = 1200.0;
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
 
@@ -100,13 +92,13 @@ Real compute_temperature (const Real p_b, const Real theta_b)
     return theta_b*std::pow(p_b/p_0,R_d/Cp_d);
 }
 
-Real compute_dewpoint_temperature (const Real z, const Real p_b, const Real T_b, const Real RH)
+Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
 
     Real T_dp, gamma, T;
     T = T_b - 273.15;
 
-    Real a = 6.11e-3*p_0, b = 18.678, c = 257.14, d = 234.5;
+    Real b = 18.678, c = 257.14, d = 234.5;
     gamma = log(RH*exp((b - T/d)*T/(c + T)));
 
     T_dp = c*gamma/(b - gamma);
@@ -120,11 +112,11 @@ void compute_rho (const Real z, const Real pressure, Real &theta, Real& rho, Rea
 
     theta   = compute_theta(z);
     T_b     = compute_temperature(pressure, theta);
-    Real RH = compute_relative_humidity(z, height, z_tr, pressure, T_b);
-    q_v     = vapor_mixing_ratio(z, height, pressure, T_b, RH);
+    Real RH = compute_relative_humidity(z, pressure, T_b);
+    q_v     = vapor_mixing_ratio(z, pressure, T_b, RH);
     rho     = pressure/(R_d*T_b*(1.0 + (R_v/R_d)*q_v));
     rho     = rho*(1.0 + q_v);
-    T_dp    = compute_dewpoint_temperature(z, pressure, T_b, RH);
+    T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
 
 double compute_F (const Real p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
@@ -168,20 +160,25 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real& dz, const Real&  prob_lo_z,
                                const int& khi)
 {
-    Real z, p_b, theta_b, T_b, rho_b, RH, T_dp, rho0, theta0, T0, q_v0;
-    p_b = p_0;
-    //T_b = T0;
+	FILE *file_IC;
+    file_IC = fopen("input_sounding_probcpp.txt","w");
+    Real z, T_b, T_dp;
 
     // Compute the quantities at z = 0.5*dz (first cell center)
     z = prob_lo_z + 0.5*dz;
     p[0] = p_0;
     compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);
+	fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+
 
     for (int k=1;k<=khi;k++){
         z = prob_lo_z + (k+0.5)*dz;
         p[k] = p[k-1];
         compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
+		fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
     }
+	fclose(file_IC);
+
 
     r[khi+1] = r[khi];
 }
@@ -189,18 +186,12 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
 void
 Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
                                   std::unique_ptr<MultiFab>& z_phys_nd,
-                                  std::unique_ptr<MultiFab>& z_phys_cc,
                                   Geometry const& geom)
 {
 
     const Real prob_lo_z = geom.ProbLo()[2];
     const Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
-
-
-    const Real T_sfc    = 300.;
-    const Real rho_sfc  = p_0 / (R_d*T_sfc);
-    const Real Thetabar = T_sfc;
 
     // use_terrain = 1
     if (z_phys_nd) {
@@ -210,7 +201,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         for ( MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
         {
             Array4<Real      > rho_arr  = rho_hse.array(mfi);
-            Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
+            //Array4<Real const> z_cc_arr = z_phys_cc->const_array(mfi);
 
             // Create a flat box with same horizontal extent but only one cell in vertical
             const Box& tbz = mfi.nodaltilebox(2);
@@ -219,8 +210,7 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
             b2d.setRange(2,0);
 
             ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-              Array1D<Real,0,255> r;;
-              Array1D<Real,0,255> p;;
+              Array1D<Real,0,255> r;
 
               //init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,khi);
 
@@ -252,8 +242,6 @@ Problem::erf_init_dens_hse_moist (MultiFab& rho_hse,
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
         Real* r     = d_r.data();
-        Real* q_v   = d_q_v.data();
-        Real* theta = d_t.data();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -306,19 +294,6 @@ Problem::init_custom_pert (
   // This is what we do at k = 0 -- note we assume p = p_0 and T = T_0 at z=0
   const amrex::Real& dz        = geomdata.CellSize()[2];
   const amrex::Real& prob_lo_z = geomdata.ProbLo()[2];
-  const amrex::Real& prob_hi_z = geomdata.ProbHi()[2];
-
-  const amrex::Real rdOcp   = sc.rdOcp;
-
-  // const amrex::Real thetatr = 343.0;
-  // const amrex::Real theta0  = 300.0;
-  const amrex::Real ztr     = 12000.0;
-  const amrex::Real Ttr     = 213.0;
-  const amrex::Real Ttop    = 213.0;
-  const amrex::Real deltaz  = 1000.*0.0;
-  const amrex::Real zs      = 5000.;
-  const amrex::Real us      = 30.;
-  const amrex::Real uc      = 15.;
 
   // Call the routine to calculate the 1d background condition
 
@@ -340,17 +315,16 @@ Problem::init_custom_pert (
    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_q_v.begin(), h_q_v.end(), d_q_v.begin());
 
     Real* t   = d_t.data();
-    Real* r   = d_r.data();
-    Real* q_v = d_q_v.data();
     Real* p   = d_p.data();
 
-    Real d_z_tr   = 12000.0;
-    Real d_height = 1200.0;
 
     const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
-  amrex::ParallelForRNG(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+	Real Rd_by_Cp = sc.rdOcp;
+	Rd_by_Cp = Rd_by_Cp;
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo         = geomdata.ProbLo();
@@ -375,15 +349,15 @@ Problem::init_custom_pert (
     theta_total     = t[k] + delta_theta;
     temperature     = compute_temperature(p[k], theta_total);
     Real T_b        = compute_temperature(p[k], t[k]);
-    RH              = compute_relative_humidity(z, d_height, d_z_tr, p[k], T_b);
-    Real q_v_hot    = vapor_mixing_ratio(z, d_height, p[k], T_b, RH);
+    RH              = compute_relative_humidity(z, p[k], T_b);
+    Real q_v_hot    = vapor_mixing_ratio(z, p[k], T_b, RH);
     rho             = p[k]/(R_d*temperature*(1.0 + (R_v/R_d)*q_v_hot));
 
     // Compute background quantities
     Real temperature_back = compute_temperature(p[k], t[k]);
     Real T_back           = compute_temperature(p[k], t[k]);
-    Real RH_back          = compute_relative_humidity(z, d_height, d_z_tr, p[k], T_back);
-    Real q_v_back         = vapor_mixing_ratio(z, d_height, p[k], T_back, RH_back);
+    Real RH_back          = compute_relative_humidity(z, p[k], T_back);
+    Real q_v_back         = vapor_mixing_ratio(z, p[k], T_back, RH_back);
     Real rho_back         = p[k]/(R_d*temperature_back*(1.0 + (R_v/R_d)*q_v_back));
 
     // This version perturbs rho but not p
@@ -470,7 +444,7 @@ Problem::erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
       ubar[k] = 2.0;
       vbar[k] = 1.0;
       wbar[k] = 0.0;
-     //thetabar[k] = parms.Theta_0;
+      thetabar[k] = parms.Theta_0;
   }
 }
 

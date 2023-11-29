@@ -33,8 +33,6 @@ void Kessler::Update (amrex::MultiFab& cons,
      auto theta_arr  = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
      auto qt_arr     = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
      auto qp_arr     = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-     auto qpl_arr    = mic_fab_vars[MicVar_Kess::qpl]->array(mfi);
-     auto qpi_arr    = mic_fab_vars[MicVar_Kess::qpi]->array(mfi);
 
      auto qgraup_arr= qgraup_mf.array(mfi);
 
