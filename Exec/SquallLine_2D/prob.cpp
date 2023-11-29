@@ -82,7 +82,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real Problem::vapor_mixing_ratio (const Real& z, const Real& p_b, const Real& T_b, const Real& RH)
 {
-    Real height = 1200.0;
+    Real height = parms.height;
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
 
