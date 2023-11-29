@@ -53,7 +53,7 @@ Real compute_saturation_pressure (const Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real Problem::compute_relative_humidity (const Real z, const Real height, const Real z_tr, const Real p_b, const Real T_b)
+Real compute_relative_humidity (const Real z, const Real height, const Real z_tr, const Real p_b, const Real T_b)
 {
     Real p_s = compute_saturation_pressure(T_b);
 
@@ -77,7 +77,7 @@ Real compute_vapor_pressure (const Real p_s, const Real RH)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real Problem::vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const Real T_b, const Real RH)
+Real vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const Real T_b, const Real RH)
 {
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
