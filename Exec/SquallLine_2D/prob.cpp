@@ -92,6 +92,8 @@ Real compute_temperature (const Real p_b, const Real theta_b)
     return theta_b*std::pow(p_b/p_0,R_d/Cp_d);
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
 
@@ -104,7 +106,6 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
     T_dp = c*gamma/(b - gamma);
 
     return T_dp;
-
 }
 
 void compute_rho (const Real z, const Real pressure, Real &theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
@@ -119,8 +120,8 @@ void compute_rho (const Real z, const Real pressure, Real &theta, Real& rho, Rea
     T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
 
-double compute_F (const Real p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
-                  Real& T_dp, Real& T_b, const Real dz, const Real z, const Real rho_k_minus_1)
+double compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
+                  Real& T_dp, Real& T_b, const Real& dz, const Real& z, const Real& rho_k_minus_1)
 {
 
     Real F;
