@@ -86,23 +86,23 @@ public:
 
     AMREX_FORCE_INLINE
     AMREX_GPU_HOST_DEVICE
-    amrex::Real compute_relative_humidity (const amrex::Real& z,
-                                           const amrex::Real& p_b,
-                                           const amrex::Real& T_b);
+    amrex::Real compute_relative_humidity (const amrex::Real z,
+                                           const amrex::Real p_b,
+                                           const amrex::Real T_b);
 
     AMREX_FORCE_INLINE
     AMREX_GPU_HOST_DEVICE
-    amrex::Real vapor_mixing_ratio (const amrex::Real& z,
-                                    const amrex::Real& p_b,
-                                    const amrex::Real& T_b,
-                                    const amrex::Real& RH);
+    amrex::Real vapor_mixing_ratio (const amrex::Real z,
+                                    const amrex::Real p_b,
+                                    const amrex::Real T_b,
+                                    const amrex::Real RH);
 
     amrex::Real compute_p_k (amrex::Real& p_k,
                              const amrex::Real p_k_minus_1,
                              amrex::Real& theta_k,
                              amrex::Real& rho_k,
                              amrex::Real& q_v_k,
-                               amrex::Real& T_dp,
+                             amrex::Real& T_dp,
                              amrex::Real& T_b,
                              const amrex::Real dz,
                              const amrex::Real z,
@@ -113,7 +113,7 @@ public:
                            amrex::Real &theta_k,
                            amrex::Real& rho_k,
                            amrex::Real& q_v_k,
-                             amrex::Real& T_dp,
+                           amrex::Real& T_dp,
                            amrex::Real& T_b,
                            const amrex::Real& dz,
                            const amrex::Real& z,
@@ -131,9 +131,9 @@ public:
                                         amrex::Real* r,
                                         amrex::Real* p,
                                         amrex::Real *q_v,
-                                           const amrex::Real& dz,
+                                        const amrex::Real& dz,
                                         const amrex::Real&  prob_lo_z,
-                                           const int& khi);
+                                        const int& khi);
 
 protected:
     std::string name () override { return "Supercell"; }

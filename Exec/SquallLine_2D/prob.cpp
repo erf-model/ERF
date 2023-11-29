@@ -53,7 +53,7 @@ Real compute_saturation_pressure (const Real T_b)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real Problem::compute_relative_humidity (const Real& z, const Real& p_b, const Real& T_b)
+Real Problem::compute_relative_humidity (const Real z, const Real p_b, const Real T_b)
 {
     Real height = parms.height;
     Real z_tr = parms.z_tr;
@@ -80,7 +80,7 @@ Real compute_vapor_pressure (const Real p_s, const Real RH)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real Problem::vapor_mixing_ratio (const Real& z, const Real& p_b, const Real& T_b, const Real& RH)
+Real Problem::vapor_mixing_ratio (const Real z, const Real p_b, const Real T_b, const Real RH)
 {
     Real height = parms.height;
     Real p_s = compute_saturation_pressure(T_b);
@@ -97,14 +97,14 @@ Real Problem::vapor_mixing_ratio (const Real& z, const Real& p_b, const Real& T_
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_temperature (const Real& p_b, const Real& theta_b)
+Real compute_temperature (const Real p_b, const Real theta_b)
 {
     return theta_b*std::pow(p_b/p_0,R_d/Cp_d);
 }
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_dewpoint_temperature (const Real& T_b, const Real& RH)
+Real compute_dewpoint_temperature (const Real T_b, const Real RH)
 {
 
     Real T_dp, gamma, T;
