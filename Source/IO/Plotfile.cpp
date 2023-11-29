@@ -59,7 +59,13 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
+#ifdef ERF_USE_PARTICLES
+            if ( (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) &&
+                 (particleData.use_tracer_particles || (derived_names[i] != "tracer_particle_count")       ) &&
+                 (particleData.use_hydro_particles  || (derived_names[i] != "hydro_particle_count")        ) ) {
+#else
             if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
+#endif
                tmp_plot_names.push_back(derived_names[i]);
             }
         }
@@ -98,11 +104,14 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (ncomp_mf == 0)
         return;
 
-    // We fillpatch here because some of the derived quantities require derivatives
-    //     which require ghost cells to be filled
+    // We Fillpatch here because some of the derived quantities require derivatives
+    //     which require ghost cells to be filled.  We do not need to call FillPatcher
+    //     because we don't need to set interior fine points.
     for (int lev = 0; lev <= finest_level; ++lev) {
+        bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
-                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
+                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
+                                    fillset);
     }
 
     Vector<MultiFab> mf(finest_level+1);

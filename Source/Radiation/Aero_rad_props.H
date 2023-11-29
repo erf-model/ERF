@@ -21,25 +21,30 @@ class AerRadProps {
    ~AerRadProps() = default;
 
    // initialization
-   void initialize();
+   void initialize(int ngas_, int nmodes_, int num_aeros_,
+                   int nswbands_, int nlwbands_,
+                   int ncol_, int nlev_, int nrh_, int top_lev_,
+                   const std::vector<std::string>& aero_names_,
+                   const real2d& zi_, const real2d& pmid_, const real2d& temp_,
+                   const real2d& qi_, const real2d& geom_radius);
 
    void aer_rad_props_sw(const int& list_idx,
                          const real& dt,
                          const int& nnite,
                          const int1d& idxnite,
                          const bool is_cmip6_volc,
-                         real3d& tau,
-                         real3d& tau_w,
-                         real3d& tau_w_g,
-                         real3d& tau_w_f,
-                         real2d& clear_rh);
+                         const real3d& tau,
+                         const real3d& tau_w,
+                         const real3d& tau_w_g,
+                         const real3d& tau_w_f,
+                         const real2d& clear_rh);
 
    void aer_rad_props_lw(const bool& is_cmip6_volc,
                          const int& list_idx,
                          const real& dt,
                          const real2d& zi,
-                         real3d& odap_aer,
-                         real2d& clear_rh);
+                         const real3d& odap_aer,
+                         const real2d& clear_rh);
 
 
    void get_hygro_rad_props(const int& ncol,
@@ -49,20 +54,20 @@ class AerRadProps {
                             const real2d& ext,
                             const real2d& ssa,
                             const real2d& assm,
-                            real3d& tau,
-                            real3d& tau_w,
-                            real3d& tau_w_g,
-                            real3d& tau_w_f);
+                            const real3d& tau,
+                            const real3d& tau_w,
+                            const real3d& tau_w_g,
+                            const real3d& tau_w_f);
 
   void get_nonhygro_rad_props(const int& ncol,
                               const real2d& mass,
                               const real1d& ext,
                               const real1d& ssa,
                               const real1d& assm,
-                              real3d& tau,
-                              real3d& tau_w,
-                              real3d& tau_w_g,
-                              real3d& tau_w_f);
+                              const real3d& tau,
+                              const real3d& tau_w,
+                              const real3d& tau_w_g,
+                              const real3d& tau_w_f);
 
  void get_volcanic_radius_rad_props(const int& ncol,
                                     const real2d& mass,
@@ -70,30 +75,30 @@ class AerRadProps {
                                     const real2d& r_scat,
                                     const real2d& r_ascat,
                                     const real1d& r_mu,
-                                    real3d& tau,
-                                    real3d& tau_w,
-                                    real3d& tau_w_g,
-                                    real3d& tau_w_f);
+                                    const real3d& tau,
+                                    const real3d& tau_w,
+                                    const real3d& tau_w_g,
+                                    const real3d& tau_w_f);
 
  void volcanic_cmip_sw (const int1d& trop_level,
                         const real2d& zi,           // zone interface
                         const real3d& ext_cmip6_sw_inv_m,
                         const real3d& ssa_cmip6_sw, // ssa from the volcanic inputs
                         const real3d& af_cmip6_sw,  // asymmetry factor (af) from volcanic inputs
-                        real3d& tau,
-                        real3d& tau_w,
-                        real3d& tau_w_g,
-                        real3d& tau_w_f);
+                        const real3d& tau,
+                        const real3d& tau_w,
+                        const real3d& tau_w_g,
+                        const real3d& tau_w_f);
 
  void get_volcanic_rad_props(const int& ncol,
                              const real2d& mass,
                              const real1d& ext,
                              const real1d& scat,
                              const real1d& ascat,
-                             real3d& tau,
-                             real3d& tau_w,
-                             real3d& tau_w_g,
-                             real3d& tau_w_f);
+                             const real3d& tau,
+                             const real3d& tau_w,
+                             const real3d& tau_w_g,
+                             const real3d& tau_w_f);
 
  void aer_vis_diag_out(const int& ncol,
                        const int& nnite,

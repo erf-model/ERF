@@ -37,11 +37,12 @@ class Rrtmgp {
   public:
     // constructor
     Rrtmgp() = default;
+
     // deconstructor
     ~Rrtmgp() = default;
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize(int num_gas, std::vector<std::string> active_gas_names,
+    void initialize(int num_gas, const std::vector<std::string>& active_gas_names,
                     const char* rrtmgp_coefficients_file_sw,
                     const char* rrtmgp_coefficients_file_lw);
 
@@ -49,29 +50,26 @@ class Rrtmgp {
     void finalize();
 
     // run rrtmgp short wave model
-    void run_shortwave_rrtmgp (
-        int ngas, int ncol, int nlay,
-        real3d& gas_vmr, real2d& pmid      , real2d& tmid      , real2d& pint,
-        real1d& coszrs , real2d& albedo_dir, real2d& albedo_dif,
-        real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
-        real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
-        real2d& allsky_flux_up    , real2d& allsky_flux_dn    , real2d& allsky_flux_net    , real2d& allsky_flux_dn_dir,
-        real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net, real3d& allsky_bnd_flux_dn_dir,
-        real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    , real2d& clrsky_flux_dn_dir,
-        real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net, real3d& clrsky_bnd_flux_dn_dir,
+    void run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
+        const real3d& gas_vmr, const real2d& pmid, const real2d& tmid, const real2d& pint,
+        const real1d& coszrs , const real2d& albedo_dir, const real2d& albedo_dif,
+        const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
+        const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
+        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    , const real2d& allsky_flux_dn_dir,
+        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net, const real3d& allsky_bnd_flux_dn_dir,
+        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    , const real2d& clrsky_flux_dn_dir,
+        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net, const real3d& clrsky_bnd_flux_dn_dir,
         double tsi_scaling);
 
     // run rrtmgp long wave model
-    void run_longwave_rrtmgp (
-        int ngas, int ncol, int nlay,
-        real3d& gas_vmr           ,
-        real2d& pmid              , real2d& tmid              , real2d& pint               , real2d& tint,
-        real2d& emis_sfc          ,
-        real3d& cld_tau_gpt       , real3d& aer_tau_bnd       ,
-        real2d& allsky_flux_up    , real2d& allsky_flux_dn    , real2d& allsky_flux_net    ,
-        real3d& allsky_bnd_flux_up, real3d& allsky_bnd_flux_dn, real3d& allsky_bnd_flux_net,
-        real2d& clrsky_flux_up    , real2d& clrsky_flux_dn    , real2d& clrsky_flux_net    ,
-        real3d& clrsky_bnd_flux_up, real3d& clrsky_bnd_flux_dn, real3d& clrsky_bnd_flux_net);
+    void run_longwave_rrtmgp (int ngas, int ncol, int nlay, const real3d& gas_vmr,
+        const real2d& pmid, const real2d& tmid, const real2d& pint , const real2d& tint,
+        const real2d& emis_sfc,
+        const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
+        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
+        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
+        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
+        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net);
 
     int get_nband_sw() {
        return k_dist_sw.get_nband();
@@ -117,8 +115,6 @@ class Rrtmgp {
 
    // number of gas for radiation model
    int ngas;
-   const char** gas_names;
-
    string1d active_gases;
 
    // coefficient files

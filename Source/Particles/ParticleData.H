@@ -45,7 +45,7 @@ struct ParticleData {
             amrex::Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
         }
 
-        // Initialize tracer particles
+        // Initialize hydro particles
         if (use_hydro_particles) {
             hydro_particles = std::make_unique<HydroPC>(a_gdb);
             if (z_phys_nd[0] != nullptr) {

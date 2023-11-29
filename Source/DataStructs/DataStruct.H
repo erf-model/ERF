@@ -21,7 +21,7 @@ enum struct ABLDriverType {
 };
 
 enum struct CouplingType {
-    OneWay, TwoWay, Mixed
+    OneWay, TwoWay
 };
 
 enum struct TerrainType {
@@ -64,8 +64,8 @@ struct SolverChoice {
 
         // Which expression (1,2 or 3) to use for buoyancy
         pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3) {
-            amrex::Abort("buoyancy_type must be 1, 2 or 3");
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
         // Is the terrain static or moving?
@@ -162,6 +162,7 @@ struct SolverChoice {
 #ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
+        pp.query("use_moist_background", use_moist_background);
 #endif
 
         // Use numerical diffusion?
@@ -198,8 +199,6 @@ struct SolverChoice {
             coupling_type = CouplingType::TwoWay;
         } else if (coupling_type_string == "OneWay") {
             coupling_type = CouplingType::OneWay;
-        } else if (coupling_type_string == "Mixed") {
-            coupling_type = CouplingType::Mixed;
         } else {
             amrex::Abort("Dont know this coupling_type");
         }
@@ -219,8 +218,6 @@ struct SolverChoice {
             amrex::Print() << "Using two-way coupling " << std::endl;
         } else if (coupling_type == CouplingType::OneWay) {
             amrex::Print() << "Using one-way coupling " << std::endl;
-        } else if (coupling_type == CouplingType::Mixed) {
-            amrex::Print() << "Using   mixed coupling " << std::endl;
         }
 
         if (terrain_type == TerrainType::Static) {
@@ -363,6 +360,7 @@ struct SolverChoice {
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
+    bool use_moist_background {false};
 #endif
 };
 #endif

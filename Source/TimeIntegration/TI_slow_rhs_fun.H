@@ -228,7 +228,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
+        if (level > 0 && cf_width > 0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width, fine_geom,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
@@ -293,20 +293,14 @@
 #endif
 
         // *************************************************************************
-        // Set up flux registers if using mixed or two_way coupling
+        // Set up flux registers if using two_way coupling
         // *************************************************************************
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;
-        if (solverChoice.coupling_type == CouplingType::TwoWay ||
-            solverChoice.coupling_type == CouplingType::Mixed)
+        if (solverChoice.coupling_type == CouplingType::TwoWay)
         {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                // For Mixed we haven't reset this in erf_slow_rhs_pre but we need to here.
-                if (solverChoice.coupling_type == CouplingType::Mixed)
-                {
-                    fr_as_crse->reset();
-                }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);
@@ -407,7 +401,7 @@
 #endif
 
         // Compute RHS for fine interior ghost
-        if (level>0 && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
+        if (level > 0 && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
                                             cf_width, cf_set_width,
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],

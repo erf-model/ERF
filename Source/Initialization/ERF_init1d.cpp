@@ -129,12 +129,21 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+#ifdef ERF_USE_MOISTURE
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
+    if(solverChoice.use_moist_background){
+        prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+    }else{
+        prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+    }
+#else
     prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+#endif
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
     erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
+
 }
 
 void
@@ -215,11 +224,11 @@ ERF::erf_enforce_hse (int lev,
 
             // Set value at surface from Newton iteration for rho
             pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
-              pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
+            pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
 
             // Set ghost cell with dz and rho at boundary
             pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
-              pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
+            pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
 
             Real dens_interp;
             if (l_use_terrain) {
@@ -248,7 +257,7 @@ ERF::erf_enforce_hse (int lev,
             bx.setBig(0,domlo_x-1);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 pres_arr(i,j,k) = pres_arr(domlo_x,j,k);
-                  pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
+                pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
             });
         }
 

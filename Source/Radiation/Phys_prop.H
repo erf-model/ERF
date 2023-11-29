@@ -1,14 +1,16 @@
 
 // Properties of aerosols that are used by radiation and other parameterizations.
 
+#ifndef ERF_PHYS_PROP_H_
+#define ERF_PHYS_PROP_H_
+
 #include "YAKL_netcdf.h"
 #include "rrtmgp_const.h"
 #include "Rad_constants.H"
 #include <complex>
 #include <cstring>
-
-#ifndef ERF_PHYS_PROP_H_
-#define ERF_PHYS_PROP_H_
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
 
 class PhysProp {
   public:

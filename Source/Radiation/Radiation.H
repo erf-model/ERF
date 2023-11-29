@@ -34,7 +34,11 @@
 // Radiation code interface class
 class Radiation {
   public:
-   Radiation() = default;
+   Radiation() {
+     // First, make sure yakl has been initialized
+     if (!yakl::isInitialized()) yakl::init();
+   }
+
    ~Radiation() = default;
 
    // init
@@ -55,31 +59,31 @@ class Radiation {
    void on_complete();
 
    void radiation_driver_lw(int ncol, int nlev,
-                            real3d& gas_vmr,
-                            real2d& pmid, real2d& pint, real2d& tmid, real2d& tint,
-                            real3d& cld_tau_gpt, real3d& aer_tau_bnd,
+                            const real3d& gas_vmr,
+                            const real2d& pmid, const real2d& pint, const real2d& tmid, const real2d& tint,
+                            const real3d& cld_tau_gpt, const real3d& aer_tau_bnd,
                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                            real2d& qrl, real2d& qrlc);
+                            const real2d& qrl, const real2d& qrlc);
 
    void radiation_driver_sw(int ncol,
-                            real3d& gas_vmr, real2d& pmid, real2d& pint, real2d& tmid,
-                            real2d& albedo_dir, real2d& albedo_dif, real1d& coszrs,
-                            real3d& cld_tau_gpt, real3d& cld_ssa_gpt, real3d& cld_asm_gpt,
-                            real3d& aer_tau_bnd, real3d& aer_ssa_bnd, real3d& aer_asm_bnd,
+                            const real3d& gas_vmr, const real2d& pmid, const real2d& pint, const real2d& tmid,
+                            const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
+                            const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
+                            const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                            real2d& qrs, real2d& qrsc);
+                            const real2d& qrs, const real2d& qrsc);
 
-   void set_daynight_indices(real1d& coszrs,
-                             int1d& day_indices,
-                             int1d& night_indices);
+   void set_daynight_indices(const real1d& coszrs,
+                             const int1d& day_indices,
+                             const int1d& night_indices);
 
    void get_gas_vmr(const std::vector<std::string>& gas_names,
-                    real3d& gas_vmr);
+                    const real3d& gas_vmr);
 
-   void calculate_heating_rate(real2d& flux_up,
-                               real2d& flux_dn,
-                               real2d& pint,
-                               real2d& heating_rate);
+   void calculate_heating_rate(const real2d& flux_up,
+                               const real2d& flux_dn,
+                               const real2d& pint,
+                               const real2d& heating_rate);
   private:
    // geometry
    amrex::Geometry m_geom;
@@ -126,11 +130,11 @@ class Radiation {
    real dt;               // time step(s) - needed for aerosol optics call
 
    // Surface and top fluxes
-   real1d fsns;  //(ncols)      ! Surface solar absorbed flux
-   real1d fsnt;  //(ncols)      ! Net column abs solar flux at model top
-   real1d flns;  //(ncols)      ! Srf longwave cooling (up-down) flux
-   real1d flnt;  //(ncols)      ! Net outgoing lw flux at model top
-   real1d fsds;  //(ncols)      ! Surface solar down flux
+   real1d fsns;  // Surface solar absorbed flux
+   real1d fsnt;  // Net column abs solar flux at model top
+   real1d flns;  // Srf longwave cooling (up-down) flux
+   real1d flnt;  // Net outgoing lw flux at model top
+   real1d fsds;  // Surface solar down flux
 
    // radiation data
    const std::vector<std::string> active_gases = {
@@ -170,7 +174,8 @@ class Radiation {
 
    // k-distribution coefficients files to read from. These are set via namelist
    // variables.
-   std::string rrtmgp_coefficients_file_sw, rrtmgp_coefficients_file_lw;
+   std::string rrtmgp_coefficients_file_sw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_sw_20181204.nc";
+   std::string rrtmgp_coefficients_file_lw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_lw_20181204.nc";
 
    // Band midpoints; these need to be module variables because of how cam_history works;
    // add_hist_coord sets up pointers to these, so they need to persist.
@@ -189,7 +194,7 @@ class Radiation {
    real2d qrl; // longwave  radiative heating rate
 
    // Pointers to fields on the physics buffer
-   real2d zi;
+   real2d zi, qt;
    real2d clear_rh;
 
    // Clear-sky heating rates are not on the physics buffer, and we have no

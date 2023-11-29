@@ -3,6 +3,7 @@
 
 #include <NullMoist.H>
 #include <SAM.H>
+#include <Kessler.H>
 
 class Microphysics {
 
@@ -39,6 +40,12 @@ public:
     Advance ( )
     {
         m_moist_model->Advance();
+    }
+
+    void
+    Diagnose ( )
+    {
+        m_moist_model->Diagnose();
     }
 
     void
