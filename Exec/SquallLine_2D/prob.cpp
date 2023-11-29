@@ -364,8 +364,8 @@ Problem::init_custom_pert (
     rad = std::pow(std::pow((x - x_c)/x_r,2) + std::pow((z - z_c)/z_r,2), 0.5);
 
     if(rad <= r_c){
-        delta_theta = theta_c*std::pow(cos(M_PI*rad/2.0),2);
-        scalar = std::pow(cos(M_PI*rad/2.0),2);
+        delta_theta = theta_c*std::pow(cos(PI*rad/2.0),2);
+        scalar = std::pow(cos(PI*rad/2.0),2);
     }
     else{
         delta_theta = 0.0;
