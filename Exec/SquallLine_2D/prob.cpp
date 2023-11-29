@@ -45,8 +45,8 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_relative_humidity (Real z, Real p_b, Real T_b)
 {
-	Real height = 1200.0;
-	Real z_tr = 12000.0;
+    Real height = 1200.0;
+    Real z_tr = 12000.0;
 
     Real p_s = compute_saturation_pressure(T_b);
 
@@ -72,7 +72,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real vapor_mixing_ratio (const Real z, const Real p_b, const Real T_b, const Real RH)
 {
-	Real height = 1200.0;
+    Real height = 1200.0;
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
 
@@ -161,7 +161,7 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
                                const Real& dz, const Real&  prob_lo_z,
                                const int& khi)
 {
-	FILE *file_IC;
+    FILE *file_IC;
     file_IC = fopen("input_sounding_probcpp.txt","w");
     Real z, T_b, T_dp;
 
@@ -169,16 +169,16 @@ init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
     z = prob_lo_z + 0.5*dz;
     p[0] = p_0;
     compute_p_k(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, z, 0.0);
-	fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
+    fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[0], r[0], theta[0], q_v[0]);
 
 
     for (int k=1;k<=khi;k++){
         z = prob_lo_z + (k+0.5)*dz;
         p[k] = p[k-1];
         compute_p_k(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, z, r[k-1]);
-		fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
+        fprintf(file_IC, "%0.15g %0.15g %0.15g %0.15g %0.15g %0.15g %0.15g\n", z, T_b-273.15, T_dp, p[k], r[k], theta[k], q_v[k]);
     }
-	fclose(file_IC);
+    fclose(file_IC);
 
 
     r[khi+1] = r[khi];
@@ -322,8 +322,8 @@ Problem::init_custom_pert (
     const Real x_c = 0.0, z_c = 1.5e3, x_r = 4.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
-	Real Rd_by_Cp = sc.rdOcp;
-	Rd_by_Cp = Rd_by_Cp;
+    Real Rd_by_Cp = sc.rdOcp;
+    Rd_by_Cp = Rd_by_Cp;
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
