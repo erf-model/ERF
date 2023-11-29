@@ -333,9 +333,10 @@ Problem::init_custom_pert (
     Real Rd_by_Cp = sc.rdOcp;
     Rd_by_Cp = Rd_by_Cp;
 
-    auto lparms = parms;
+    Real height = parms.height;
+    Real z_tr = parms.z_tr;
 
-  amrex::ParallelFor(bx, [=, lparms=lparms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo         = geomdata.ProbLo();
@@ -360,15 +361,15 @@ Problem::init_custom_pert (
     theta_total     = t[k] + delta_theta;
     temperature     = compute_temperature(p[k], theta_total);
     Real T_b        = compute_temperature(p[k], t[k]);
-    RH              = compute_relative_humidity(z, lparms.height, lparms.z_tr, p[k], T_b);
-    Real q_v_hot    = vapor_mixing_ratio(z, lparms.height, p[k], T_b, RH);
+    RH              = compute_relative_humidity(z, height, z_tr, p[k], T_b);
+    Real q_v_hot    = vapor_mixing_ratio(z, height, p[k], T_b, RH);
     rho             = p[k]/(R_d*temperature*(1.0 + (R_v/R_d)*q_v_hot));
 
     // Compute background quantities
     Real temperature_back = compute_temperature(p[k], t[k]);
     Real T_back           = compute_temperature(p[k], t[k]);
-    Real RH_back          = compute_relative_humidity(z, lparms.height, lparms.z_tr, p[k], T_back);
-    Real q_v_back         = vapor_mixing_ratio(z, lparms.height, p[k], T_back, RH_back);
+    Real RH_back          = compute_relative_humidity(z, height, z_tr, p[k], T_back);
+    Real q_v_back         = vapor_mixing_ratio(z, height, p[k], T_back, RH_back);
     Real rho_back         = p[k]/(R_d*temperature_back*(1.0 + (R_v/R_d)*q_v_back));
 
     // This version perturbs rho but not p
