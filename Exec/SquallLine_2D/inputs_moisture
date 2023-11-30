@@ -45,7 +45,7 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 1000       # number of timesteps between checkpoints
-#amr.restart         = chk12000
+#amr.restart         = chk09000
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
@@ -70,7 +70,7 @@ erf.molec_diff_type = "ConstantAlpha"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamicViscosity = 200.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T = 00.0 # [m^2/s]
-erf.alpha_C = 50.0
+erf.alpha_C = 25.0
 
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true
@@ -79,6 +79,13 @@ erf.moistscal_horiz_adv_string = "Centered_2nd"
 erf.moistscal_vert_adv_string = "Centered_2nd"
 
 # PROBLEM PARAMETERS (optional)
-prob.T_0 = 300.0
-prob.U_0 = 0
-prob.T_pert = 3
+prob.z_tr = 12000.0
+prob.height = 1200.0
+prob.theta_0 = 300.0
+prob.theta_tr = 343.0
+prob.T_tr = 213.0
+prob.x_c = 0.0
+prob.z_c = 1500.0
+prob.x_r = 4000.0
+prob.z_r = 1500.0
+prob.theta_c = 3.0

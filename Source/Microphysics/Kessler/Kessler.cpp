@@ -13,27 +13,6 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler() {
 
-  Real powr1 = (3.0 + b_rain) / 4.0;
-  Real powr2 = (5.0 + b_rain) / 8.0;
-  Real pows1 = (3.0 + b_snow) / 4.0;
-  Real pows2 = (5.0 + b_snow) / 8.0;
-  Real powg1 = (3.0 + b_grau) / 4.0;
-  Real powg2 = (5.0 + b_grau) / 8.0;
-
-  auto accrrc_t  = accrrc.table();
-  auto accrsc_t  = accrsc.table();
-  auto accrsi_t  = accrsi.table();
-  auto accrgc_t  = accrgc.table();
-  auto accrgi_t  = accrgi.table();
-  auto coefice_t = coefice.table();
-  auto evapr1_t  = evapr1.table();
-  auto evapr2_t  = evapr2.table();
-  auto evaps1_t  = evaps1.table();
-  auto evaps2_t  = evaps2.table();
-  auto evapg1_t  = evapg1.table();
-  auto evapg2_t  = evapg2.table();
-  auto pres1d_t  = pres1d.table();
-
   auto qt   = mic_fab_vars[MicVar_Kess::qt];
   auto qp   = mic_fab_vars[MicVar_Kess::qp];
   auto qn   = mic_fab_vars[MicVar_Kess::qn];
@@ -52,7 +31,6 @@ void Kessler::AdvanceKessler() {
   MultiFab fz;
   auto ba    = tabs->boxArray();
   auto dm    = tabs->DistributionMap();
-  auto ngrow = tabs->nGrowVect();
   fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
  for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
@@ -136,7 +114,6 @@ void Kessler::AdvanceKessler() {
      auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
      auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
 
-     auto qcl_array   = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
      auto theta_array = theta->array(mfi);
      auto qv_array    = qv->array(mfi);
      auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
@@ -160,8 +137,7 @@ void Kessler::AdvanceKessler() {
         }
 
         //------- Autoconversion/accretion
-        Real omn, omp, omg, qcc, qii, autor, autos, accrr, qrr, accrcs, accris,
-             qss, accrcg, accrig, tmp, qgg, dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
+        Real qcc, autor, accrr, dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
         Real pressure = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
         erf_qsatw(tabs_array(i,j,k), pressure, qsat);
