@@ -25,7 +25,6 @@ void Kessler::Diagnose () {
      auto qci_array   = qci->array(mfi);
      auto qpl_array   = qpl->array(mfi);
      auto qpi_array   = qpi->array(mfi);
-     auto tabs_array  = tabs->array(mfi);
 
      const auto& box3d = mfi.tilebox();
 

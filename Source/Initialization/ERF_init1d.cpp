@@ -132,7 +132,7 @@ ERF::initHSE (int lev)
 #ifdef ERF_USE_MOISTURE
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     if(solverChoice.use_moist_background){
-        prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
+        prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
     }else{
         prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
     }
