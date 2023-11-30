@@ -109,3 +109,55 @@ which removes the need to compute horizontal averages of these quantities.   Thi
 
 We note that this version of the buoyancy force matches that given in Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983)
 if we neglect :math:`\frac{p^\prime}{\bar{p_0}}`.
+
+Type 4
+------
+.. math:: 
+
+    \begin{equation}
+    \mathbf{B} = \rho'\mathbf{g} \approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
+    \end{equation}
+
+The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as 
+
+.. math::
+
+    \rho = \frac{p (1 + q_v + q_c + q_p)}{R_dT\Bigg(1 + \cfrac{R_v}{R_d}q_v\Bigg)}
+
+This can be written using binomial expansion as
+
+.. math::
+
+    \begin{align*}
+    \rho &= \frac{p}{R_dT} (1 + q_v + q_c + q_p)\Bigg(1 + \frac{R_v}{R_d}q_v\Bigg)^{-1} \\
+    &= \frac{p}{R_dT} (1 + q_v + q_c + q_p)\Bigg(1 - \frac{R_v}{R_d}q_v + O(q_v^2)\Bigg) \\
+    &= \frac{p}{R_dT}\Bigg(1 + q_v + q_c + q_p - \frac{R_v}{R_d}q_v +  \text{H.O.T. such as } O(q_v^2) + O(q_vq_c)\Bigg) \\
+    &\approx \frac{p}{R_dT}\Bigg(1 + q_v + q_c + q_p - \frac{R_v}{R_d}q_v\Bigg)
+    \end{align*}
+
+Taking log on both sides, we get
+
+.. math::
+
+    \log{\rho} = \log{p} - \log{R_d} - \log{T} + \log(1 - 0.61 q_v + q_c + q_p)
+
+Taking derivative gives
+
+.. math::
+
+    \frac{\rho'}{\rho} = \frac{p'}{p} - \frac{T'}{T} + \frac{(-0.61 q_v' + q_c' + q_p')}{(1 - 0.61 q_v + q_c + q_p)}
+
+Using :math:`- 0.61 q_v + q_c + q_p \ll 1`, we have
+
+.. math::
+
+    \frac{\rho'}{\rho} = \frac{p'}{p} - \frac{T'}{T} + (-0.61 q_v' + q_c' + q_p')
+
+Since the background values of cloud water and precipitate mass mixing ratios -- :math:`q_c` and :math:`q_p` are zero, we have :math:`q_c' = q_c` and :math:`q_p' = q_p`. Hence, we have
+
+.. math:: 
+
+	\begin{equation}
+	\rho'\approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
+	\end{equation}
+

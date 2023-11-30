@@ -139,3 +139,73 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
 :math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
 
+Initial condition with second-order integration of the hydrostatic equation
+=============================================================================
+
+We have the hydrostatic equation given by
+
+.. math::
+
+    \frac{\partial p}{\partial z} = -\rho g,
+
+where :math:`\rho = \rho_d(1 + q_v)`, :math:`\rho_d` is the dry density, and :math:`q_v` is the mass mixing ratio of water vapor. Using an average value of :math:`\rho` for the integration, we get
+
+.. math::
+
+    p(k) = p(k-1) - \frac{(\rho(k-1) + \rho(k))}{2} g\Delta z.
+
+The density at a point is a function of the pressure, potential temperature, and relative humidity. The latter two quantities are computed using user-specified profiles, and hence, for simplicity, we write :math:`\rho(k) = f(p(k))`. Hence
+
+.. math::
+
+    p(k) = p(k-1) - \frac{\rho(k-1)}{2}g\Delta z - \frac{f(p(k))}{2}g\Delta z.
+
+Now, we define
+
+.. math::
+
+    F(p(k)) \equiv p(k) - p(k-1) + \frac{\rho(k-1)}{2}g\Delta z + \frac{f(p(k))}{2}g\Delta z = 0.
+
+This is a non-linear equation in :math:`p(k)`. Consider a Newton-Raphson iteration (where :math:`n` denotes the iteration number) procedure
+
+.. math::
+
+    F(p+\delta p) \approx F(p) + \delta p \frac{\partial F}{\partial p} = 0,
+
+which implies
+
+.. math::
+
+    \delta p = -\frac{F}{F'},
+
+with the gradient being evaluated as
+
+.. math::
+
+    F' = \frac{F(p+\epsilon) - F(p)}{\epsilon},
+
+and the iteration update is given by
+
+.. math::
+
+    p^{n+1} = p^n + \delta p.
+
+For the first cell (:math:`k=0`), which is at a height of :math:`z = \frac{\Delta z}{2}` from the base, we have
+
+.. math::
+
+    p(k) = p_0 - \rho(k)g\frac{\Delta z}{2},
+
+where :math:`p_0 = 1e5 \, \text{N/m}^2` is the pressure at the base. Hence, we define
+
+.. math::
+
+    F(p(k)) \equiv p(k) - p_0 + \rho(k)g\frac{\Delta z}{2},
+
+and the Newton-Raphson procedure is the same.
+
+
+
+
+
+
