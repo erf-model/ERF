@@ -24,10 +24,72 @@ Governing equations for the microphysical quantities for Kessler microphysics fr
 where :math:`C_c` is the rate of condensation of water vapor to cloud water, :math:`E_c` is the rate of evaporation of cloud water to water vapor,
 :math:`A_c` is the autoconversion of cloud water to rain, :math:`K_c` is the accretion of cloud water to rain drops, :math:`E_r` is the evaporation of
 rain to water vapor and :math:`F_r` is the sedimentation of rain. The parametrization used is given in `klemp1978simulation`_, and is given
-below. Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`.
+below. Note that in all the equations, :math:`p` is specified in millibars and :math:`\overline{\rho}` is specified in g cm :math:`^{-3}`. The parametrization 
+of the source terms are given below.
 
 .. _`gabervsek2012dry`: https://journals.ametsoc.org/view/journals/mwre/140/10/mwr-d-11-00144.1.xml
+
+.. raw:: latex
+
+   \newgeometry{left=2cm,right=2cm,top=2cm,bottom=2cm}
+
+Rate of condensation of water vapor/evaporation of cloud water
+--------------------------------------------------------------
+
+From `klemp1978simulation`_, we have the following expressions. 
+
 .. _`klemp1978simulation`: https://journals.ametsoc.org/view/journals/atsc/35/6/1520-0469_1978_035_1070_tsotdc_2_0_co_2.xml
+
+.. math::
+    C_c = \frac{q_v - q_{vs}}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
+
+If the air is not saturated, i.e. :math:`q_v < q_s`, then cloud water evaporates to water vapor at the rate
+
+.. math::
+    E_c = \frac{q_{vs} - q_v}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
+
+Rate of autoconversion of cloud water into rain
+------------------------------------------------
+
+The rate of autoconversion of cloud water into rain is given by
+
+.. math::
+    A_c = k_1(q_c - a)
+
+where :math:`k_1 = 0.001` s\ :sup:`-1`, :math:`a = 0.001` kg kg\ :sup:`-1`.
+
+Rate of accretion of cloud water into rain water drops
+------------------------------------------------------
+
+The rate of accretion of cloud water into rain water drops is given by
+
+.. math::
+    K_c = k_2q_cq_r^{0.875}
+
+where :math:`k_2= 2.2` s\ :sup:`-1`.
+
+The rate of evaporation of rain into water vapor
+-------------------------------------------------
+
+The rate of evaporation of rain into water vapor is given by
+
+.. math::
+    E_r = \cfrac{1}{\overline{\rho}}\cfrac{(1- q_v/q_s)C(\overline{\rho}q_r)^{0.525}}{5.4\times10^5 + 2.55\times10^6/(\overline{p}q_s)},
+
+where the ventilation factor :math:`C = 1.6 + 124.9(\overline{\rho}q_r)^{0.2046}`.
+
+Terminal fall velocity of rain
+-------------------------------
+
+The terminal fall velocity of rain is given by
+
+.. math::
+    V = 3634(\overline{\rho}q_r)^{0.1346}\Bigg(\cfrac{\overline{\rho}}{\rho_0}\Bigg)^{-\frac{1}{2}}~\text{[cm/s]}
+
+.. raw:: latex
+
+   \restoregeometry
+
 
 
 Single Moment Microphysics Model
