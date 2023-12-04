@@ -190,6 +190,58 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    +---------------------------+------------------------------+------------------+-------------+
 
 
+Mac with CMake
+~~~~~~~~~~~~~~
+Tested with macOS 12.7 (Monterey) using cmake (3.27.8), open-mpi (5.0.0), and
+pkg-config (0.29.2) installed with the homebrew package manager. HDF5 and
+NetCDF will be compiled from source. The instructions below should be version
+agnostic.
+
+HDF5 (tested with v1.14.3)
+
+#. Download latest source package from `hdfgroup.org`_
+#. Extract source code ``tar xzf hdf5-<version>.tar.gz``
+#. Create build directory ``cd hdf5-<version> && mkdir build && cd build``
+#. Configure for your system ``../configure --prefix=/usr/local --enable-parallel``
+#. Build ``make -j8`` and ``sudo make install``
+
+.. _hdfgroup.org: https://www.hdfgroup.org/downloads/hdf5/source-code/
+
+NetCDF (tested with v4.9.2)
+
+#. Download latest source package from `ucar.edu`_
+#. (Optional) install Zstd compression library ``brew install zstd``
+#. Create build directory ``cd netcdf-c-4.9.2 && mkdir build && cd build``
+#. Configure for your system ``../configure --enable-parallel CC=mpicc CXX=mpicxx LDFLAGS="-L/opt/homebrew/Cellar/zstd/1.5.5/lib" CPPFLAGS="-I/opt/homebrew/Cellar/zstd/1.5.5/include"``
+   (omit the LDFLAGS and CPPFLAGS if you do not have Zstd installed) -- note
+   that you may encounter cmake errors if you do not have pkg-config installed
+#. Build ``make -j8`` and ``sudo make install``
+
+.. _ucar.edu: https://downloads.unidata.ucar.edu/netcdf/
+
+ERF (tested with commit ``40e64ed35ebc080ad61d08aea828330dfbdbc162``)
+
+#. Get latest source code ``git clone --recursive git@github.com:erf-model/ERF.git``
+#. Create build directory ``cd ERF && mkdir MyBuild && cd MyBuild``
+#. Configure with cmake and build
+
+::
+
+    cmake -DCMAKE_INSTALL_PREFIX:PATH=./install \
+       -DCMAKE_CXX_COMPILER:STRING=mpicxx \
+       -DCMAKE_C_COMPILER:STRING=mpicc \
+       -DCMAKE_Fortran_COMPILER:STRING=mpifort \
+       -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+       -DERF_DIM:STRING=3 \
+       -DERF_ENABLE_MPI:BOOL=ON \
+       -DERF_ENABLE_TESTS:BOOL=ON \
+       -DERF_ENABLE_FCOMPARE:BOOL=ON \
+       -DERF_ENABLE_DOCUMENTATION:BOOL=OFF \
+       -DERF_ENABLE_NETCDF:BOOL=ON \
+       -DERF_ENABLE_HDF5:BOOL=ON \
+       -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
+       .. && make -j8
+
 Perlmutter (NERSC)
 ~~~~~~~~~~~~~~~~~~
 
