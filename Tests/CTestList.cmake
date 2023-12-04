@@ -20,9 +20,11 @@ macro(setup_test)
     if(ERF_ENABLE_MPI)
         set(NP 4)
         set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_FCOMP_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
+        unset(MPI_FCOMP_COMMANDS)
     endif()
 
     # Set some default runtime options for all tests in this category
@@ -38,7 +40,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
     set(FCOMPARE_TOLERANCE "-r 1e-12 --abs_tol 1.0e-12")
     set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
