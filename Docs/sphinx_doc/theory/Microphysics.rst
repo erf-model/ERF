@@ -7,8 +7,12 @@
 
 .. _Microphysics:
 
+Microphysics model
+====================
+
 Kessler Microphysics model
-===========================
+---------------------------
+The Kessler microphysics model is a simple version of cloud microphysics which has precipitation only in the form of rain. Hence :math:`q_p = q_r`.
 Governing equations for the microphysical quantities for Kessler microphysics from `gabervsek2012dry`_ are
 
 .. math::
@@ -34,22 +38,24 @@ of the source terms are given below.
    \newgeometry{left=2cm,right=2cm,top=2cm,bottom=2cm}
 
 Rate of condensation of water vapor/evaporation of cloud water
---------------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 From `klemp1978simulation`_, we have the following expressions. 
 
 .. _`klemp1978simulation`: https://journals.ametsoc.org/view/journals/atsc/35/6/1520-0469_1978_035_1070_tsotdc_2_0_co_2.xml
 
+If the air is not saturated, i.e. :math:`q_v > q_{vs}`
+
 .. math::
     C_c = \frac{q_v - q_{vs}}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
 
-If the air is not saturated, i.e. :math:`q_v < q_s`, then cloud water evaporates to water vapor at the rate
+If the air is not saturated, i.e. :math:`q_v < q_{vs}`, then cloud water evaporates to water vapor at the rate
 
 .. math::
     E_c = \frac{q_{vs} - q_v}{1 + \cfrac{q_{vs}^*4093L}{C_p(T-36)^2}}
 
 Rate of autoconversion of cloud water into rain
-------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The rate of autoconversion of cloud water into rain is given by
 
@@ -59,7 +65,7 @@ The rate of autoconversion of cloud water into rain is given by
 where :math:`k_1 = 0.001` s\ :sup:`-1`, :math:`a = 0.001` kg kg\ :sup:`-1`.
 
 Rate of accretion of cloud water into rain water drops
-------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The rate of accretion of cloud water into rain water drops is given by
 
@@ -69,7 +75,7 @@ The rate of accretion of cloud water into rain water drops is given by
 where :math:`k_2= 2.2` s\ :sup:`-1`.
 
 The rate of evaporation of rain into water vapor
--------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The rate of evaporation of rain into water vapor is given by
 
@@ -79,7 +85,7 @@ The rate of evaporation of rain into water vapor is given by
 where the ventilation factor :math:`C = 1.6 + 124.9(\overline{\rho}q_r)^{0.2046}`.
 
 Terminal fall velocity of rain
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The terminal fall velocity of rain is given by
 
@@ -93,7 +99,7 @@ The terminal fall velocity of rain is given by
 
 
 Single Moment Microphysics Model
-===================================
+----------------------------------
 The conversion rates among the moist hydrometeors are parameterized assuming that
 
 .. math::
@@ -116,7 +122,7 @@ Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983).
 The implementation of microphysics model in ERF is similar to the that in the SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
 
 Accretion
-------------------
+~~~~~~~~~~~~
 There are several different type of accretional growth mechanisms that need to be included; these describe
 the interaction of water vapor and cloud water with rain water.
 
@@ -131,21 +137,21 @@ The accretion of raindrops by accretion of cloud water is
    Q_{racw} = \frac{\pi E_{RW}n_{0R}\alpha q_{c}\Gamma(3+b)}{4\lambda_{R}^{3+b}}(\frac{\rho_{0}}{\rho})^{1/2}
 
 The bergeron Process
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~
 The cloud water transform to snow by deposition and rimming can be written as
 
 .. math::
    Q_{sfw} = N_{150}\left(\alpha_{1}m_{150}^{\alpha_{2}}+\pi E_{iw}\rho q_{c}R_{150}^{2}U_{150}\right)
 
 Autoconversion
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~
 The collision and coalescence of cloud water to from raindrops is parameterized as following
 
 .. math::
    Q_{raut} = \rho\left(q_{c}-q_{c0}\right)^{2}\left[1.2 \times 10^{-4}+{1.569 \times 10^{-12}N_{1}/[D_{0}(q_{c}-q_{c0})]}\right]^{-1}
 
 Evaporation
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~
 The evaporation rate of rain is
 
 .. math::
