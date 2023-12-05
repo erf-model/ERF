@@ -317,8 +317,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
 
         if (ac.use_efficient_advection){
-             moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
-             moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
+             moist_horiz_adv_type = EfficientAdvType(nrk, ac.moistscal_horiz_adv_type);
+             moist_vert_adv_type  = EfficientAdvType(nrk, ac.moistscal_vert_adv_type);
         }
 
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
