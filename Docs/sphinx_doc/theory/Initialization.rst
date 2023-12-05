@@ -147,9 +147,3 @@ where :math:`p_0 = 1e5 \, \text{N/m}^2` is the pressure at the base. Hence, we d
     F(p(0)) \equiv p(0) - p_0 + \rho(0)g\frac{\Delta z}{2},
 
 and the Newton-Raphson procedure is the same.
-
-
-
-
-
-
