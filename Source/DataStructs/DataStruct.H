@@ -159,11 +159,15 @@ struct SolverChoice {
 
         pp.query("Ave_Plane", ave_plane);
 
-#ifdef ERF_USE_MOISTURE
+#if defined(ERF_USE_MOISTURE)
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
+#endif
+
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         pp.query("use_moist_background", use_moist_background);
 #endif
+
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
@@ -360,6 +364,10 @@ struct SolverChoice {
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
+#endif
+
+
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
     bool use_moist_background {false};
 #endif
 };

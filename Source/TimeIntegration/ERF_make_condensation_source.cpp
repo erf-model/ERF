@@ -63,7 +63,7 @@ ERF::condensation_source (MultiFab& source, MultiFab& S, Real tau_cond, Real c_p
                 Real f_cond_star = (rho_v - rho_vs) * denom;
 
                 Real f_lim  = rho_c;
-                Real f_cond = std::max(f_cond_star, -f_lim) / tau_cond;
+                Real f_cond = std::max(f_cond_star, -f_lim) / tau_cond*0.0;
 
                 src_arr(i,j,k,RhoQv_comp)    = -f_cond;
                 src_arr(i,j,k,RhoQc_comp)    =  f_cond;
