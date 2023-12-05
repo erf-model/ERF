@@ -1,4 +1,17 @@
-#23.11
+# 23.12
+    -- AMReX submodule set to 23.12 release hash (9b733ec)
+
+    -- Inclusion of Kessler microphysics option (#1324)
+
+    -- Fix for particles with redistribute call (#1314)
+
+    -- Inclusion of radiation (#1311)
+
+    -- Inclusion of refluxing for two-way coupling (#1289)
+
+    -- Metgrid initialization with SST and LandMask (#1280)
+
+# 23.11
 
   -- AMReX submodule set to 23.11 release hash (ae7b64b)
 
