@@ -112,13 +112,13 @@ if we neglect :math:`\frac{p^\prime}{\bar{p_0}}`.
 
 Type 4
 ------
-.. math:: 
+.. math::
 
     \begin{equation}
     \mathbf{B} = \rho'\mathbf{g} \approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
     \end{equation}
 
-The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as 
+The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as
 
 .. math::
 
@@ -155,9 +155,9 @@ Using :math:`- 0.61 q_v + q_c + q_p \ll 1`, we have
 
 Since the background values of cloud water and precipitate mass mixing ratios -- :math:`q_c` and :math:`q_p` are zero, we have :math:`q_c' = q_c` and :math:`q_p' = q_p`. Hence, we have
 
-.. math:: 
+.. math::
 
-	\begin{equation}
-	\rho'\approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
-	\end{equation}
+    \begin{equation}
+    \rho'\approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
+    \end{equation}
 

@@ -10,10 +10,10 @@
 Initialization
 ==================
 
-To initialize a background (base) state for a simulation with a hydrostatic atmosphere, the hydrostatic equation balancing the pressure gradient 
-and gravity must be satisfied. This section details the procedure for the initialization of the background state. The procedure is similar for the 
-cases with and without moisture, the only difference being that the density for the cases with moisture has to be the total density 
-:math:`\rho = \rho_d(1 + q_t)`, where :math:`\rho_d` is the dry density, and :math:`q_t` is the total mass mixing ratio -- water vapor and liquid water, instead 
+To initialize a background (base) state for a simulation with a hydrostatic atmosphere, the hydrostatic equation balancing the pressure gradient
+and gravity must be satisfied. This section details the procedure for the initialization of the background state. The procedure is similar for the
+cases with and without moisture, the only difference being that the density for the cases with moisture has to be the total density
+:math:`\rho = \rho_d(1 + q_t)`, where :math:`\rho_d` is the dry density, and :math:`q_t` is the total mass mixing ratio -- water vapor and liquid water, instead
 of the dry density :math:`\rho_d` for cases without moisture.
 
 Computation of the dry density
@@ -61,7 +61,7 @@ We also have:
 .. math::
    q_v = \frac{\rho_v}{\rho_d} = \frac{p_v}{R_v T}\frac{R_d T}{p-p_v} = \frac{r p_v}{p - p_v},
 
-where :math:`p_v` is the partial pressure of water vapor, :math:`r = R_d/R_v \approx 0.622`, and :math:`q_v` is the vapor mass mixing ratio—the ratio of the 
+where :math:`p_v` is the partial pressure of water vapor, :math:`r = R_d/R_v \approx 0.622`, and :math:`q_v` is the vapor mass mixing ratio—the ratio of the
 mass of vapor to the mass of dry air. Rearranging and using :math:`q_v \ll r`, we get:
 
 .. math::
