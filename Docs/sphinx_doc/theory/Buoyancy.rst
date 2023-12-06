@@ -112,6 +112,11 @@ if we neglect :math:`\frac{p^\prime}{\bar{p_0}}`.
 
 Type 4
 ------
+This expression for buoyancy is from `khairoutdinov2003cloud`_ and `bryan2002benchmark`_.
+
+.. _`khairoutdinov2003cloud`: https://journals.ametsoc.org/view/journals/atsc/60/4/1520-0469_2003_060_0607_crmota_2.0.co_2.xml
+.. _`bryan2002benchmark`: https://journals.ametsoc.org/view/journals/mwre/130/12/1520-0493_2002_130_2917_absfmn_2.0.co_2.xml
+
 .. math::
 
     \begin{equation}
