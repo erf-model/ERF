@@ -180,9 +180,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-#if defined(ERF_USE_MOISTURE)
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
 #endif
     const int   inp_sound_size  = inputSoundingData.size();
@@ -212,7 +210,10 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         state(i, j, k, RhoScalar_comp) = 0;
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
+        qv_k = 0.0;
+#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         qv_k = interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+#endif
         r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
         p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp, qv_k);
