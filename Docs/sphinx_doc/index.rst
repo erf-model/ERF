@@ -49,6 +49,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    theory/DryEquations.rst
    theory/WetEquations.rst
+   theory/Initialization.rst
    theory/Buoyancy.rst
    theory/Microphysics.rst
    theory/DNSvsLES.rst

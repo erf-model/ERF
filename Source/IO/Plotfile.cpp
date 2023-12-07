@@ -206,11 +206,21 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+#if defined(ERF_USE_MOISTURE)
+                const Array4<Real const> & qv_arr  = qmoist[0].const_array(mfi);
+#endif
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+#if defined(ERF_USE_MOISTURE)
+                    Real qv_for_p = qv_arr(i,j,k);
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+                    Real qv_for_p = S_arr(i,j,k,RhoQv_comp) / S_arr(i,j,k,Rho_comp);
+#else
+                    Real qv_for_p = 0.;
+#endif
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
                 });
             }
             mf_comp += 1;
