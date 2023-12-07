@@ -198,7 +198,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
         int ktop = bx.bigEnd(2);
 
-        Real rho_k, rhoTh_k;
+        Real rho_k, qv_k, rhoTh_k;
 
         // Set the density
         rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
@@ -212,9 +212,10 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         state(i, j, k, RhoScalar_comp) = 0;
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
-        r_hse_arr (i, j, k) = rho_k;
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
-        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
+        qv_k = interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+        r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
+        pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp, qv_k);
 
         // Boundary treatment
         if (k==0)

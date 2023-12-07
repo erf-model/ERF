@@ -79,7 +79,7 @@ public:
                 iss_z >> z >> theta >> qv >> U >> V;
                 if (z == 0) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
-                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound_tmp[0]);
+                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]);
                     U_inp_sound_tmp[0] = U;
                     V_inp_sound_tmp[0] = V;
                 } else {
@@ -141,93 +141,55 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0)
-        amrex::Real thm_surf = theta_ref_inp_sound *
-            (1 + (R_v/R_d-1) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
-        pm_integ[0] = press_ref_inp_sound; // _total_ pressure (incl moisture)
-        rhom_integ[0] = 1 / (
-            R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -iGamma)); // density of _moist_ air
+        amrex::Real thm_surf = theta_ref_inp_sound * (1 + (R_v/R_d) * qv_ref_inp_sound); // moist theta
+          pm_integ[0] = press_ref_inp_sound; // _total_ pressure (incl moisture)
+        rhod_integ[0] = 1 / (R_d/p_0 * thm_surf * std::pow(pm_integ[0]/p_0, -iGamma)); // density of dry air
 
-        amrex::Print() << "ideal sounding init: surface density of moist air = "
-            << rhom_integ[0] << " kg/m^3" << std::endl;
+        amrex::Print() << "ideal sounding init: surface density of dry air = "
+            << rhod_integ[0] << " kg/m^3" << std::endl;
 
         // Note:
         //   p_dry = rho_d R_d T
-        //   p_tot = rho_m R_d T_v
-        //         = rho_d(1 + q_v) R_d T_v
+        //   p_tot = rho_d R_d T_v
+        //         = rho_d R_d T ( 1 + Rv/Rd * qv)
 
         // integrate from surface to domain top
         amrex::Real qvf, dz;
-#if 0   // Printing
+#if 1  // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
-        amrex::Print() << "z  p_m  rho_m  theta  U  V" << std::endl;
+        amrex::Print() << "z  p_m  rho_d  theta  qv U  V" << std::endl;
         amrex::Print() << z_inp_sound[0]
-            << " " << pm_integ[0]
-            << " " << rhom_integ[0]
-            << " " << theta_inp_sound[0]
-            << " " << U_inp_sound[0]
-            << " " << V_inp_sound[0]
-            << std::endl;
+                       << " " << pm_integ[0]
+                       << " " << rhod_integ[0]
+                       << " " << theta_inp_sound[0]
+                       << ' ' << qv_inp_sound[0]
+                       << " " << U_inp_sound[0]
+                       << " " << V_inp_sound[0]
+                       << std::endl;
 #endif
         for (int k=1; k < size(); ++k)
         {
-            qvf = 1 + (R_v/R_d-1) * qv_inp_sound[k];
+            qvf = 1 + (R_v/R_d) * qv_inp_sound[k];
             dz = z_inp_sound[k] - z_inp_sound[k-1];
-            rhom_integ[k] = rhom_integ[k-1]; // guess
+            rhod_integ[k] = rhod_integ[k-1]; // guess
             for (int it=0; it < maxiter; ++it)
             {
-                pm_integ[k] = pm_integ[k-1]
-                    - 0.5*dz*(rhom_integ[k] + rhom_integ[k-1])*CONST_GRAV;
+                pm_integ[k] = pm_integ[k-1] - 0.5*dz*(rhod_integ[k] + rhod_integ[k-1])*(1.0 + qv_inp_sound[k])*CONST_GRAV;
                 AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
-                rhom_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
+                rhod_integ[k] = 1 / (R_d/p_0 * theta_inp_sound[k]*qvf * std::pow(pm_integ[k]/p_0, -iGamma));
             }
-#if 0       // Printing
+#if 1       // Printing
             amrex::Print() << z_inp_sound[k]
-                << " " << pm_integ[k]
-                << " " << rhom_integ[k]
-                << " " << theta_inp_sound[k]
-                << " " << U_inp_sound[k]
-                << " " << V_inp_sound[k]
-                << std::endl;
+                           << " " << pm_integ[k]
+                           << " " << rhod_integ[k]
+                           << " " << theta_inp_sound[k]
+                           << ' ' << qv_inp_sound[k]
+                           << " " << U_inp_sound[k]
+                           << " " << V_inp_sound[k]
+                           << std::endl;
 #endif
         }
-
-        // now, integrate from the top of the sounding (where it's assumed dry) back
-        // down to get the dry air column properties
-        pd_integ[Ninp-1] = pm_integ[Ninp-1];
-        rhod_integ[Ninp-1] = 1 / (
-                    R_d/p_0 * theta_inp_sound[Ninp-1] * std::pow(pd_integ[Ninp-1]/p_0, -iGamma));
-        amrex::Print() << "z  p_d  rho_d  theta  U  V" << std::endl;
-        amrex::Print() << z_inp_sound[Ninp-1]
-            << " " << pd_integ[Ninp-1]
-            << " " << rhod_integ[Ninp-1]
-            << " " << theta_inp_sound[Ninp-1]
-            << " " << U_inp_sound[Ninp-1]
-            << " " << V_inp_sound[Ninp-1]
-            << std::endl;
-        for (int k=Ninp-2; k >= 0; --k)
-        {
-            dz = z_inp_sound[k+1] - z_inp_sound[k];
-            rhod_integ[k] = rhod_integ[k+1]; // guess
-            for (int it=0; it < maxiter; ++it)
-            {
-                pd_integ[k] = pd_integ[k+1]
-                    + 0.5*dz*(rhod_integ[k] + rhod_integ[k+1])*CONST_GRAV;
-                AMREX_ALWAYS_ASSERT(pd_integ[k] > 0);
-                rhod_integ[k] = 1 / (
-                    R_d/p_0 * theta_inp_sound[k] * std::pow(pd_integ[k]/p_0, -iGamma));
-            }
-            amrex::Print() << z_inp_sound[k]
-                << " " << pd_integ[k]
-                << " " << rhod_integ[k]
-                << " " << theta_inp_sound[k]
-                << " " << U_inp_sound[k]
-                << " " << V_inp_sound[k]
-                << std::endl;
-        }
-        // Note: at this point, the surface pressure, density of the dry air
-        // column is stored in pd_integ[0], rhod_integ[0]
 
         // update
         host_to_device();
@@ -266,7 +228,7 @@ public:
                              rhod_integ.begin(), rhod_integ.end(),
                              rho_inp_sound_d.begin());
             amrex::Gpu::copy(amrex::Gpu::hostToDevice,
-                             pd_integ.begin(), pd_integ.end(),
+                             pm_integ.begin(), pm_integ.end(),
                              p_inp_sound_d.begin());
         }
     }
