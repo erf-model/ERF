@@ -8,7 +8,7 @@
 using namespace amrex;
 
 template<typename V, typename T>
-bool containerHasElement (const V& iterable, const T& query) {
+bool containerHasElement(const V& iterable, const T& query) {
     return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
 }
 
@@ -59,13 +59,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-#ifdef ERF_USE_PARTICLES
-            if ( (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) &&
-                 (particleData.use_tracer_particles || (derived_names[i] != "tracer_particle_count")       ) &&
-                 (particleData.use_hydro_particles  || (derived_names[i] != "hydro_particle_count")        ) ) {
-#else
             if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
-#endif
                tmp_plot_names.push_back(derived_names[i]);
             }
         }
@@ -84,7 +78,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
 // set plotfile variable names
 Vector<std::string>
-ERF::PlotFileVarNames (Vector<std::string> plot_var_names )
+ERF::PlotFileVarNames ( Vector<std::string> plot_var_names )
 {
     Vector<std::string> names;
 
@@ -101,18 +95,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
     const int ncomp_mf = varnames.size();
 
+    // We fillpatch here because some of the derived quantities require derivatives
+    //     which require ghost cells to be filled
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]});
+    }
+
     if (ncomp_mf == 0)
         return;
-
-    // We Fillpatch here because some of the derived quantities require derivatives
-    //     which require ghost cells to be filled.  We do not need to call FillPatcher
-    //     because we don't need to set interior fine points.
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        bool fillset = false;
-        FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
-                                    &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                    fillset);
-    }
 
     Vector<MultiFab> mf(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
@@ -173,6 +164,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         };
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
+        calculate_derived("pressure",    derived::erf_derpres);
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
@@ -194,29 +186,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
-
-        if (containerHasElement(plot_var_names, "pressure"))
-        {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-            {
-                const Box& bx = mfi.tilebox();
-                const Array4<Real      >& derdat = mf[lev].array(mfi);
-                const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& qv_arr = qmoist[0].const_array(mfi);
-
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    Real qv_for_p = qv_arr(i,j,k);
-                    const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
-                    if (i == 30 and j == 30 and k == 2) amrex::Print() <<" MAKING PRESSURE " << rhotheta << " " << derdat(i,j,k,mf_comp) << std::endl;
-                });
-            }
-            mf_comp += 1;
-        }
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
 #ifdef _OPENMP
@@ -228,13 +197,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const> & qv_arr  = qmoist[0].const_array(mfi);
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    Real qv_for_p = qv_arr(i,j,k);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
                 });
             }
             mf_comp += 1;
@@ -577,22 +544,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-        if (containerHasElement(plot_var_names, "Kmv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "Kmh")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_h,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "Khv")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_v,mf_comp,1,0);
-            mf_comp ++;
-        }
-        if (containerHasElement(plot_var_names, "Khh")) {
-            MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Theta_h,mf_comp,1,0);
-            mf_comp ++;
-        }
+#if defined(ERF_USE_MOISTURE)
+        calculate_derived("qt",          derived::erf_derQt);
+        calculate_derived("qp",          derived::erf_derQp);
 
         MultiFab qv_mf(qmoist[lev], make_alias, 0, 1);
         MultiFab qc_mf(qmoist[lev], make_alias, 1, 1);
@@ -600,22 +554,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         MultiFab qr_mf(qmoist[lev], make_alias, 3, 1);
         MultiFab qs_mf(qmoist[lev], make_alias, 4, 1);
         MultiFab qg_mf(qmoist[lev], make_alias, 5, 1);
-
-        if (containerHasElement(plot_var_names, "qt"))
-        {
-            MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
-            MultiFab::Add (mf[lev],qc_mf,0,mf_comp,1,0);
-            MultiFab::Add (mf[lev],qi_mf,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-
-        if (containerHasElement(plot_var_names, "qp"))
-        {
-            MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
-            MultiFab::Add (mf[lev],qs_mf,0,mf_comp,1,0);
-            MultiFab::Add (mf[lev],qg_mf,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
 
         if (containerHasElement(plot_var_names, "qv"))
         {
@@ -652,24 +590,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
-
-#ifdef ERF_USE_PARTICLES
-        if (containerHasElement(plot_var_names, "tracer_particle_count"))
-        {
-            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-            temp_dat.setVal(0);
-            particleData.tracer_particles->Increment(temp_dat, lev);
-            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-            mf_comp += 1;
-        }
-        if (containerHasElement(plot_var_names, "hydro_particle_count"))
-        {
-            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-            temp_dat.setVal(0);
-            particleData.hydro_particles->Increment(temp_dat, lev);
-            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-            mf_comp += 1;
-        }
+#elif defined(ERF_USE_WARM_NO_PRECIP)
+        calculate_derived("qv",          derived::erf_derQv);
+        calculate_derived("qc",          derived::erf_derQc);
 #endif
 
 #ifdef ERF_COMPUTE_ERROR
@@ -796,11 +719,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat = mf[lev].array(mfi);
-                const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
 
                 const auto dx = geom[lev].CellSizeArray();
+#if 0
                 const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
+                const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& r0_arr = r_hse.const_array(mfi);
 
                 Real H           = geom[lev].ProbHi()[2];
@@ -830,26 +754,30 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
                     derdat(i,j,k,mf_comp) -= pprime_exact;
                 });
-            }
-            mf_comp += 1;
-        }
 #endif
-    }
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    Real x   = (i + 0.5) * dx[0];
+                    Real y   = (j + 0.5) * dx[1];
+                    Real S_exact =  cos(PI * x);
 
-    // Fill terrain distortion MF
-    if (solverChoice.use_terrain) {
-        for (int lev(0); lev <= finest_level; ++lev) {
-            MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
-            Real dz = Geom()[lev].CellSizeArray()[2];
-            for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                const Box& bx = mfi.tilebox();
-                Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                    mf_arr(i,j,k,2) -= k * dz;
+                    derdat(i,j,k,mf_comp) = S_arr(i,j,k,RhoScalar_comp) - S_exact;
                 });
-            }
-        }
-    }
+            } // mfi
+#endif
+            mf_comp += 1;
+
+            int nx = geom[lev].Domain().length(0);
+            int nv = std::sqrt(static_cast<Real>(geom[lev].Domain().numPts()));
+            Real dx = 2.0 / static_cast<Real>(nx);
+            Real norm_0 = mf[0].norm0(mf_comp-1,0);
+            Real norm_2 = mf[0].norm2(mf_comp-1) / nv;
+            amrex::Print() << " \n ERR: dx = " << dx << " " << norm_2 << std::endl;
+//                         << " order  = " << solverChoice.horiz_spatial_order
+//                         << " 2-norm = " << norm_2
+//                         << " 0-norm = " << norm_0 << "\n" << std::endl;
+        } // pp_err
+    } // lev
 
     std::string plotfilename;
     if (which == 1)
@@ -862,6 +790,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         if (plotfile_type == "amrex") {
             amrex::Print() << "Writing plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
+                // We started with mf_nd holding 0 in every component; here we fill only the offset in z
+                int lev = 0;
+                MultiFab::Copy(mf_nd[lev],*z_phys_nd[lev],0,2,1,0);
+                Real dz = Geom()[lev].CellSizeArray()[2];
+                for (MFIter mfi(mf_nd[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    Array4<      Real> mf_arr = mf_nd[lev].array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        mf_arr(i,j,k,2) -= k * dz;
+                    });
+                }
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
                                                    GetVecOfConstPtrs(mf_nd),
@@ -869,15 +808,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                    t_new[0], istep);
             } else {
                 WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                        GetVecOfConstPtrs(mf),
-                                        varnames,
-                                        Geom(), t_new[0], istep, refRatio());
+                                               GetVecOfConstPtrs(mf),
+                                               varnames,
+                                               Geom(), t_new[0], istep, refRatio());
             }
             writeJobInfo(plotfilename);
-
-#ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
-#endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
             amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
@@ -948,24 +883,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
             }
 
-            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
-            if (solverChoice.use_terrain) {
-                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                                   GetVecOfConstPtrs(mf),
-                                                   GetVecOfConstPtrs(mf_nd),
-                                                   varnames,
-                                                   t_new[0], istep);
-            } else {
-                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                        GetVecOfConstPtrs(mf2), varnames,
-                                        g2, t_new[0], istep, rr);
-            }
-
+            WriteMultiLevelPlotfile(plotfilename, finest_level+1, GetVecOfConstPtrs(mf2), varnames,
+                                           g2, t_new[0], istep, rr);
             writeJobInfo(plotfilename);
-
-#ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
-#endif
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {
@@ -1057,7 +977,7 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
             } else {
                 data = mf[level];
             }
-            VisMF::Write(*data        , MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix));
+            VisMF::Write(*data       , MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mfPrefix));
             VisMF::Write(*mf_nd[level], MultiFabFileFullPrefix(level, plotfilename, levelPrefix, mf_nodal_prefix));
         }
     }

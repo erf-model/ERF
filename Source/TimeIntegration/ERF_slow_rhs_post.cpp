@@ -295,7 +295,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
 
 #ifdef ERF_USE_MOISTURE
-        start_comp = RhoQt_comp;
+        start_comp = RhoQ1_comp;
           num_comp = 2;
 
         AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
@@ -413,7 +413,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                           bx_ylo, bx_yhi);
             int icomp;
 #if defined(ERF_USE_MOISTURE)
-            icomp = RhoQt_comp;
+            icomp = RhoQ1_comp;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
             icomp = RhoQv_comp;
 #endif

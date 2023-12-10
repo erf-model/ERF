@@ -92,7 +92,7 @@ Problem::init_custom_pert(
     state(i, j, k, RhoScalar_comp) = 0.0;
 
 #if defined(ERF_USE_MOISTURE)
-    state(i, j, k, RhoQt_comp) = 0.0;
+    state(i, j, k, RhoQ1_comp) = 0.0;
     state(i, j, k, RhoQp_comp) = 0.0;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     state(i, j, k, RhoQv_comp) = 0.0;
