@@ -212,7 +212,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     Real qv_for_p = qv_arr(i,j,k);
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
-                    if (i == 30 and j == 30 and k == 2) amrex::Print() <<" MAKING PRESSURE " << rhotheta << " " << derdat(i,j,k,mf_comp) << std::endl;
                 });
             }
             mf_comp += 1;
