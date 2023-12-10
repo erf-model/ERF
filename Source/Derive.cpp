@@ -27,7 +27,6 @@ void erf_derrhodivide (
     const amrex::Real rho       = dat(i, j, k, Rho_comp);
     const amrex::Real conserved = dat(i, j, k, scalar_index);
     primitive(i,j,k) = conserved / rho;
-    if (i == 30 and j == 30 and k == 2) amrex::Print() <<  " DERIVE " << scalar_index << " " << conserved << " " << primitive(i,j,k) << std::endl;
   });
 }
 
