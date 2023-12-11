@@ -544,7 +544,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-#if defined(ERF_USE_MOISTURE)
+        if (solverChoice.moisture_type != MoistureType::None) {
         calculate_derived("qt",          derived::erf_derQt);
         calculate_derived("qp",          derived::erf_derQp);
 
@@ -590,7 +590,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+        }
+#if defined(ERF_USE_WARM_NO_PRECIP)
         calculate_derived("qv",          derived::erf_derQv);
         calculate_derived("qc",          derived::erf_derQc);
 #endif

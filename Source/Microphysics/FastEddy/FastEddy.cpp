@@ -11,17 +11,17 @@ using namespace amrex;
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void Kessler::AdvanceKessler() {
+void FastEddy::AdvanceFE() {
 
-  auto qt   = mic_fab_vars[MicVar_Kess::qt];
-  auto qp   = mic_fab_vars[MicVar_Kess::qp];
-  auto qn   = mic_fab_vars[MicVar_Kess::qn];
-  auto tabs = mic_fab_vars[MicVar_Kess::tabs];
+  auto qt   = mic_fab_vars[MicVar_FE::qt];
+  auto qp   = mic_fab_vars[MicVar_FE::qp];
+  auto qn   = mic_fab_vars[MicVar_FE::qn];
+  auto tabs = mic_fab_vars[MicVar_FE::tabs];
 
-  auto qcl   = mic_fab_vars[MicVar_Kess::qcl];
-  auto theta  = mic_fab_vars[MicVar_Kess::theta];
-  auto qv    = mic_fab_vars[MicVar_Kess::qv];
-  auto rho   = mic_fab_vars[MicVar_Kess::rho];
+  auto qcl   = mic_fab_vars[MicVar_FE::qcl];
+  auto theta  = mic_fab_vars[MicVar_FE::theta];
+  auto qv    = mic_fab_vars[MicVar_FE::qv];
+  auto rho   = mic_fab_vars[MicVar_FE::rho];
 
   auto dz = m_geom.CellSize(2);
   auto domain = m_geom.Domain();
@@ -34,8 +34,8 @@ void Kessler::AdvanceKessler() {
   fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
  for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
-    auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
-    auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+    auto rho_array  = mic_fab_vars[MicVar_FE::rho]->array(mfi);
+    auto qp_array  = mic_fab_vars[MicVar_FE::qp]->array(mfi);
     auto fz_array  = fz.array(mfi);
     const Box& tbz = mfi.tilebox();
 
@@ -70,10 +70,10 @@ void Kessler::AdvanceKessler() {
 
  /*for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-     auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-     auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
-     auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-     auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
+     auto qn_array   = mic_fab_vars[MicVar_FE::qn]->array(mfi);
+     auto qt_array   = mic_fab_vars[MicVar_FE::qt]->array(mfi);
+     auto qp_array   = mic_fab_vars[MicVar_FE::qp]->array(mfi);
+     auto qv_array   = mic_fab_vars[MicVar_FE::qv]->array(mfi);
 
     const auto& box3d = mfi.tilebox();
 
@@ -92,8 +92,8 @@ void Kessler::AdvanceKessler() {
 
 
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-        auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+        auto qp_array   = mic_fab_vars[MicVar_FE::qp]->array(mfi);
+        auto rho_array  = mic_fab_vars[MicVar_FE::rho]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
          auto fz_array  = fz.array(mfi);
@@ -109,14 +109,14 @@ void Kessler::AdvanceKessler() {
 
   // get the temperature, dentisy, theta, qt and qp from input
   for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-     auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
-     auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-     auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
-     auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+     auto tabs_array = mic_fab_vars[MicVar_FE::tabs]->array(mfi);
+     auto qn_array   = mic_fab_vars[MicVar_FE::qn]->array(mfi);
+     auto qt_array   = mic_fab_vars[MicVar_FE::qt]->array(mfi);
+     auto qp_array   = mic_fab_vars[MicVar_FE::qp]->array(mfi);
 
      auto theta_array = theta->array(mfi);
      auto qv_array    = qv->array(mfi);
-     auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+     auto rho_array  = mic_fab_vars[MicVar_FE::rho]->array(mfi);
 
      const auto& box3d = mfi.tilebox();
 
@@ -197,11 +197,7 @@ void Kessler::AdvanceKessler() {
          }
 
 
-         if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
-         if(std::fabs(fz_array(i,j,k)) < 1e-14) fz_array(i,j,k) = 0.0;
          Real dq_sed = 1.0/rho_array(i,j,k)*(fz_array(i,j,k+1) - fz_array(i,j,k))/dz*dtn;
-        if(std::fabs(dq_sed) < 1e-14)dq_sed = 0.0;
-        //dq_sed = 0.0;
 
          qt_array(i,j,k) = qt_array(i,j,k) + dq_rain_to_vapor - dq_clwater_to_rain;
          qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;

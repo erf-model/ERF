@@ -905,8 +905,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
-
-    print_state(vars_new[0][Vars::cons], IntVect(30,30,2));
 }
 
 // read in some parameters from inputs file
@@ -965,6 +963,8 @@ ERF::ReadParameters ()
             micro.SetModel<SAM>();
         } else if (solverChoice.moisture_type == MoistureType::Kessler) {
             micro.SetModel<Kessler>();
+        } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
+            micro.SetModel<FastEddy>();
         } else if (solverChoice.moisture_type == MoistureType::None) {
             micro.SetModel<NullMoist>();
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
