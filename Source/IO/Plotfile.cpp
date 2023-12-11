@@ -205,7 +205,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
                 const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& qv_arr = qmoist[0].const_array(mfi);
+                const Array4<Real const>& qv_arr = qmoist[0]->const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
@@ -227,7 +227,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const> & qv_arr  = qmoist[0].const_array(mfi);
+                const Array4<Real const> & qv_arr  = qmoist[0]->const_array(mfi);
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
@@ -593,12 +593,14 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-        MultiFab qv_mf(qmoist[lev], make_alias, 0, 1);
-        MultiFab qc_mf(qmoist[lev], make_alias, 1, 1);
-        MultiFab qi_mf(qmoist[lev], make_alias, 2, 1);
-        MultiFab qr_mf(qmoist[lev], make_alias, 3, 1);
-        MultiFab qs_mf(qmoist[lev], make_alias, 4, 1);
-        MultiFab qg_mf(qmoist[lev], make_alias, 5, 1);
+        // TODO: Protect against accessing non-existent data
+        int q_size = micro.Get_Qmoist_Size();
+        MultiFab qv_mf(*(qmoist[lev]), make_alias, 0, 1);
+        MultiFab qc_mf(*(qmoist[lev]), make_alias, 1, 1);
+        MultiFab qi_mf(*(qmoist[lev]), make_alias, 2, 1);
+        MultiFab qr_mf(*(qmoist[lev]), make_alias, 3, 1);
+        MultiFab qs_mf(*(qmoist[lev]), make_alias, 4, 1);
+        MultiFab qg_mf(*(qmoist[lev]), make_alias, 5, 1);
 
         if (containerHasElement(plot_var_names, "qt"))
         {

@@ -129,9 +129,9 @@ ERF::WriteCheckpointFile () const
         IntVect ng;
         if (solverChoice.moisture_type != MoistureType::None) {
             // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
-            ng = qmoist[lev].nGrowVect();
-            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),ng);
-            MultiFab::Copy(moist_vars,qmoist[lev],0,0,qmoist[lev].nComp(),ng);
+            ng = qmoist[lev]->nGrowVect();
+            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev]->nComp(),ng);
+            MultiFab::Copy(moist_vars,*(qmoist[lev]),0,0,qmoist[lev]->nComp(),ng);
             VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
         }
 
@@ -346,12 +346,12 @@ ERF::ReadCheckpointFile ()
 
         IntVect ng;
         if (solverChoice.moisture_type == MoistureType::None) {
-            qmoist[lev].setVal(0.0);
+            qmoist[lev]->setVal(0.0);
         } else {
-            ng = qmoist[lev].nGrowVect();
-            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev].nComp(),ng);
+            ng = qmoist[lev]->nGrowVect();
+            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev]->nComp(),ng);
             VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
-            MultiFab::Copy(qmoist[lev],moist_vars,0,0,qmoist[lev].nComp(),ng);
+            MultiFab::Copy(*(qmoist[lev]),moist_vars,0,0,qmoist[lev]->nComp(),ng);
         }
 
         // Note that we read the ghost cells of the base state (unlike above)

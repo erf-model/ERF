@@ -246,7 +246,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
 
     if (use_moisture)
     {
-        MultiFab qv(qmoist[lev], make_alias, 0, 1);
+        MultiFab qv(*(qmoist[lev]), make_alias, 0, 1);
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {

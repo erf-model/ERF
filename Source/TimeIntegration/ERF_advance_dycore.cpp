@@ -68,9 +68,11 @@ void ERF::advance_dycore(int level,
     MultiFab pi_hse(base_state[level], make_alias, 2, 1); // pi_0 is second component
 
 #if defined(ERF_USE_MOISTURE)
-    MultiFab qvapor (qmoist[level], make_alias, 0, 1);
-    MultiFab qcloud (qmoist[level], make_alias, 1, 1);
-    MultiFab qice   (qmoist[level], make_alias, 2, 1);
+    // TODO: Protect from grabbing non-existing data
+    int q_size = micro.Get_Qmoist_Size();
+    MultiFab qvapor (*(qmoist[level]), make_alias, 0, 1);
+    MultiFab qcloud (*(qmoist[level]), make_alias, 1, 1);
+    MultiFab qice   (*(qmoist[level]), make_alias, 2, 1);
 #endif
 
     // These pointers are used in the MRI utility functions
