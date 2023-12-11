@@ -36,7 +36,8 @@ void add_par () {
    // (rather than the amrex default of 1).
    pp.add("n_proper",2);
 
-   pp.add("max_grid_size",2048);
+   int max_grid_size = 2048;
+   pp.queryAdd("max_grid_size",max_grid_size);
 
    // This will set the default value of blocking_factor to be 1, but will allow
    //     the user to override it in the inputs file or on command line

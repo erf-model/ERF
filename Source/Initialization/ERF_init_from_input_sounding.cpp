@@ -143,9 +143,9 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
 
-        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there is no cloud water or cloud ice
+        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
 #if defined(ERF_USE_MOISTURE)
-        state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoQ1_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         state(i, j, k, RhoQv_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif
@@ -235,9 +235,9 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         }
 
 #if defined(ERF_USE_MOISTURE)
-        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
+        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
-        state(i, j, k, RhoQt_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+        state(i, j, k, RhoQ1_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         state(i, j, k, RhoQv_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
 #endif

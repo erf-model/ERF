@@ -318,12 +318,12 @@ init_state_from_wrfinput (int lev,
         state_fab.template copy<RunOn::Device>(NC_rhotheta_fab[idx], 0, RhoTheta_comp, 1);
 
 #if defined(ERF_USE_MOISTURE)
-        state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQt_comp, 1);
-        state_fab.template plus<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQt_comp, 1);
-        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQt_comp, 1);
+        state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
+        state_fab.template plus<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ1_comp, 1);
+        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
 
-        state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQp_comp, 1);
-        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQp_comp, 1);
+        state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ2_comp, 1);
+        state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ2_comp, 1);
 # elif defined(ERF_USE_WARM_NO_PRECIP)
 #endif
     } // idx

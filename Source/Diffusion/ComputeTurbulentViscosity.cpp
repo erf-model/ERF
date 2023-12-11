@@ -170,7 +170,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
 #if defined(ERF_USE_MOISTURE)
-    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qt_h      Qp_h
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Q1_h      Q2_h
     Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qv_h      Qc_h

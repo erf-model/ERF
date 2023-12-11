@@ -39,8 +39,6 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
                 auto& sfab = vars_new[level][Vars::cons][mfi];
                 if (ref_tags[j].Field() == "scalar") {
                     derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
-                } else if (ref_tags[j].Field() == "pressure") {
-                    derived::erf_derpres(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
                 } else if (ref_tags[j].Field() == "theta") {
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
                 }

@@ -804,8 +804,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-            q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                       +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
+            q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
+                       +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
             q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                        +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
@@ -848,8 +848,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
               Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i-1,j,k,PrimQt_comp)
-                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i-1,j,k,PrimQp_comp) );
+              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
+                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
@@ -912,8 +912,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
               Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
+              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
+                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
@@ -954,8 +954,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
               Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j-1,k,PrimQt_comp)
-                         +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j-1,k,PrimQp_comp) );
+              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
+                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
               q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
                          +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
@@ -1008,8 +1008,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
                 Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
+                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
+                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
@@ -1049,8 +1049,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
                 Real q = 0.0;
 #if defined(ERF_USE_MOISTURE)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQt_comp) + cell_prim(i,j,k-1,PrimQt_comp)
-                           +cell_prim(i,j,k,PrimQp_comp) + cell_prim(i,j,k-1,PrimQp_comp) );
+                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
+                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                 q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
                            +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );

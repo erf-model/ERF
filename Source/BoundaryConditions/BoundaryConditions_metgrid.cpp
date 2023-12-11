@@ -31,7 +31,7 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
     // Flags for read vars and index mapping
     // See IndexDefines.H
 #if defined(ERF_USE_MOISTURE)
-    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQt RhoQp NumVars]
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQ1 RhoQ2 NumVars]
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
     Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
 #elif defined(ERF_USE_WARM_NO_PRECIP)

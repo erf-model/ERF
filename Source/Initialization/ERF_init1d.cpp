@@ -129,16 +129,12 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
-#ifdef ERF_USE_MOISTURE
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
-    if(solverChoice.use_moist_background){
+    if (solverChoice.use_moist_background){
         prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
-    }else{
+    } else {
         prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
     }
-#else
-    prob->erf_init_dens_hse(r_hse, z_phys_nd[lev], z_phys_cc[lev], geom[lev]);
-#endif
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse

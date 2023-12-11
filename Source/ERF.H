@@ -44,9 +44,7 @@
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
 
-#ifdef ERF_USE_MOISTURE
 #include "Microphysics.H"
-#endif
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -215,10 +213,8 @@ public:
                          amrex::Real dt, amrex::Real time,
                          amrex::InterpFaceRegister* ifr);
 
-#if defined(ERF_USE_MOISTURE)
     void advance_microphysics (int lev, amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
-#endif
 
 #if defined(ERF_USE_RRTMGP)
     void advance_radiation (int lev,
@@ -362,11 +358,9 @@ private:
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
 
-#if defined(ERF_USE_MOISTURE)
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
-#endif
 
     // compute new multifabs by copying in data from valid region and filling ghost cells
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
@@ -535,11 +529,8 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-#if defined(ERF_USE_MOISTURE)
-    std::string moisture_model = "NullMoist";
     Microphysics micro;
     amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
-#endif
 
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
@@ -659,28 +650,19 @@ private:
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0"
-#if defined(ERF_USE_MOISTURE)
-                                                     ,"rhoQt", "rhoQp"
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                                                     ,"rhoQv", "rhoQc"
-#endif
-                                                     };
+    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
+                                                     "rhoQt", "rhoQp"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
-    const amrex::Vector<std::string> derived_names {"pressure", "soundspeed", "temp", "theta", "KE", "QKE", "scalar",
-                                                    "pres_hse", "dens_hse", "pert_pres", "pert_dens",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
                                                     // eddy viscosity
                                                     "Kmv","Kmh",
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh"
-#if defined(ERF_USE_MOISTURE)
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                                                     ,"qv", "qc"
-#endif
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
@@ -763,17 +745,14 @@ private:
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;
     amrex::Vector<amrex::Real> h_havg_pressure;
-#ifdef ERF_USE_MOISTURE
     amrex::Vector<amrex::Real> h_havg_qv;
     amrex::Vector<amrex::Real> h_havg_qc;
-#endif
+
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_density;
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_temperature;
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_pressure;
-#ifdef ERF_USE_MOISTURE
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qv;
     amrex::Gpu::DeviceVector<amrex::Real> d_havg_qc;
-#endif
 
     void refinement_criteria_setup ();
 
@@ -805,32 +784,26 @@ private:
             if (
                  (advChoice.dycore_horiz_adv_type    == AdvType::Centered_6th)
               || (advChoice.dycore_vert_adv_type     == AdvType::Centered_6th)
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
               || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
               || (advChoice.moistscal_horiz_adv_type == AdvType::Centered_6th)
-#endif
               || (advChoice.dryscal_horiz_adv_type   == AdvType::Centered_6th)
               || (advChoice.dryscal_vert_adv_type    == AdvType::Centered_6th) )
             { return 3; }
             else if (
                  (advChoice.dycore_horiz_adv_type    == AdvType::Upwind_5th)
               || (advChoice.dycore_vert_adv_type     == AdvType::Upwind_5th)
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
               || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
               || (advChoice.moistscal_horiz_adv_type == AdvType::Upwind_5th)
-#endif
               || (advChoice.dryscal_horiz_adv_type   == AdvType::Upwind_5th)
               || (advChoice.dryscal_vert_adv_type    == AdvType::Upwind_5th) )
             { return 3; }
             else if (
                   (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5)
                || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5)
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
                || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5)
                || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5)
                || (advChoice.moistscal_horiz_adv_type == AdvType::Weno_5Z)
                || (advChoice.moistscal_vert_adv_type  == AdvType::Weno_5Z)
-#endif
                || (advChoice.dryscal_horiz_adv_type   == AdvType::Weno_5Z)
                || (advChoice.dryscal_vert_adv_type    == AdvType::Weno_5Z) )
             { return 3; }

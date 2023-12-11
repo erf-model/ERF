@@ -155,10 +155,9 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
     is_temperature_read  = 0;
     is_theta_read        = 0;
     is_scalar_read       = 0;
-#if defined(ERF_USE_MOISTURE)
-    is_qt_read           = 0;
-    is_qp_read           = 0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+    is_q1_read           = 0;
+    is_q2_read           = 0;
+#if defined(ERF_USE_WARM_NO_PRECIP)
     is_qv_read           = 0;
     is_qc_read           = 0;
 #endif
@@ -176,10 +175,9 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "temperature")  is_temperature_read = 1;
             if (m_var_names[i] == "theta")        is_theta_read = 1;
             if (m_var_names[i] == "scalar")       is_scalar_read = 1;
-#if defined(ERF_USE_MOISTURE)
-            if (m_var_names[i] == "qt")           is_qt_read = 1;
-            if (m_var_names[i] == "qp")           is_qp_read = 1;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+            if (m_var_names[i] == "qt")           is_q1_read = 1;
+            if (m_var_names[i] == "qp")           is_q2_read = 1;
+#if defined(ERF_USE_WARM_NO_PRECIP)
             if (m_var_names[i] == "qv")           is_qv_read = 1;
             if (m_var_names[i] == "qc")           is_qc_read = 1;
 #endif
@@ -413,10 +411,9 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
         if (var_name == "KE")          n_offset = BCVars::RhoKE_bc_comp;
         if (var_name == "QKE")         n_offset = BCVars::RhoQKE_bc_comp;
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
-#if defined(ERF_USE_MOISTURE)
-        if (var_name == "qt")          n_offset = BCVars::RhoQt_bc_comp;
-        if (var_name == "qp")          n_offset = BCVars::RhoQp_bc_comp;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+        if (var_name == "qt")          n_offset = BCVars::RhoQ1_bc_comp;
+        if (var_name == "qp")          n_offset = BCVars::RhoQ2_bc_comp;
+#if defined(ERF_USE_WARM_NO_PRECIP)
         if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
         if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
 #endif

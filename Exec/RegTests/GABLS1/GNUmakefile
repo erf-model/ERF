@@ -18,9 +18,6 @@ USE_CUDA = FALSE
 USE_HIP  = FALSE
 USE_SYCL = FALSE
 
-# Physics
-USE_MOISTURE = FALSE
-
 # Debugging
 DEBUG = FALSE
 
