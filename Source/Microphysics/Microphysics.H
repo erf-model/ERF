@@ -56,6 +56,9 @@ public:
         m_moist_model->Update(cons_in, qmoist);
     }
 
+    int
+    Get_Qmoist_Size ( ) { return m_moist_model->Qmoist_Size(); }
+
 
 private:
     std::unique_ptr<NullMoist> m_moist_model;

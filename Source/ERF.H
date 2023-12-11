@@ -530,7 +530,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
     Microphysics micro;
-    amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qmoist; // This has up to 6 components: qv, qc, qi, qr, qs, qg
 
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;

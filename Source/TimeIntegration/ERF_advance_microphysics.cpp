@@ -7,11 +7,11 @@ void ERF::advance_microphysics (int lev,
                                 MultiFab& cons,
                                 const Real& dt_advance)
 {
-    micro.Init(cons, qmoist[lev],
+    micro.Init(cons, *(qmoist[lev]),
                grids[lev],
                Geom(lev),
                dt_advance);
     micro.Advance();
-    micro.Update(cons, qmoist[lev]);
+    micro.Update(cons, *(qmoist[lev]));
 }
 #endif
