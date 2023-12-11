@@ -203,6 +203,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy)
 
   if(ERF_ENABLE_RRTMGP)
      target_link_libraries(${erf_lib_name} PUBLIC yakl)

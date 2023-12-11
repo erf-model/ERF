@@ -1,0 +1,5 @@
+CEXE_sources += Init_FE.cpp
+CEXE_sources += Diagnose_FE.cpp
+CEXE_sources += Update_FE.cpp
+CEXE_sources += FastEddy.cpp
+CEXE_headers += FastEddy.H

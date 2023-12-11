@@ -194,9 +194,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
 
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
 
-#if defined(ERF_USE_MOISTURE)
-    MultiFab qv(qmoist[lev], make_alias, 0, 1);
-#endif
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -206,9 +204,6 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         const Array4<Real>& v_cc_arr =  v_cc.array(mfi);
         const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
-#if defined(ERF_USE_MOISTURE)
-        const Array4<Real>&   qv_arr = qv.array(mfi);
-#endif
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -237,18 +232,45 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
             fab_arr(i, j, k,14) = tke * u_cc_arr(i,j,k);   // ku
             fab_arr(i, j, k,15) = tke * v_cc_arr(i,j,k);   // kv
             fab_arr(i, j, k,16) = tke * w_cc_arr(i,j,k);   // kw
-#if defined(ERF_USE_MOISTURE)
-            Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
-#else
-            Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
-#endif
-            p -= p0_arr(i,j,k);
-            fab_arr(i, j, k,17) = p;                       // p'
-            fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'u
-            fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'v
-            fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'w
+
+            if (!use_moisture) {
+                Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
+                p -= p0_arr(i,j,k);
+                fab_arr(i, j, k,17) = p;                       // p'
+                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'u
+                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'v
+                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'w
+            }
         });
-    }
+    } // mfi
+
+    if (use_moisture)
+    {
+        MultiFab qv(qmoist[lev], make_alias, 0, 1);
+
+        for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+            const Array4<Real>& fab_arr = mf_out.array(mfi);
+            const Array4<Real>& cons_arr = mf_cons.array(mfi);
+            const Array4<Real>& u_cc_arr =  u_cc.array(mfi);
+            const Array4<Real>& v_cc_arr =  v_cc.array(mfi);
+            const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
+            const Array4<Real>&   p0_arr = p_hse.array(mfi);
+            const Array4<Real>&   qv_arr = qv.array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+
+                p -= p0_arr(i,j,k);
+                fab_arr(i, j, k,17) = p;                       // p'
+                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'u
+                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'v
+                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'w
+            });
+        } // mfi
+    } // use_moisture
 
     h_avg_rho  = sumToLine(mf_out, 0,1,domain,zdir);
     h_avg_th   = sumToLine(mf_out, 1,1,domain,zdir);
