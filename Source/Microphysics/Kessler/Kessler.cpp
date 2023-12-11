@@ -196,6 +196,7 @@ void Kessler::AdvanceKessler() {
             dq_clwater_to_rain = std::min(dq_clwater_to_rain, qn_array(i,j,k));
          }
 
+
          if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
          if(std::fabs(fz_array(i,j,k)) < 1e-14) fz_array(i,j,k) = 0.0;
          Real dq_sed = 1.0/rho_array(i,j,k)*(fz_array(i,j,k+1) - fz_array(i,j,k))/dz*dtn;
