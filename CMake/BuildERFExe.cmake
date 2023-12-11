@@ -159,6 +159,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
