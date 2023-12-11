@@ -110,7 +110,6 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
  * @param[out] mf MultiFab to be filled (qmoist[lev])
  */
 
-#ifdef ERF_USE_MOISTURE
 void
 ERF::FillPatchMoistVars (int lev, MultiFab& mf)
 {
@@ -123,8 +122,8 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     int ncomp_cons = 1; // We only fill qv, the first component
 
     // Note that we are filling qv, stored in qmoist[lev], with the input data (if there is any), stored
-    // in RhoQt_comp.
-    int bccomp_cons = BCVars::RhoQt_bc_comp;
+    // in RhoQ1_comp.
+    int bccomp_cons = BCVars::RhoQ1_bc_comp;
 
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
@@ -135,7 +134,6 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
 
     mf.FillBoundary(geom[lev].periodicity());
 }
-#endif
 
 /*
  * Fill valid and ghost data

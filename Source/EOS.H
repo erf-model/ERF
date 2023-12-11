@@ -61,12 +61,7 @@ amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const am
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = 0.)
 {
-#if defined(ERF_USE_WARM_NO_PRECIP) || defined(ERF_USE_MOISTURE)
     return p_0 * std::pow(R_d * rhotheta * (1.0+(R_v/R_d)*qv) * ip_0, Gamma);
-#else
-    amrex::ignore_unused(qv);
-    return p_0 * std::pow(R_d * rhotheta * ip_0, Gamma);
-#endif
 }
 
 /**

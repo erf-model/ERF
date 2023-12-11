@@ -44,8 +44,8 @@ void SAM::Update (amrex::MultiFab& cons,
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        states_arr(i,j,k,Rho_comp)      = rho_arr(i,j,k);
        states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
-       states_arr(i,j,k,RhoQt_comp)    = rho_arr(i,j,k)*qt_arr(i,j,k);
-       states_arr(i,j,k,RhoQp_comp)    = rho_arr(i,j,k)*qp_arr(i,j,k);
+       states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qt_arr(i,j,k);
+       states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qp_arr(i,j,k);
 
        // Graupel == precip total - rain - snow (but must be >= 0)
        qgraup_arr(i,j,k)  = std::max(0.0, qp_arr(i,j,k)-qpl_arr(i,j,k)-qpi_arr(i,j,k));

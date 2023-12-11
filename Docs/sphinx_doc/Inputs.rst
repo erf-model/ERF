@@ -883,14 +883,8 @@ Examples of Usage
 Moisture
 ========
 
-ERF has two different moisture models -- one that includes only water vapor and cloud water,
-and a more complete model that includes water vapor, cloud water, cloud ice, rain, snow and graupel.
-
-If ERF is compiled with ERF_USE_WARM_NO_PRECIP defined, then the first model is used and no
-further inputs are required.
-
-If ERF is compiled with ERF_USE_MOISTURE defined, then the following run-time options control how
-the full moisture model is used.
+ERF has several different moisture models.
+The following run-time options control how the full moisture model is used.
 
 List of Parameters
 ------------------
