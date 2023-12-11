@@ -197,11 +197,11 @@ void Kessler::AdvanceKessler() {
          }
 
 
-		 if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
-		 if(std::fabs(fz_array(i,j,k)) < 1e-14) fz_array(i,j,k) = 0.0;
+         if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
+         if(std::fabs(fz_array(i,j,k)) < 1e-14) fz_array(i,j,k) = 0.0;
          Real dq_sed = 1.0/rho_array(i,j,k)*(fz_array(i,j,k+1) - fz_array(i,j,k))/dz*dtn;
-		if(std::fabs(dq_sed) < 1e-14)dq_sed = 0.0;
-		//dq_sed = 0.0;
+        if(std::fabs(dq_sed) < 1e-14)dq_sed = 0.0;
+        //dq_sed = 0.0;
 
          qt_array(i,j,k) = qt_array(i,j,k) + dq_rain_to_vapor - dq_clwater_to_rain;
          qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
