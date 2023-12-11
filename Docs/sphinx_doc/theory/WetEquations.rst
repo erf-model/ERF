@@ -138,4 +138,3 @@ In this set of equations, the subgrid turbulent parameterization effects are inc
 :math:`\mathbf{F}` stands for the external force, and :math:`Q` and :math:`F_Q` represent the mass and energy transformation
 of water vapor to/from water through condensation/evaporation, which is determined by the microphysics parameterization processes.
 :math:`\mathbf{B}` is the buoyancy force, which is defined in :ref:`Buoyancy <Buoyancy>`.
-
