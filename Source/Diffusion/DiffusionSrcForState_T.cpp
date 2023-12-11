@@ -102,11 +102,11 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             alpha_eff[PrimScalar_comp] = diffChoice.alpha_C;
             break;
 #if defined(ERF_USE_MOISTURE)
-           case PrimQt_comp:
-            alpha_eff[PrimQt_comp] = diffChoice.alpha_C;
+           case PrimQ1_comp:
+            alpha_eff[PrimQ1_comp] = diffChoice.alpha_C;
             break;
-           case PrimQp_comp:
-            alpha_eff[PrimQp_comp] = diffChoice.alpha_C;
+           case PrimQ2_comp:
+            alpha_eff[PrimQ2_comp] = diffChoice.alpha_C;
             break;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
            case PrimQv_comp:
@@ -131,11 +131,11 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                     alpha_eff[PrimScalar_comp] = diffChoice.rhoAlpha_C;
                     break;
 #if defined(ERF_USE_MOISTURE)
-               case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = diffChoice.rhoAlpha_C;
+               case PrimQ1_comp:
+                    alpha_eff[PrimQ1_comp] = diffChoice.rhoAlpha_C;
                     break;
-               case PrimQp_comp:
-                    alpha_eff[PrimQp_comp] = diffChoice.rhoAlpha_C;
+               case PrimQ2_comp:
+                    alpha_eff[PrimQ2_comp] = diffChoice.rhoAlpha_C;
                     break;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                case PrimQv_comp:
@@ -153,9 +153,9 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
     }
 
 #if defined(ERF_USE_MOISTURE)
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Q1_h, EddyDiff::Q2_h};
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Q1_h, EddyDiff::Q2_h};
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Q1_v, EddyDiff::Q2_v};
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};

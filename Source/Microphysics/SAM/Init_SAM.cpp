@@ -134,8 +134,8 @@ void SAM::Init (const MultiFab& cons_in, MultiFab& qmoist,
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
        theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-       qt_array(i,j,k)    = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
-       qp_array(i,j,k)    = states_array(i,j,k,RhoQp_comp)/states_array(i,j,k,Rho_comp);
+       qt_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
+       qp_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
        qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
        temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
        pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;

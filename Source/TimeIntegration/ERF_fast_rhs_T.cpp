@@ -258,8 +258,8 @@ void erf_fast_rhs_T (int step, int nrk,
                 gpx *= mf_u(i,j,0);
 
 #if defined(ERF_USE_MOISTURE)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i-1,j,k,PrimQt_comp)
-                                +prim(i,j,k,PrimQp_comp) + prim(i-1,j,k,PrimQp_comp) );
+                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
+                                +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
                 gpx /= (1.0 + q);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
@@ -291,8 +291,8 @@ void erf_fast_rhs_T (int step, int nrk,
                 gpy *= mf_v(i,j,0);
 
 #if defined(ERF_USE_MOISTURE)
-                Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j-1,k,PrimQt_comp)
-                                +prim(i,j,k,PrimQp_comp) + prim(i,j-1,k,PrimQp_comp) );
+                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
+                                +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
                 gpy /= (1.0 + q);
 #elif defined(ERF_USE_WARM_NO_PRECIP)
                 Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
@@ -469,8 +469,8 @@ void erf_fast_rhs_T (int step, int nrk,
             Real coeff_Q = coeffQ_a(i,j,k);
 
 #if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( prim(i,j,k,PrimQt_comp) + prim(i,j,k-1,PrimQt_comp)
-                            +prim(i,j,k,PrimQp_comp) + prim(i,j,k-1,PrimQp_comp) );
+            Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                            +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
             coeff_P /= (1.0 + q);
             coeff_Q /= (1.0 + q);
 #elif defined(ERF_USE_WARM_NO_PRECIP)

@@ -24,9 +24,6 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-#USE_MOISTURE = TRUE
-#USE_WARM_NO_PRECIP = TRUE
-
 # GNU Make
 Bpack := ./Make.package
 Blocs := .

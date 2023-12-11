@@ -34,14 +34,9 @@ Problem::init_custom_pert(
     Array4<Real      > const& p_hse,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
-#if defined(ERF_USE_MOISTURE)
     Array4<Real      > const&,
     Array4<Real      > const&,
     Array4<Real      > const&,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#endif
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -63,13 +58,8 @@ Problem::init_custom_pert(
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
 
-#if defined(ERF_USE_MOISTURE)
-    state(i, j, k, RhoQt_comp) = 0.0;
-    state(i, j, k, RhoQp_comp) = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    state(i, j, k, RhoQv_comp) = 0.0;
-    state(i, j, k, RhoQc_comp) = 0.0;
-#endif
+    state(i, j, k, RhoQ1_comp) = 0.0;
+    state(i, j, k, RhoQ2_comp) = 0.0;
   });
 
   // Set the x-velocity
