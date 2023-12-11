@@ -43,12 +43,12 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
 #endif
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
 
-   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
+   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_neumann_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];
@@ -202,12 +202,12 @@ void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, con
 #endif
     const amrex::BCRec* bc_ptr = bcrs_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp+i][ori];
 
-   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_neumann_vals_d;
+   GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_neumann_vals_d;
     for (int i = 0; i < icomp+ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
             l_bc_neumann_vals_d[i][ori] = m_bc_neumann_vals[bccomp+i][ori];

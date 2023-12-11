@@ -62,6 +62,8 @@ void erf_fast_rhs_N (int step, int nrk,
 {
     BL_PROFILE_REGION("erf_fast_rhs_N()");
 
+    const bool use_moisture = (solverChoice.moisture_type != Moisture::None);
+
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
 
@@ -185,9 +187,7 @@ void erf_fast_rhs_N (int step, int nrk,
 
         const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
-#endif
 
         const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
         const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
@@ -222,15 +222,12 @@ void erf_fast_rhs_N (int step, int nrk,
             Real gpx = (theta_extrap(i,j,k) - theta_extrap(i-1,j,k))*dxi;
             gpx *= mf_u(i,j,0);
 
-#if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
-                            +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
-            gpx /= (1.0 + q);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i-1,j,k,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i-1,j,k,PrimQc_comp) );
-            gpx /= (1.0 + q);
-#endif
+            if (use_moisture) {
+                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
+                                +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
+                gpx /= (1.0 + q);
+            }
+
             Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i,j,k,0));
 
             Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
@@ -248,15 +245,12 @@ void erf_fast_rhs_N (int step, int nrk,
             Real gpy = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k))*dyi;
             gpy *= mf_v(i,j,0);
 
-#if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
-                            +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
-            gpy /= (1.0 + q);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j-1,k,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i,j-1,k,PrimQc_comp) );
-            gpy /= (1.0 + q);
-#endif
+            if (use_moisture) {
+                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
+                                +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
+                gpy /= (1.0 + q);
+            }
+
             Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j,k,0));
 
             Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
@@ -382,17 +376,12 @@ void erf_fast_rhs_N (int step, int nrk,
              Real coeff_P = coeffP_a(i,j,k);
              Real coeff_Q = coeffQ_a(i,j,k);
 
-#if defined(ERF_USE_MOISTURE)
-            Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
-                            +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
-            coeff_P /= (1.0 + q);
-            coeff_Q /= (1.0 + q);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real q = 0.5 * ( prim(i,j,k,PrimQv_comp) + prim(i,j,k-1,PrimQv_comp)
-                            +prim(i,j,k,PrimQc_comp) + prim(i,j,k-1,PrimQc_comp) );
-            coeff_P /= (1.0 + q);
-            coeff_Q /= (1.0 + q);
-#endif
+            if (use_moisture) {
+                Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
+                                +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
+                coeff_P /= (1.0 + q);
+                coeff_Q /= (1.0 + q);
+            }
 
             Real theta_t_lo  = 0.5 * ( prim(i,j,k-2,PrimTheta_comp) + prim(i,j,k-1,PrimTheta_comp) );
             Real theta_t_mid = 0.5 * ( prim(i,j,k-1,PrimTheta_comp) + prim(i,j,k  ,PrimTheta_comp) );

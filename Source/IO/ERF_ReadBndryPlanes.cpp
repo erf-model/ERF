@@ -273,7 +273,7 @@ void ReadBndryPlanes::read_time_file()
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
 void ReadBndryPlanes::read_input_files(Real time, Real dt,
-    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
+    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
 
@@ -346,7 +346,7 @@ void ReadBndryPlanes::read_input_files(Real time, Real dt,
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
 void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
-    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals)
+    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
 {
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + Concatenate("/bndry_output", t_step);
@@ -358,8 +358,7 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
     BoxArray ba(domain);
     DistributionMapping dm{ba};
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,
-                                                 AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
     for (int i = 0; i < BCVars::NumTypes; i++)
     {

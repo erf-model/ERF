@@ -37,8 +37,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
       if (m_most) {
         amrex::IntVect ng = S_old.nGrowVect(); ng[2]=0;
-        MultiFab::Copy(  *Theta_prim[lev], S_old, Cons::RhoTheta, 0, 1, ng);
-        MultiFab::Divide(*Theta_prim[lev], S_old, Cons::Rho     , 0, 1, ng);
+        MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
+        MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
         // NOTE: std::swap above causes the field ptrs to be out of date.
         //       Reassign the field ptrs for MAC avg computation.
         m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
@@ -54,9 +54,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                           &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
-#if defined(ERF_USE_MOISTURE)
-    FillPatchMoistVars(lev, qmoist[lev]);
-#endif
+    if (solverChoice.moisture_type != MoistureType::None) {
+        FillPatchMoistVars(lev, qmoist[lev]);
+    }
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;
@@ -128,10 +128,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                    source, buoyancy,
                    Geom(lev), dt_lev, time, &ifr);
 
-#if defined(ERF_USE_MOISTURE)
-    // Update the microphysics
+    // Update the microphysics (moisture) 
     advance_microphysics(lev, S_new, dt_lev);
-#endif
 
 #if defined(ERF_USE_RRTMGP)
     // Update the radiation

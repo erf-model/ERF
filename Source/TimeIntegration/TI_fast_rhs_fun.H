@@ -15,6 +15,8 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
 
+        const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them
         // Per p2902 of Klemp-Skamarock-Dudhia-2007
@@ -84,7 +86,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                             solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                             use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s);
 
             if (fast_step == 0) {
@@ -117,7 +119,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -141,7 +143,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution

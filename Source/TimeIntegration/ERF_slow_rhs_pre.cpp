@@ -138,6 +138,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
+    const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
 
@@ -261,12 +263,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 BL_PROFILE("slow_rhs_making_er_T");
                 // First create Omega using velocity (not momentum)
                 Box gbxo = surroundingNodes(bxcc,2);
-                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
                 });
 
-                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
 
                     Real met_u_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, z_nd);
@@ -307,7 +309,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
                 if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
-                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
                     });
@@ -349,14 +351,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
 
                 // Copy from temp FABs back to tau
-                amrex::ParallelFor(bxcc,
+                ParallelFor(bxcc,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
                 });
 
-                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau12(i,j,k) = s12(i,j,k);
                     tau21(i,j,k) = s21(i,j,k);
@@ -378,7 +380,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 //-----------------------------------------
                 {
                 BL_PROFILE("slow_rhs_making_er_N");
-                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
                     er_arr(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mfsq +
                                     (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mfsq +
@@ -404,7 +406,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
                 if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
-                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
                     });
@@ -442,13 +444,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
 
                 // Copy from temp FABs back to tau
-                amrex::ParallelFor(bxcc,
+                ParallelFor(bxcc,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
                 });
-                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau12(i,j,k) = s12(i,j,k);
                 },
@@ -548,18 +550,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         {
         BL_PROFILE("slow_rhs_pre_pprime");
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-#if defined(ERF_USE_MOISTURE)
-            Real qv_for_p = qv_arr(i,j,k);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real qv_for_p = cell_data(i,j,k,RhoQv_comp) / cell_data(i,j,k,Rho_comp);
-#else
-            Real qv_for_p = 0.;
-#endif
+            Real qv_for_p = 0.0;
+            if (use_moisture) { 
+                qv_for_p = qv_arr(i,j,k);
+            }
             pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
         });
         } // end profile
@@ -574,17 +573,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_use_terrain) {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = 0.;
                 });
                 Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = rho_w(i,j,k);
                 });
 
                 if (z_t) {
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         // We define rho on the z-face the same way as in MomentumToVelocity/VelocityToMomentum
                         Real rho_at_face = 0.5 * (cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp));
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv) -
@@ -592,12 +591,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     });
                 } else {
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-                    amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });
                 }
             } else {
-                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     omega_arr(i,j,k) = rho_w(i,j,k);
                 });
             }
@@ -689,12 +688,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
             auto const& src_arr = source.const_array(mfi);
             if (l_use_terrain && l_moving_terrain) {
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp) / detJ_arr(i,j,k);
                 });
             } else {
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
                 });
@@ -706,7 +705,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
@@ -715,7 +714,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         // Multiply the slow RHS for rho and rhotheta by detJ here so we don't have to later
         if (l_use_terrain && l_moving_terrain) {
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
                 cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
@@ -775,7 +774,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // TERRAIN VERSION
         // ******************************************************************
         if (l_use_terrain) {
-          amrex::ParallelFor(tbx,
+          ParallelFor(tbx,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
 
@@ -803,13 +802,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
             gpx *= mf_u(i,j,0);
 
             Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-            q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
-                       +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                       +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-#endif
+            if (use_moisture) { 
+                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
+                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
+            }
+
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_u_face * abl_geo_forcing[0];
 
@@ -838,7 +835,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // ******************************************************************
         // NON-TERRAIN VERSION
         // ******************************************************************
-          amrex::ParallelFor(tbx,
+          ParallelFor(tbx,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
 
@@ -847,13 +844,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpx *= mf_u(i,j,0);
 
               Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
-                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i-1,j,k,PrimQv_comp)
-                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i-1,j,k,PrimQc_comp) );
-#endif
+              if (use_moisture) { 
+                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
+                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
+              }
+
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                     + rho_u_face * abl_geo_forcing[0];
 
@@ -882,7 +877,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // TERRAIN VERSION
         // ******************************************************************
         if (l_use_terrain) {
-          amrex::ParallelFor(tby,
+          ParallelFor(tby,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // y-momentum equation
 
@@ -911,13 +906,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpy *= mf_v(i,j,0);
 
               Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-#endif
+              if (use_moisture) { 
+                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
+                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
+              }
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_v_face * abl_geo_forcing[1];
 
@@ -944,7 +936,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // NON-TERRAIN VERSION
         // ******************************************************************
         } else {
-          amrex::ParallelFor(tby,
+          ParallelFor(tby,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // y-momentum equation
 
@@ -953,13 +945,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpy *= mf_v(i,j,0);
 
               Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                         +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-              q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j-1,k,PrimQv_comp)
-                         +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j-1,k,PrimQc_comp) );
-#endif
+              if (use_moisture) { 
+                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
+                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
+              }
+
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_v_face * abl_geo_forcing[1];
 
@@ -986,7 +976,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
         // Enforce no forcing term at top and bottom boundaries
-        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
             rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
         });
@@ -995,25 +985,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_pre_zmom");
         auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
+
         // ******************************************************************
         // TERRAIN VERSION
         // ******************************************************************
         if (l_use_terrain) {
-          amrex::ParallelFor(tbz,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
+          ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
                 Real rho_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
                 Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-#endif
+                if (use_moisture) { 
+                    q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
+                               +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
+                }
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                      + rho_w_face * abl_geo_forcing[2];
 
@@ -1040,21 +1027,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // NON-TERRAIN VERSION
         // ******************************************************************
         } else {
-          amrex::ParallelFor(tbz,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
 
                 Real rho_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
                 Real q = 0.0;
-#if defined(ERF_USE_MOISTURE)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                q = 0.5 * ( cell_prim(i,j,k,PrimQv_comp) + cell_prim(i,j,k-1,PrimQv_comp)
-                           +cell_prim(i,j,k,PrimQc_comp) + cell_prim(i,j,k-1,PrimQc_comp) );
-#endif
+                if (use_moisture) { 
+                    q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
+                               +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
+                }
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
                                      + rho_w_face * abl_geo_forcing[2];
 
