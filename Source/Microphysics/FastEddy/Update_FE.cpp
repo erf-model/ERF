@@ -14,27 +14,28 @@ void FastEddy::Update (amrex::MultiFab& cons,
                        amrex::MultiFab& qmoist)
 {
 
-  // Get the temperature, density, theta, qt and qp from input
-  for ( amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-     auto states_arr = cons.array(mfi);
+    // Get the temperature, density, theta, qt and qp from input
+    for ( amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto states_arr = cons.array(mfi);
 
-     auto rho_arr    = mic_fab_vars[MicVar_FE::rho]->array(mfi);
-     auto theta_arr  = mic_fab_vars[MicVar_FE::theta]->array(mfi);
-     auto qv_arr     = mic_fab_vars[MicVar_FE::qv]->array(mfi);
-     auto qc_arr     = mic_fab_vars[MicVar_FE::qc]->array(mfi);
-     const auto& box3d = mfi.tilebox();
+        auto rho_arr    = mic_fab_vars[MicVar_FE::rho]->array(mfi);
+        auto theta_arr  = mic_fab_vars[MicVar_FE::theta]->array(mfi);
+        auto qv_arr     = mic_fab_vars[MicVar_FE::qv]->array(mfi);
+        auto qc_arr     = mic_fab_vars[MicVar_FE::qc]->array(mfi);
+        const auto& box3d = mfi.tilebox();
 
-     // get potential total density, temperature, qt, qp
-     amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-       states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
-       states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qv_arr(i,j,k);
-       states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qc_arr(i,j,k);
-     });
-  }
+        // get potential total density, temperature, qt, qp
+        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
+            states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qv_arr(i,j,k);
+            states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qc_arr(i,j,k);
+        });
+    }
 
-  // Fill interior ghost cells and periodic boundaries
-  cons.FillBoundary(m_geom.periodicity());
-  qmoist.FillBoundary(m_geom.periodicity());
+    // Fill interior ghost cells and periodic boundaries
+    cons.FillBoundary(m_geom.periodicity());
+    qmoist.FillBoundary(m_geom.periodicity());
 }
 
 
