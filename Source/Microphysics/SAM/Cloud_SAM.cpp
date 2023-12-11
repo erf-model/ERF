@@ -62,9 +62,6 @@ void SAM::Cloud () {
           erf_qsati(tabs1, pres1d_t(k), qsatt2);
           qsatt = om*qsatt1 + (1.-om)*qsatt2;
        }
-//if(i==2 && j==2)
-//    printf("cloud: %d, %d, %d, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f, %13.6f\n",
-//        i,j,k,tabs1,pres1d_t(k),qt_array(i,j,k),qsatt,qn_array(i,j,k),qp_array(i,j,k));
 
        int niter;
        Real dtabs, lstarn, dlstarn, omp, lstarp, dlstarp, fff, dfff, dqsat;

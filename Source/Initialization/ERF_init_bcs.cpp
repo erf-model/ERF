@@ -29,13 +29,8 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-#if defined(ERF_USE_MOISTURE)
-        m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = 0.0;
-#endif
+        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.0;
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
@@ -47,13 +42,8 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_neumann_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-#if defined(ERF_USE_MOISTURE)
-        m_bc_neumann_vals[BCVars::RhoQt_bc_comp][ori]    = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQp_bc_comp][ori]    = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        m_bc_neumann_vals[BCVars::RhoQv_bc_comp][ori]    = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQc_bc_comp][ori]    = 0.0;
-#endif
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]    = 0.0;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
@@ -120,22 +110,23 @@ void ERF::init_bcs ()
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
-#if defined(ERF_USE_MOISTURE)
+
             Real qt_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qt()) {
-                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.;
+            if (input_bndry_planes && m_r2d->ingested_q1()) {
+                m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.;
             } else {
                 if (pp.query("qt", qt_in))
-                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = rho_in*qt_in;
+                m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qt_in;
             }
             Real qp_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qp()) {
-                m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = 0.;
+            if (input_bndry_planes && m_r2d->ingested_q2()) {
+                m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.;
             } else {
                 if (pp.query("qp", qp_in))
-                m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = rho_in*qp_in;
+                m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qp_in;
             }
-#elif defined(ERF_USE_WARM_NO_PRECIP)
+
+#if defined(ERF_USE_WARM_NO_PRECIP)
             Real qv_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_qv()) {
                 m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.;
@@ -451,15 +442,9 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#if defined(ERF_USE_MOISTURE)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qt()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qp()     )
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     )
-#endif
-                           ) ) {
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) ) {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                            }
                     }
@@ -471,14 +456,9 @@ void ERF::init_bcs ()
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#if defined(ERF_USE_MOISTURE)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qt()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qp()     )
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     )
-#endif
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )
                            ) ) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                            }

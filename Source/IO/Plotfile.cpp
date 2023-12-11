@@ -173,7 +173,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         };
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
-        calculate_derived("pressure",    derived::erf_derpres);
         calculate_derived("soundspeed",  derived::erf_dersoundspeed);
         calculate_derived("temp",        derived::erf_dertemp);
         calculate_derived("theta",       derived::erf_dertheta);
@@ -195,6 +194,28 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],r_hse,0,mf_comp,1,0);
             mf_comp += 1;
         }
+
+        if (containerHasElement(plot_var_names, "pressure"))
+        {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real      >& derdat = mf[lev].array(mfi);
+                const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const Array4<Real const>& qv_arr = qmoist[0].const_array(mfi);
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    Real qv_for_p = qv_arr(i,j,k);
+                    const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
+                });
+            }
+            mf_comp += 1;
+        }
         if (containerHasElement(plot_var_names, "pert_pres"))
         {
 #ifdef _OPENMP
@@ -206,11 +227,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const Array4<Real const> & qv_arr  = qmoist[0].const_array(mfi);
 
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    Real qv_for_p = qv_arr(i,j,k);
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta) - p0_arr(i,j,k);
+                    derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
                 });
             }
             mf_comp += 1;
@@ -570,16 +593,28 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-#if defined(ERF_USE_MOISTURE)
-        calculate_derived("qt",          derived::erf_derQt);
-        calculate_derived("qp",          derived::erf_derQp);
-
         MultiFab qv_mf(qmoist[lev], make_alias, 0, 1);
         MultiFab qc_mf(qmoist[lev], make_alias, 1, 1);
         MultiFab qi_mf(qmoist[lev], make_alias, 2, 1);
         MultiFab qr_mf(qmoist[lev], make_alias, 3, 1);
         MultiFab qs_mf(qmoist[lev], make_alias, 4, 1);
         MultiFab qg_mf(qmoist[lev], make_alias, 5, 1);
+
+        if (containerHasElement(plot_var_names, "qt"))
+        {
+            MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
+            MultiFab::Add (mf[lev],qc_mf,0,mf_comp,1,0);
+            MultiFab::Add (mf[lev],qi_mf,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
+
+        if (containerHasElement(plot_var_names, "qp"))
+        {
+            MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
+            MultiFab::Add (mf[lev],qs_mf,0,mf_comp,1,0);
+            MultiFab::Add (mf[lev],qg_mf,0,mf_comp,1,0);
+            mf_comp += 1;
+        }
 
         if (containerHasElement(plot_var_names, "qv"))
         {
@@ -616,10 +651,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
             mf_comp += 1;
         }
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        calculate_derived("qv",          derived::erf_derQv);
-        calculate_derived("qc",          derived::erf_derQc);
-#endif
 
 #ifdef ERF_USE_PARTICLES
         if (containerHasElement(plot_var_names, "tracer_particle_count"))

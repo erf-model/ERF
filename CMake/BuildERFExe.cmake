@@ -15,9 +15,7 @@ function(build_erf_lib erf_lib_name)
   include(${CMAKE_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
   set_erf_compile_flags(${erf_lib_name})
 
-  if(ERF_ENABLE_MOISTURE)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
-  endif()
+  target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
@@ -55,22 +53,6 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/ReadFromWRFInput.cpp
                    ${SRC_DIR}/IO/NCColumnFile.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
-  endif()
-
-  if(ERF_ENABLE_MOISTURE)
-    target_sources(${erf_lib_name} PRIVATE
-       ${SRC_DIR}/Microphysics/SAM/Init.cpp
-       ${SRC_DIR}/Microphysics/SAM/Cloud.cpp
-       ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/Precip.cpp
-       ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/Diagnose.cpp
-       ${SRC_DIR}/Microphysics/SAM/Update.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
   endif()
 
   if(ERF_ENABLE_RRTMGP)
@@ -166,6 +148,21 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/TerrainMetrics.cpp
        ${SRC_DIR}/Utils/VelocityToMomentum.cpp
        ${SRC_DIR}/Utils/InteriorGhostCells.cpp 
+       ${SRC_DIR}/Microphysics/SAM/Init_SAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/Cloud_SAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/Precip.cpp
+       ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
+       ${SRC_DIR}/Microphysics/SAM/Diagnose_SAM.cpp
+       ${SRC_DIR}/Microphysics/SAM/Update_SAM.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
+       ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
+       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
   )
 
   if(NOT "${erf_exe_name}" STREQUAL "erf_unit_tests")
@@ -187,13 +184,6 @@ function(build_erf_lib erf_lib_name)
     endif()
   endif()
 
-  if(ERF_ENABLE_MOISTURE)
-    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
-    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
-    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
-    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
-  endif()
-
   if(ERF_ENABLE_RRTMGP)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Radiation)
   endif()
@@ -213,6 +203,11 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy)
 
   if(ERF_ENABLE_RRTMGP)
      target_link_libraries(${erf_lib_name} PUBLIC yakl)

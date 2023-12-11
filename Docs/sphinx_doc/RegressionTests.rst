@@ -24,7 +24,7 @@ The following problems are currently tested in the CI:
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | Test                          | nx ny nz | xbc      | ybc      | zbc        | Ext   | Other                 |
 +===============================+==========+==========+==========+============+=======+=======================+
-| Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | USE_MOISTURE=TRUE     |
+| Bubble_Density_Current        | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | moist bubble          |
 |                               |          | Outflow  |          | SlipWall   |       |                       |
 +-------------------------------+----------+----------+----------+------------+-------+-----------------------+
 | CouetteFlow                   | 32 4  16 | Periodic | Periodic | SlipWall   | None  | inhomogeneous         |

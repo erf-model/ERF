@@ -59,9 +59,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-#if defined(ERF_USE_MOISTURE)
     qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
-#endif
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -195,10 +193,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-#if defined(ERF_USE_MOISTURE)
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
-#endif
 
     init_stuff(lev, ba, dm);
 
@@ -300,9 +296,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-#if defined(ERF_USE_MOISTURE)
     qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
-#endif
 
     init_stuff(lev,ba,dm);
 

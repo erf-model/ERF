@@ -1,7 +1,7 @@
-CEXE_sources += Cloud.cpp
-CEXE_sources += Init.cpp
-CEXE_sources += Diagnose.cpp
-CEXE_sources += Update.cpp
+CEXE_sources += Cloud_SAM.cpp
+CEXE_sources += Init_SAM.cpp
+CEXE_sources += Diagnose_SAM.cpp
+CEXE_sources += Update_SAM.cpp
 CEXE_sources += IceFall.cpp
 CEXE_sources += Precip.cpp
 CEXE_sources += PrecipFall.cpp

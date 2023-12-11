@@ -157,9 +157,7 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
-#if defined(ERF_USE_MOISTURE)
     qmoist.resize(nlevs_max);
-#endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
@@ -546,12 +544,13 @@ ERF::InitData ()
 
         restart();
 
-#ifdef ERF_USE_MOISTURE
         // Need to fill ghost cells here since we will use this qmoist in advance
-        for (int lev = 0; lev <= finest_level; lev++) {
-            FillPatchMoistVars(lev, qmoist[lev]);
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                FillPatchMoistVars(lev, qmoist[lev]);
+            }
         }
-#endif
     }
 
     if (input_bndry_planes) {
@@ -578,21 +577,22 @@ ERF::InitData ()
         }
     }
 
-#ifdef ERF_USE_MOISTURE
     // Initialize microphysics here
     micro.define(solverChoice);
 
     // Call Init which will call Diagnose to fill qmoist
-    for (int lev = 0; lev <= finest_level; ++lev)
+    if (solverChoice.moisture_type != MoistureType::None)
     {
-        // If not restarting we need to fill qmoist given qt and qp.
-        if (restart_chkfile.empty()) {
-            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                       grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            // If not restarting we need to fill qmoist given qt and qp.
+            if (restart_chkfile.empty()) {
+                micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                           grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+                micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+            }
         }
     }
-#endif
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
@@ -889,9 +889,7 @@ ERF::init_only (int lev, Real time)
         init_from_hse(lev);
     }
 
-#if defined(ERF_USE_MOISTURE)
     qmoist[lev].setVal(0.);
-#endif
 
     // Add problem-specific flow features
     //
@@ -960,18 +958,19 @@ ERF::ReadParameters ()
         particleData.init_particle_params();
 #endif
 
-#ifdef ERF_USE_MOISTURE
         // What type of moisture model to use
-        pp.query("moisture_model", moisture_model);
-        if (moisture_model == "SAM") {
+        if (solverChoice.moisture_type == MoistureType::SAM) {
             micro.SetModel<SAM>();
-        } else if (moisture_model == "Kessler") {
+        } else if (solverChoice.moisture_type == MoistureType::Kessler) {
             micro.SetModel<Kessler>();
-        } else {
+        } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
+            micro.SetModel<FastEddy>();
+        } else if (solverChoice.moisture_type == MoistureType::None) {
             micro.SetModel<NullMoist>();
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
+        } else {
+            amrex::Abort("Dont know this moisture_type!") ;
         }
-#endif
 
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
@@ -1152,76 +1151,85 @@ ERF::MakeHorizontalAverages ()
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
-#if defined(ERF_USE_MOISTURE)
-    MultiFab qv(qmoist[lev], make_alias, 0, 1);
-#endif
+    int zdir = 2;
+    auto domain = geom[0].Domain();
+
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
-        auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
-#if defined(ERF_USE_MOISTURE)
-        auto   qv_arr = qv.array(mfi);
-#endif
+        auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             Real dens = cons_arr(i, j, k, Cons::Rho);
             fab_arr(i, j, k, 0) = dens;
             fab_arr(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
-#if defined(ERF_USE_MOISTURE)
-            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
-#else
-            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
-#endif
-#if defined(ERF_USE_MOISTURE)
-            fab_arr(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
-            fab_arr(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
-#endif
+            if (!use_moisture) {
+                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
+            }
         });
     }
 
-    int zdir = 2;
-    auto domain = geom[0].Domain();
+    if (use_moisture)
+    {
+        MultiFab qv(qmoist[lev], make_alias, 0, 1);
+
+        for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto  fab_arr = mf.array(mfi);
+            auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+            auto const   qv_arr = qv.const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real dens = cons_arr(i, j, k, Cons::Rho);
+                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
+                fab_arr(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQ1) / dens;
+                fab_arr(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQ2) / dens;
+            });
+        }
+
+        Gpu::HostVector<Real> h_avg_qv          = sumToLine(mf,3,1,domain,zdir);
+        Gpu::HostVector<Real> h_avg_qc          = sumToLine(mf,4,1,domain,zdir);
+    }
 
     // Sum in the horizontal plane
     Gpu::HostVector<Real> h_avg_density     = sumToLine(mf,0,1,domain,zdir);
     Gpu::HostVector<Real> h_avg_temperature = sumToLine(mf,1,1,domain,zdir);
     Gpu::HostVector<Real> h_avg_pressure    = sumToLine(mf,2,1,domain,zdir);
-#ifdef ERF_USE_MOISTURE
-    Gpu::HostVector<Real> h_avg_qv          = sumToLine(mf,3,1,domain,zdir);
-    Gpu::HostVector<Real> h_avg_qc          = sumToLine(mf,4,1,domain,zdir);
-#endif
 
     // Divide by the total number of cells we are averaging over
-     int size_z = domain.length(zdir);
+    int size_z = domain.length(zdir);
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     int klen = static_cast<int>(h_avg_density.size());
+
     for (int k = 0; k < klen; ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
-#if defined(ERF_USE_MOISTURE)
-        h_havg_qc[k]          /= area_z;
-        h_havg_qv[k]          /= area_z;
-#endif
-    }
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            h_havg_qc[k]          /= area_z;
+            h_havg_qv[k]          /= area_z;
+        }
+    } // k
 
     // resize device vectors
     d_havg_density.resize(size_z, 0.0_rt);
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
-#if defined(ERF_USE_MOISTURE)
-    d_havg_qv.resize(size_z, 0.0_rt);
-    d_havg_qc.resize(size_z, 0.0_rt);
-#endif
 
     // copy host vectors to device vectors
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
-#if defined(ERF_USE_MOISTURE)
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
-#endif
+
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        d_havg_qv.resize(size_z, 0.0_rt);
+        d_havg_qc.resize(size_z, 0.0_rt);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
+    }
 }
 
 // Create horizontal average quantities for the MultiFab passed in
@@ -1491,9 +1499,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
 
-#if defined(ERF_USE_MOISTURE)
     qmoist.resize(nlevs_max);
-#endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);

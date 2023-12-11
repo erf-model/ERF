@@ -1,5 +1,6 @@
 #include "NCWpsFile.H"
 #include "AMReX_FArrayBox.H"
+#include "DataStruct.H"
 
 using namespace amrex;
 
@@ -16,14 +17,12 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
                     FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
                     FArrayBox& NC_RDNW_fab,
-#if defined(ERF_USE_MOISTURE)
                     FArrayBox& NC_QVAPOR_fab,
                     FArrayBox& NC_QCLOUD_fab,
                     FArrayBox& NC_QRAIN_fab,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-#endif
                     FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
-                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab)
+                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab,
+                    MoistureType moisture_type)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
@@ -51,12 +50,12 @@ read_from_wrfinput (int lev,
     NC_fabs.push_back(&NC_C1H_fab);       NC_names.push_back("C1H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 15
     NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 16
     NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 17
-#if defined(ERF_USE_MOISTURE)
-    NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 18
-    NC_fabs.push_back(&NC_QCLOUD_fab);    NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 19
-    NC_fabs.push_back(&NC_QRAIN_fab);     NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 20
-# elif defined(ERF_USE_WARM_NO_PRECIP)
-#endif
+
+    if (moisture_type != MoistureType::None) {
+        NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 18
+        NC_fabs.push_back(&NC_QCLOUD_fab);    NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 19
+        NC_fabs.push_back(&NC_QRAIN_fab);     NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 20
+    }
 
     // Read the netcdf file and fill these FABs
     amrex::Print() << "Building initial FABS from file " << fname << std::endl;

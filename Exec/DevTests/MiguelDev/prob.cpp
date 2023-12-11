@@ -47,14 +47,9 @@ Problem::init_custom_pert(
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-#if defined(ERF_USE_MOISTURE)
     Array4<Real      > const&,
     Array4<Real      > const&,
     Array4<Real      > const&,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#endif
     amrex::GeometryData const& geomdata,
     Array4<Real const> const&,
     Array4<Real const> const&,

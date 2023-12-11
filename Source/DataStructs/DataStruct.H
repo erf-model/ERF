@@ -28,6 +28,10 @@ enum struct TerrainType {
     Static, Moving
 };
 
+enum struct MoistureType {
+    Kessler, SAM, FastEddy, None
+};
+
 enum struct Coord {
     x, y, z
 };
@@ -77,6 +81,19 @@ struct SolverChoice {
             terrain_type = TerrainType::Static;
         } else {
             amrex::Abort("terrain_type can be either Moving/moving or Static/static");
+        }
+
+        // What type of moisture model to use
+        static std::string moisture_model_string = "None";
+        pp.query("moisture_model", moisture_model_string);
+        if (moisture_model_string == "SAM") {
+            moisture_type = MoistureType::SAM;
+        } else if (moisture_model_string == "Kessler") {
+            moisture_type = MoistureType::Kessler;
+        } else if (moisture_model_string == "FastEddy") {
+            moisture_type = MoistureType::FastEddy;
+        } else {
+            moisture_type = MoistureType::None;
         }
 
         // Use lagged_delta_rt in the fast integrator?
@@ -159,11 +176,9 @@ struct SolverChoice {
 
         pp.query("Ave_Plane", ave_plane);
 
-#ifdef ERF_USE_MOISTURE
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);
         pp.query("use_moist_background", use_moist_background);
-#endif
 
         // Use numerical diffusion?
         pp.query("use_NumDiff",use_NumDiff);
@@ -350,17 +365,16 @@ struct SolverChoice {
 
     CouplingType coupling_type;
     TerrainType  terrain_type;
+    MoistureType moisture_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_geo_forcing;
 
     int ave_plane {2};
-#ifdef ERF_USE_MOISTURE
     // Microphysics params
     bool do_cloud {true};
     bool do_precip {true};
     bool use_moist_background {false};
-#endif
 };
 #endif

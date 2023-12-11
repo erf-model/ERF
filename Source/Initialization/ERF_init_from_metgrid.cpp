@@ -772,7 +772,7 @@ init_state_from_metgrid (const Real l_rdOcp,
         int kmax = amrex::ubound(tbxc).z;
 
 #if defined(ERF_USE_MOISTURE)
-        int state_indx = RhoQt_comp;
+        int state_indx = RhoQ1_comp;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
         int state_indx = RhoQv_comp;
 #endif
@@ -829,7 +829,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
                               const amrex::Array4<const int>& mask_c_arr)
 {
 #if defined(ERF_USE_MOISTURE)
-    int RhoQ_comp = RhoQt_comp;
+    int RhoQ_comp = RhoQ1_comp;
 #elif defined(ERF_USE_WARM_NO_PRECIP)
     int RhoQ_comp = RhoQv_comp;
 #endif
@@ -894,7 +894,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
         {
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoScalar_comp) = 0.0;
-            // RhoTheta and RhoQt or RhoQv currently hold Theta and Qt or Qv. Multiply by Rho.
+            // RhoTheta and RhoQ1 or RhoQv currently hold Theta and Q1 or Qv. Multiply by Rho.
             Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
             new_data(i,j,k,RhoTheta_comp) = RhoTheta;
 #if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
