@@ -20,22 +20,11 @@
 namespace MicVar_FE {
    enum {
       // independent variables
-      qt = 0,
-      qp,
+      qv = 0,
+      qc,
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
       rho,   // density
-      pres,  // pressure
-      // derived variables
-      qr,   // rain water
-      qv,   // water vapor
-      qn,   // cloud condensate (liquid+ice), initial to zero
-      qci,  // cloud ice
-      qcl,  // cloud water
-      qpl,  // precip rain
-      qpi,  // precip ice
-      // temporary variable
-      omega,
       NumVars
   };
 }
