@@ -961,20 +961,6 @@ ERF::ReadParameters ()
         particleData.init_particle_params();
 #endif
 
-        // What type of moisture model to use
-        if (solverChoice.moisture_type == MoistureType::SAM) {
-            micro.SetModel<SAM>();
-        } else if (solverChoice.moisture_type == MoistureType::Kessler) {
-            micro.SetModel<Kessler>();
-        } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
-            micro.SetModel<FastEddy>();
-        } else if (solverChoice.moisture_type == MoistureType::None) {
-            micro.SetModel<NullMoist>();
-            amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
-        } else {
-            amrex::Abort("Dont know this moisture_type!") ;
-        }
-
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
         {
@@ -1129,6 +1115,22 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level);
+
+    // What type of moisture model to use
+    // NOTE: Must be checked after init_params
+    if (solverChoice.moisture_type == MoistureType::SAM) {
+        micro.SetModel<SAM>();
+    } else if (solverChoice.moisture_type == MoistureType::Kessler) {
+        micro.SetModel<Kessler>();
+    } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
+        micro.SetModel<FastEddy>();
+    } else if (solverChoice.moisture_type == MoistureType::None) {
+        micro.SetModel<NullMoist>();
+        amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
+    } else {
+        amrex::Abort("Dont know this moisture_type!") ;
+    }
+
     if (verbose > 0) {
         solverChoice.display();
     }

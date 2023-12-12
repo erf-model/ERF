@@ -181,7 +181,7 @@ void Kessler::Init (const MultiFab& cons_in,
      });
 
      // This fills qv
-     //Diagnose();
+     Diagnose();
 
 #if 0
      amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int k, int j, int i)
