@@ -47,7 +47,7 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
 #endif
     const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
 
@@ -200,7 +200,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     bool l_use_terrain = (m_z_phys_nd != nullptr);
     bool l_moving_terrain = (terrain_type == TerrainType::Moving);
 
-    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> l_bc_extdir_vals_d;
+    GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
     for (int i = 0; i < ncomp; i++)
         for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)

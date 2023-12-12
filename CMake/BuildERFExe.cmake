@@ -136,7 +136,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_advance_microphysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_condensation_source.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp

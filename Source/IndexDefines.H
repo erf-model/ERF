@@ -17,7 +17,10 @@
 #define RhoQ1_comp     5
 #define RhoQ2_comp     6
 
-#define NVAR           7
+// This is the number of components if using moisture
+// We use this to allocate the 1d arrays of boundary condition types,
+//    but not to allocate actual solution data
+#define NVAR_max 7
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
@@ -27,8 +30,7 @@
 #define PrimQ1_comp      (RhoQ1_comp-1)
 #define PrimQ2_comp      (RhoQ2_comp-1)
 
-#define NUM_PRIM         (NVAR-1)
-
+// NOTE: we still use this indexing even if no moisture
 namespace BCVars {
     enum {
         cons_bc = 0,
@@ -39,9 +41,9 @@ namespace BCVars {
         RhoScalar_bc_comp,
         RhoQ1_bc_comp,
         RhoQ2_bc_comp,
-        xvel_bc = NVAR,
-        yvel_bc,
-        zvel_bc,
+        xvel_bc = NVAR_max,
+        yvel_bc = NVAR_max+1,
+        zvel_bc = NVAR_max+2,
         NumTypes
     };
 }
@@ -82,33 +84,6 @@ namespace Vars {
         zmom
     };
 }
-
-namespace Cons {
-    enum {
-        Rho = 0,
-        RhoTheta,
-        RhoKE,
-        RhoQKE,
-        RhoScalar,
-        RhoQ1,
-        RhoQ2,
-        NumVars
-    };
-}
-
-#if 0
-namespace Prim {
-    enum {
-        Theta = 0,
-        KE,
-        QKE,
-        Scalar,
-        Q1,
-        Q2,
-        NumVars
-    };
-}
-#endif
 
 // We separate out horizontal and vertical turbulent diffusivities
 // These are the same for LES, but different for PBL models

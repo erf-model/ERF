@@ -22,9 +22,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab& xvel,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
-#if defined(ERF_USE_MOISTURE)
-                     const amrex::MultiFab& qmoist,
-#endif
+                      const amrex::MultiFab* qmoist,
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
@@ -91,7 +89,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+#if defined(ERF_USE_NETCDF)
                        const bool& moist_zero,
                        const amrex::Real& bdy_time_interval,
                        const amrex::Real& start_bdy_time,
@@ -129,7 +127,7 @@ void erf_fast_rhs_N (int step, int nrk, int level, int finest_level,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
-                     bool l_reflux);
+                     bool l_use_moisture, bool l_reflux);
 
 /**
  * Function for computing the fast RHS with fixed terrain
@@ -156,7 +154,7 @@ void erf_fast_rhs_T (int step, int nrk, int level, int finest_level,
                      std::unique_ptr<amrex::MultiFab>& mapfac_v,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
-                     bool l_reflux);
+                     bool l_use_moisture, bool l_reflux);
 
 /**
  * Function for computing the fast RHS with moving terrain
@@ -190,7 +188,7 @@ void erf_fast_rhs_MT (int step, int nrk, int level, int finest_level,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
-                      bool l_reflux);
+                      bool l_use_moisture, bool l_reflux);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast
@@ -202,6 +200,7 @@ void make_fast_coeffs (int level,
                        const amrex::MultiFab& S_stage_prim,
                        const amrex::MultiFab& pi_stage,
                        const amrex::Geometry geom,
+                       const bool use_moisture,
                        const bool use_terrain,
                        const amrex::Real gravity,
                        const amrex::Real c_p,
@@ -219,12 +218,10 @@ void make_fast_coeffs (int level,
 void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     const           amrex::MultiFab & S_prim,
                     amrex::MultiFab& buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                    const amrex::MultiFab& qmoist,
+                          amrex::MultiFab* qmoist,
                     const amrex::Gpu::DeviceVector<amrex::Real> qv_d,
                     const amrex::Gpu::DeviceVector<amrex::Real> qc_d,
                     const amrex::Gpu::DeviceVector<amrex::Real> qi_d,
-#endif
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const amrex::MultiFab* r0);
@@ -245,9 +242,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
-#if defined(ERF_USE_MOISTURE)
-                       const amrex::MultiFab& qvapor,
-#endif
+                       const amrex::MultiFab* qvapor,
                        std::unique_ptr<amrex::MultiFab>& z_t,
                        amrex::MultiFab& Omega,
                        const amrex::MultiFab& source,

@@ -303,13 +303,13 @@ public:
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time,
                            bool cons_only = false,
-                           int icomp_cons = 0,
-                           int ncomp_cons = NVAR);
+                           int icomp_cons,
+                           int ncomp_cons);
     void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time,
                            bool cons_only = false,
-                           int icomp_cons = 0,
-                           int ncomp_cons = NVAR);
+                           int icomp_cons,
+                           int ncomp_cons);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -382,11 +382,6 @@ private:
     // advance a level by dt
     // includes a recursive call for finer levels
     void timeStep (int lev, amrex::Real time, int iteration);
-
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new,
-                              amrex::Real tau_cond, amrex::Real c_p);
-#endif
 
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
@@ -594,10 +589,10 @@ private:
     amrex::Array<std::string,2*AMREX_SPACEDIM> domain_bc_type;
 
     // These hold the Dirichlet values at walls which need them ...
-    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals;
 
     // These hold the Neumann values at walls which need them ...
-    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_neumann_vals;
+    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_neumann_vals;
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;

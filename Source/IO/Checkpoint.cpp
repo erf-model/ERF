@@ -44,8 +44,10 @@ ERF::WriteCheckpointFile () const
     // ---- ParallelDescriptor::IOProcessor() creates the directories
     amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
 
+    int ncomp_cons = vars_new[0][Vars::cons].nComp();
+
     // write Header file
-   if (ParallelDescriptor::IOProcessor()) {
+    if (ParallelDescriptor::IOProcessor()) {
 
        std::string HeaderFileName(checkpointname + "/Header");
        VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
@@ -70,7 +72,7 @@ ERF::WriteCheckpointFile () const
        // for each variable we store
 
        // conservative, cell-centered vars
-       HeaderFile << Cons::NumVars << "\n";
+       HeaderFile << ncomp_cons << "\n";
 
        // x-velocity on faces
        HeaderFile << 1 << "\n";
@@ -110,8 +112,8 @@ ERF::WriteCheckpointFile () const
     // Here we make copies of the MultiFab with no ghost cells
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
-        MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,NVAR,0);
+        MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
+        MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,ncomp_cons,0);
         VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -222,6 +224,8 @@ ERF::ReadCheckpointFile ()
 {
     amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
 
+    int ncomp_cons = vars_new[0][Vars::cons].nComp();
+
     // Header
     std::string File(restart_chkfile + "/Header");
 
@@ -251,10 +255,10 @@ ERF::ReadCheckpointFile ()
     GotoNextLine(is);
 #if 0
     if (solverChoice.moisture_type != MoistureType::None) {
-        AMREX_ASSERT(chk_ncomp == Cons::NumVars);
+        AMREX_ASSERT(chk_ncomp == ncomp_cons);
     } else {
         // This assumes that we are carrying RhoQ1 and RhoQ2 but not actually using them
-        AMREX_ASSERT(chk_ncomp == Cons::NumVars-2);
+        AMREX_ASSERT(chk_ncomp == ncomp_cons-2);
     }
 #endif
 
@@ -319,14 +323,14 @@ ERF::ReadCheckpointFile ()
     // read in the MultiFab data
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
+        MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
 
         if (solverChoice.moisture_type != MoistureType::None) {
-            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
+            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
         } else {
             // This assumes that we are carrying RhoQ1 and RhoQ2 but not actually using them
-            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars-2,0);
+            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons-2,0);
 
             // We zero them here so they won't cause problems while we're still debugging
             vars_new[lev][Vars::cons].setVal(0.0, RhoQ1_comp, 2);

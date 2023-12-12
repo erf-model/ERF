@@ -42,6 +42,11 @@ private:
     int incompressible;
 
    /**
+    * \brief How many components in the cell-centered MultiFab
+    */
+    int ncomp_cons;
+
+   /**
     * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
     */
     int force_stage1_single_substep;
@@ -63,7 +68,7 @@ private:
     void initialize_data (const T& S_data)
     {
         // TODO: We can optimize memory by making the cell-centered part of S_sum, S_scratch
-        //       have only 2 components, not Cons::NumVars components
+        //       have only 2 components, not ncomp_cons components
         const bool include_ghost = true;
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
@@ -104,6 +109,11 @@ public:
     //
     // Delete the copy assignment operator
     MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
+
+    void setNcompCons(int _ncomp_cons)
+    {
+        ncomp_cons = _ncomp_cons;
+    }
 
     void setIncompressible(int _incompressible)
     {
@@ -210,7 +220,7 @@ public:
         /**********************************************/
         /* RK3 Integration with Acoustic Sub-stepping */
         /**********************************************/
-        Vector<int> num_vars = {Cons::NumVars, 1, 1, 1};
+        Vector<int> num_vars = {ncomp_cons, 1, 1, 1};
         for (int i(0); i<n_data; ++i)
         {
             // Copy old -> new

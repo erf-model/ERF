@@ -101,7 +101,7 @@ ERF::WriteNCCheckpointFile () const
    for (int lev = 0; lev <= finest_level; ++lev) {
 
        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
-       MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,NVAR,0);
+       MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,Cons::NumVars,0);
        WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
        MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -231,7 +231,7 @@ ERF::ReadNCCheckpointFile ()
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
         // Copy from new into old just in case
-        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,NVAR,0);
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,Cons::NumVars,0);
         MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0,1,0);
         MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0,1,0);
         MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0,1,0);

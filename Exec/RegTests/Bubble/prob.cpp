@@ -58,6 +58,8 @@ Problem::init_custom_pert(
 {
     const int khi = geomdata.Domain().bigEnd()[2];
 
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const Real rho_sfc   = p_0 / (R_d*parms.T_0);
@@ -131,8 +133,10 @@ Problem::init_custom_pert(
 
             state(i, j, k, RhoScalar_comp) = 0.0;
 
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
+            if (use_moisture) {
+                state(i, j, k, RhoQ1_comp) = 0.0;
+                state(i, j, k, RhoQ2_comp) = 0.0;
+            }
 
         });
     } else {
@@ -177,8 +181,10 @@ Problem::init_custom_pert(
 
             state(i, j, k, RhoScalar_comp) = 0.0;
 
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
+            if (use_moisture) {
+                state(i, j, k, RhoQ1_comp) = 0.0;
+                state(i, j, k, RhoQ2_comp) = 0.0;
+            }
         });
     }
 

@@ -176,7 +176,7 @@ ABLMost::compute_most_bcs (const int& lev,
             if (var_idx == Vars::cons) {
                 Box b2d = bx;
                 b2d.setBig(2,zlo-1);
-                int n = Cons::RhoTheta;
+                int n = RhoTheta_comp;
 
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {

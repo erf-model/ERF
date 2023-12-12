@@ -26,10 +26,10 @@ public:
     void read_time_file();
 
     void read_input_files(amrex::Real time, amrex::Real dt,
-        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
+        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
 
     void read_file(int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
-        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR> m_bc_extdir_vals);
+        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
 
     // Return the pointer to PlaneVectors at time "time"
     amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time(const amrex::Real& time);
@@ -42,10 +42,6 @@ public:
     [[nodiscard]] int ingested_scalar()   const {return is_scalar_read;}
     [[nodiscard]] int ingested_q1()       const {return is_q1_read;}
     [[nodiscard]] int ingested_q2()       const {return is_q2_read;}
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    int ingested_qv()       const {return is_qv_read;}
-    int ingested_qc()       const {return is_qc_read;}
-#endif
     [[nodiscard]] int ingested_KE()       const {return is_KE_read;}
     [[nodiscard]] int ingested_QKE()      const {return is_QKE_read;}
 
@@ -102,10 +98,6 @@ private:
     int is_scalar_read;
     int is_q1_read;
     int is_q2_read;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    int is_qv_read;
-    int is_qc_read;
-#endif
     int is_KE_read;
     int is_QKE_read;
 
