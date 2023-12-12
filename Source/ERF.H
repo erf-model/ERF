@@ -302,12 +302,12 @@ public:
 #ifdef ERF_USE_NETCDF
     void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time,
-                           bool cons_only = false,
+                           bool cons_only,
                            int icomp_cons,
                            int ncomp_cons);
     void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
                            amrex::Real time,
-                           bool cons_only = false,
+                           bool cons_only,
                            int icomp_cons,
                            int ncomp_cons);
 #endif

@@ -100,8 +100,9 @@ ERF::WriteNCCheckpointFile () const
    // Here we make copies of the MultiFab with no ghost cells
    for (int lev = 0; lev <= finest_level; ++lev) {
 
-       MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
-       MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,Cons::NumVars,0);
+       int nc_cons = vars_new[lev][Vars::cons].nComp(); 
+       MultiFab cons(grids[lev],dmap[lev],nc_cons,0);
+       MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,nc_cons,0);
        WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
        MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
@@ -138,8 +139,10 @@ ERF::ReadNCCheckpointFile ()
     const std::string nstep_name = "num_istep";
     const std::string ntime_name = "num_newtime";
 
-    const int nvar         = static_cast<int>(ncf.dim(nvar_name).len());
-    AMREX_ALWAYS_ASSERT(nvar == Cons::NumVars);
+    const int nvar = static_cast<int>(ncf.dim(nvar_name).len());
+    const int nc_cons = vars_new[0][Vars::cons].nComp(); 
+
+    AMREX_ALWAYS_ASSERT(nvar == nc_cons);
 
     const int ndt          = static_cast<int>(ncf.dim(ndt_name).len());
     const int nstep        = static_cast<int>(ncf.dim(nstep_name).len());
@@ -190,14 +193,11 @@ ERF::ReadNCCheckpointFile ()
         SetBoxArray(lev, ba);
         SetDistributionMap(lev, dm);
 
-        // build MultiFab data
-        int ncomp = Cons::NumVars;
-
         auto& lev_old = vars_old[lev];
         auto& lev_new = vars_new[lev];
 
-        lev_new[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
-        lev_old[Vars::cons].define(grids[lev], dmap[lev], ncomp, ngrow_state);
+        lev_new[Vars::cons].define(grids[lev], dmap[lev], nc_cons, ngrow_state);
+        lev_old[Vars::cons].define(grids[lev], dmap[lev], nc_cons, ngrow_state);
 
         //!don: get the ghost cells right here
         lev_new[Vars::xvel].define(convert(grids[lev], IntVect(1,0,0)), dmap[lev], 1, ngrow_vels);
@@ -214,9 +214,9 @@ ERF::ReadNCCheckpointFile ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
 
-        MultiFab cons(grids[lev],dmap[lev],Cons::NumVars,0);
+        MultiFab cons(grids[lev],dmap[lev],nc_cons,0);
         WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
-        MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,Cons::NumVars,0);
+        MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,nc_cons,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         WriteNCMultiFab(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
@@ -231,7 +231,7 @@ ERF::ReadNCCheckpointFile ()
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
         // Copy from new into old just in case
-        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,Cons::NumVars,0);
+        MultiFab::Copy(vars_old[lev][Vars::cons],vars_new[lev][Vars::cons],0,0,nc_cons,0);
         MultiFab::Copy(vars_old[lev][Vars::xvel],vars_new[lev][Vars::xvel],0,0,1,0);
         MultiFab::Copy(vars_old[lev][Vars::yvel],vars_new[lev][Vars::yvel],0,0,1,0);
         MultiFab::Copy(vars_old[lev][Vars::zvel],vars_new[lev][Vars::zvel],0,0,1,0);
