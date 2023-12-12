@@ -15,7 +15,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
         BL_PROFILE("fast_rhs_fun");
         if (verbose) amrex::Print() << "Calling fast rhs at level " << level << " with dt = " << dtau << std::endl;
 
-        const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+        const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
         // Define beta_s here so that it is consistent between where we make the fast coefficients
         //    and where we use them
@@ -86,7 +86,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // We have to call this each step since it depends on the substep time now
             // Note we pass in the *old* detJ here
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                             use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                             l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                              detJ_cc[level], r0, pi0, dtau, beta_s);
 
             if (fast_step == 0) {
@@ -100,7 +100,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_reflux);
+                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_MT(fast_step, nrk, level, finest_level,
@@ -112,14 +112,14 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                   detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                                 dtau, beta_s, inv_fac,
                                 mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                                fr_as_crse, fr_as_fine, l_reflux);
+                                fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             }
         } else if (solverChoice.use_terrain && solverChoice.terrain_type == TerrainType::Static) {
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -128,7 +128,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
@@ -136,14 +136,14 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity, Omega,
                                z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             }
         } else {
             if (fast_step == 0) {
 
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
-                                 use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
+                                 l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
                                  detJ_cc[level], r0, pi0, dtau, beta_s);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -152,7 +152,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             } else {
                 // If this is not the first substep we pass in S_data as the previous step's solution
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,
@@ -160,7 +160,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                                S_data, S_scratch, fine_geom, solverChoice.gravity,
                                dtau, beta_s, inv_fac,
                                mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                               fr_as_crse, fr_as_fine, l_reflux);
+                               fr_as_crse, fr_as_fine, l_use_moisture, l_reflux);
             }
         }
 

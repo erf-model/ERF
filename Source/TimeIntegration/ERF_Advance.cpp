@@ -54,8 +54,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
                           &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
+
     if (solverChoice.moisture_type != MoistureType::None) {
-        FillPatchMoistVars(lev, qmoist[lev]);
+        FillPatchMoistVars(lev, *qmoist[lev]);
     }
 
     MultiFab* S_crse;
@@ -104,11 +105,6 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Place-holder for source array -- for now just set to 0
     MultiFab source(ba,dm,nvars,1);
     source.setVal(0.0);
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    Real tau_cond = solverChoice.tau_cond;
-    Real      c_p = solverChoice.c_p;
-    condensation_source(source, S_new, tau_cond, c_p);
-#endif
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
@@ -128,7 +124,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                    source, buoyancy,
                    Geom(lev), dt_lev, time, &ifr);
 
-    // Update the microphysics (moisture) 
+    // Update the microphysics (moisture)
     advance_microphysics(lev, S_new, dt_lev);
 
 #if defined(ERF_USE_RRTMGP)

@@ -25,7 +25,7 @@ void
 ERF::init_custom (int lev)
 {
     auto&    lev_new = vars_new[lev];
-    auto& qmoist_new = qmoist[lev];
+    auto& qmoist_new = *(qmoist[lev]);
 
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -42,7 +42,7 @@ ERF::init_custom (int lev)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
-    MultiFab qmoist_pert(qmoist[lev].boxArray(), qmoist[lev].DistributionMap(), 3, qmoist[lev].nGrow());
+    MultiFab qmoist_pert(qmoist[lev]->boxArray(), qmoist[lev]->DistributionMap(), 3, qmoist[lev]->nGrow());
     qmoist_pert.setVal(0.);
 
     MultiFab qv_pert(qmoist_pert, amrex::make_alias, 0, 1);

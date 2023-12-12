@@ -90,16 +90,12 @@
             MultiFab* p0_new = &p_hse_new;
 
             make_buoyancy(S_data, S_prim, buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                          qmoist[level], qv_d, qc_d, qi_d,
-#endif
+                          qmoist[level].get(), qv_d, qc_d, qi_d,
                           fine_geom, solverChoice, r0_new);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-#if defined(ERF_USE_MOISTURE)
-                             qmoist[level],
-#endif
+                             qmoist[level].get(),
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
@@ -187,16 +183,12 @@
 
             // If not moving_terrain
             make_buoyancy(S_data, S_prim, buoyancy,
-#if defined(ERF_USE_MOISTURE)
-                          qmoist[level], qv_d, qc_d, qi_d,
-#endif
+                          qmoist[level].get(), qv_d, qc_d, qi_d,
                           fine_geom, solverChoice, r0);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-#if defined(ERF_USE_MOISTURE)
-                             qmoist[level],
-#endif
+                             qmoist[level].get(),
                              z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
@@ -273,9 +265,7 @@
                                  const Real new_stage_time,
                                  const int nrk)
     {
-#if (!defined(ERF_USE_MOISTURE) && !defined(ERF_USE_WARM_NO_PRECIP))
         amrex::ignore_unused(nrk);
-#endif
         if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
@@ -285,11 +275,13 @@
         // will be used to advance to
         Real slow_dt = new_stage_time - old_step_time;
 
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-        // Flag for moisture relaxation zone
         bool moist_zero = false;
-        if (init_type=="real" && level==0 && wrfbdy_set_width>0)  moist_zero = true;
-        if (init_type=="metgrid" && level==0 && metgrid_bdy_set_width > 0) moist_zero = true;
+#if defined(ERF_USE_NETCDF)
+        if (solverChoice.moisture_type != MoistureType::None && level==0) {
+            // Flag for moisture relaxation zone
+            if (init_type=="real"    &&      wrfbdy_set_width > 0) moist_zero = true;
+            if (init_type=="metgrid" && metgrid_bdy_set_width > 0) moist_zero = true;
+        }
 #endif
 
         // *************************************************************************
@@ -317,7 +309,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+#if defined(ERF_USE_NETCDF)
                               moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
@@ -333,7 +325,7 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+#if defined(ERF_USE_NETCDF)
                               moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
                               wrfbdy_width-1, wrfbdy_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
@@ -361,17 +353,13 @@
 
         // If not moving_terrain
         make_buoyancy(S_data, S_prim, buoyancy,
-#if defined(ERF_USE_MOISTURE)
                       qmoist[level], qv_d, qc_d, qi_d,
-#endif
                       fine_geom, solverChoice, r0);
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
-#if defined(ERF_USE_MOISTURE)
                          qmoist[level],
-#endif
                          z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
                          Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                          Hfx3, Diss,

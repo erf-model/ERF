@@ -548,7 +548,7 @@ ERF::InitData ()
         if (solverChoice.moisture_type != MoistureType::None)
         {
             for (int lev = 0; lev <= finest_level; lev++) {
-                FillPatchMoistVars(lev, qmoist[lev]);
+                FillPatchMoistVars(lev, *(qmoist[lev]));
             }
         }
     }
@@ -588,9 +588,9 @@ ERF::InitData ()
         {
             // If not restarting we need to fill qmoist given qt and qp.
             if (restart_chkfile.empty()) {
-                micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
+                micro.Init(vars_new[lev][Vars::cons], *(qmoist[lev]),
                            grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-                micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
+                micro.Update(vars_new[lev][Vars::cons], *(qmoist[lev]));
             }
         }
     }
@@ -859,6 +859,8 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::yvel].setVal(0.0); lev_old[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
 
+    qmoist[lev]->setVal(0.);
+
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
         // The base state is initialized by integrating vertically through the
@@ -891,8 +893,6 @@ ERF::init_only (int lev, Real time)
         initHSE(lev); // need to call this first
         init_from_hse(lev);
     }
-
-    qmoist[lev].setVal(0.);
 
     // Add problem-specific flow features
     //
@@ -1175,7 +1175,7 @@ ERF::MakeHorizontalAverages ()
 
     if (use_moisture)
     {
-        MultiFab qv(qmoist[lev], make_alias, 0, 1);
+        MultiFab qv(*(qmoist[lev]), make_alias, 0, 1);
 
         for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();

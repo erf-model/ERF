@@ -74,7 +74,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+#if defined(ERF_USE_NETCDF)
                         const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
@@ -296,7 +296,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
 
-        if (solverChoice.moisture_type != MoistureType::None) 
+        if (solverChoice.moisture_type != MoistureType::None)
         {
             start_comp = RhoQ1_comp;
               num_comp = 2;
@@ -392,7 +392,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             }
         }
 #if defined(ERF_USE_NETCDF)
-        if (solverChoice.moisture_type != MoistureType::None) 
+        if (solverChoice.moisture_type != MoistureType::None)
             // Zero moist RHS in set region
             if (moist_zero) {
                 Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;

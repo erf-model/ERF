@@ -95,6 +95,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
   Real xc = parms.xc; Real yc = parms.yc;
   Real R  = parms.R ; Real beta = parms.beta;
@@ -128,8 +129,10 @@ Problem::init_custom_pert(
     // Set scalar = 0 -- unused
     state(i, j, k, RhoScalar_comp) = 0.0;
 
-    state(i, j, k, RhoQ1_comp) = 0.0;
-    state(i, j, k, RhoQ2_comp) = 0.0;
+    if (use_moisture) {
+        state(i, j, k, RhoQ1_comp) = 0.0;
+        state(i, j, k, RhoQ2_comp) = 0.0;
+    }
   });
 
   // Set the x-velocity

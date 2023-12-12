@@ -43,8 +43,10 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice&)
+    const SolverChoice& sc)
 {
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -64,8 +66,10 @@ Problem::init_custom_pert(
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 1.0 * parms.rho_0;
 
-    state(i, j, k, RhoQ1_comp) = 0.0;
-    state(i, j, k, RhoQ2_comp) = 0.0;
+    if (use_moisture) {
+        state(i, j, k, RhoQ1_comp) = 0.0;
+        state(i, j, k, RhoQ2_comp) = 0.0;
+    }
   });
 
   // Set the x-velocity

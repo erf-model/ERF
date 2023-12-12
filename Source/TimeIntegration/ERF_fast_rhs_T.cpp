@@ -65,11 +65,10 @@ void erf_fast_rhs_T (int step, int nrk,
                      std::unique_ptr<MultiFab>& mapfac_v,
                      YAFluxRegister* fr_as_crse,
                      YAFluxRegister* fr_as_fine,
+                     bool l_use_moisture,
                      bool l_reflux)
 {
     BL_PROFILE_REGION("erf_fast_rhs_T()");
-
-    const bool use_moisture = (solverChoice.moisture_type != MoistureType::None); 
 
     Real beta_1 = 0.5 * (1.0 - beta_s);  // multiplies explicit terms
     Real beta_2 = 0.5 * (1.0 + beta_s);  // multiplies implicit terms
@@ -257,7 +256,7 @@ void erf_fast_rhs_T (int step, int nrk,
                 Real gpx = gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
                 gpx *= mf_u(i,j,0);
 
-                if (use_moisture) {
+                if (l_use_moisture) {
                     Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i-1,j,k,PrimQ1_comp)
                                     +prim(i,j,k,PrimQ2_comp) + prim(i-1,j,k,PrimQ2_comp) );
                     gpx /= (1.0 + q);
@@ -287,7 +286,7 @@ void erf_fast_rhs_T (int step, int nrk,
                 Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
                 gpy *= mf_v(i,j,0);
 
-                if (use_moisture) {
+                if (l_use_moisture) {
                     Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j-1,k,PrimQ1_comp)
                                     +prim(i,j,k,PrimQ2_comp) + prim(i,j-1,k,PrimQ2_comp) );
                     gpy /= (1.0 + q);
@@ -462,7 +461,7 @@ void erf_fast_rhs_T (int step, int nrk,
             Real coeff_P = coeffP_a(i,j,k);
             Real coeff_Q = coeffQ_a(i,j,k);
 
-            if (use_moisture) {
+            if (l_use_moisture) {
                 Real q = 0.5 * ( prim(i,j,k,PrimQ1_comp) + prim(i,j,k-1,PrimQ1_comp)
                                 +prim(i,j,k,PrimQ2_comp) + prim(i,j,k-1,PrimQ2_comp) );
                 coeff_P /= (1.0 + q);

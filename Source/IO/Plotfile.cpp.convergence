@@ -591,10 +591,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp += 1;
         }
         }
-#if defined(ERF_USE_WARM_NO_PRECIP)
-        calculate_derived("qv",          derived::erf_derQv);
-        calculate_derived("qc",          derived::erf_derQc);
-#endif
 
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some

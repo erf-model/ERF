@@ -61,7 +61,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
+    int q_size  = micro.Get_Qmoist_Size();
+    qmoist[lev] = std::make_unique<MultiFab>(ba, dm, q_size, ngrow_state); // qv, qc, qi, qr, qs, qg
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -198,7 +199,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Microphysics
     // *******************************************************************************************
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
+    int q_size  = micro.Get_Qmoist_Size();
+    qmoist[lev] = std::make_unique<MultiFab>(ba, dm, q_size, ngrow_state);
 
     init_stuff(lev, ba, dm);
 
@@ -302,7 +304,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    qmoist[lev].define(ba, dm, 6, ngrow_state); // qv, qc, qi, qr, qs, qg
+    int q_size = micro.Get_Qmoist_Size();
+    qmoist[lev]->define(ba, dm, q_size, ngrow_state); // qv, qc, qi, qr, qs, qg
 
     init_stuff(lev,ba,dm);
 
@@ -552,6 +555,9 @@ ERF::ClearLevel (int lev)
     rV_old[lev].clear();
     rW_new[lev].clear();
     rW_old[lev].clear();
+
+    // Clears the qmoist memory
+    qmoist[lev].reset();
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();

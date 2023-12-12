@@ -66,23 +66,6 @@ struct SolverChoice {
         // Do we set map scale factors to 0.5 instead of 1 for testing?
         pp.query("test_mapfactor", test_mapfactor);
 
-        // Which expression (1,2 or 3) to use for buoyancy
-        pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
-        }
-
-        // Is the terrain static or moving?
-        static std::string terrain_type_string = "Static";
-        pp.query("terrain_type",terrain_type_string);
-        if (terrain_type_string == "Moving" || terrain_type_string == "moving") {
-            terrain_type = TerrainType::Moving;
-        } else if (terrain_type_string == "Static" || terrain_type_string == "static") {
-            terrain_type = TerrainType::Static;
-        } else {
-            amrex::Abort("terrain_type can be either Moving/moving or Static/static");
-        }
-
         // What type of moisture model to use
         static std::string moisture_model_string = "None";
         pp.query("moisture_model", moisture_model_string);
@@ -94,6 +77,28 @@ struct SolverChoice {
             moisture_type = MoistureType::FastEddy;
         } else {
             moisture_type = MoistureType::None;
+        }
+
+        // Which expression (1,2 or 3) to use for buoyancy
+        pp.query("buoyancy_type", buoyancy_type);
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+        }
+
+        // Set a different default for moist vs dry
+        if (moisture_type != MoistureType::None) {
+            buoyancy_type          = 2; // uses Tprime
+        }
+
+        // Is the terrain static or moving?
+        static std::string terrain_type_string = "Static";
+        pp.query("terrain_type",terrain_type_string);
+        if (terrain_type_string == "Moving" || terrain_type_string == "moving") {
+            terrain_type = TerrainType::Moving;
+        } else if (terrain_type_string == "Static" || terrain_type_string == "static") {
+            terrain_type = TerrainType::Static;
+        } else {
+            amrex::Abort("terrain_type can be either Moving/moving or Static/static");
         }
 
         // Use lagged_delta_rt in the fast integrator?
@@ -110,9 +115,6 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
-#if defined(ERF_USE_WARM_NO_PRECIP)
-        pp.query("tau_cond", tau_cond);
-#endif
 
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
@@ -317,11 +319,7 @@ struct SolverChoice {
     bool        test_mapfactor         = false;
 
     bool        use_terrain            = false;
-#ifdef ERF_USE_MOISTURE
-    int         buoyancy_type          = 2; // uses Tprime
-#else
     int         buoyancy_type          = 1; // uses rhoprime directly
-#endif
 
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
@@ -345,10 +343,6 @@ struct SolverChoice {
     amrex::Real grid_stretching_ratio   = 0;
     amrex::Real zsurf                   = 0.0;
     amrex::Real dz0;
-
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    amrex::Real tau_cond = 1.0; // Default time of 1 sec -- this is somewhat arbitray
-#endif
 
 #if defined(ERF_USE_POISSON_SOLVE)
     int project_initial_velocity = 1;

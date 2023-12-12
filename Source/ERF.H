@@ -383,11 +383,6 @@ private:
     // includes a recursive call for finer levels
     void timeStep (int lev, amrex::Real time, int iteration);
 
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    void condensation_source (amrex::MultiFab& source, amrex::MultiFab& S_new,
-                              amrex::Real tau_cond, amrex::Real c_p);
-#endif
-
     // advance a single level for a single time step
     void Advance (int lev, amrex::Real time, amrex::Real dt_lev, int iteration, int ncycle);
 
@@ -530,7 +525,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
     Microphysics micro;
-    amrex::Vector<amrex::MultiFab> qmoist; // This has 6 components: qv, qc, qi, qr, qs, qg
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> qmoist; // This has up to 6 components: qv, qc, qi, qr, qs, qg
 
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;

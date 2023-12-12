@@ -80,9 +80,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-#ifdef ERF_USE_MOISTURE
-                       const MultiFab& qv,
-#endif
+                       const MultiFab* qv,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -544,10 +542,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
-        const Array4<Real> & pp_arr  = pprime.array();
-#ifdef ERF_USE_MOISTURE
-        const Array4<Real const> & qv_arr  =     qv.const_array(mfi);
-#endif
+        const Array4<Real      > & pp_arr = pprime.array();
+        const Array4<Real const> & qv_arr = (use_moisture) ? qv->const_array(mfi) : Array4<Real> {};
         {
         BL_PROFILE("slow_rhs_pre_pprime");
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -556,7 +552,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
             Real qv_for_p = 0.0;
-            if (use_moisture) { 
+            if (use_moisture) {
                 qv_for_p = qv_arr(i,j,k);
             }
             pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
@@ -802,7 +798,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             gpx *= mf_u(i,j,0);
 
             Real q = 0.0;
-            if (use_moisture) { 
+            if (use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
             }
@@ -844,7 +840,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpx *= mf_u(i,j,0);
 
               Real q = 0.0;
-              if (use_moisture) { 
+              if (use_moisture) {
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
               }
@@ -906,7 +902,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpy *= mf_v(i,j,0);
 
               Real q = 0.0;
-              if (use_moisture) { 
+              if (use_moisture) {
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
@@ -945,7 +941,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               gpy *= mf_v(i,j,0);
 
               Real q = 0.0;
-              if (use_moisture) { 
+              if (use_moisture) {
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
@@ -997,7 +993,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
                 Real q = 0.0;
-                if (use_moisture) { 
+                if (use_moisture) {
                     q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
                                +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
                 }
@@ -1034,7 +1030,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
                 Real q = 0.0;
-                if (use_moisture) { 
+                if (use_moisture) {
                     q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
                                +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
                 }

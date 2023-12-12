@@ -43,8 +43,10 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice&)
+    const SolverChoice& sc)
 {
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
   amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
@@ -52,8 +54,10 @@ Problem::init_custom_pert(
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = 0.0;
 
-    state(i, j, k, RhoQ1_comp) = 0.0;
-    state(i, j, k, RhoQ2_comp) = 0.0;
+    if (use_moisture) {
+        state(i, j, k, RhoQ1_comp) = 0.0;
+        state(i, j, k, RhoQ2_comp) = 0.0;
+    }
 
   });
 

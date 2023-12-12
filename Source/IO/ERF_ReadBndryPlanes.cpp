@@ -157,10 +157,6 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
     is_scalar_read       = 0;
     is_q1_read           = 0;
     is_q2_read           = 0;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-    is_qv_read           = 0;
-    is_qc_read           = 0;
-#endif
     is_KE_read           = 0;
     is_QKE_read           = 0;
 
@@ -177,10 +173,6 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "scalar")       is_scalar_read = 1;
             if (m_var_names[i] == "qt")           is_q1_read = 1;
             if (m_var_names[i] == "qp")           is_q2_read = 1;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-            if (m_var_names[i] == "qv")           is_qv_read = 1;
-            if (m_var_names[i] == "qc")           is_qc_read = 1;
-#endif
             if (m_var_names[i] == "KE")           is_KE_read = 1;
             if (m_var_names[i] == "QKE")          is_QKE_read = 1;
         }
@@ -412,10 +404,6 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
         if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
         if (var_name == "qt")          n_offset = BCVars::RhoQ1_bc_comp;
         if (var_name == "qp")          n_offset = BCVars::RhoQ2_bc_comp;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-        if (var_name == "qv")          n_offset = BCVars::RhoQv_bc_comp;
-        if (var_name == "qc")          n_offset = BCVars::RhoQc_bc_comp;
-#endif
         if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
 
         // amrex::Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
