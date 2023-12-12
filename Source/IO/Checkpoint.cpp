@@ -331,9 +331,6 @@ ERF::ReadCheckpointFile ()
         } else {
             // This assumes that we are carrying RhoQ1 and RhoQ2 but not actually using them
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons-2,0);
-
-            // We zero them here so they won't cause problems while we're still debugging
-            vars_new[lev][Vars::cons].setVal(0.0, RhoQ1_comp, 2);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
