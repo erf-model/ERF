@@ -172,6 +172,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 
       int ncomp = S_data[IntVar::cons].nComp();
 
+      int start_comp;
+      int   num_comp;
+
       for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& tbx = mfi.tilebox();
@@ -272,8 +275,6 @@ void erf_slow_rhs_post (int level, int finest_level,
               vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
         }
 
-        int start_comp;
-        int   num_comp;
         if (l_use_deardorff) {
             start_comp = RhoKE_comp;
               num_comp = 1;
@@ -393,14 +394,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         }
 #if defined(ERF_USE_NETCDF)
         if (solverChoice.moisture_type != MoistureType::None)
+        {
             // Zero moist RHS in set region
             if (moist_zero) {
                 Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
                 compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                int icomp;
-                icomp = RhoQ1_comp;
+                int icomp = RhoQ1_comp;
                 wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
             } // moist_zero
         } // moisture_type
