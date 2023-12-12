@@ -100,7 +100,7 @@ ERF::WriteNCCheckpointFile () const
    // Here we make copies of the MultiFab with no ghost cells
    for (int lev = 0; lev <= finest_level; ++lev) {
 
-       int nc_cons = vars_new[lev][Vars::cons].nComp(); 
+       int nc_cons = vars_new[lev][Vars::cons].nComp();
        MultiFab cons(grids[lev],dmap[lev],nc_cons,0);
        MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,nc_cons,0);
        WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
@@ -140,7 +140,7 @@ ERF::ReadNCCheckpointFile ()
     const std::string ntime_name = "num_newtime";
 
     const int nvar = static_cast<int>(ncf.dim(nvar_name).len());
-    const int nc_cons = vars_new[0][Vars::cons].nComp(); 
+    const int nc_cons = vars_new[0][Vars::cons].nComp();
 
     AMREX_ALWAYS_ASSERT(nvar == nc_cons);
 
