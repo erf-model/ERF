@@ -224,7 +224,7 @@ ERF::ReadCheckpointFile ()
 {
     amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
 
-    int ncomp_cons = vars_new[0][Vars::cons].nComp();
+
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -238,7 +238,7 @@ ERF::ReadCheckpointFile ()
 
     std::string line, word;
 
-    int chk_ncomp;
+    int chk_ncomp_cons, chk_ncomp;
 
     // read in title line
     std::getline(is, line);
@@ -251,16 +251,8 @@ ERF::ReadCheckpointFile ()
     // for each variable we store
 
     // conservative, cell-centered vars
-    is >> chk_ncomp;
+    is >> chk_ncomp_cons;
     GotoNextLine(is);
-#if 0
-    if (solverChoice.moisture_type != MoistureType::None) {
-        AMREX_ASSERT(chk_ncomp == ncomp_cons);
-    } else {
-        // This assumes that we are carrying RhoQ1 and RhoQ2 but not actually using them
-        AMREX_ASSERT(chk_ncomp == ncomp_cons-2);
-    }
-#endif
 
     // x-velocity on faces
     is >> chk_ncomp;
@@ -320,18 +312,18 @@ ERF::ReadCheckpointFile ()
         MakeNewLevelFromScratch (lev, t_new[lev], ba, dm);
     }
 
+    // ncomp is only valid after we MakeNewLevelFromScratch (asks micro how many vars)
+    // NOTE: Data is written over ncomp, so check that we match the header file
+    int ncomp_cons = vars_new[0][Vars::cons].nComp();
+    AMREX_ASSERT(chk_ncomp_cons == ncomp_cons);
+
     // read in the MultiFab data
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
 
-        if (solverChoice.moisture_type != MoistureType::None) {
-            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
-        } else {
-            // This assumes that we are carrying RhoQ1 and RhoQ2 but not actually using them
-            MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons-2,0);
-        }
+        MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
