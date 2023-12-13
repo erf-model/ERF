@@ -29,7 +29,6 @@ In addition to this documentation, there is API documentation for ERF generated 
    </style>
 
 .. toctree::
-   :hidden:
 
    coc
    Doxygen
@@ -37,7 +36,6 @@ In addition to this documentation, there is API documentation for ERF generated 
 .. toctree::
    :caption: USER GUIDE
    :maxdepth: 1
-   :hidden:
 
    GettingStarted.rst
    Inputs.rst
@@ -45,7 +43,6 @@ In addition to this documentation, there is API documentation for ERF generated 
 .. toctree::
    :caption: THEORY
    :maxdepth: 1
-   :hidden:
 
    theory/DryEquations.rst
    theory/WetEquations.rst
@@ -61,7 +58,6 @@ In addition to this documentation, there is API documentation for ERF generated 
 .. toctree::
    :caption: IMPLEMENTATION
    :maxdepth: 1
-   :hidden:
 
    ArakawaCGrid.rst
    MapFactors.rst
@@ -78,21 +74,18 @@ In addition to this documentation, there is API documentation for ERF generated 
 .. toctree::
    :caption: COUPLING TO AMR-WIND
    :maxdepth: 1
-   :hidden:
 
    CouplingToAMRWind.rst
 
 .. toctree::
    :caption: ERF vs WRF
    :maxdepth: 1
-   :hidden:
 
    ERFvsWRF.rst
 
 .. toctree::
    :caption: TESTING
    :maxdepth: 1
-   :hidden:
 
    Verification.rst
    Performance.rst
@@ -101,6 +94,5 @@ In addition to this documentation, there is API documentation for ERF generated 
 .. toctree::
    :caption: GOALS
    :maxdepth: 1
-   :hidden:
 
    Applications_Requirements.rst
