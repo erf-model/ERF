@@ -87,18 +87,53 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
 
+    // Copy state into micro vars
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    // Copy state into micro vars
+    void
+    Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
+
     // update ERF variables
     void
     Update (amrex::MultiFab& cons_in,
             amrex::MultiFab& qmoist) override;
 
-    // wrapper to do all the updating
+    // update micro vars
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_State_to_Micro(cons_in);
+        this->Diagnose();
+        this->Compute_Tabs_and_Pres();
+    }
+
+    // update state vars
+    void
+    Update_State_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_Micro_to_State(cons_in);
+    }
+
+    // wrapper to advance micro vars
     void
     Advance ( ) override
     {
         this->AdvanceKessler();
         this->Diagnose();
+        this->Compute_Tabs_and_Pres();
     }
+
+    amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx <= m_qmoist_size);
+        return mic_fab_vars[varIdx].get();
+    }
+
+    void
+    Compute_Tabs_and_Pres ();
 
     int
     Qmoist_Size ( ) override { return Kessler::m_qmoist_size; }
@@ -109,6 +144,7 @@ public:
 
     // geometry
     amrex::Geometry m_geom;
+
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_gtoe;
 
@@ -130,6 +166,10 @@ public:
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
 
+    // independent variables
+    amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
+
+#if 0
     // microphysics parameters/coefficients
     amrex::TableData<amrex::Real, 1> accrrc;
     amrex::TableData<amrex::Real, 1> accrsi;
@@ -161,5 +201,7 @@ public:
     // data (output)
     amrex::TableData<amrex::Real, 1> qifall;
     amrex::TableData<amrex::Real, 1> tlatqi;
+#endif
+
 };
 #endif

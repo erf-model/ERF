@@ -70,10 +70,31 @@ public:
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
 
+    // Copy state into micro vars
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    // Copy micro into state vars
+    void
+    Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
+
     // update ERF variables
     void
     Update (amrex::MultiFab& cons_in,
             amrex::MultiFab& qmoist) override;
+
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_State_to_Micro(cons_in);
+        this->Diagnose();
+    }
+
+    void
+    Update_State_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_Micro_to_State(cons_in);
+    }
 
     // wrapper to do all the updating
     void
@@ -81,6 +102,13 @@ public:
     {
         this->AdvanceFE();
         this->Diagnose();
+    }
+
+    amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx <= m_qmoist_size);
+        return mic_fab_vars[varIdx].get();
     }
 
     int

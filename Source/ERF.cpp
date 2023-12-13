@@ -157,6 +157,7 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
 
     mri_integrator_mem.resize(nlevs_max);
@@ -578,20 +579,17 @@ ERF::InitData ()
         }
     }
 
-    // Initialize microphysics here
-    micro.define(solverChoice);
 
-    // Call Init which will call Diagnose to fill qmoist
-    if (solverChoice.moisture_type != MoistureType::None)
+    for (int lev = 0; lev <= finest_level; ++lev)
     {
-        for (int lev = 0; lev <= finest_level; ++lev)
+        // Initialize microphysics here
+        micro.define(lev, solverChoice);
+
+        // If not restarting we need to fill qmoist given qt and qp.
+        if (solverChoice.moisture_type != MoistureType::None)
         {
-            // If not restarting we need to fill qmoist given qt and qp.
-            if (restart_chkfile.empty()) {
-                micro.Init(vars_new[lev][Vars::cons], *(qmoist[lev]),
-                           grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-                micro.Update(vars_new[lev][Vars::cons], *(qmoist[lev]));
-            }
+            micro.Init(lev, vars_new[lev][Vars::cons], *(qmoist[lev]), grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+            micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
         }
     }
 
@@ -1504,6 +1502,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
 
+    micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
 
     mri_integrator_mem.resize(nlevs_max);

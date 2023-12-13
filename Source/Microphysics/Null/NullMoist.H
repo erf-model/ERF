@@ -29,12 +29,32 @@ class NullMoist {
 
     virtual
     void
+    Update (amrex::MultiFab& /*cons_in*/,
+            amrex::MultiFab& /*qmoist*/) { }
+
+    virtual
+    void
+    Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
+
+    virtual
+    void
+    Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
+
+    virtual
+    void
     Diagnose ( ) { }
 
     virtual
     void
-    Update (amrex::MultiFab& /*cons_in*/,
-            amrex::MultiFab& /*qmoist*/) { }
+    Copy_State_to_Micro (const amrex::MultiFab& /*cons_in*/) { }
+
+    virtual
+    void
+    Copy_Micro_to_State (amrex::MultiFab& /*cons_in*/) { }
+
+    virtual
+    amrex::MultiFab*
+    Qmoist_Ptr (const int& /*varIdx*/ ) { return nullptr; }
 
     virtual
     int

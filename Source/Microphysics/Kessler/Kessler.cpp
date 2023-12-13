@@ -17,9 +17,10 @@ void Kessler::AdvanceKessler () {
     auto qp   = mic_fab_vars[MicVar_Kess::qp];
     auto qn   = mic_fab_vars[MicVar_Kess::qn];
     auto tabs = mic_fab_vars[MicVar_Kess::tabs];
+    auto pres = mic_fab_vars[MicVar_Kess::pres];
 
     auto qcl   = mic_fab_vars[MicVar_Kess::qcl];
-    auto theta  = mic_fab_vars[MicVar_Kess::theta];
+    auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto qv    = mic_fab_vars[MicVar_Kess::qv];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
 
@@ -34,89 +35,51 @@ void Kessler::AdvanceKessler () {
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
     for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
-        auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+        auto rho_array = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
         auto fz_array  = fz.array(mfi);
         const Box& tbz = mfi.tilebox();
 
-    ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    {
-        Real rho_avg, qp_avg;
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+          Real rho_avg, qp_avg;
 
-        if (k==k_lo) {
+          if (k==k_lo) {
             rho_avg = rho_array(i,j,k);
             qp_avg  = qp_array(i,j,k);
-        } else if (k==k_hi+1) {
+          } else if (k==k_hi+1) {
             rho_avg = rho_array(i,j,k-1);
             qp_avg  = qp_array(i,j,k-1);
-        } else {
+          } else {
             rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
             qp_avg = 0.5*(qp_array(i,j,k-1)  + qp_array(i,j,k));
-        }
+          }
 
-        qp_avg = std::max(0.0, qp_avg);
+          qp_avg = std::max(0.0, qp_avg);
 
-        Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
+          Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
 
-        fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
+          fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
 
-        /*if(k==0){
-          fz_array(i,j,k) = 0;
-          }*/
-    });
- }
+          /*if(k==0){
+            fz_array(i,j,k) = 0;
+            }*/
+        });
+    }
 
     Real dtn = dt;
-
- /*for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
-     auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-     auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
-     auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-     auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
-
-    const auto& box3d = mfi.tilebox();
-
-    ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-
-        qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
-        qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
-        qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k));
-
-         if(qt_array(i,j,k) == 0.0){
-            qv_array(i,j,k) = 0.0;
-            qn_array(i,j,k) = 0.0;
-        }
-    });
-  }
-
-
-    for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-        auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
-
-        const auto& box3d = mfi.tilebox();
-         auto fz_array  = fz.array(mfi);
-
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            Real dq_sed = 1.0/rho_array(i,j,k)*(fz_array(i,j,k+1) - fz_array(i,j,k))/dz*dtn;
-            qp_array(i,j,k) = qp_array(i,j,k) + dq_sed;
-        });
-    }*/
-
-
-
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+        auto pres_array = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
         auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
         auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
         auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
 
         auto theta_array = theta->array(mfi);
         auto qv_array    = qv->array(mfi);
-        auto rho_array  = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+        auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
 
@@ -140,7 +103,7 @@ void Kessler::AdvanceKessler () {
             //------- Autoconversion/accretion
             Real qcc, autor, accrr, dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
-            Real pressure = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
+            Real pressure = pres_array(i,j,k); //getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
             erf_qsatw(tabs_array(i,j,k), pressure, qsat);
 
             // If there is precipitating water (i.e. rain), and the cell is not saturated
