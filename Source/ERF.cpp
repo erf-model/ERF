@@ -578,23 +578,6 @@ ERF::InitData ()
         }
     }
 
-    // Initialize microphysics here
-    micro.define(solverChoice);
-
-    // Call Init which will call Diagnose to fill qmoist
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            // If not restarting we need to fill qmoist given qt and qp.
-            if (restart_chkfile.empty()) {
-                micro.Init(vars_new[lev][Vars::cons], *(qmoist[lev]),
-                           grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-                micro.Update(vars_new[lev][Vars::cons], *(qmoist[lev]));
-            }
-        }
-    }
-
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
     //       WritePlotFile calls FillPatch in order to compute gradients
@@ -708,6 +691,25 @@ ERF::InitData ()
         if (solverChoice.terrain_type != TerrainType::Static) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
+        }
+    }
+
+    // Initialize microphysics here
+    micro.define(solverChoice);
+
+    // Call Init which will call Diagnose to fill qmoist
+    // NOTE: We must populate qmoist after the BCs are filled with FillPatch.
+    //       With forcing on lateral BCs, we need to pick up interio Dirichlet cells.
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            // If not restarting we need to fill qmoist given qt and qp.
+            if (restart_chkfile.empty()) {
+                micro.Init(vars_new[lev][Vars::cons], *(qmoist[lev]),
+                           grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
+                micro.Update(vars_new[lev][Vars::cons], *(qmoist[lev]));
+            }
         }
     }
 
