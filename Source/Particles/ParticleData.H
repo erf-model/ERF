@@ -1,134 +1,201 @@
 #ifndef _PARTICLE_DATA_H_
 #define _PARTICLE_DATA_H_
 
+#ifdef ERF_USE_PARTICLES
+
+#include <map>
+#include <vector>
+#include <list>
 #include <string>
 #include <iostream>
 
-#include <IndexDefines.H>
-#include <AMReX_Particles.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
-#include <TracerPC.H>
-#include <HydroPC.H>
+#include <ERFPC.H>
 
 /**
  * Container holding many of the particle-related data and options
  */
 
-struct ParticleData {
-  public:
-    void init_particle_params()
-    {
-        amrex::ParmParse pp(pp_prefix);
+typedef std::map<std::string, ERFPC*> ParticleSpeciesMap;
+typedef std::vector<std::string> ParticlesNamesVector;
+typedef std::list<std::string> ParticlesNamesList;
 
-        use_tracer_particles = 0;
-        pp.query("use_tracer_particles", use_tracer_particles);
+class ParticleData
+{
+    public:
 
-        use_hydro_particles = 0;
-        pp.query("use_hydro_particles", use_hydro_particles);
-    }
+        /*! Constructor */
+        ParticleData()
+        {
+            BL_PROFILE("ParticleData::ParticleData()");
+            m_particle_species.clear();
+            m_namelist.clear();
+            m_namelist_unalloc.clear();
+        }
 
-    void init_particles(amrex::ParGDBBase* a_gdb, const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
-
-    {
-        // Initialize tracer particles
-        if (use_tracer_particles) {
-            tracer_particles = std::make_unique<TracerPC>(a_gdb);
-            if (z_phys_nd[0] != nullptr) {
-                tracer_particles->InitParticles(*z_phys_nd[0]);
-            } else {
-                tracer_particles->InitParticles();
+        /*! Destructor */
+        ~ParticleData()
+        {
+            BL_PROFILE("ParticleData::~ParticleData()");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                auto particles( m_particle_species[m_namelist[i]] );
+                delete particles;
             }
-            tracer_particles->Redistribute();
-            amrex::Print() << "Initialized " << tracer_particles->TotalNumberOfParticles() << " tracer particles." << std::endl;
+            m_particle_species.clear();
+            m_namelist.clear();
+            m_namelist_unalloc.clear();
         }
 
-        // Initialize hydro particles
-        if (use_hydro_particles) {
-            hydro_particles = std::make_unique<HydroPC>(a_gdb);
-            if (z_phys_nd[0] != nullptr) {
-                hydro_particles->InitParticles(*z_phys_nd[0]);
-            } else {
-                hydro_particles->InitParticles();
-            }
-            hydro_particles->Redistribute();
-            amrex::Print() << "Initialized " << hydro_particles->TotalNumberOfParticles() << " hydro particles." << std::endl;
-        }
-    }
-
-    void Checkpoint(const std::string& filename)
-    {
-        if (use_tracer_particles) {
-            tracer_particles->Checkpoint(filename, "tracer_particles", true, tracer_particle_varnames);
-        }
-        if (use_hydro_particles) {
-            hydro_particles->Checkpoint(filename, "hydro_particles", true, hydro_particle_varnames);
-        }
-    }
-
-    void Restart(amrex::ParGDBBase* a_gdb, std::string& restart_file)
-    {
-        if (use_tracer_particles) {
-            // tracer_particles = std::make_unique<TracerPC>(Geom(0), dmap[0], grids[0]);
-            tracer_particles = std::make_unique<TracerPC>(a_gdb);
-            std::string tracer_file("tracer_particles");
-            tracer_particles->Restart(restart_file, tracer_file);
-        }
-        if (use_hydro_particles) {
-            // hydro_particles = std::make_unique<HydroPC>(Geom(0), dmap[0], grids[0]);
-            hydro_particles = std::make_unique<HydroPC>(a_gdb);
-            std::string hydro_file("hydro_particles");
-            hydro_particles->Restart(restart_file, hydro_file);
-        }
-    }
-
-    void advance_particles(int lev, amrex::Real dt_lev,       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
-                                                        const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd)
-    {
-        // Update tracer particles
-        if (use_tracer_particles) {
-            amrex::MultiFab* mac_vel = &vars_new[lev][Vars::xvel];
-            bool use_terrain = (z_phys_nd[lev] != nullptr);
-            if (use_terrain) {
-                tracer_particles->AdvectWithUmac(mac_vel, lev, dt_lev, use_terrain, *z_phys_nd[lev]);
-            } else {
-                amrex::MultiFab dummy;
-                tracer_particles->AdvectWithUmac(mac_vel, lev, dt_lev, use_terrain, dummy);
+        /*! Write checkpoint files */
+        void Checkpoint( const std::string& a_fname )
+        {
+            BL_PROFILE("ParticleData::Checkpoint()");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                auto name( m_namelist[i] );
+                auto particles( m_particle_species[name] );
+                particles->Checkpoint( a_fname, name, true, particles->varNames() );
             }
         }
 
-        // Update  hydro particles
-        if (use_hydro_particles) {
-            bool use_terrain = (z_phys_nd[lev] != nullptr);
-            if (use_terrain) {
-                hydro_particles->AdvectWithGravity(lev, dt_lev, use_terrain, *z_phys_nd[lev]);
-            } else {
-                amrex::MultiFab dummy;
-                hydro_particles->AdvectWithGravity(lev, dt_lev, use_terrain, dummy);
+        /*! Read from restart file */
+        void Restart( amrex::ParGDBBase* a_gdb, const std::string& a_fname )
+        {
+            BL_PROFILE("ParticleData::Restart()");
+            AMREX_ASSERT(isEmpty());
+            for (auto it = m_namelist_unalloc.begin(); it != m_namelist_unalloc.end(); ++it) {
+                std::string species_name( *it );
+                ERFPC* pc = new ERFPC( a_gdb, species_name );
+                pc->Restart(a_fname, species_name );
+                pushBack( species_name, pc );
+            }
+            m_namelist_unalloc.clear();
+        }
+
+        /*! Redistribute/rebalance particles data */
+        inline void Redistribute()
+        {
+            BL_PROFILE("ParticleData::Redistribute()");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                m_particle_species[m_namelist[i]]->Redistribute();
             }
         }
-    }
 
-    void Redistribute()
-    {
-        if (use_tracer_particles) {
-            tracer_particles->Redistribute();
+        /*! Get species of a given name */
+        inline ERFPC* GetSpecies( const std::string& a_name ) 
+        {
+            BL_PROFILE("ParticleData::GetSpecies()");
+            ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                                << a_name << "\"!";
+                return nullptr;
+            } else {
+                return it->second;
+            }
         }
-        if (use_hydro_particles) {
-            hydro_particles->Redistribute();
+
+        /*! accessor */
+        inline ERFPC* operator[] ( const std::string& a_name )
+        {
+            BL_PROFILE("ParticleData::operator[]");
+            ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                                << a_name << "\"!";
+                return nullptr;
+            } else {
+                return it->second;
+            }
         }
-    }
 
-    std::string pp_prefix {"erf"};
+        /*! Get species of a given name (const version) */
+        inline const ERFPC* GetSpecies( const std::string& a_name ) const
+        {
+            BL_PROFILE("ParticleData::GetSpecies()");
+            ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                                << a_name << "\"!";
+                return nullptr;
+            } else {
+                return it->second;
+            }
+        }
 
-    int use_tracer_particles;
-    std::unique_ptr<TracerPC> tracer_particles;
-    amrex::Vector<std::string> tracer_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel")};
+        /*! accessor */
+        inline const ERFPC* operator[] ( const std::string& a_name ) const 
+        {
+            BL_PROFILE("ParticleData::operator[]");
+            ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
+            if (it == m_particle_species.end()) {
+                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                                << a_name << "\"!";
+                return nullptr;
+            } else {
+                return it->second;
+            }
+        }
 
-    int use_hydro_particles;
-    std::unique_ptr<HydroPC> hydro_particles;
-    amrex::Vector<std::string> hydro_particle_varnames = {AMREX_D_DECL("xvel", "yvel", "zvel"), "mass"};
+        /*! Add a particle species to this container */
+        inline void pushBack(const std::string&  a_name,
+                             ERFPC* const        a_pc )
+        {
+            BL_PROFILE("ParticleData::pushBack()");
+            AMREX_ASSERT(!contains(a_name));
+            m_particle_species[a_name] = a_pc;
+            m_namelist.push_back(a_name);
+        }
+
+        /*! Add a name; particle container will be initialized later */
+        inline void addName(const std::string& a_name )
+        {
+            BL_PROFILE("ParticleData::addName()");
+            m_namelist_unalloc.push_back(a_name);
+        }
+
+        /*! Returns list of names of particle species */
+        inline const ParticlesNamesVector& getNames() const 
+        { 
+            BL_PROFILE("ParticleData::getNames()");
+            return m_namelist; 
+        }
+
+        /*! Returns list of names of particle species that are unallocated */
+        inline ParticlesNamesList& getNamesUnalloc() 
+        { 
+            BL_PROFILE("ParticleData::getNamesUnalloc()");
+            return m_namelist_unalloc; 
+        }
+
+        /*! queries if containe has species of a certain name */
+        inline bool contains( const std::string& a_name ) const 
+        {
+            BL_PROFILE("ParticleData::contains()");
+            ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
+            return (it != m_particle_species.end());
+        }
+
+        /*! query if container is empty */
+        inline bool isEmpty() const
+        {
+            BL_PROFILE("ParticleData::isEmpty()");
+            return (m_particle_species.size() == 0);
+        }
+
+
+    private:
+
+        /*! Vector of all particle species */
+        ParticleSpeciesMap m_particle_species; 
+        /*! Vector of particle species names */
+        ParticlesNamesVector m_namelist;
+        /*! List with names of unallocated species */
+        ParticlesNamesList m_namelist_unalloc;
 };
+
 #endif
+#endif
+

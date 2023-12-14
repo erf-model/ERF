@@ -63,17 +63,20 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
-#ifdef ERF_USE_PARTICLES
-            if ( (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) &&
-                 (particleData.use_tracer_particles || (derived_names[i] != "tracer_particle_count")       ) &&
-                 (particleData.use_hydro_particles  || (derived_names[i] != "hydro_particle_count")        ) ) {
-#else
             if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
-#endif
                tmp_plot_names.push_back(derived_names[i]);
             }
         }
     }
+#ifdef ERF_USE_PARTICLES
+    const auto& particles_namelist( particleData.getNamesUnalloc() );
+    for (auto it = particles_namelist.cbegin(); it != particles_namelist.cend(); ++it) {
+        std::string tmp( (*it)+"_count" );
+        if (containerHasElement(plot_var_names, tmp) ) {
+            tmp_plot_names.push_back(tmp);
+        }
+    }
+#endif
 
     // Check to see if we found all the requested variables
     for (const auto& plot_name : plot_var_names) {
@@ -667,21 +670,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
 
 #ifdef ERF_USE_PARTICLES
-        if (containerHasElement(plot_var_names, "tracer_particle_count"))
-        {
-            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-            temp_dat.setVal(0);
-            particleData.tracer_particles->Increment(temp_dat, lev);
-            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-            mf_comp += 1;
-        }
-        if (containerHasElement(plot_var_names, "hydro_particle_count"))
-        {
-            MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
-            temp_dat.setVal(0);
-            particleData.hydro_particles->Increment(temp_dat, lev);
-            MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
-            mf_comp += 1;
+        const auto& particles_namelist( particleData.getNames() );
+        for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+            if (containerHasElement(plot_var_names, std::string(particles_namelist[i]+"_count"))) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
+                temp_dat.setVal(0);
+                particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
         }
 #endif
 

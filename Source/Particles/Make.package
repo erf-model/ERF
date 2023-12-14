@@ -1,6 +1,6 @@
-CEXE_sources += HydroPC.cpp
-CEXE_sources += TracerPC.cpp
+CEXE_sources += ERFTracers.cpp
+CEXE_sources += ERFPCInitializations.cpp
+CEXE_sources += ERFPCEvolve.cpp
 
 CEXE_headers += ParticleData.H
-CEXE_headers += TracerPC.H
-CEXE_headers += HydroPC.H
+CEXE_headers += ERFPC.H

@@ -537,7 +537,7 @@ ERF::InitData ()
         }
 
 #ifdef ERF_USE_PARTICLES
-        particleData.init_particles((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
+        initializeTracers((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
 #endif
 
     } else { // Restart from a checkpoint
@@ -945,10 +945,6 @@ ERF::ReadParameters ()
         pp.query("fixed_fast_dt", fixed_fast_dt);
         pp.query("fixed_mri_dt_ratio", fixed_mri_dt_ratio);
 
-#ifdef ERF_USE_PARTICLES
-        particleData.init_particle_params();
-#endif
-
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
         {
@@ -1094,12 +1090,12 @@ ERF::ReadParameters ()
         if (!iterate) SetIterateToFalse();
     }
 
-#ifdef ERF_USE_MULTIBLOCK
-    solverChoice.pp_prefix = pp_prefix;
+#ifdef ERF_USE_PARTICLES
+    readTracersParams();
 #endif
 
-#ifdef ERF_USE_PARTICLES
-    particleData.init_particle_params();
+#ifdef ERF_USE_MULTIBLOCK
+    solverChoice.pp_prefix = pp_prefix;
 #endif
 
     solverChoice.init_params(max_level);

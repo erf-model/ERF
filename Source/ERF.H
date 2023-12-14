@@ -26,10 +26,6 @@
 #include <AMReX_MemProfiler.H>
 #endif
 
-#ifdef ERF_USE_PARTICLES
-#include "ParticleData.H"
-#endif
-
 #include "prob_common.H"
 
 #include <IndexDefines.H>
@@ -43,6 +39,10 @@
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
+
+#ifdef ERF_USE_PARTICLES
+#include "ParticleData.H"
+#endif
 
 #include "Microphysics.H"
 
@@ -661,17 +661,31 @@ private:
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
-#ifdef ERF_USE_PARTICLES
-                                                    ,"tracer_particle_count", "hydro_particle_count"
-#endif
                                                    };
 
     // algorithm choices
     static SolverChoice solverChoice;
 
 #ifdef ERF_USE_PARTICLES
-    // Particle info
+    // Particle container with all particle species
     static ParticleData particleData;
+
+    // variables and functions for tracers particles
+    bool  m_use_tracer_particles; /*!< tracer particles that advect with flow */
+    bool  m_use_hydro_particles;  /*!< tracer particles that fall with gravity */
+
+    /*! Read tracer and hydro particles parameters */
+    void readTracersParams();
+
+    /*! Initialize tracer and hydro particles */
+    void initializeTracers ( amrex::ParGDBBase*, 
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+    /*! Evolve tracers and hydro particles */
+    void evolveTracers( int, 
+                        amrex::Real, 
+                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&, 
+                        const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+
 #endif
 
     static int verbose;
