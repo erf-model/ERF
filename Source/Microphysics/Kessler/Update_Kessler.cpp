@@ -80,7 +80,7 @@ void Kessler::Copy_Micro_to_State (amrex::MultiFab& cons)
         // get potential total density, temperature, qt, qp
         amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            states_arr(i,j,k,Rho_comp)      = rho_arr(i,j,k);
+            //states_arr(i,j,k,Rho_comp)      = rho_arr(i,j,k);
             states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
             states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qt_arr(i,j,k);
             states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qp_arr(i,j,k);

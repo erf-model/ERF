@@ -87,7 +87,11 @@ struct SolverChoice {
 
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
-            buoyancy_type          = 2; // uses Tprime
+            if (moisture_type == MoistureType::FastEddy) {
+                buoyancy_type = 1; // asserted in make buoyancy
+            } else {
+                buoyancy_type = 2; // uses Tprime
+            }
         }
 
         // Is the terrain static or moving?

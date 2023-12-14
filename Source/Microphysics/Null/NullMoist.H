@@ -14,18 +14,17 @@ class NullMoist {
 
     virtual
     void
-    define (SolverChoice& /*sc*/) { }
+    Define (SolverChoice& /*sc*/) { }
 
     virtual
     void Init (const amrex::MultiFab& /*cons_in*/,
-                     amrex::MultiFab& /*qmoist*/,
                const amrex::BoxArray& /*grids*/,
                const amrex::Geometry& /*geom*/,
                const amrex::Real& /*dt_advance*/) { }
 
     virtual
     void
-    Advance ( ) { }
+    Advance (const amrex::Real& /*dt_advance*/) { }
 
     virtual
     void
@@ -42,7 +41,7 @@ class NullMoist {
 
     virtual
     void
-    Diagnose ( ) { }
+    Diagnose () { }
 
     virtual
     void
@@ -58,7 +57,7 @@ class NullMoist {
 
     virtual
     int
-    Qmoist_Size ( ) { return NullMoist::m_qmoist_size; }
+    Qmoist_Size () { return NullMoist::m_qmoist_size; }
 
  private:
     int m_qmoist_size = 1;

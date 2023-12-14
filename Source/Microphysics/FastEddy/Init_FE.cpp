@@ -19,7 +19,7 @@ using namespace amrex;
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
-void FastEddy::Init (const MultiFab& cons_in, MultiFab& qmoist,
+void FastEddy::Init (const MultiFab& cons_in,
                      const BoxArray& grids,
                      const Geometry& geom,
                      const Real& dt_advance)
@@ -28,9 +28,13 @@ void FastEddy::Init (const MultiFab& cons_in, MultiFab& qmoist,
     m_geom = geom;
     m_gtoe = grids;
 
+    MicVarMap.resize(m_qmoist_size);
+    MicVarMap = {MicVar_FE::qv, MicVar_FE::qc};
+
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_FE::NumVars; ++ivar) {
-        mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
+        mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
+                                                        1, cons_in.nGrowVect());
         mic_fab_vars[ivar]->setVal(0.);
     }
 

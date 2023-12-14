@@ -12,7 +12,7 @@ public:
 
     Microphysics () { }
 
-   ~Microphysics () = default;
+    ~Microphysics () = default;
 
     void
     ReSize (const int& nlev) { m_moist_model.resize(nlev); }
@@ -27,27 +27,26 @@ public:
     }
 
     void
-    define (const int& lev,
+    Define (const int& lev,
             SolverChoice& sc)
     {
-        m_moist_model[lev]->define(sc);
+        m_moist_model[lev]->Define(sc);
     }
 
     void
     Init (const int& lev,
           const amrex::MultiFab& cons_in,
-                amrex::MultiFab& qmoist,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance)
     {
-        m_moist_model[lev]->Init(cons_in, qmoist, grids, geom, dt_advance);
+        m_moist_model[lev]->Init(cons_in, grids, geom, dt_advance);
     }
 
     void
-    Advance (const int& lev)
+    Advance (const int& lev, const amrex::Real& dt_advance)
     {
-        m_moist_model[lev]->Advance();
+        m_moist_model[lev]->Advance(dt_advance);
     }
 
     void
@@ -80,7 +79,7 @@ public:
     Get_Qmoist_Ptr (const int& lev, const int& varIdx) { return m_moist_model[lev]->Qmoist_Ptr(varIdx); }
 
     int
-    Get_Qmoist_Size ( ) { return m_moist_model[0]->Qmoist_Size(); }
+    Get_Qmoist_Size () { return m_moist_model[0]->Qmoist_Size(); }
 
 private:
     amrex::Vector<std::unique_ptr<NullMoist>> m_moist_model;

@@ -256,7 +256,7 @@ void ERF::advance_dycore(int level,
     Gpu::DeviceVector<Real> qv_d(ncell), qc_d(ncell), qi_d(ncell);
 
     if (q_size >= 1) {
-        MultiFab qvapor (*(qmoist[level]), make_alias, 0, 1);
+        MultiFab qvapor (*(qmoist[level][0]), make_alias, 0, 1);
         PlaneAverage qv_ave(&qvapor, geom[level], solverChoice.ave_plane);
         qv_ave.compute_averages(ZDir(), qv_ave.field());
 
@@ -267,7 +267,7 @@ void ERF::advance_dycore(int level,
     }
 
     if (q_size >= 2) {
-        MultiFab qcloud (*(qmoist[level]), make_alias, 1, 1);
+        MultiFab qcloud (*(qmoist[level][1]), make_alias, 0, 1);
         PlaneAverage qc_ave(&qcloud, geom[level], solverChoice.ave_plane);
         qc_ave.compute_averages(ZDir(), qc_ave.field());
 
@@ -278,7 +278,7 @@ void ERF::advance_dycore(int level,
     }
 
     if (q_size >= 3) {
-        MultiFab qice   (*(qmoist[level]), make_alias, 2, 1);
+        MultiFab qice   (*(qmoist[level][2]), make_alias, 0, 1);
         PlaneAverage qi_ave(&qice  , geom[level], solverChoice.ave_plane);
         qi_ave.compute_averages(ZDir(), qi_ave.field());
 

@@ -5,8 +5,8 @@
  * Computes diagnostic quantities like cloud ice/liquid and precipitation ice/liquid
  * from the existing Microphysics variables.
  */
-void Kessler::Diagnose () {
-
+void Kessler::Diagnose ()
+{
     auto qt   = mic_fab_vars[MicVar_Kess::qt];
     auto qp   = mic_fab_vars[MicVar_Kess::qp];
     auto qv   = mic_fab_vars[MicVar_Kess::qv];
@@ -47,8 +47,8 @@ void Kessler::Diagnose () {
  * Computes diagnostic quantities like temperature and pressure
  * from the existing Microphysics variables.
  */
-void Kessler::Compute_Tabs_and_Pres () {
-
+void Kessler::Compute_Tabs_and_Pres ()
+{
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto qv    = mic_fab_vars[MicVar_Kess::qv];

@@ -11,8 +11,8 @@ using namespace amrex;
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void Kessler::AdvanceKessler () {
-
+void Kessler::AdvanceKessler ()
+{
     auto qt   = mic_fab_vars[MicVar_Kess::qt];
     auto qp   = mic_fab_vars[MicVar_Kess::qp];
     auto qn   = mic_fab_vars[MicVar_Kess::qn];
@@ -42,28 +42,28 @@ void Kessler::AdvanceKessler () {
 
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-          Real rho_avg, qp_avg;
+            Real rho_avg, qp_avg;
 
-          if (k==k_lo) {
-            rho_avg = rho_array(i,j,k);
-            qp_avg  = qp_array(i,j,k);
-          } else if (k==k_hi+1) {
-            rho_avg = rho_array(i,j,k-1);
-            qp_avg  = qp_array(i,j,k-1);
-          } else {
-            rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
-            qp_avg = 0.5*(qp_array(i,j,k-1)  + qp_array(i,j,k));
-          }
+            if (k==k_lo) {
+                rho_avg = rho_array(i,j,k);
+                qp_avg  = qp_array(i,j,k);
+            } else if (k==k_hi+1) {
+                rho_avg = rho_array(i,j,k-1);
+                qp_avg  = qp_array(i,j,k-1);
+            } else {
+                rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
+                qp_avg = 0.5*(qp_array(i,j,k-1)  + qp_array(i,j,k));
+            }
 
-          qp_avg = std::max(0.0, qp_avg);
+            qp_avg = std::max(0.0, qp_avg);
 
-          Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
+            Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
 
-          fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
+            fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
 
-          /*if(k==0){
-            fz_array(i,j,k) = 0;
-            }*/
+            /*if(k==0){
+              fz_array(i,j,k) = 0;
+              }*/
         });
     }
 

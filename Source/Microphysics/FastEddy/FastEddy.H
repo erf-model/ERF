@@ -51,7 +51,7 @@ public:
 
     // Set up for first time
     void
-    define (SolverChoice& sc) override
+    Define (SolverChoice& sc) override
     {
         docloud = sc.do_cloud;
         doprecip = sc.do_precip;
@@ -65,7 +65,6 @@ public:
     // init
     void
     Init (const amrex::MultiFab& cons_in,
-          amrex::MultiFab& qmoist,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
@@ -98,8 +97,10 @@ public:
 
     // wrapper to do all the updating
     void
-    Advance ( ) override
+    Advance (const amrex::Real& dt_advance) override
     {
+        dt = dt_advance;
+
         this->AdvanceFE();
         this->Diagnose();
     }
@@ -107,16 +108,19 @@ public:
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx <= m_qmoist_size);
-        return mic_fab_vars[varIdx].get();
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
     int
-    Qmoist_Size ( ) override { return FastEddy::m_qmoist_size; }
+    Qmoist_Size () override { return FastEddy::m_qmoist_size; }
 
  private:
     // Number of qmoist variables
     int m_qmoist_size = 2;
+
+    // MicVar map (Qmoist indices -> MicVar enum)
+    amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;

@@ -40,6 +40,7 @@ namespace MicVar {
       qcl,  // cloud water
       qpl,  // precip rain
       qpi,  // precip ice
+      qg,   // graupel
       // temporary variable
       omega,
       NumVars
@@ -75,15 +76,12 @@ public:
     // micro interface for precip fall
     void MicroPrecipFall ();
 
-    // process microphysics
-    void Proc ();
-
     // diagnose
     void Diagnose () override;
 
     // Set up for first time
     void
-    define (SolverChoice& sc) override
+    Define (SolverChoice& sc) override
     {
         docloud = sc.do_cloud;
         doprecip = sc.do_precip;
@@ -97,18 +95,17 @@ public:
     // init
     void
     Init (const amrex::MultiFab& cons_in,
-          amrex::MultiFab& qmoist,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
 
     // Copy state into micro vars
     void
-    Copy_State_to_Micro (const amrex::MultiFab& /*cons_in*/) override { }
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
 
     // Copy state into micro vars
     void
-    Copy_Micro_to_State (amrex::MultiFab& /*cons_in*/) override { }
+    Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
     // update ERF variables
     void
@@ -120,7 +117,8 @@ public:
     {
         this->Copy_State_to_Micro(cons_in);
         this->Diagnose();
-        //this->Compute_Tabs_and_Pres();
+        this->Compute_Tabs_and_Pres();
+        this->Compute_Coefficients();
     }
 
     void
@@ -131,8 +129,10 @@ public:
 
     // wrapper to do all the updating
     void
-    Advance ( ) override
+    Advance (const amrex::Real& dt_advance) override
     {
+        dt = dt_advance;
+
         this->Cloud();
         this->Diagnose();
         this->IceFall();
@@ -143,19 +143,32 @@ public:
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx <= m_qmoist_size);
-        return mic_fab_vars[varIdx].get();
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
     }
+
+    void
+    Compute_Tabs_and_Pres ( );
+
+    void
+    Compute_Coefficients ( );
 
     int
     Qmoist_Size ( ) override { return SAM::m_qmoist_size; }
 
- private:
+    // independent variables
+    amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+
+private:
     // Number of qmoist variables
     int m_qmoist_size = 6;
 
+    // MicVar map (Qmoist indices -> MicVar enum)
+    amrex::Vector<int> MicVarMap;
+
     // geometry
     amrex::Geometry m_geom;
+
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_gtoe;
 
@@ -198,9 +211,6 @@ public:
     amrex::TableData<amrex::Real, 1> qt1d;
     amrex::TableData<amrex::Real, 1> qv1d;
     amrex::TableData<amrex::Real, 1> qn1d;
-
-    // independent variables
-    amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
 
     amrex::TableData<amrex::Real, 1> gamaz;
     amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain

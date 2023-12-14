@@ -21,7 +21,6 @@ using namespace amrex;
  * @param[in] dt_advance Timestep for the advance
  */
 void Kessler::Init (const MultiFab& cons_in,
-                    MultiFab& qmoist,
                     const BoxArray& grids,
                     const Geometry& geom,
                     const Real& dt_advance)
@@ -30,15 +29,19 @@ void Kessler::Init (const MultiFab& cons_in,
     m_geom = geom;
     m_gtoe = grids;
 
+    MicVarMap.resize(m_qmoist_size);
+    MicVarMap = {MicVar_Kess::qv, MicVar_Kess::qcl, MicVar_Kess::qci,
+                 MicVar_Kess::qr, MicVar_Kess::qpi, MicVar_Kess::qg};
+
     // initialize microphysics variables
-    for (auto ivar = 0; ivar < MicVar_FE::NumVars; ++ivar) {
-        mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(), 1, cons_in.nGrowVect());
+    for (auto ivar = 0; ivar < MicVar_Kess::NumVars; ++ivar) {
+        mic_fab_vars[ivar] = std::make_shared<MultiFab>(cons_in.boxArray(), cons_in.DistributionMap(),
+                                                        1, cons_in.nGrowVect());
         mic_fab_vars[ivar]->setVal(0.);
     }
 
     // Set class data members
     for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
-
         const auto& box3d = mfi.tilebox();
 
         const auto& lo = amrex::lbound(box3d);
