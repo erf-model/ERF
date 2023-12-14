@@ -3,6 +3,7 @@
 #include "Diffusion.H"
 #include "ERF_Constants.H"
 #include "TurbStruct.H"
+#include "PBLModels.H"
 
 /**
  * Function to compute turbulent viscosity with PBL.
@@ -24,8 +25,14 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               const amrex::BCRec* bc_ptr,
-                              bool /*vert_only*/)
+                              bool /*vert_only*/,
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd)
 {
+  const bool use_terrain = (z_phys_nd != nullptr);
+
+  //  DEBUG DEBUG DEBUG
+  if (use_terrain) {amrex::Abort("PBL model not yet supported with Terrain");}
+
   // MYNN Level 2.5 PBL Model
   if (turbChoice.pbl_type == PBLType::MYNN25) {
 
@@ -115,38 +122,12 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
           // Compute some partial derivatives that we will need (second order)
           // U and V derivatives are interpolated to account for staggered grid
           amrex::Real dthetadz, dudz, dvdz;
-          if ( k==izmax && c_ext_dir_on_zhi ) {
-              dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
-                             - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                             + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
-          } else if ( k==izmin && c_ext_dir_on_zlo ) {
-              dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                             + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                             - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
-          } else {
-              dthetadz = 0.5*(cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                            - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-          }
-
-          if ( k==izmax && u_ext_dir_on_zhi ) {
-              dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                               + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
-          } else if ( k==izmin && u_ext_dir_on_zlo ) {
-              dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                               + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
-          } else {
-              dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
-          }
-
-          if ( k==izmax && v_ext_dir_on_zhi ) {
-              dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                               + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
-          } else if ( k==izmin && v_ext_dir_on_zlo ) {
-              dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                               + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
-          } else {
-              dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
-          }
+          ComputeVerticalDerivativesPBL_N(i, j, k,
+                                          uvel, vvel, cell_data, izmin, izmax, dz_inv,
+                                          c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                          u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                          v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                          dthetadz, dudz, dvdz);
 
           // Spatially varying MOST
           amrex::Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);

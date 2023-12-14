@@ -16,7 +16,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               const amrex::BCRec* bc_ptr,
-                              bool /*vert_only*/);
+                              bool /*vert_only*/,
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
 /**
  * Function for computing the turbulent viscosity with LES.
@@ -368,6 +369,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                 const amrex::Geometry& geom,
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
+                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
                                 const amrex::BCRec* bc_ptr,
@@ -407,6 +409,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
     if (turbChoice.pbl_type != PBLType::None) {
         // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, bc_ptr, vert_only);
+                                     geom, turbChoice, most, bc_ptr, vert_only, z_phys_nd);
     }
 }
