@@ -100,7 +100,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
     // We call this even if init_type == real because this routine will fill the vertical bcs
     (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
 
-    // Update vars and pointers if we have a micro model
+    // Update vars in the micro model
     if (solverChoice.moisture_type != MoistureType::None)
         micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
 }
@@ -262,7 +262,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
         m_most->impose_most_bcs(lev,mfs,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
 
-    // Update vars and pointers if we have a micro model
+    // Update vars in the micro model
     if (solverChoice.moisture_type != MoistureType::None)
         micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
 }
