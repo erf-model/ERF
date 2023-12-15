@@ -46,8 +46,8 @@ void FastEddy::AdvanceFE () {
             dq_vapor_to_clwater = 0.0;
             dq_clwater_to_vapor = 0.0;
 
-            //Real fac             = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
-            Real fac             = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+            //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
+            Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
 
             // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
             if(qv_array(i,j,k) > qsat){
