@@ -36,7 +36,7 @@ using namespace amrex;
 void make_buoyancy (Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
-                          MultiFab* qmoist,
+                    Vector<MultiFab*> qmoist,
                     Gpu::DeviceVector<Real> qv_d,
                     Gpu::DeviceVector<Real> qc_d,
                     Gpu::DeviceVector<Real> qi_d,
@@ -184,9 +184,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // Base state density
                 const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-                const Array4<const Real> & qv_data    = qmoist->array(mfi,0);
-                const Array4<const Real> & qc_data    = qmoist->array(mfi,1);
-                const Array4<const Real> & qi_data    = qmoist->array(mfi,2);
+                const Array4<const Real> & qv_data    = qmoist[0]->array(mfi);
+                const Array4<const Real> & qc_data    = qmoist[1]->array(mfi);
+                const Array4<const Real> & qi_data    = qmoist[2]->array(mfi);
 
                 amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
@@ -252,9 +252,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
-                    const Array4<const Real> & qv_data    = qmoist->const_array(mfi,0);
-                    const Array4<const Real> & qc_data    = qmoist->const_array(mfi,1);
-                    const Array4<const Real> & qi_data    = qmoist->const_array(mfi,2);
+                    const Array4<const Real> & qv_data    = qmoist[0]->const_array(mfi);
+                    const Array4<const Real> & qc_data    = qmoist[1]->const_array(mfi);
+                    const Array4<const Real> & qi_data    = qmoist[2]->const_array(mfi);
 
                     amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -318,9 +318,9 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-                    const Array4<const Real> & qv_data    = qmoist->const_array(mfi,0);
-                    const Array4<const Real> & qc_data    = qmoist->const_array(mfi,1);
-                    const Array4<const Real> & qi_data    = qmoist->const_array(mfi,2);
+                    const Array4<const Real> & qv_data    = qmoist[0]->const_array(mfi);
+                    const Array4<const Real> & qc_data    = qmoist[1]->const_array(mfi);
+                    const Array4<const Real> & qi_data    = qmoist[2]->const_array(mfi);
 
                     amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {

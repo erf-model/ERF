@@ -130,11 +130,14 @@ ERF::WriteCheckpointFile () const
 
         IntVect ng;
         if (solverChoice.moisture_type != MoistureType::None) {
-            // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
-            ng = qmoist[lev]->nGrowVect();
-            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev]->nComp(),ng);
-            MultiFab::Copy(moist_vars,*(qmoist[lev]),0,0,qmoist[lev]->nComp(),ng);
-            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+            for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+                // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
+                ng = qmoist[lev][mvar]->nGrowVect();
+                int nvar = qmoist[lev][mvar]->nComp();
+                MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
+                MultiFab::Copy(moist_vars,*(qmoist[lev][mvar]),0,0,nvar,ng);
+                VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+            }
         }
 
        // Note that we write the ghost cells of the base state (unlike above)
@@ -300,7 +303,6 @@ ERF::ReadCheckpointFile ()
     }
 
     for (int lev = 0; lev <= finest_level; ++lev) {
-
         // read in level 'lev' BoxArray from Header
         BoxArray ba;
         ba.readFrom(is);
@@ -338,13 +340,14 @@ ERF::ReadCheckpointFile ()
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
         IntVect ng;
-        if (solverChoice.moisture_type == MoistureType::None) {
-            qmoist[lev]->setVal(0.0);
-        } else {
-            ng = qmoist[lev]->nGrowVect();
-            MultiFab moist_vars(grids[lev],dmap[lev],qmoist[lev]->nComp(),ng);
-            VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
-            MultiFab::Copy(*(qmoist[lev]),moist_vars,0,0,qmoist[lev]->nComp(),ng);
+        if (solverChoice.moisture_type != MoistureType::None) {
+            for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+                ng = qmoist[lev][mvar]->nGrowVect();
+                int nvar = qmoist[lev][mvar]->nComp();
+                MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
+                VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+                MultiFab::Copy(*(qmoist[lev][mvar]),moist_vars,0,0,nvar,ng);
+            }
         }
 
         // Note that we read the ghost cells of the base state (unlike above)
