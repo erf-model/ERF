@@ -74,7 +74,8 @@ namespace internal {
 }
 
 // init
-void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
+void Radiation::initialize(const MultiFab& cons_in,
+                                 MultiFab& qmoist,
                            const BoxArray& grids,
                            const Geometry& geom,
                            const Real& dt_advance,

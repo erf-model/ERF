@@ -80,7 +80,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-                       const MultiFab* qv,
+                       Vector<MultiFab*> qmoist,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -543,7 +543,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real      > & pp_arr = pprime.array();
-        const Array4<Real const> & qv_arr = (use_moisture) ? qv->const_array(mfi) : Array4<Real> {};
+        const Array4<Real const> & qv_arr = (use_moisture) ? qmoist[0]->const_array(mfi) : Array4<Real> {};
         {
         BL_PROFILE("slow_rhs_pre_pprime");
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

@@ -56,7 +56,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
                           &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
 
     if (solverChoice.moisture_type != MoistureType::None) {
-        FillPatchMoistVars(lev, *qmoist[lev]);
+        // TODO: This is only qv
+        FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
     MultiFab* S_crse;

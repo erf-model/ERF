@@ -62,7 +62,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // Microphysics
     // *******************************************************************************************
     int q_size  = micro.Get_Qmoist_Size();
-    qmoist[lev] = std::make_unique<MultiFab>(ba, dm, q_size, ngrow_state); // qv, qc, qi, qr, qs, qg
+    qmoist[lev].resize(q_size);
+    micro.Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+    }
 
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
@@ -198,9 +206,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     int q_size  = micro.Get_Qmoist_Size();
-    qmoist[lev] = std::make_unique<MultiFab>(ba, dm, q_size, ngrow_state);
+    qmoist[lev].resize(q_size);
+    micro.Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+    }
 
     init_stuff(lev, ba, dm);
 
@@ -305,7 +320,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Microphysics
     // *******************************************************************************************
     int q_size = micro.Get_Qmoist_Size();
-    qmoist[lev]->define(ba, dm, q_size, ngrow_state); // qv, qc, qi, qr, qs, qg
+    qmoist[lev].resize(q_size);
+    micro.Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+    }
 
     init_stuff(lev,ba,dm);
 
@@ -555,9 +578,6 @@ ERF::ClearLevel (int lev)
     rV_old[lev].clear();
     rW_new[lev].clear();
     rW_old[lev].clear();
-
-    // Clears the qmoist memory
-    qmoist[lev].reset();
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
