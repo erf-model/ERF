@@ -565,11 +565,13 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,dxInv,domain,pbl_B1_l,tm_arr(i,j,0),
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                                  met_h_zeta);
         });
     }
 }

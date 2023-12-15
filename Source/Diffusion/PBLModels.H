@@ -11,22 +11,22 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
-ComputeVerticalDerivativesPBL_N(int i, int j, int k,
-                                const amrex::Array4<const amrex::Real>& uvel,
-                                const amrex::Array4<const amrex::Real>& vvel,
-                                const amrex::Array4<const amrex::Real>& cell_data,
-                                const int izmin,
-                                const int izmax,
-                                const amrex::Real& dz_inv,
-                                const bool c_ext_dir_on_zlo,
-                                const bool c_ext_dir_on_zhi,
-                                const bool u_ext_dir_on_zlo,
-                                const bool u_ext_dir_on_zhi,
-                                const bool v_ext_dir_on_zlo,
-                                const bool v_ext_dir_on_zhi,
-                                amrex::Real& dthetadz,
-                                amrex::Real& dudz,
-                                amrex::Real& dvdz)
+ComputeVerticalDerivativesPBL(int i, int j, int k,
+                              const amrex::Array4<const amrex::Real>& uvel,
+                              const amrex::Array4<const amrex::Real>& vvel,
+                              const amrex::Array4<const amrex::Real>& cell_data,
+                              const int izmin,
+                              const int izmax,
+                              const amrex::Real& dz_inv,
+                              const bool c_ext_dir_on_zlo,
+                              const bool c_ext_dir_on_zhi,
+                              const bool u_ext_dir_on_zlo,
+                              const bool u_ext_dir_on_zhi,
+                              const bool v_ext_dir_on_zlo,
+                              const bool v_ext_dir_on_zhi,
+                              amrex::Real& dthetadz,
+                              amrex::Real& dudz,
+                              amrex::Real& dvdz)
 {
   if ( k==izmax && c_ext_dir_on_zhi ) {
       dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
@@ -93,7 +93,8 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool u_ext_dir_on_zlo,
                        bool u_ext_dir_on_zhi,
                        bool v_ext_dir_on_zlo,
-                       bool v_ext_dir_on_zhi)
+                       bool v_ext_dir_on_zhi,
+                       const amrex::Real met_h_zeta=1.0)
 {
   // Compute some relevant derivatives
   amrex::Real dthetadz, dudz, dvdz;
@@ -103,12 +104,12 @@ ComputeQKESourceTerms (int i, int j, int k,
   int izmin = domain.smallEnd(2);
   int izmax = domain.bigEnd(2);
 
-  ComputeVerticalDerivativesPBL_N(i, j, k,
-                                  uvel, vvel, cell_data, izmin, izmax, dz_inv,
-                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi,
-                                  u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                  dthetadz, dudz, dvdz);
+  ComputeVerticalDerivativesPBL(i, j, k,
+                                uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
+                                c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                dthetadz, dudz, dvdz);
 
   // Production (We store mu_turb, which is 0.5*K_turb)
   source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
