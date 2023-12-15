@@ -30,9 +30,6 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 {
   const bool use_terrain = (z_phys_nd != nullptr);
 
-  //  DEBUG DEBUG DEBUG
-  if (use_terrain) {amrex::Abort("PBL model not yet supported with Terrain");}
-
   // MYNN Level 2.5 PBL Model
   if (turbChoice.pbl_type == PBLType::MYNN25) {
 
