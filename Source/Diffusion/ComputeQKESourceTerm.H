@@ -34,58 +34,58 @@ ComputeQKESourceTerms (int i, int j, int k,
                        bool v_ext_dir_on_zlo,
                        bool v_ext_dir_on_zhi)
 {
-  // Compute some relevant derivatives
-  amrex::Real dz_inv = cellSizeInv[2];
-  int izmin = domain.smallEnd(2);
-  int izmax = domain.bigEnd(2);
-  amrex::Real dthetadz, dudz, dvdz;
-  amrex::Real source_term = 0.0;
-  if ( k==izmax && c_ext_dir_on_zhi ) {
-      dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
-                     - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                     + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
-  } else if ( k==izmin && c_ext_dir_on_zlo ) {
-      dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                     + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                     - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
-  } else {
-      dthetadz = 0.5*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                     - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
-  }
+    // Compute some relevant derivatives
+    amrex::Real dz_inv = cellSizeInv[2];
+    int izmin = domain.smallEnd(2);
+    int izmax = domain.bigEnd(2);
+    amrex::Real dthetadz, dudz, dvdz;
+    amrex::Real source_term = 0.0;
+    if ( k==izmax && c_ext_dir_on_zhi ) {
+        dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
+                              - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
+                              + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
+    } else if ( k==izmin && c_ext_dir_on_zlo ) {
+        dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                               + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
+                               - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
+    } else {
+        dthetadz = 0.5*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                         - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
+    }
 
-  if ( k==izmax && u_ext_dir_on_zhi ) {
-      dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                       + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
-  } else if ( k==izmin && u_ext_dir_on_zlo ) {
-      dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                       + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
-  } else {
-      dudz = 0.25*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
-  }
+    if ( k==izmax && u_ext_dir_on_zhi ) {
+        dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
+                           + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
+    } else if ( k==izmin && u_ext_dir_on_zlo ) {
+        dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
+                           + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
+    } else {
+        dudz = 0.25*( uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1) )*dz_inv;
+    }
 
-  if ( k==izmax && v_ext_dir_on_zhi ) {
-      dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                       + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
-  } else if ( k==izmin && v_ext_dir_on_zlo ) {
-      dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                       + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
-  } else {
-      dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
-  }
+    if ( k==izmax && v_ext_dir_on_zhi ) {
+        dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
+                           + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
+    } else if ( k==izmin && v_ext_dir_on_zlo ) {
+        dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
+                           + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
+    } else {
+        dvdz = 0.25*( vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1) )*dz_inv;
+    }
 
-  // Production (We store mu_turb, which is 0.5*K_turb)
-  source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
+    // Production (We store mu_turb, which is 0.5*K_turb)
+    source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
-  // Bouyancy
-  source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
+    // Bouyancy
+    source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
-  // Dissipation
-  amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
-  if (std::abs(qke) > 0.0) {
-    source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
-      (pbl_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
-  }
+    // Dissipation
+    amrex::Real qke = cell_prim(i,j,k,PrimQKE_comp);
+    if (std::abs(qke) > 0.0) {
+        source_term -= 2.0 * cell_data(i,j,k,Rho_comp) * std::pow(qke,1.5) /
+            (pbl_B1_l * K_turb(i,j,k,EddyDiff::PBL_lengthscale));
+    }
 
-  return source_term;
+    return source_term;
 }
 #endif

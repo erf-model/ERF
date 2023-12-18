@@ -36,7 +36,7 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
 /**
  * Project the single-level velocity field to enforce incompressibility
  */
-void ERF::project_velocities(Vector<MultiFab>& vmf)
+void ERF::project_velocities (Vector<MultiFab>& vmf)
 {
     Vector<Vector<MultiFab>> tmpmf(1);
     for (auto& mf : vmf) {
@@ -49,7 +49,7 @@ void ERF::project_velocities(Vector<MultiFab>& vmf)
  * Project the multi-level velocity field to enforce incompressibility
  */
 void
-ERF::project_velocities(Vector<Vector<MultiFab>>& vars)
+ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
 {
     BL_PROFILE("ERF::project_velocities()");
 

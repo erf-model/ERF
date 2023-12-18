@@ -26,13 +26,13 @@ using namespace amrex;
  */
 void
 ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
-                        Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
-                        Array4<Real>& tau12, Array4<Real>& tau13,
-                        Array4<Real>& tau21, Array4<Real>& tau23,
-                        Array4<Real>& tau31, Array4<Real>& tau32,
-                        const Array4<const Real>& er_arr,
-                        const Array4<const Real>& z_nd  ,
-                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+                         Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
+                         Array4<Real>& tau12, Array4<Real>& tau13,
+                         Array4<Real>& tau21, Array4<Real>& tau23,
+                         Array4<Real>& tau31, Array4<Real>& tau32,
+                         const Array4<const Real>& er_arr,
+                         const Array4<const Real>& z_nd  ,
+                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     //***********************************************************************************
     // NOTE: The first  block computes (S-D).
@@ -271,14 +271,14 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  */
 void
 ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
-                       const Array4<const Real>& mu_turb,
-                       Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
-                       Array4<Real>& tau12, Array4<Real>& tau13,
-                       Array4<Real>& tau21, Array4<Real>& tau23,
-                       Array4<Real>& tau31, Array4<Real>& tau32,
-                       const Array4<const Real>& er_arr,
-                       const Array4<const Real>& z_nd  ,
-                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+                        const Array4<const Real>& mu_turb,
+                        Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
+                        Array4<Real>& tau12, Array4<Real>& tau13,
+                        Array4<Real>& tau21, Array4<Real>& tau23,
+                        Array4<Real>& tau31, Array4<Real>& tau32,
+                        const Array4<const Real>& er_arr,
+                        const Array4<const Real>& z_nd  ,
+                        const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     //***********************************************************************************
     // NOTE: The first  block computes (S-D).

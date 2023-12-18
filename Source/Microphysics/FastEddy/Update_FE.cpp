@@ -13,7 +13,6 @@
 void FastEddy::Update (amrex::MultiFab& cons,
                        amrex::MultiFab& qmoist)
 {
-
     // Get the temperature, density, theta, qt and qp from input
     for ( amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto states_arr = cons.array(mfi);
@@ -47,7 +46,6 @@ void FastEddy::Update (amrex::MultiFab& cons,
  */
 void FastEddy::Copy_Micro_to_State (amrex::MultiFab& cons)
 {
-
     // Get the temperature, density, theta, qt and qp from input
     for (amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();

@@ -30,16 +30,16 @@ using namespace amrex;
  */
 void
 ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
-                const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
-                Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
-                Array4<Real>& tau12, Array4<Real>& tau13,
-                Array4<Real>& tau21, Array4<Real>& tau23,
-                Array4<Real>& tau31, Array4<Real>& tau32,
-                const Array4<const Real>& z_nd  ,
-                const BCRec* bc_ptr, const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
-                const Array4<const Real>& /*mf_m*/,
-                const Array4<const Real>& mf_u,
-                const Array4<const Real>& mf_v)
+                 const Array4<const Real>& u, const Array4<const Real>& v, const Array4<const Real>& w,
+                 Array4<Real>& tau11, Array4<Real>& tau22, Array4<Real>& tau33,
+                 Array4<Real>& tau12, Array4<Real>& tau13,
+                 Array4<Real>& tau21, Array4<Real>& tau23,
+                 Array4<Real>& tau31, Array4<Real>& tau32,
+                 const Array4<const Real>& z_nd  ,
+                 const BCRec* bc_ptr, const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
+                 const Array4<const Real>& /*mf_m*/,
+                 const Array4<const Real>& mf_u,
+                 const Array4<const Real>& mf_v)
 {
     // Dirichlet on left or right plane
     bool xl_v_dir = ( (bc_ptr[BCVars::yvel_bc].lo(0) == ERFBCType::ext_dir)          ||
