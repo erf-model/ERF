@@ -16,11 +16,12 @@
 #define RhoScalar_comp 4
 #define RhoQ1_comp     5
 #define RhoQ2_comp     6
+#define RhoQ3_comp     7
 
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max 7
+#define NVAR_max 8
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
@@ -29,6 +30,7 @@
 #define PrimScalar_comp  (RhoScalar_comp-1)
 #define PrimQ1_comp      (RhoQ1_comp-1)
 #define PrimQ2_comp      (RhoQ2_comp-1)
+#define PrimQ3_comp      (RhoQ3_comp-1)
 
 // NOTE: we still use this indexing even if no moisture
 namespace BCVars {
@@ -96,6 +98,7 @@ namespace EddyDiff {
         QKE_h,
         Q1_h,
         Q2_h,
+        Q3_h,
         Mom_v,
         Theta_v,
         Scalar_v,
@@ -103,6 +106,7 @@ namespace EddyDiff {
         QKE_v,
         Q1_v,
         Q2_v,
+        Q3_v,
         PBL_lengthscale,
         NumDiffs
     };

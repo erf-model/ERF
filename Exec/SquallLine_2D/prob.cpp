@@ -383,10 +383,6 @@ Problem::init_custom_pert (
         qv(i, j, k) = q_v_hot;
         qc(i, j, k) = 0.0;
         qi(i, j, k) = 0.0;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-        state(i, j, k, RhoQv_comp) = 0.0;//rho*qvapor;
-        state(i, j, k, RhoQc_comp) = 0.0;
-#endif
     }
 
   });

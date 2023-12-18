@@ -107,17 +107,11 @@ public:
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
-    // update ERF variables
-    void
-    Update (amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist) override;
-
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
         this->Diagnose();
-        this->Compute_Tabs_and_Pres();
         this->Compute_Coefficients();
     }
 
@@ -148,20 +142,20 @@ public:
     }
 
     void
-    Compute_Tabs_and_Pres ( );
-
-    void
     Compute_Coefficients ( );
 
     int
     Qmoist_Size ( ) override { return SAM::m_qmoist_size; }
 
-    // independent variables
-    amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+    int
+    Qstate_Size () { return SAM::m_qstate_size; }
 
 private:
     // Number of qmoist variables
     int m_qmoist_size = 6;
+
+    // Number of qmoist variables
+    int m_qstate_size = 3;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -189,6 +183,9 @@ private:
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
+
+    // independent variables
+    amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
 
     // microphysics parameters/coefficients
     amrex::TableData<amrex::Real, 1> accrrc;

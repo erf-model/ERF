@@ -91,28 +91,35 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
-        auto qt_array     = mic_fab_vars[MicVar::qt]->array(mfi);
-        auto qp_array     = mic_fab_vars[MicVar::qp]->array(mfi);
-        auto qn_array     = mic_fab_vars[MicVar::qn]->array(mfi);
-        auto qc_array     = mic_fab_vars[MicVar::qcl]->array(mfi);
-        auto qi_array     = mic_fab_vars[MicVar::qci]->array(mfi);
-        auto rho_array    = mic_fab_vars[MicVar::rho]->array(mfi);
-        auto theta_array  = mic_fab_vars[MicVar::theta]->array(mfi);
+        auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
+        auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+        auto qi_array    = mic_fab_vars[MicVar_Kess::qci]->array(mfi);
+        auto qn_array    = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
+        auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+
+        auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
         amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
-            qt_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
-            qp_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
+            qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
+            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
+            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
             qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
-            //qv_array(i,j,k)    = qv_array_from_moist(i,j,k);
-            //temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k));
-            //pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
+
+            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
+                                                  states_array(i,j,k,RhoTheta_comp),
+                                                  qv_array(i,j,k));
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k))/100.;
         });
     }
 }
+
 
 void SAM::Compute_Coefficients ()
 {
@@ -153,35 +160,39 @@ void SAM::Compute_Coefficients ()
     // calculate the plane average variables
     PlaneAverage rho_ave(mic_fab_vars[MicVar::rho].get(), m_geom, m_axis);
     PlaneAverage theta_ave(mic_fab_vars[MicVar::theta].get(), m_geom, m_axis);
+    PlaneAverage qv_ave(mic_fab_vars[MicVar::qv].get(), m_geom, m_axis);
     rho_ave.compute_averages(ZDir(), rho_ave.field());
     theta_ave.compute_averages(ZDir(), theta_ave.field());
+    qv_ave.compute_averages(ZDir(), qv_ave.field());
 
     // get host variable rho, and rhotheta
     int ncell = rho_ave.ncell_line();
 
-    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell);
+    Gpu::HostVector<Real> rho_h(ncell), theta_h(ncell), qv_h(ncell);
     rho_ave.line_average(0, rho_h);
     theta_ave.line_average(0, theta_h);
+    qv_ave.line_average(0, qv_h);
 
     // copy data to device
-    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell);
+    Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell), qv_d(ncell);
     Gpu::copyAsync(Gpu::hostToDevice, rho_h.begin(), rho_h.end(), rho_d.begin());
     Gpu::copyAsync(Gpu::hostToDevice, theta_h.begin(), theta_h.end(), theta_d.begin());
+    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
     Gpu::streamSynchronize();
 
     Real* rho_dptr   = rho_d.data();
     Real* theta_dptr = theta_d.data();
+    Real* qv_dptr = qv_d.data();
 
     Real gOcp = m_gOcp;
 
-    // TODO: None of this is qv aware...?
     amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];
-        Real pressure = getPgivenRTh(RhoTheta);
+        Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
         rho1d_t(k)    = rho_dptr[k];
         pres1d_t(k)   = pressure/100.;
-        tabs1d_t(k)   = getTgivenRandRTh(rho_dptr[k],RhoTheta);
+        tabs1d_t(k)   = getTgivenRandRTh(rho_dptr[k], RhoTheta, qv_dptr[k]);
         zmid_t(k)     = lowz + (k+0.5)*dz;
         gamaz_t(k)    = gOcp*zmid_t(k);
     });

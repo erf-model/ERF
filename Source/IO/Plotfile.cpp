@@ -44,7 +44,8 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
-    int ncomp_cons = (solverChoice.moisture_type == MoistureType::None) ? NVAR_max-2 : NVAR_max;
+    int n_qstate   = micro.Get_Qstate_Size();
+    int ncomp_cons = NVAR_max - (3 - n_qstate);
 
     for (int i = 0; i < ncomp_cons; ++i) {
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {
@@ -106,8 +107,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
-    if (ncomp_mf == 0)
-        return;
+    if (ncomp_mf == 0) return;
 
     // We Fillpatch here because some of the derived quantities require derivatives
     //     which require ghost cells to be filled.  We do not need to call FillPatcher
@@ -609,6 +609,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+        // TODO: The introduction of Q3 changes these plots
+        //       Should we make the micro model own qt and qp
+        //       since it knows whether qt = qv + qc or qt = qv + qc + qi?
+        //-----------------------------------------------------------
         // NOTE: Protect against accessing non-existent data
         if (l_use_moisture) {
             int q_size = qmoist[lev].size();
@@ -676,6 +680,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 mf_comp += 1;
             }
         }
+        //-----------------------------------------------------------
 
 #ifdef ERF_USE_PARTICLES
         if (containerHasElement(plot_var_names, "tracer_particle_count"))

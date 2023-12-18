@@ -95,18 +95,12 @@ public:
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
-    // update ERF variables
-    void
-    Update (amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist) override;
-
     // update micro vars
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
         this->Diagnose();
-        this->Compute_Tabs_and_Pres();
     }
 
     // update state vars
@@ -124,7 +118,6 @@ public:
 
         this->AdvanceKessler();
         this->Diagnose();
-        this->Compute_Tabs_and_Pres();
     }
 
     amrex::MultiFab*
@@ -134,15 +127,18 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
-    void
-    Compute_Tabs_and_Pres ();
-
     int
     Qmoist_Size () override { return Kessler::m_qmoist_size; }
+
+    int
+    Qstate_Size () { return Kessler::m_qstate_size; }
 
 private:
     // Number of qmoist variables
     int m_qmoist_size = 6;
+
+    // Number of qstate variables
+    int m_qstate_size = 3;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
