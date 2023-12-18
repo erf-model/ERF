@@ -11,8 +11,8 @@ using namespace amrex;
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void FastEddy::AdvanceFE () {
-
+void FastEddy::AdvanceFE ()
+{
     auto tabs  = mic_fab_vars[MicVar_FE::tabs];
 
     // get the temperature, dentisy, theta, qt and qc from input

@@ -90,7 +90,6 @@ void Kessler::AdvanceKessler ()
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-
             qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
             qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k));
@@ -160,7 +159,6 @@ void Kessler::AdvanceKessler ()
                 dq_clwater_to_rain = std::min(dq_clwater_to_rain, qn_array(i,j,k));
             }
 
-
             if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
             if(std::fabs(fz_array(i,j,k)) < 1e-14) fz_array(i,j,k) = 0.0;
             Real dq_sed = 1.0/rho_array(i,j,k)*(fz_array(i,j,k+1) - fz_array(i,j,k))/dz*dtn;
@@ -176,7 +174,6 @@ void Kessler::AdvanceKessler ()
             qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
             qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k));
-
         });
     }
 }

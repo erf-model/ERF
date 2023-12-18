@@ -20,9 +20,9 @@ using namespace amrex;
  */
 
 void
-MomentumToVelocity(MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
-                   const MultiFab& density,
-                   const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
+MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
+                    const MultiFab& density,
+                    const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
 

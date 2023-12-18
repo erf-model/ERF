@@ -13,37 +13,36 @@ namespace derived {
  * @params[in] datfab array of data used to construct derived quantity
  * @params[in] scalar_index index of quantity to be divided by density
 */
-void erf_derrhodivide (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  const amrex::FArrayBox& datfab,
-  const int scalar_index)
+void erf_derrhodivide (const amrex::Box& bx,
+                       amrex::FArrayBox& derfab,
+                       const amrex::FArrayBox& datfab,
+                       const int scalar_index)
 {
-  // This routine divides any cell-centered conserved quantity by density
-  auto const dat = datfab.array();
-  auto primitive  = derfab.array();
+    // This routine divides any cell-centered conserved quantity by density
+    auto const dat = datfab.array();
+    auto primitive  = derfab.array();
 
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rho       = dat(i, j, k, Rho_comp);
-    const amrex::Real conserved = dat(i, j, k, scalar_index);
-    primitive(i,j,k) = conserved / rho;
-  });
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const amrex::Real rho       = dat(i, j, k, Rho_comp);
+        const amrex::Real conserved = dat(i, j, k, scalar_index);
+        primitive(i,j,k) = conserved / rho;
+    });
 }
 
 /**
  * Placeholder function that does nothing
 */
 void
-erf_dernull (
-  const amrex::Box& /*bx*/,
-  amrex::FArrayBox& /*derfab*/,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& /*datfab*/,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dernull (const amrex::Box& /*bx*/,
+             amrex::FArrayBox& /*derfab*/,
+             int /*dcomp*/,
+             int /*ncomp*/,
+             const amrex::FArrayBox& /*datfab*/,
+             const amrex::Geometry& /*geomdata*/,
+             amrex::Real /*time*/,
+             const int* /*bcrec*/,
+             const int /*level*/)
 { }
 
 /**
@@ -54,29 +53,29 @@ erf_dernull (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dersoundspeed (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dersoundspeed (const amrex::Box& bx,
+                   amrex::FArrayBox& derfab,
+                   int /*dcomp*/,
+                   int /*ncomp*/,
+                   const amrex::FArrayBox& datfab,
+                   const amrex::Geometry& /*geomdata*/,
+                   amrex::Real /*time*/,
+                   const int* /*bcrec*/,
+                   const int /*level*/)
 {
-  auto const dat = datfab.array();
-  auto cfab      = derfab.array();
+    auto const dat = datfab.array();
+    auto cfab      = derfab.array();
 
-  // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
-  amrex::Real qv = 0.;
+    // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
+    amrex::Real qv = 0.;
 
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
-    const amrex::Real rho      = dat(i, j, k, Rho_comp);
-    AMREX_ALWAYS_ASSERT(rhotheta > 0.);
-    cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
-  });
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+        const amrex::Real rho      = dat(i, j, k, Rho_comp);
+        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
+    });
 }
 
 /**
@@ -87,26 +86,26 @@ erf_dersoundspeed (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertemp (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dertemp (const amrex::Box& bx,
+             amrex::FArrayBox& derfab,
+             int /*dcomp*/,
+             int /*ncomp*/,
+             const amrex::FArrayBox& datfab,
+             const amrex::Geometry& /*geomdata*/,
+             amrex::Real /*time*/,
+             const int* /*bcrec*/,
+             const int /*level*/)
 {
-  auto const dat = datfab.array();
-  auto tfab      = derfab.array();
+    auto const dat = datfab.array();
+    auto tfab      = derfab.array();
 
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real rho = dat(i, j, k, Rho_comp);
-    const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
-    AMREX_ALWAYS_ASSERT(rhotheta > 0.);
-    tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
-  });
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const amrex::Real rho = dat(i, j, k, Rho_comp);
+        const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
+    });
 }
 
 /**
@@ -117,18 +116,17 @@ erf_dertemp (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertheta (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_dertheta (const amrex::Box& bx,
+              amrex::FArrayBox& derfab,
+              int /*dcomp*/,
+              int /*ncomp*/,
+              const amrex::FArrayBox& datfab,
+              const amrex::Geometry& /*geomdata*/,
+              amrex::Real /*time*/,
+              const int* /*bcrec*/,
+              const int /*level*/)
 {
-  erf_derrhodivide(bx, derfab, datfab, RhoTheta_comp);
+    erf_derrhodivide(bx, derfab, datfab, RhoTheta_comp);
 }
 
 /**
@@ -139,18 +137,17 @@ erf_dertheta (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derscalar (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_derscalar (const amrex::Box& bx,
+               amrex::FArrayBox& derfab,
+               int /*dcomp*/,
+               int /*ncomp*/,
+               const amrex::FArrayBox& datfab,
+               const amrex::Geometry& /*geomdata*/,
+               amrex::Real /*time*/,
+               const int* /*bcrec*/,
+               const int /*level*/)
 {
-  erf_derrhodivide(bx, derfab, datfab, RhoScalar_comp);
+    erf_derrhodivide(bx, derfab, datfab, RhoScalar_comp);
 }
 
 /**
@@ -161,18 +158,17 @@ erf_derscalar (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derKE (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_derKE (const amrex::Box& bx,
+           amrex::FArrayBox& derfab,
+           int /*dcomp*/,
+           int /*ncomp*/,
+           const amrex::FArrayBox& datfab,
+           const amrex::Geometry& /*geomdata*/,
+           amrex::Real /*time*/,
+           const int* /*bcrec*/,
+           const int /*level*/)
 {
-  erf_derrhodivide(bx, derfab, datfab, RhoKE_comp);
+    erf_derrhodivide(bx, derfab, datfab, RhoKE_comp);
 }
 
 /**
@@ -183,18 +179,17 @@ erf_derKE (
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQKE (
-  const amrex::Box& bx,
-  amrex::FArrayBox& derfab,
-  int /*dcomp*/,
-  int /*ncomp*/,
-  const amrex::FArrayBox& datfab,
-  const amrex::Geometry& /*geomdata*/,
-  amrex::Real /*time*/,
-  const int* /*bcrec*/,
-  const int /*level*/)
+erf_derQKE (const amrex::Box& bx,
+            amrex::FArrayBox& derfab,
+            int /*dcomp*/,
+            int /*ncomp*/,
+            const amrex::FArrayBox& datfab,
+            const amrex::Geometry& /*geomdata*/,
+            amrex::Real /*time*/,
+            const int* /*bcrec*/,
+            const int /*level*/)
 {
-  erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
+    erf_derrhodivide(bx, derfab, datfab, RhoQKE_comp);
 }
 
 } // namespace
