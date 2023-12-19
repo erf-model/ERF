@@ -96,9 +96,6 @@ Problem::init_custom_pert(
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
-    Array4<Real      > const& qv,
-    Array4<Real      > const& qc,
-    Array4<Real      > const& qi,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -187,13 +184,6 @@ Problem::init_custom_pert(
     if (use_moisture) {
         state(i, j, k, RhoQ1_comp) = rho*qvapor;
         state(i, j, k, RhoQ2_comp) = 0.0;
-        qv(i, j, k) = qvapor;
-        qc(i, j, k) = 0.0;
-        qi(i, j, k) = 0.0;
-#if defined(ERF_USE_WARM_NO_PRECIP)
-        state(i, j, k, RhoQ1_comp) = rho*qvapor;
-        state(i, j, k, RhoQ2_comp) = 0.0;
-#endif
       }
   });
 
