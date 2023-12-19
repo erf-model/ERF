@@ -36,7 +36,7 @@ void FastEddy::AdvanceFE ()
             //------- Autoconversion/accretion
             Real dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
-            Real pressure = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
+            Real pressure = pres_array(i,j,k);
             erf_qsatw(tabs_array(i,j,k), pressure, qsat);
 
             // If there is precipitating water (i.e. rain), and the cell is not saturated

@@ -120,7 +120,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     }
 
     // Get qmoist pointers if using moisture
-    bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     for (int lev = 0; lev <= finest_level; ++lev) {
         for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
             qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
@@ -219,12 +219,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
                 const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& qv_arr = (qmoist[lev][0]) ? qmoist[lev][0]->const_array(mfi) :
-                                                                      Array4<Real const> {};
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (qv_arr) ? qv_arr(i,j,k) : 0;
+                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
                 });
@@ -242,12 +240,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                const Array4<Real const>& qv_arr = (qmoist[lev][0]) ? qmoist[lev][0]->const_array(mfi) :
-                                                                      Array4<Real const> {};
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (qv_arr) ? qv_arr(i,j,k) : 0;
+                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
                 });
@@ -614,7 +610,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         //       since it knows whether qt = qv + qc or qt = qv + qc + qi?
         //-----------------------------------------------------------
         // NOTE: Protect against accessing non-existent data
-        if (l_use_moisture) {
+        if (use_moisture) {
             int q_size = qmoist[lev].size();
             MultiFab qv_mf(*(qmoist[lev][0]), make_alias, 0, 1);
 

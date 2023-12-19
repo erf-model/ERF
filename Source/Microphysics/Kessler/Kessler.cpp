@@ -102,7 +102,7 @@ void Kessler::AdvanceKessler ()
             //------- Autoconversion/accretion
             Real qcc, autor, accrr, dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
-            Real pressure = pres_array(i,j,k); //getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
+            Real pressure = pres_array(i,j,k);
             erf_qsatw(tabs_array(i,j,k), pressure, qsat);
 
             // If there is precipitating water (i.e. rain), and the cell is not saturated

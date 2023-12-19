@@ -65,11 +65,13 @@ void FastEddy::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
-        auto qv_array     = mic_fab_vars[MicVar_FE::qv]->array(mfi);
-        auto qc_array     = mic_fab_vars[MicVar_FE::qc]->array(mfi);
-        auto rho_array    = mic_fab_vars[MicVar_FE::rho]->array(mfi);
-        auto theta_array  = mic_fab_vars[MicVar_FE::theta]->array(mfi);
-        auto temp_array   = mic_fab_vars[MicVar_FE::tabs]->array(mfi);
+        auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
+        auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+
+        auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
         amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -78,7 +80,11 @@ void FastEddy::Copy_State_to_Micro (const MultiFab& cons_in)
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
             qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
             qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
-            temp_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k));
+
+            tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
+                                                  states_array(i,j,k,RhoTheta_comp),
+                                                  qv_array(i,j,k));
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k))/100.;
         });
     }
 }
