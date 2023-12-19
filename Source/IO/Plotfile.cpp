@@ -45,7 +45,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     Vector<std::string> tmp_plot_names;
 
     int n_qstate   = micro.Get_Qstate_Size();
-    int ncomp_cons = NVAR_max - (3 - n_qstate);
+    int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     for (int i = 0; i < ncomp_cons; ++i) {
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {

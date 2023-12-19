@@ -85,6 +85,7 @@ struct SolverChoice {
             amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
+        /*
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
             if (moisture_type == MoistureType::FastEddy) {
@@ -93,6 +94,7 @@ struct SolverChoice {
                 buoyancy_type = 2; // uses Tprime
             }
         }
+        */
 
         // Is the terrain static or moving?
         static std::string terrain_type_string = "Static";

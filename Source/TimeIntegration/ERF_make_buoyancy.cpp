@@ -36,10 +36,6 @@ using namespace amrex;
 void make_buoyancy (Vector<MultiFab>& S_data,
                     const MultiFab& S_prim,
                           MultiFab& buoyancy,
-                    Vector<MultiFab*> qmoist,
-                    Gpu::DeviceVector<Real> qv_d,
-                    Gpu::DeviceVector<Real> qc_d,
-                    Gpu::DeviceVector<Real> qi_d,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
                     const MultiFab* r0)
@@ -138,35 +134,10 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     // ******************************************************************************************
     // Moist versions of buoyancy expressions
     // ******************************************************************************************
-    if (solverChoice.moisture_type == MoistureType::FastEddy) {
+    if (solverChoice.moisture_type != MoistureType::None) {
 
-        AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
-
-        for ( MFIter mfi(buoyancy,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            Box tbz = mfi.tilebox();
-
-            // We don't compute a source term for z-momentum on the bottom or top domain boundary
-            if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
-            if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
-
-            const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
-            const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
-
-            // Base state density
-            const Array4<const Real>& r0_arr = r0->const_array(mfi);
-
-            amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real rhop_hi = cell_data(i,j,k  ,Rho_comp)   + cell_data(i,j,k  ,RhoQ1_comp)
-                             + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
-                Real rhop_lo = cell_data(i,j,k-1,Rho_comp)   + cell_data(i,j,k-1,RhoQ1_comp)
-                             + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
-                buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
-            });
-        } // mfi
-
-    } else if (solverChoice.moisture_type != MoistureType::None) {
+        if (solverChoice.moisture_type == MoistureType::FastEddy)
+            AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
 
         if (solverChoice.buoyancy_type == 1) {
 
@@ -184,16 +155,13 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // Base state density
                 const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-                const Array4<const Real> & qv_data    = qmoist[0]->array(mfi);
-                const Array4<const Real> & qc_data    = qmoist[1]->array(mfi);
-                const Array4<const Real> & qi_data    = qmoist[2]->array(mfi);
+                // TODO: A microphysics model may have more than q1 & q2 components for the
+                //       non-precipitating phase.
 
                 amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (1.0 + qv_data(i,j,k  ) + qc_data(i,j,k  )
-                                                                      + qi_data(i,j,k  )) + cell_data(i,j,k,RhoQ2_comp) - r0_arr(i,j,k  );
-                    Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (1.0 + qv_data(i,j,k-1) + qc_data(i,j,k-1)
-                                                                  + qi_data(i,j,k-1)) +  cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
+                    Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
+                    Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ2_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
                     buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
                 });
             } // mfi
@@ -209,7 +177,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
             int ncell = state_ave.ncell_line();
 
-            Gpu::HostVector  <Real> rho_h(ncell), theta_h(ncell), qp_h(ncell);
+            Gpu::HostVector  <Real> rho_h(ncell), theta_h(ncell);
             Gpu::DeviceVector<Real> rho_d(ncell), theta_d(ncell);
 
             state_ave.line_average(Rho_comp, rho_h);
@@ -221,21 +189,28 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             Real*   rho_d_ptr =   rho_d.data();
             Real* theta_d_ptr = theta_d.data();
 
+            // Average valid moisture vars
+            int n_prim_max  = NVAR_max - 1;
+            int n_moist_var = NMOIST_max - (S_prim.nComp() - n_prim_max);
+            Gpu::HostVector  <Real> qv_h(ncell)    , qc_h(ncell)    , qp_h(ncell);
+            Gpu::DeviceVector<Real> qv_d(ncell,0.0), qc_d(ncell,0.0), qp_d(ncell,0.0);
+            if (n_moist_var >=1) {
+                prim_ave.line_average(PrimQ1_comp, qv_h);
+                Gpu::copyAsync(Gpu::hostToDevice,  qv_h.begin(), qv_h.end(), qv_d.begin());
+            }
+            if (n_moist_var >=2) {
+                prim_ave.line_average(PrimQ2_comp, qc_h);
+                Gpu::copyAsync(Gpu::hostToDevice,  qc_h.begin(), qc_h.end(), qc_d.begin());
+            }
+            if (n_moist_var >=3) {
+                prim_ave.line_average(PrimQ3_comp, qp_h);
+                Gpu::copyAsync(Gpu::hostToDevice,  qp_h.begin(), qp_h.end(), qp_d.begin());
+            }
+            Real* qv_d_ptr = qv_d.data();
+            Real* qc_d_ptr = qc_d.data();
+            Real* qp_d_ptr = qp_d.data();
+
             if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 4 ) {
-
-                prim_ave.line_average(PrimQ2_comp, qp_h);
-
-                Gpu::DeviceVector<Real>    qp_d(ncell);
-
-                // Copy data to device
-                Gpu::copyAsync(Gpu::hostToDevice, qp_h.begin(), qp_h.end(), qp_d.begin());
-                Gpu::streamSynchronize();
-
-                Real*    qp_d_ptr =    qp_d.data();
-                Real*    qv_d_ptr =    qv_d.data();
-                Real*    qc_d_ptr =    qc_d.data();
-                Real*    qi_d_ptr =    qi_d.data();
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -252,10 +227,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
-                    const Array4<const Real> & qv_data    = qmoist[0]->const_array(mfi);
-                    const Array4<const Real> & qc_data    = qmoist[1]->const_array(mfi);
-                    const Array4<const Real> & qi_data    = qmoist[2]->const_array(mfi);
-
+                    // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
                     amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
@@ -266,32 +238,36 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                         Real qplus, qminus;
 
-                        if (solverChoice.buoyancy_type == 2) {
-                            qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
-                                            (qc_data(i,j,k)-qc_d_ptr[k]+
-                                             qi_data(i,j,k)-qi_d_ptr[k]+
-                                             cell_prim(i,j,k,PrimQ2_comp)-qp_d_ptr[k])
-                                   + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qi_d_ptr[k]-qp_d_ptr[k]);
+                        Real qv_plus  = (n_moist_var >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
+                        Real qv_minus = (n_moist_var >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
 
-                            qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
-                                             (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
-                                              qi_data(i,j,k-1)-qi_d_ptr[k-1]+
-                                              cell_prim(i,j,k-1,PrimQ2_comp)-qp_d_ptr[k-1])
-                                   + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qi_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
+                        Real qc_plus  = (n_moist_var >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
+                        Real qc_minus = (n_moist_var >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
+
+                        Real qp_plus  = (n_moist_var >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
+                        Real qp_minus = (n_moist_var >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+
+                        if (solverChoice.buoyancy_type == 2) {
+                            qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
+                                            ( qc_plus - qc_d_ptr[k]   +
+                                              qp_plus - qp_d_ptr[k] )
+                                   + (tempp3d-tempp1d)/tempp1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k]-qc_d_ptr[k]-qp_d_ptr[k]);
+
+                            qminus = 0.61 * ( qv_minus - qv_d_ptr[k-1] ) -
+                                            ( qc_minus - qc_d_ptr[k-1]   +
+                                              qp_minus - qp_d_ptr[k-1] )
+                                   + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
                         } else if (solverChoice.buoyancy_type == 4) {
-
-                            qplus = 0.61* ( qv_data(i,j,k)-qv_d_ptr[k]) -
-                                            (qc_data(i,j,k)-qc_d_ptr[k]+
-                                             qi_data(i,j,k)-qi_d_ptr[k]+
-                                             cell_prim(i,j,k,PrimQ2_comp)-qp_d_ptr[k])
+                            qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
+                                            ( qc_plus - qc_d_ptr[k]   +
+                                              qp_plus - qp_d_ptr[k] )
                                    + (cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) - theta_d_ptr[k  ])/theta_d_ptr[k  ];
 
-                            qminus = 0.61 *( qv_data(i,j,k-1)-qv_d_ptr[k-1]) -
-                                             (qc_data(i,j,k-1)-qc_d_ptr[k-1]+
-                                              qi_data(i,j,k-1)-qi_d_ptr[k-1]+
-                                              cell_prim(i,j,k-1,PrimQ2_comp)-qp_d_ptr[k-1])
-                                    + (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
+                            qminus = 0.61 * ( qv_minus - qv_d_ptr[k-1] ) -
+                                            ( qc_minus - qc_d_ptr[k-1]   +
+                                              qp_minus - qp_d_ptr[k-1] )
+                                   + (cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) - theta_d_ptr[k-1])/theta_d_ptr[k-1];
                         }
 
                         Real qavg  = Real(0.5) * (qplus + qminus);
@@ -302,7 +278,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 } // mfi
 
             } else if (solverChoice.buoyancy_type == 3) {
-
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -318,9 +293,8 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-                    const Array4<const Real> & qv_data    = qmoist[0]->const_array(mfi);
-                    const Array4<const Real> & qc_data    = qmoist[1]->const_array(mfi);
-                    const Array4<const Real> & qi_data    = qmoist[2]->const_array(mfi);
+
+                    // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
 
                     amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
@@ -330,11 +304,18 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                         Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
                         Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
 
-                        Real qplus = 0.61 * qv_data(i,j,k) - (qc_data(i,j,k)+ qi_data(i,j,k)+ cell_prim(i,j,k,PrimQ2_comp))
-                                   + (tempp3d-tempp1d)/tempp1d;
+                        Real qv_plus  = (n_moist_var >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
+                        Real qv_minus = (n_moist_var >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;
 
-                        Real qminus = 0.61 *qv_data(i,j,k-1) - (qc_data(i,j,k-1)+ qi_data(i,j,k-1)+ cell_prim(i,j,k-1,PrimQ2_comp))
-                                   + (tempm3d-tempm1d)/tempm1d;
+                        Real qc_plus  = (n_moist_var >= 2) ? cell_prim(i,j,k  ,PrimQ2_comp) : 0.0;
+                        Real qc_minus = (n_moist_var >= 2) ? cell_prim(i,j,k-1,PrimQ2_comp) : 0.0;
+
+                        Real qp_plus  = (n_moist_var >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
+                        Real qp_minus = (n_moist_var >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
+
+                        Real qplus  = 0.61 * qv_plus  - (qc_plus  + qp_plus)  + (tempp3d-tempp1d)/tempp1d;
+
+                        Real qminus = 0.61 * qv_minus - (qc_minus + qp_minus) + (tempm3d-tempm1d)/tempm1d;
 
                         Real qavg  = Real(0.5) * (qplus + qminus);
                         Real r0avg = Real(0.5) * (rho_d_ptr[k] + rho_d_ptr[k-1]);

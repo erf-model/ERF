@@ -23,6 +23,9 @@
 //    but not to allocate actual solution data
 #define NVAR_max 8
 
+// This defines the maximum number of moisture vars
+#define NMOIST_max 3
+
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
 #define PrimKE_comp      (RhoKE_comp    -1)
