@@ -549,7 +549,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoTheta_comp) : 0.0;
+            Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoQ1_comp) : 0.0;
             pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
         });
         } // end profile
