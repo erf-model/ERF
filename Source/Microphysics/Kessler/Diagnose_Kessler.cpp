@@ -35,7 +35,7 @@ void Kessler::Diagnose ()
             amrex::Real omn  = 1.0;
             qcl_array(i,j,k) = qn_array(i,j,k)*omn;
             qci_array(i,j,k) = qn_array(i,j,k)*(1.0-omn);
-            amrex::Real omp  = 1.0;;
+            amrex::Real omp  = 1.0;
             qpl_array(i,j,k) = qp_array(i,j,k)*omp;
             qpi_array(i,j,k) = qp_array(i,j,k)*(1.0-omp);
         });

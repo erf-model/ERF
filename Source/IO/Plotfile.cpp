@@ -605,78 +605,66 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-        // TODO: The introduction of Q3 changes these plots
-        //       Should we make the micro model own qt and qp
-        //       since it knows whether qt = qv + qc or qt = qv + qc + qi?
-        //-----------------------------------------------------------
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
             int q_size = qmoist[lev].size();
-            MultiFab qv_mf(*(qmoist[lev][0]), make_alias, 0, 1);
 
-            if (containerHasElement(plot_var_names, "qt") && (q_size >= 3))
+            if (containerHasElement(plot_var_names, "qt") && (q_size >= 1))
             {
-                MultiFab qc_mf(*(qmoist[lev][1]), make_alias, 0, 1);
-                MultiFab qi_mf(*(qmoist[lev][2]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
-                MultiFab::Add (mf[lev],qc_mf,0,mf_comp,1,0);
-                MultiFab::Add (mf[lev],qi_mf,0,mf_comp,1,0);
+                MultiFab qt_mf(*(qmoist[lev][0]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],qt_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qp") && (q_size >= 6))
+            if (containerHasElement(plot_var_names, "qv") && (q_size >= 2))
             {
-                MultiFab qr_mf(*(qmoist[lev][3]), make_alias, 0, 1);
-                MultiFab qs_mf(*(qmoist[lev][4]), make_alias, 0, 1);
-                MultiFab qg_mf(*(qmoist[lev][5]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
-                MultiFab::Add (mf[lev],qs_mf,0,mf_comp,1,0);
-                MultiFab::Add (mf[lev],qg_mf,0,mf_comp,1,0);
-                mf_comp += 1;
-            }
-
-            if (containerHasElement(plot_var_names, "qv"))
-            {
+                MultiFab qv_mf(*(qmoist[lev][1]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qc") && (q_size >= 2))
+            if (containerHasElement(plot_var_names, "qc") && (q_size >= 3))
             {
-                MultiFab qc_mf(*(qmoist[lev][1]), make_alias, 0, 1);
+                MultiFab qc_mf(*(qmoist[lev][2]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qc_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qi") && (q_size >= 3))
+            if (containerHasElement(plot_var_names, "qi") && (q_size >= 4))
             {
-                MultiFab qi_mf(*(qmoist[lev][2]), make_alias, 0, 1);
+                MultiFab qi_mf(*(qmoist[lev][3]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qi_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qrain") && (q_size >= 4))
+            if (containerHasElement(plot_var_names, "qp") && (q_size >= 5))
             {
-                MultiFab qr_mf(*(qmoist[lev][3]), make_alias, 0, 1);
+                MultiFab qp_mf(*(qmoist[lev][4]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],qp_mf,0,mf_comp,1,0);
+                mf_comp += 1;
+            }
+
+            if (containerHasElement(plot_var_names, "qrain") && (q_size >= 6))
+            {
+                MultiFab qr_mf(*(qmoist[lev][5]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qsnow") && (q_size >= 5))
+            if (containerHasElement(plot_var_names, "qsnow") && (q_size >= 7))
             {
-                MultiFab qs_mf(*(qmoist[lev][4]), make_alias, 0, 1);
+                MultiFab qs_mf(*(qmoist[lev][6]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qs_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qgraup") && (q_size >= 6))
+            if (containerHasElement(plot_var_names, "qgraup") && (q_size >= 8))
             {
-                MultiFab qg_mf(*(qmoist[lev][5]), make_alias, 0, 1);
+                MultiFab qg_mf(*(qmoist[lev][7]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
         }
-        //-----------------------------------------------------------
 
 #ifdef ERF_USE_PARTICLES
         if (containerHasElement(plot_var_names, "tracer_particle_count"))

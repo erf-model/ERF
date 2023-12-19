@@ -134,8 +134,8 @@ public:
     Qstate_Size () { return Kessler::m_qstate_size; }
 
 private:
-    // Number of qmoist variables
-    int m_qmoist_size = 6;
+    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi)
+    int m_qmoist_size = 7;
 
     // Number of qstate variables
     int m_qstate_size = 3;
@@ -169,40 +169,5 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
-
-#if 0
-    // microphysics parameters/coefficients
-    amrex::TableData<amrex::Real, 1> accrrc;
-    amrex::TableData<amrex::Real, 1> accrsi;
-    amrex::TableData<amrex::Real, 1> accrsc;
-    amrex::TableData<amrex::Real, 1> coefice;
-    amrex::TableData<amrex::Real, 1> evaps1;
-    amrex::TableData<amrex::Real, 1> evaps2;
-    amrex::TableData<amrex::Real, 1> accrgi;
-    amrex::TableData<amrex::Real, 1> accrgc;
-    amrex::TableData<amrex::Real, 1> evapg1;
-    amrex::TableData<amrex::Real, 1> evapg2;
-    amrex::TableData<amrex::Real, 1> evapr1;
-    amrex::TableData<amrex::Real, 1> evapr2;
-
-    // vertical plane average data
-    amrex::TableData<amrex::Real, 1> rho1d;
-    amrex::TableData<amrex::Real, 1> pres1d;
-    amrex::TableData<amrex::Real, 1> tabs1d;
-    amrex::TableData<amrex::Real, 1> qt1d;
-    amrex::TableData<amrex::Real, 1> qv1d;
-    amrex::TableData<amrex::Real, 1> qn1d;
-
-    // independent variables
-    amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
-
-    amrex::TableData<amrex::Real, 1> gamaz;
-    amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
-
-    // data (output)
-    amrex::TableData<amrex::Real, 1> qifall;
-    amrex::TableData<amrex::Real, 1> tlatqi;
-#endif
-
 };
 #endif

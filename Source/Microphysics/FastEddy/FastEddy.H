@@ -22,9 +22,11 @@ namespace MicVar_FE {
       // independent variables
       qv = 0,
       qc,
+      qt,
+      rho,   // density
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
-      rho,   // density
+      pres,  // pressure
       NumVars
   };
 }
@@ -114,8 +116,8 @@ public:
     Qstate_Size () { return FastEddy::m_qstate_size; }
 
 private:
-    // Number of qmoist variables
-    int m_qmoist_size = 2;
+    // Number of qmoist variables (qt, qv, qc)
+    int m_qmoist_size = 3;
 
     // Number of qstate variables
     int m_qstate_size = 2;

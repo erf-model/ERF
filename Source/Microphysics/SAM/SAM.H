@@ -33,7 +33,6 @@ namespace MicVar {
       rho,   // density
       pres,  // pressure
       // derived variables
-      qr,   // rain water
       qv,   // water vapor
       qn,   // cloud condensate (liquid+ice), initial to zero
       qci,  // cloud ice
@@ -142,17 +141,17 @@ public:
     }
 
     void
-    Compute_Coefficients ( );
+    Compute_Coefficients ();
 
     int
-    Qmoist_Size ( ) override { return SAM::m_qmoist_size; }
+    Qmoist_Size () override { return SAM::m_qmoist_size; }
 
     int
     Qstate_Size () { return SAM::m_qstate_size; }
 
 private:
-    // Number of qmoist variables
-    int m_qmoist_size = 6;
+    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi, qpg)
+    int m_qmoist_size = 8;
 
     // Number of qmoist variables
     int m_qstate_size = 3;

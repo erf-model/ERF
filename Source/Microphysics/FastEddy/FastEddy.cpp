@@ -21,7 +21,7 @@ void FastEddy::AdvanceFE ()
         auto qc_array    = mic_fab_vars[MicVar_FE::qc]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_FE::tabs]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_FE::theta]->array(mfi);
-        auto rho_array   = mic_fab_vars[MicVar_FE::rho]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_FE::pres]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
 
