@@ -89,7 +89,9 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
             ice_tau_ssa_g, ice_tau_ssa_f);
       }
       else if (icecldoptics == "ebertcurry") {
-         EbertCurry::ec_ice_optics_sw(ncol, nlev, nbnd, cld, iciwp, rei, ice_tau, ice_tau_ssa, ice_tau_ssa_g, ice_tau_ssa_f);
+         EbertCurry::ec_ice_optics_sw(ncol, nlev, nbnd, cld, iciwp, 
+                                     rei, ice_tau, ice_tau_ssa, 
+                                     ice_tau_ssa_g, ice_tau_ssa_f);
       }
 
       // Get liquid cloud optics

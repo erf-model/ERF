@@ -42,17 +42,7 @@ void AerRadProps::initialize(int ngas_, int nmodes_, int num_aeroes_,
 void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const int& nnite,
                const int1d& idxnite, const bool is_cmip6_volc, const real3d& tau, const real3d& tau_w,
                const real3d& tau_w_g, const real3d& tau_w_f, const real2d& clear_rh) {
-   // radiative properties for each aerosol
-   real3d ta("ta", ncol, nlev, nswbands);
-   real3d tw("tw", ncol, nlev, nswbands);
-   real3d twf("twf", ncol, nlev, nswbands);
-   real3d twg("twg", ncol, nlev, nswbands);
-
-   // aerosol masses
-   real2d aermmr("aermmr", ncol, nlev);    // mass mixing ratio of aerosols
-   real2d mmr_to_mass("mmr_to_mass", ncol, nlev); // conversion factor for mmr to mass
-   real2d aermass("aermass", ncol, nlev);     // mass of aerosols
-
+   // local variables
    // for table lookup into rh grid
    real2d es("es", ncol, nlev);     // saturation vapor pressure
    real2d qs("qs", ncol, nlev);     // saturation specific humidity
@@ -61,11 +51,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    real2d wrh("wrh", ncol, nlev);
    int2d krh("krh", ncol, nlev);
 
-   int numaerosols;     // number of bulk aerosols in climate/diagnostic list
-   int nmodes;          // number of aerosol modes in climate/diagnostic list
-   int iaerosol;        // index into bulk aerosol list
-
-   std::string opticstype;       // hygro or nonhygro
+   real2d mmr_to_mass("mmr_to_mass", ncol, nlev); // conversion factor for mmr to mass
 
    // for cmip6 style volcanic file
    int1d trop_level("trop_level", ncol);
@@ -81,6 +67,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    yakl::memset(tau_w, -100.);
    yakl::memset(tau_w_g, -100.);
    yakl::memset(tau_w_f, -100.);
+   yakl::memset(ext_cmip6_sw_inv_m, 1.0e-3);
 
    // top layer (ilev = 0) has no aerosol (ie tau = 0)
    // also initialize rest of layers to accumulate od's
@@ -107,16 +94,14 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    // Point ext_cmip6_sw to null so that the code breaks if they are used for is_cmip6_volc=.false. case
    // This is done to avoid having optional arguments in modal_aero_sw call
    yakl::memset(trop_level, 10000000);
-
    // I was thinking whether we have to include volcanic effects on radiation?
    if (is_cmip6_volc) {
       // get extinction so as to supply to modal_aero_sw routine for computing EXTINCT variable
       // converting it from 1/km to 1/m
-
 //      call pbuf_get_field(pbuf, idx_ext_sw, ext_cmip6_sw)
 //      call outfld('extinct_sw_inp',ext_cmip6_sw(:,:,idx_sw_diag), pcols, lchnk)
       parallel_for(SimpleBounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
-        ext_cmip6_sw_inv_m(icol, ilev, isw) = 1.0e-3*ext_cmip6_sw(icol, ilev, isw); //convert from 1/km to 1/m
+        ext_cmip6_sw_inv_m(icol, ilev, isw) = 1.0e-3; //*ext_cmip6_sw(icol, ilev, isw); //convert from 1/km to 1/m
       });
 
       //Find tropopause as extinction should be applied only above tropopause
@@ -149,7 +134,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    // get number of bulk aerosols and number of modes in current list
    mam_consti.get_nmodes(list_idx, nmodes);
    mam_consti.get_ngas(list_idx, ngas);
-   mam_consti.get_naero(list_idx, numaerosols);
+   mam_consti.get_naero(list_idx, num_aeroes);
 
    // Contributions from modal aerosols.
    if (nmodes > 0) {
@@ -158,7 +143,8 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
          ext_cmip6_sw_2d(icol,ilev) = ext_cmip6_sw_inv_m(icol,ilev,RadConstants::idx_sw_diag);
       });
 
-      mam_aer.modal_aero_sw(list_idx, dt, nnite, idxnite, is_cmip6_volc, ext_cmip6_sw_2d,
+      mam_aer.modal_aero_sw(list_idx, dt, nnite, idxnite, is_cmip6_volc, 
+                            pdeldry, pmid, temp, qt, ext_cmip6_sw_2d,
                             trop_level, tau, tau_w, tau_w_g, tau_w_f, clear_rh);
    } else {
       yakl::memset(tau, 0.);
@@ -167,7 +153,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
       yakl::memset(tau_w_f, 0.);
    }
 
-
+#if 1
    if (is_cmip6_volc) {
       //update tau, tau_w, tau_w_g, and tau_w_f with the read in values of extinction, ssa and asymmetry factors
       volcanic_cmip_sw (trop_level, zi, ext_cmip6_sw_inv_m, ssa_cmip6_sw, af_cmip6_sw,
@@ -175,10 +161,13 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    }
 
    // Contributions from bulk aerosols.
-   for (auto iaerosol = 0; iaerosol < numaerosols; ++iaerosol) {
+   for (auto iaero = 0; iaero < num_aeroes; ++iaero) {
+      // aerosol masses
+      real2d aermmr("aermmr", ncol, nlev);    // mass mixing ratio of aerosols
+      real2d aermass("aermass", ncol, nlev);     // mass of aerosols
 
       // get bulk aerosol mass mixing ratio
-//      mam_consti.rad_cnst_get_aer_mmr(list_idx, iaerosol, aermmr);
+//      mam_consti.rad_cnst_get_aer_mmr(list_idx, iaero, aermmr);
       parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
         if (ilev < top_lev) {
           aermass(icol,ilev) = 0.;
@@ -187,8 +176,15 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
         }
       });
 
+      std::string opticstype;       // hygro or nonhygro
       // get optics type
-      mam_consti.get_aer_opticstype(list_idx, iaerosol, opticstype);
+      mam_consti.get_aer_opticstype(list_idx, iaero, opticstype);
+
+      // radiative properties for each aerosol
+      real3d ta("ta", ncol, nlev, nswbands);
+      real3d tw("tw", ncol, nlev, nswbands);
+      real3d twf("twf", ncol, nlev, nswbands);
+      real3d twg("twg", ncol, nlev, nswbands);
 
       if (opticstype == "hygro") {
         // get optical properties for hygroscopic aerosols
@@ -196,9 +192,9 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
         real2d h_ext("h_ext", ncol, nlev);
         real2d h_ssa("h_ssa", ncol, nlev);
         real2d h_asm("h_asm", ncol, nlev);
-        mam_consti.get_aer_sw_hygro_ext(list_idx, iaerosol, h_ext);
-        mam_consti.get_aer_sw_hygro_ssa(list_idx, iaerosol, h_ssa);
-        mam_consti.get_aer_sw_hygro_asm(list_idx, iaerosol, h_asm);
+        mam_consti.get_aer_sw_hygro_ext(list_idx, iaero, h_ext);
+        mam_consti.get_aer_sw_hygro_ssa(list_idx, iaero, h_ssa);
+        mam_consti.get_aer_sw_hygro_asm(list_idx, iaero, h_asm);
         get_hygro_rad_props(ncol, krh, wrh, aermass, h_ext, h_ssa, h_asm, ta, tw, twg, twf);
         parallel_for(SimpleBounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
            tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
@@ -212,9 +208,9 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
           real1d n_ext("n_ext", ncol);
           real1d n_ssa("n_ssa", ncol);
           real1d n_asm("n_asm", ncol);
-          mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaerosol, n_ext);
-          mam_consti.get_aer_sw_nonhygro_ssa(list_idx, iaerosol, n_ssa);
-          mam_consti.get_aer_sw_nonhygro_asm(list_idx, iaerosol, n_asm);
+          mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaero, n_ext);
+          mam_consti.get_aer_sw_nonhygro_ssa(list_idx, iaero, n_ssa);
+          mam_consti.get_aer_sw_nonhygro_asm(list_idx, iaero, n_asm);
           get_nonhygro_rad_props(ncol, aermass, n_ext, n_ssa, n_asm, ta, tw, twg, twf);
         parallel_for(SimpleBounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
            tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
@@ -227,9 +223,9 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
           real1d n_ext("n_ext", ncol);
           real1d n_scat("n_scat", ncol);
           real1d n_ascat("n_ascat", ncol);
-          mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaerosol, n_ext);
-          mam_consti.get_aer_sw_nonhygro_scat(list_idx, iaerosol, n_scat);
-          mam_consti.get_aer_sw_nonhygro_ascat(list_idx, iaerosol, n_ascat);
+          mam_consti.get_aer_sw_nonhygro_ext(list_idx, iaero, n_ext);
+          mam_consti.get_aer_sw_nonhygro_scat(list_idx, iaero, n_scat);
+          mam_consti.get_aer_sw_nonhygro_ascat(list_idx, iaero, n_ascat);
           get_volcanic_rad_props(ncol, aermass, n_ext, n_scat, n_ascat, ta, tw, twg, twf);
           parallel_for(SimpleBounds<3>(ncol, nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
              tau    (icol,ilev,isw) = tau    (icol,ilev,isw) + ta (icol,ilev,isw);
@@ -243,10 +239,10 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
          real2d r_scat("r_scat",ncol,nlev);
          real2d r_ascat("r_ascat",ncol,nlev);
          real1d r_mu("r_mu", ncol);
-         mam_consti.get_aer_r_sw_ext(list_idx, iaerosol, r_ext);
-         mam_consti.get_aer_r_sw_scat(list_idx, iaerosol, r_scat);
-         mam_consti.get_aer_r_sw_ascat(list_idx, iaerosol, r_ascat);
-         mam_consti.get_aer_mu(list_idx, iaerosol, r_mu);
+         mam_consti.get_aer_r_sw_ext(list_idx, iaero, r_ext);
+         mam_consti.get_aer_r_sw_scat(list_idx, iaero, r_scat);
+         mam_consti.get_aer_r_sw_ascat(list_idx, iaero, r_ascat);
+         mam_consti.get_aer_mu(list_idx, iaero, r_mu);
          get_volcanic_radius_rad_props(ncol, aermass, r_ext, r_scat, r_ascat, r_mu, ta, tw, twg, twf);
          //get_volcanic_radius_rad_props(const real2d& mass,
          //                                        const real2d& r_ext,
@@ -270,12 +266,13 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
 
       // diagnostic output of individual aerosol optical properties
       // currently implemented for climate list only
-//      call aer_vis_diag_out(lchnk, ncol, nnite, idxnite, iaerosol, ta(:,:,idx_sw_diag), list_idx)
+//      call aer_vis_diag_out(lchnk, ncol, nnite, idxnite, iaero, ta(:,:,idx_sw_diag), list_idx)
    }
 
    // diagnostic output of total aerosol optical properties
    // currently implemented for climate list only
 //   call aer_vis_diag_out(lchnk, ncol, nnite, idxnite, 0, tau(:,:,idx_sw_diag), list_idx)
+#endif
 }
 
 // Purpose: Compute aerosol transmissions needed in absorptivity/
@@ -333,7 +330,7 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
 
    // Contributions from modal aerosols.
    if (nmodes > 0) {
-      mam_aer.modal_aero_lw(list_idx, dt, odap_aer,clear_rh);
+      mam_aer.modal_aero_lw(list_idx, dt, pdeldry, pmid, temp, qt, odap_aer,clear_rh);
    } else {
       yakl::memset(odap_aer, 0.);
    }

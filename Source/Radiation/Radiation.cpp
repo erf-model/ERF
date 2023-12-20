@@ -16,6 +16,16 @@
 #include <memory>
 
 #include "Radiation.H"
+#include <AMReX_GpuContainers.H>
+#include <AMReX_FArrayBox.H>
+#include <AMReX_Geometry.H>
+#include <AMReX_TableData.H>
+#include <AMReX_MultiFabUtil.H>
+#include "ERF_Constants.H"
+#include "IndexDefines.H"
+#include "DataStruct.H"
+#include "EOS.H"
+#include "TileNoZ.H"
 
 using namespace amrex;
 using yakl::intrinsics::size;
@@ -137,12 +147,27 @@ void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
    qt   = real2d("qt", ncol, nlev);
    zi   = real2d("zi", ncol, nlev);
 
-   yakl::memset(tmid, 300);
-   yakl::memset(pmid, 1000);
-   yakl::memset(pint, 1000);
-   yakl::memset(tint, 300);
-   yakl::memset(qt, 1.0e-3);
-   yakl::memset(zi, 1.0);
+   // Get the temperature, density, theta, qt and qp from input
+   for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
+     auto states_array = cons_in.array(mfi);
+     const auto& box3d = mfi.tilebox();
+     auto nx = box3d.length(0);
+     auto ny = box3d.length(1);
+     // Get pressure, theta, temperature, density, and qt, qp
+     amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+       auto icol = j*nx+i+1;
+       auto ilev = k+1;
+       qt(icol,ilev)   = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
+       tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
+       pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/100.;
+     });
+   }
+
+   parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+     pint(icol, ilev) = 0.5*(pmid(icol, ilev) + pmid(icol, ilev));
+     tint(icol, ilev) = 0.5*(tmid(icol, ilev) + tmid(icol, ilev));
+     zi(icol, ilev)   = lowz + (ilev+0.5)*dz;
+   });
 
    albedo_dir = real2d("albedo_dir", nswbands, ncol);
    albedo_dif = real2d("albedo_dif", nswbands, ncol);
@@ -167,16 +192,13 @@ void Radiation::initialize(const MultiFab& cons_in, MultiFab& qmoist,
                      ncol, nlev, nrh, top_lev, aero_names, zi,
                      pmid, tmid, qt, geom_radius);
 
-   amrex::Print() << "  LW coefficents file: \n"
-                  << "  SW coefficents file: \n"
-                  << "  Frequency (timesteps) of Shortwave Radiation calc: \n "
-                  << "  Frequency (timesteps) of Longwave Radiation calc: \n  "
-                  << "  SW/LW calc done every timestep for first N steps. N= \n"
-                  << "  Use average zenith angle:                          \n "
-                  << "  Output spectrally resolved fluxes:                 \n "
-                  << "  Do aerosol radiative calculations:                 \n "
-                  << "  Fixed solar consant (disabled with -1):            \n "
-                  << "  Enable temperature warnings:                       \n ";
+   amrex::Print() << "LW coefficents file: " << rrtmgp_coefficients_file_lw
+                  << "\nSW coefficents file: " << rrtmgp_coefficients_file_sw
+                  << "\nFrequency (timesteps) of Shortwave Radiation calc: " << dt
+                  << "\nFrequency (timesteps) of Longwave Radiation calc:  " << dt
+                  << "\nUse average zenith angle: "
+                  << "\nOutput spectrally resolved fluxes: "
+                  << "\nDo aerosol radiative calculations: " << do_aerosol_rad << std::endl;
 
 }
 
@@ -324,7 +346,9 @@ void Radiation::run() {
            yakl::memset(aer_ssa_bnd_sw, 0.);
            yakl::memset(aer_asm_bnd_sw, 0.);
 
-           real2d clear_rh;
+           real2d clear_rh("clear_rh",ncol, nswbands);
+           yakl::memset(clear_rh, 0.01);
+
            optics.set_aerosol_optics_sw(icall, ncol, nlev, nswbands, dt, night_indices,
                              is_cmip6_volc, aer_tau_bnd_sw, aer_ssa_bnd_sw, aer_asm_bnd_sw, clear_rh);
 
@@ -364,17 +388,13 @@ void Radiation::run() {
                   pmid, pint, tmid, albedo_dir, albedo_dif, coszrs,
                   cld_tau_gpt_sw, cld_ssa_gpt_sw, cld_asm_gpt_sw,
                   aer_tau_bnd_sw, aer_ssa_bnd_sw, aer_asm_bnd_sw,
-                  fluxes_allsky, fluxes_clrsky, qrs, qrsc
-               );
-
-        }
-   }
-   else {
+                  fluxes_allsky, fluxes_clrsky, qrs, qrsc);
+     }
+   } else {
       // Conserve energy
      if (conserve_energy) {
        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-           qrs(icol,ilev) = qrs(icol,ilev)/pdel(icol,ilev);
-       });
+           qrs(icol,ilev) = qrs(icol,ilev)/pdel(icol,ilev); });
      }
   }  // dosw
 
@@ -710,12 +730,12 @@ void Radiation::get_gas_vmr(const std::vector<std::string>& gas_names, const rea
        if (gas_names[igas] == "CO"){
           // CO not available, use default
           parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-             gas_vmr(igas+1,icol,ilev) = 1.0e-4; //co_vol_mix_ratio;
+             gas_vmr(igas+1,icol,ilev) = co_vol_mix_ratio;
           });
        } else if (gas_names[igas] == "N2") {
           // N2 not available, use default
           parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-             gas_vmr(igas+1,icol,ilev) = 1.0e-5; //n2_vol_mix_ratio;
+             gas_vmr(igas+1,icol,ilev) = n2_vol_mix_ratio;
           });
        } else if (gas_names[igas] == "H2O") {
           // Water vapor is represented as specific humidity in CAM, so we
@@ -737,7 +757,7 @@ void Radiation::get_gas_vmr(const std::vector<std::string>& gas_names, const rea
           // Convert to volume mixing ratio by multiplying by the ratio of
           // molecular weight of dry air to molecular weight of gas
           parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-              gas_vmr(igas+1,icol,ilev) = 1.0e-4; //mmr(icol,ilev)
+              gas_vmr(igas+1,icol,ilev) = 1.0e-6; //mmr(icol,ilev)
 //                                     * mol_weight_air / mol_weight_gas[igas];
           });
       }

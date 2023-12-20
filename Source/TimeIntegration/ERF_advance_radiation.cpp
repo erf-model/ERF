@@ -12,7 +12,7 @@ void ERF::advance_radiation (int lev,
    bool do_lw_rad {true};
    bool do_aero_rad {true};
    bool do_snow_opt {true};
-   bool is_cmip6_volcano {true};
+   bool is_cmip6_volcano {false};
 
    rad.initialize(cons, qmoist[lev],
                   grids[lev],

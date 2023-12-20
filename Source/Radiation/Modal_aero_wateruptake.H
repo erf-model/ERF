@@ -7,10 +7,8 @@
 #include <vector>
 #include <memory>
 
-#include <AMReX_FArrayBox.H>
-#include <AMReX_Geometry.H>
 #include <AMReX_TableData.H>
-#include <AMReX_MultiFabUtil.H>
+#include <AMReX_GpuComplex.H>
 #include "ERF_Constants.H"
 #include "Aero_rad_props.H"
 #include "Cloud_rad_props.H"
@@ -31,16 +29,16 @@ class ModalAeroWateruptake {
    // all the optional args must be present.
    static
    void modal_aero_wateruptake_dr(int list_idx, int ncol, int nlev, int nmodes, int top_lev,
-                                  MamConstituents& consti, const real3d& dgnumdry_m,
-                                  const real3d& dgnumwet_m, const real3d& qaerwat_m,
+                                  MamConstituents& consti, const real2d& h2ommr, const real2d& t, const real2d& pmid, 
+                                  const real3d& dgnumdry_m, const real3d& dgnumwet_m, const real3d& qaerwat_m,
                                   const real3d& wetdens_m, const real2d& clear_rh_in) {
    int itim_old;
    int nspec;
 
-   real2d h2ommr("h2ommr",ncol,nlev); // specific humidity
-   real2d t("temperature",ncol,nlev);      // temperatures (K)
-   real2d pmid("pmid",ncol,nlev);   // layer pressure (Pa)
-   real2d raer("raer",ncol,nlev);   // aerosol species MRs (kg/kg and #/kg)
+//   real2d h2ommr("h2ommr",ncol,nlev); // specific humidity
+//   real2d t("temperature",ncol,nlev);      // temperatures (K)
+//   real2d pmid("pmid",ncol,nlev);   // layer pressure (Pa)
+   real2d raer("raer",ncol,nlev);     // aerosol species MRs (kg/kg and #/kg)
 
    real2d cldn("cldn",ncol,nlev);               // layer cloud fraction (0-1)
    real3d dgncur_a("dgncur",ncol,nlev,nmodes);
@@ -128,7 +126,7 @@ class ModalAeroWateruptake {
             spechygro_1    = spechygro;
          }
 
-         for(auto k = top_lev; k > nlev; --k) {
+         for(auto k = top_lev; k <= nlev; ++k) {
             for(auto i = 1; i <= ncol; ++i) {
                duma          = raer(i,k);
                maer(i,k,m)   = maer(i,k,m) + duma;
@@ -141,8 +139,8 @@ class ModalAeroWateruptake {
 
       alnsg = log(sigmag);
 
-      for(auto k = top_lev; k >= nlev; --k) {
-         for(auto i = 0; i <= ncol; ++i) {
+      for(auto k = top_lev; k <= nlev; ++k) {
+         for(auto i = 1; i <= ncol; ++i) {
 
             if (dryvolmr(i,k) > 1.0e-30) {
                hygro(i,k,m) = hygro(i,k,m)/dryvolmr(i,k);
@@ -151,7 +149,7 @@ class ModalAeroWateruptake {
             }
 
             // dry aerosol properties
-            v2ncur_a = 1. / ( (PI/6.)*(pow(dgncur_a(i,k,m),3.))*exp(4.5*pow(alnsg, 2.)) );
+            v2ncur_a = 1. / ( (PI/6.)*(std::pow(dgncur_a(i,k,m),3.))*std::exp(4.5*std::pow(alnsg, 2.)) );
             // naer = aerosol number (#/kg)
             naer(i,k,m) = dryvolmr(i,k)*v2ncur_a;
 
@@ -170,12 +168,14 @@ class ModalAeroWateruptake {
             drymass(i,k,m)  = drydens*dryvol(i,k,m);
             dryrad(i,k,m)   = std::pow((dryvol(i,k,m)/pi43), third);
 
+printf("i=%d, k=%d, m=%d, dryrad=%13.6e, dryvol=%13.6e, drymass=%13.6e, v2ncur=%13.6e\n",i,k,m,dryrad(i,k,m),dryvol(i,k,m),drymass(i,k,m),v2ncur_a);
+
          } // i = 1, ncol
       } // k = top_lev, pver
    } // modes
 
    // specify clear air relative humidity
-   bool has_clear_rh = true;
+   bool has_clear_rh = false;
    if (has_clear_rh) {
       // use input relative humidity
       // check that values are reasonable and apply upper limit
@@ -192,41 +192,24 @@ class ModalAeroWateruptake {
       }
 
     } else {
-
       // estimate clear air relative humidity using cloud fraction
-      //h2ommr => state%q(:,:,1)
-      // t      => state%t
-      // pmid   => state%pmid
-#if 0
-      itim_old    =  pbuf_old_tim_idx()
-      pbuf_get_field(pbuf, cld_idx, cldn, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) );
-
-      for(auto k = top_lev; k > pver; --k) {
-         qsat_water(t(:ncol,k), pmid(:ncol,k), es(:ncol), qs(:ncol));
-         for(auto i = 0; i < ncol; ++i) {
+      for(auto k = top_lev; k <= nlev; ++k) {
+         for(auto i = 1; i <= ncol; ++i) {
+            WaterVaporSat::qsat(t(i,k), pmid(i,k), es(i), qs(i));
             if (qs(i) > h2ommr(i,k)) {
                rh(i,k) = h2ommr(i,k)/qs(i);
             } else {
                rh(i,k) = 0.98;
             }
 
-            rh(i,k) = max(rh(i,k), 0.0);
-            rh(i,k) = min(rh(i,k), 0.98);
-            if(pergro_mods) {
-               cldn_thresh = 0.9998;
+            rh(i,k) = std::max(rh(i,k), 0.0);
+            rh(i,k) = std::min(rh(i,k), 0.98);
+            if (cldn(i,k) < 0.998) {
+               rh(i,k) = (rh(i,k) - cldn(i,k)) / (1.0 - cldn(i,k));
             }
-            else {
-               cldn_thresh = 1.0; //original code
-            }
-
-            if (cldn(i,k) < cldn_thresh) {
-               rh(i,k) = (rh(i,k) - cldn(i,k)) / (1.0 - cldn(i,k));  // RH of clear portion
-            }
-
-            rh(i,k) = max(rh(i,k), 0.0);
+            rh(i,k) = std::max(rh(i,k), 0.0);
          } // i = 1, ncol
       } // k = top_lev, pver
-#endif
    }
 
    // compute aerosol wet radius and aerosol water
@@ -236,7 +219,7 @@ class ModalAeroWateruptake {
                               wetrad, wetvol, wtrvol);
 
    for(auto m = 1; m <= nmodes; ++m) {
-      for(auto k = top_lev; k > nlev; --k) {
+      for(auto k = top_lev; k <= nlev; ++k) {
          for(auto i = 1; i <= ncol; ++i) {
 
             dgncur_awet(i,k,m) = dgncur_a(i,k,m) * (wetrad(i,k,m)/dryrad(i,k,m));
@@ -251,6 +234,7 @@ class ModalAeroWateruptake {
                   wetdens(i,k,m) = specdens_1(m);
                }
             }
+printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13.6d\n",i,k,m,qaerwat(i,k,m),rhoh2o,naer(i,k,m),wtrvol(i,k,m));
          }  //i = 1, ncol
       } // k = top_lev, pver
      } // m = 1, nmodes
@@ -265,7 +249,7 @@ class ModalAeroWateruptake {
    // loop over all aerosol modes
    for(auto m = 1; m <= nmodes; ++m) {
       real hystfac = 1.0 / std::max(1.0e-5, (rhdeliques(m) - rhcrystal(m)));
-      for(auto k = top_lev; k > nlev; --k) {
+      for(auto k = top_lev; k <= nlev; ++k) {
          for(auto i = 1; i <= ncol; ++i) {
 
             // compute wet radius for each mode
@@ -358,13 +342,14 @@ class ModalAeroWateruptake {
          r=rdry*(1.+p*third/(1.-slog*rdry/a));
       }
       else {
-         makoh_quartic(cx4r,cx4i,p43,p42,p41,p40);
+         amrex::GpuComplex<real> cx4[4];
+         makoh_quartic(cx4,p43,p42,p41,p40);
          //find smallest real(r8) solution
          r = 1000.*rdry;
          auto nsol = 0;
-         for(auto n=1; n<=4; ++n) {
-            xr=cx4r(n);
-            xi=cx4i(n);
+         for(auto n=0; n<4; ++n) {
+            xr=cx4[n].real();
+            xi=cx4[n].imag();
             if(abs(xi) > abs(xr)*eps) continue;
             if(xr > r) continue;
             if(xr < rdry*(1.-eps)) continue;
@@ -388,13 +373,14 @@ class ModalAeroWateruptake {
             r=rdry*(1.+p*third);
          }
          else {
-            //makoh_cubic(cx3,p32,p31,p30,im);
+            amrex::GpuComplex<real> cx3[3];
+            makoh_cubic(cx3,p32,p31,p30);
             //find smallest real(r8) solution
             r=1000.*rdry;
             auto nsol = 0;
-            for(auto n=1; n<=3; ++n) {
-               xr = cx3r(n);
-               xi = cx3i(n);
+            for(auto n=0; n<3; ++n) {
+               xr = cx3[n].real();
+               xi = cx3[n].imag();
                if(abs(xi) > abs(xr)*eps) continue;
                if(xr > r) continue;
                if(xr < rdry*(1.-eps)) continue;
@@ -418,103 +404,83 @@ class ModalAeroWateruptake {
      rwet_out = r*1.e-6;
    }
 
-   //solves  x**3 + p2 x**2 + p1 x + p0 = 0
-   //where p0, p1, p2 are real
-   static
-   void makoh_cubic(const real1d& cxr, const real1d& cxi,
-                    const real& p2, const real& p1, const real& p0)
-   {
-      real q, r;
-      real cradr, cyr, czr, cradi, cyi, czi;
+    // solves  x**3 + p2 x**2 + p1 x + p0 = 0
+    // where p0, p1, p2 are real
+    static
+    void makoh_cubic(amrex::GpuComplex<real> cx[], const real& p2, const real& p1, const real& p0) {
+      const real eps = 1.0e-20;
+      const real third=1./3.;
 
-      const real eps = 1.e-20;
-      const real cwr = -0.5;
-      const real cwi = sqrt(3);
-      const real cwsqr = -0.5;
-      const real cwsqi = -sqrt(3);
+      auto ci = amrex::GpuComplex<real>(0., 1.);
+      auto sqrt3 = amrex::GpuComplex<real>(std::sqrt(3.), 0.);
+      auto cw   = 0.5*(-1.+ci*sqrt3);
+      auto cwsq = 0.5*(-1.-ci*sqrt3);
 
       if(p1 == 0.) {
-         // completely insoluble particle
-         cxr(1) = std::pow(-p0, 1./3.);
-         cxr(2) = cxr(1);
-         cxr(3) = cxr(1);
-         cxi(1) = 0.;
-         cxi(2) = 0.;
-         cxi(3) = 0.;
-      }
+        // completely insoluble particle
+         cx[0] = amrex::GpuComplex<real>(std::pow(-p0, third), 0.);
+         cx[1] = cx[0];
+         cx[2] = cx[1];
+      } 
       else {
-         q = p1/3.;
-         r = p0/2.;
-         auto r2q3 = r*r+q*q*q;
-         if (r2q3 >= 0.) {
-           cradr = sqrt(r2q3);
-         }
-         else {
-           cradi = sqrt(abs(r2q3));
-         }
+         auto q = amrex::GpuComplex<real>(p1/3., 0.);
+         auto r = amrex::GpuComplex<real>(p0/2., 0.);
+         auto crad = r*r+q*q*q;
+         crad = amrex::sqrt(crad);
 
-         cyr = r-cradr;
-         cyi = cradi;
-
-         if (abs(cyr) > eps) cyr = std::pow(cyr, 1./3.);
+         auto cy = r-crad;
+         if (amrex::abs(cy) > eps) cy = amrex::pow(cy, third);
          auto cq = q;
-         czr = -cq/cyr;
-         czi = -cq/cyi;
+         auto cz = -cq/cy;
 
-         cxr(1) = -cyr-czr;
-         cxr(2) = -cwr*cyr-cwsqr*czr;
-         cxr(3) = -cwsqr*cyr-cwr*czr;
-
-         cxi(1) = -cyi-czi;
-         cxi(2) = -cwi*cyr-cwsqi*czi;
-         cxi(3) = -cwsqi*cyr-cwi*czi;
+         cx[0] = -cy-cz;
+         cx[1] = -cw*cy-cwsq*cz;
+         cx[2] = -cwsq*cy-cw*cz;
       }
     }
 
     // solves x**4 + p3 x**3 + p2 x**2 + p1 x + p0 = 0
     // where p0, p1, p2, p3 are real
     static
-    void makoh_quartic(const real1d& cxr, const real1d& cxi,
-                       const real& p3, const real& p2,  const real& p1, const real& p0)
-    {
-      real q, r;
-      real cbr, cb0r, cb1r, cbi, cb0i, cb1i;
-      real cradr, cyr, cradi, cyi;
+    void makoh_quartic(amrex::GpuComplex<real> cx[], const real& p3, const real& p2, const real& p1, const real& p0) {
 
-      q = -p2*p2/36.+(p3*p1-4*p0)/12.;
-      r = -std::pow(p2/6, 3.)+p2*(p3*p1-4*p0)/48.
-          +(4*p0*p2-p0*p3*p3-p1*p1)/16;
+      const real third=1./3.;
+      auto q = -p2*p2/36.+(p3*p1-4*p0)/12.;
+      auto r = -std::pow((p2/6), 3.0) + p2*(p3*p1-4.*p0)/48.
+             +(4.*p0*p2-p0*p3*p3-p1*p1)/16.;
 
-      cradr = r*r+q*q*q;
-      cradr = sqrt(cradr);
+      auto crad = amrex::GpuComplex<real>(r*r+q*q*q, 0.);
+      crad = amrex::sqrt(crad);
 
-      cbr = r-cradr;
-      if(cbr == 0.0) {
-         //insoluble particle
-         cxr(1) = std::pow(-p1, 1./3.);
-         cxr(2) = cxr(1);
-         cxr(3) = cxr(1);
-         cxr(4) = cxr(1);
-      }
+      auto cb = r-crad;
 
-      cbr = std::pow(cbr, 1./3.);
+      if (cb.real() == 0. && cb.imag() == 0.) {
+         // insoluble particle
+         cx[0] = amrex::pow(amrex::GpuComplex<real>(-p1, 0.0), third);
+         cx[1] = cx[0];
+         cx[2] = cx[0];
+         cx[3] = cx[0];;
+      } 
+      else {
+         cb = amrex::pow(cb, third);
 
-      cyr = -cbr+q/cbr+p2/6;
+         auto cy = -cb+q/cb+p2/6.;
 
-      cb0r = sqrt(cyr*cyr-p0);
-      cb1r = (p3*cyr-p1)/(2*cb0r);
+         auto cb0 = amrex::sqrt(cy*cy-p0);
+         auto cb1 = (p3*cy-p1)/(2.*cb0);
 
-      cbr   = p3/2+cb1r;
-      cradr = cbr*cbr-4*(cyr+cb0r);
-      cradr = sqrt(cradr);
-      cxr(1) = (-cbr+cradr)/2.;
-      cxr(2) = (-cbr-cradr)/2.;
+         cb   = p3/2.+cb1;
+         crad = cb*cb-4.*(cy+cb0);
+         crad = amrex::sqrt(crad);
+         cx[1] = (-cb+crad)/2.;
+         cx[2] = (-cb-crad)/2.;
 
-      cbr   = p3/2-cb1r;
-      cradr = cbr*cbr-4*(cyr-cb0r);
-      cradr = sqrt(cradr);
-      cxr(3) = (-cbr+cradr)/2.;
-      cxr(4) = (-cbr-cradr)/2.;
-   }
+         cb    = p3/2.-cb1;
+         crad  = cb*cb-4.*(cy-cb0);
+         crad  = amrex::sqrt(crad);
+         cx[3] = (-cb+crad)/2.;
+         cx[4] = (-cb-crad)/2.;
+     }
+  }
 };
 #endif
