@@ -337,6 +337,26 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
     return met_h_eta;
 }
 
+// Relative height above terrain surface at cell center from z_nd (nodal absolute height)
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_Zrel_AtCellCenter (const int &i, const int &j, const int &k,
+                           const amrex::Array4<const amrex::Real>& z_nd)
+{
+    const amrex::Real z_cc = 0.125*(  z_nd(i  ,j  ,k  ) + z_nd(i  ,j  ,k+1) +
+                                      + z_nd(i+1,j  ,k  ) + z_nd(i  ,j  ,k+1)
+                                      + z_nd(i  ,j+1,k  ) + z_nd(i  ,j+1,k+1)
+                                      + z_nd(i+1,j+1,k  ) + z_nd(i  ,j+1,k+1));
+
+    // Note: we assume the z_nd array spans from the bottom to top of the domain
+    // i.e. no domain decomposition across processors in vertical direction
+    const amrex::Real z0_cc = 0.25*(  z_nd(i  ,j  ,0) + z_nd(i  ,j+1,0)
+                                      + z_nd(i+1,j  ,0) + z_nd(i+1,j+1,0));
+
+    return (z_cc - z0_cc);
+}
+
 /**
  * Define omega given u,v and w
  */

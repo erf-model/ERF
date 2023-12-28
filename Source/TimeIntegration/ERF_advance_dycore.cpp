@@ -220,6 +220,7 @@ void ERF::advance_dycore(int level,
                                   state_old[IntVar::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
+                                  z_phys_nd[level],
                                   tc, solverChoice.gravity, m_most, bc_ptr_d);
     }
 
