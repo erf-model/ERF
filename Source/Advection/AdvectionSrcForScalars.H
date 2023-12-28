@@ -6,13 +6,13 @@
  */
 template<typename InterpType_H, typename InterpType_V>
 void
-AdvectionSrcForScalarsWrapper(const amrex::Box& bx,
-                              const int& ncomp, const int& icomp,
-                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
-                              const amrex::Array4<const amrex::Real>& cell_prim,
-                              const amrex::Array4<const amrex::Real>& avg_xmom,
-                              const amrex::Array4<const amrex::Real>& avg_ymom,
-                              const amrex::Array4<const amrex::Real>& avg_zmom)
+AdvectionSrcForScalarsWrapper (const amrex::Box& bx,
+                               const int& ncomp, const int& icomp,
+                               const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
+                               const amrex::Array4<const amrex::Real>& cell_prim,
+                               const amrex::Array4<const amrex::Real>& avg_xmom,
+                               const amrex::Array4<const amrex::Real>& avg_ymom,
+                               const amrex::Array4<const amrex::Real>& avg_zmom)
 {
     // Instantiate structs for vert/horiz interp
     InterpType_H interp_prim_h(cell_prim);
@@ -60,14 +60,14 @@ AdvectionSrcForScalarsWrapper(const amrex::Box& bx,
  */
 template<typename InterpType_H>
 void
-AdvectionSrcForScalarsVert(const amrex::Box& bx,
-                             const int& ncomp, const int& icomp,
-                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
-                             const amrex::Array4<const amrex::Real>& cell_prim,
-                             const amrex::Array4<const amrex::Real>& avg_xmom,
-                             const amrex::Array4<const amrex::Real>& avg_ymom,
-                             const amrex::Array4<const amrex::Real>& avg_zmom,
-                             const AdvType vert_adv_type)
+AdvectionSrcForScalarsVert (const amrex::Box& bx,
+                            const int& ncomp, const int& icomp,
+                            const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx_arr,
+                            const amrex::Array4<const amrex::Real>& cell_prim,
+                            const amrex::Array4<const amrex::Real>& avg_xmom,
+                            const amrex::Array4<const amrex::Real>& avg_ymom,
+                            const amrex::Array4<const amrex::Real>& avg_zmom,
+                            const AdvType vert_adv_type)
 {
     switch(vert_adv_type) {
     case AdvType::Centered_2nd:

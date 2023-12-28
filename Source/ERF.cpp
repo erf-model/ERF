@@ -109,6 +109,12 @@ ERF::ERF ()
         amrex::Print() << "\n";
     }
 
+    int nlevs_max = max_level + 1;
+
+    // NOTE: size micro before readparams (chooses the model at all levels)
+    micro.ReSize(nlevs_max);
+    qmoist.resize(nlevs_max);
+
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -127,8 +133,6 @@ ERF::ERF ()
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
-
-    int nlevs_max = max_level + 1;
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
@@ -156,8 +160,6 @@ ERF::ERF ()
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
-
-    qmoist.resize(nlevs_max);
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
@@ -217,8 +219,7 @@ ERF::ERF ()
     }
 }
 
-ERF::~ERF ()
-= default;
+ERF::~ERF () = default;
 
 // advance solution to final time
 void
@@ -529,7 +530,6 @@ ERF::InitData ()
             }
         }
 
-
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             int src_comp_reflux = 0;
             int num_comp_reflux = vars_new[0][Vars::cons].nComp();
@@ -548,7 +548,7 @@ ERF::InitData ()
         if (solverChoice.moisture_type != MoistureType::None)
         {
             for (int lev = 0; lev <= finest_level; lev++) {
-                FillPatchMoistVars(lev, *(qmoist[lev]));
+                FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
             }
         }
     }
@@ -575,23 +575,6 @@ ERF::InitData ()
                                                    dmap[lev],  dmap[lev-1],
                                                    geom[lev],  geom[lev-1],
                                               ref_ratio[lev-1], lev, ncomp_reflux);
-        }
-    }
-
-    // Initialize microphysics here
-    micro.define(solverChoice);
-
-    // Call Init which will call Diagnose to fill qmoist
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            // If not restarting we need to fill qmoist given qt and qp.
-            if (restart_chkfile.empty()) {
-                micro.Init(vars_new[lev][Vars::cons], *(qmoist[lev]),
-                           grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-                micro.Update(vars_new[lev][Vars::cons], *(qmoist[lev]));
-            }
         }
     }
 
@@ -817,6 +800,7 @@ ERF::InitData ()
 void
 ERF::restart ()
 {
+    // TODO: This could be deleted since ba/dm are not created yet?
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
@@ -858,8 +842,6 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].setVal(0.0); lev_old[Vars::xvel].setVal(0.0);
     lev_new[Vars::yvel].setVal(0.0); lev_old[Vars::yvel].setVal(0.0);
     lev_new[Vars::zvel].setVal(0.0); lev_old[Vars::zvel].setVal(0.0);
-
-    qmoist[lev]->setVal(0.);
 
     // Initialize background flow (optional)
     if (init_type == "input_sounding") {
@@ -1177,13 +1159,11 @@ ERF::MakeHorizontalAverages ()
 
     if (use_moisture)
     {
-        MultiFab qv(*(qmoist[lev]), make_alias, 0, 1);
-
         for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();
             auto  fab_arr = mf.array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-            auto const   qv_arr = qv.const_array(mfi);
+            auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
@@ -1464,6 +1444,12 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         amrex::Print() << "\n";
     }
 
+    int nlevs_max = max_level + 1;
+
+    // NOTE: size micro before readparams (chooses the model at all levels)
+    micro.ReSize(nlevs_max);
+    qmoist.resize(nlevs_max);
+
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -1474,8 +1460,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
-
-    int nlevs_max = max_level + 1;
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
@@ -1503,8 +1487,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     rU_old.resize(nlevs_max);
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
-
-    qmoist.resize(nlevs_max);
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);

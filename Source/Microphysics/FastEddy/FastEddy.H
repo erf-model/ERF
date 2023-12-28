@@ -51,7 +51,7 @@ public:
 
     // Set up for first time
     void
-    define (SolverChoice& sc) override
+    Define (SolverChoice& sc) override
     {
         docloud = sc.do_cloud;
         doprecip = sc.do_precip;
@@ -65,30 +65,62 @@ public:
     // init
     void
     Init (const amrex::MultiFab& cons_in,
-          amrex::MultiFab& qmoist,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
+
+    // Copy state into micro vars
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    // Copy micro into state vars
+    void
+    Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
     // update ERF variables
     void
     Update (amrex::MultiFab& cons_in,
             amrex::MultiFab& qmoist) override;
 
+    void
+    Update_Micro_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_State_to_Micro(cons_in);
+        this->Diagnose();
+    }
+
+    void
+    Update_State_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_Micro_to_State(cons_in);
+    }
+
     // wrapper to do all the updating
     void
-    Advance ( ) override
+    Advance (const amrex::Real& dt_advance) override
     {
+        dt = dt_advance;
+
         this->AdvanceFE();
         this->Diagnose();
     }
 
-    int
-    Qmoist_Size ( ) override { return FastEddy::m_qmoist_size; }
+    amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
+    }
 
- private:
+    int
+    Qmoist_Size () override { return FastEddy::m_qmoist_size; }
+
+private:
     // Number of qmoist variables
     int m_qmoist_size = 2;
+
+    // MicVar map (Qmoist indices -> MicVar enum)
+    amrex::Vector<int> MicVarMap;
 
     // geometry
     amrex::Geometry m_geom;
@@ -114,36 +146,7 @@ public:
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
 
-    // microphysics parameters/coefficients
-    amrex::TableData<amrex::Real, 1> accrrc;
-    amrex::TableData<amrex::Real, 1> accrsi;
-    amrex::TableData<amrex::Real, 1> accrsc;
-    amrex::TableData<amrex::Real, 1> coefice;
-    amrex::TableData<amrex::Real, 1> evaps1;
-    amrex::TableData<amrex::Real, 1> evaps2;
-    amrex::TableData<amrex::Real, 1> accrgi;
-    amrex::TableData<amrex::Real, 1> accrgc;
-    amrex::TableData<amrex::Real, 1> evapg1;
-    amrex::TableData<amrex::Real, 1> evapg2;
-    amrex::TableData<amrex::Real, 1> evapr1;
-    amrex::TableData<amrex::Real, 1> evapr2;
-
-    // vertical plane average data
-    amrex::TableData<amrex::Real, 1> rho1d;
-    amrex::TableData<amrex::Real, 1> pres1d;
-    amrex::TableData<amrex::Real, 1> tabs1d;
-    amrex::TableData<amrex::Real, 1> qt1d;
-    amrex::TableData<amrex::Real, 1> qv1d;
-    amrex::TableData<amrex::Real, 1> qn1d;
-
     // independent variables
     amrex::Array<FabPtr, MicVar_FE::NumVars> mic_fab_vars;
-
-    amrex::TableData<amrex::Real, 1> gamaz;
-    amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
-
-    // data (output)
-    amrex::TableData<amrex::Real, 1> qifall;
-    amrex::TableData<amrex::Real, 1> tlatqi;
 };
 #endif

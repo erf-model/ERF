@@ -121,23 +121,23 @@ wrfbdy_zero_rhs_in_set_region (const int& icomp,
                                const amrex::Box& bx_yhi,
                                const amrex::Array4<amrex::Real>& rhs_arr)
 {
-  amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-  {
+    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    {
       rhs_arr(i,j,k,n+icomp) = 0.0;
-  },
-  bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-  {
-      rhs_arr(i,j,k,n+icomp) = 0.0;
-  });
+    },
+    bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    {
+        rhs_arr(i,j,k,n+icomp) = 0.0;
+    });
 
-  amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-  {
-      rhs_arr(i,j,k,n+icomp) = 0.0;
-  },
-  bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-  {
-      rhs_arr(i,j,k,n+icomp) = 0.0;
-  });
+    amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    {
+        rhs_arr(i,j,k,n+icomp) = 0.0;
+    },
+    bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    {
+        rhs_arr(i,j,k,n+icomp) = 0.0;
+    });
 }
 
 /**

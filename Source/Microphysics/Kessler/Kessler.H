@@ -40,6 +40,7 @@ namespace MicVar_Kess {
       qcl,  // cloud water
       qpl,  // precip rain
       qpi,  // precip ice
+      qg,   // graupel
       // temporary variable
       omega,
       NumVars
@@ -68,7 +69,7 @@ public:
 
     // Set up for first time
     void
-    define (SolverChoice& sc) override
+    Define (SolverChoice& sc) override
     {
         docloud = sc.do_cloud;
         doprecip = sc.do_precip;
@@ -82,33 +83,73 @@ public:
     // init
     void
     Init (const amrex::MultiFab& cons_in,
-          amrex::MultiFab& qmoist,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance) override;
+
+    // Copy state into micro vars
+    void
+    Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
+
+    // Copy state into micro vars
+    void
+    Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
     // update ERF variables
     void
     Update (amrex::MultiFab& cons_in,
             amrex::MultiFab& qmoist) override;
 
-    // wrapper to do all the updating
+    // update micro vars
     void
-    Advance ( ) override
+    Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
-        this->AdvanceKessler();
+        this->Copy_State_to_Micro(cons_in);
         this->Diagnose();
+        this->Compute_Tabs_and_Pres();
     }
 
-    int
-    Qmoist_Size ( ) override { return Kessler::m_qmoist_size; }
+    // update state vars
+    void
+    Update_State_Vars (amrex::MultiFab& cons_in) override
+    {
+        this->Copy_Micro_to_State(cons_in);
+    }
 
- private:
+    // wrapper to advance micro vars
+    void
+    Advance (const amrex::Real& dt_advance) override
+    {
+        dt = dt_advance;
+
+        this->AdvanceKessler();
+        this->Diagnose();
+        this->Compute_Tabs_and_Pres();
+    }
+
+    amrex::MultiFab*
+    Qmoist_Ptr (const int& varIdx) override
+    {
+        AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
+        return mic_fab_vars[MicVarMap[varIdx]].get();
+    }
+
+    void
+    Compute_Tabs_and_Pres ();
+
+    int
+    Qmoist_Size () override { return Kessler::m_qmoist_size; }
+
+private:
     // Number of qmoist variables
     int m_qmoist_size = 6;
 
+    // MicVar map (Qmoist indices -> MicVar enum)
+    amrex::Vector<int> MicVarMap;
+
     // geometry
     amrex::Geometry m_geom;
+
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_gtoe;
 
@@ -130,6 +171,10 @@ public:
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
 
+    // independent variables
+    amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
+
+#if 0
     // microphysics parameters/coefficients
     amrex::TableData<amrex::Real, 1> accrrc;
     amrex::TableData<amrex::Real, 1> accrsi;
@@ -161,5 +206,7 @@ public:
     // data (output)
     amrex::TableData<amrex::Real, 1> qifall;
     amrex::TableData<amrex::Real, 1> tlatqi;
+#endif
+
 };
 #endif

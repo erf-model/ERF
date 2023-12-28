@@ -22,7 +22,7 @@ using namespace amrex;
  * @param[in] l_use_ndiff flag describing whether we will later add explicit numerical diffusion
  */
 
-void VelocityToMomentum( const MultiFab& xvel_in,
+void VelocityToMomentum (const MultiFab& xvel_in,
                          const IntVect& xvel_ngrow,
                          const MultiFab& yvel_in,
                          const IntVect& yvel_ngrow,

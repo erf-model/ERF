@@ -246,18 +246,17 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
 
     if (use_moisture)
     {
-        MultiFab qv(*(qmoist[lev]), make_alias, 0, 1);
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
-            const Array4<Real>& fab_arr = mf_out.array(mfi);
+            const Array4<Real>& fab_arr  = mf_out.array(mfi);
             const Array4<Real>& cons_arr = mf_cons.array(mfi);
             const Array4<Real>& u_cc_arr =  u_cc.array(mfi);
             const Array4<Real>& v_cc_arr =  v_cc.array(mfi);
             const Array4<Real>& w_cc_arr =  w_cc.array(mfi);
             const Array4<Real>&   p0_arr = p_hse.array(mfi);
-            const Array4<Real>&   qv_arr = qv.array(mfi);
+            const Array4<Real>&   qv_arr = qmoist[0][0]->array(mfi); // TODO: Is this written only on lev 0?
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {

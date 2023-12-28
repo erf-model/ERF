@@ -12,25 +12,25 @@
 template <int Index>
 struct DirectionSelector
 {
-   [[nodiscard]] int getIndx(int i, int j, int k) const;
+   [[nodiscard]] int getIndx (int i, int j, int k) const;
 };
 
 template <>
 struct DirectionSelector<0>
 {
-    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx(int i, int, int) { return i; }
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx (int i, int, int) { return i; }
 };
 
 template <>
 struct DirectionSelector<1>
 {
-    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx(int, int j, int) { return j; }
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx (int, int j, int) { return j; }
 };
 
 template <>
 struct DirectionSelector<2>
 {
-    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx(int, int, int k) { return k; }
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE static int getIndx (int, int, int k) { return k; }
 };
 
 using XDir = DirectionSelector<0>;
@@ -48,7 +48,7 @@ using ZDir = DirectionSelector<2>;
 
 template <typename IndexSelector>
 AMREX_GPU_HOST_DEVICE amrex::Box
-PerpendicularBox(const amrex::Box& bx, const amrex::IntVect& iv)
+PerpendicularBox (const amrex::Box& bx, const amrex::IntVect& iv)
 {
     amrex::IntVect plane_lo, plane_hi;
 
@@ -80,7 +80,7 @@ PerpendicularBox(const amrex::Box& bx, const amrex::IntVect& iv)
 
 template <typename IndexSelector>
 AMREX_GPU_HOST_DEVICE amrex::Box
-ParallelBox(const amrex::Box& bx, const amrex::IntVect& iv)
+ParallelBox (const amrex::Box& bx, const amrex::IntVect& iv)
 {
     amrex::IntVect line_lo, line_hi;
 
