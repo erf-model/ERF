@@ -3,6 +3,7 @@
 #include "Diffusion.H"
 #include "ERF_Constants.H"
 #include "TurbStruct.H"
+#include "PBLModels.H"
 
 /**
  * Function to compute turbulent viscosity with PBL.
@@ -24,8 +25,11 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               const amrex::BCRec* bc_ptr,
-                              bool /*vert_only*/)
+                              bool /*vert_only*/,
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd)
 {
+    const bool use_terrain = (z_phys_nd != nullptr);
+
     // MYNN Level 2.5 PBL Model
     if (turbChoice.pbl_type == PBLType::MYNN25) {
 
@@ -79,22 +83,45 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
             const amrex::Array4<amrex::Real> qvel = qturb.array();
             const amrex::Array4<amrex::Real> qvel_old = qturb_old.array();
 
-            amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
-                               [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
-            {
-                qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
-                qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
-                AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
-                AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
+            // vertical integrals to compute lengthscale
+            if (use_terrain) {
+                const amrex::Array4<amrex::Real const> &z_nd = z_phys_nd->array(mfi);
+                const auto invCellSize = geom.InvCellSizeArray();
+                amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
+                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
+                    qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
+                    AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
+                    AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
 
-                const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
-                if (sbx.contains(i,j,k)) {
-                    amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
-                    amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
-                }
-            });
+                    if (sbx.contains(i,j,k)) {
+                        const amrex::Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd);
+                        const amrex::Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd);
+                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz, handler);
+                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k)*dz, handler);
+                    }
+                });
+            } else {
+                amrex::ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
+                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                {
+                    qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
+                    qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
+                    AMREX_ASSERT_WITH_MESSAGE(qvel(i,j,k) > 0.0, "QKE must have a positive value");
+                    AMREX_ASSERT_WITH_MESSAGE(qvel_old(i,j,k) > 0.0, "Old QKE must have a positive value");
+
+                    // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
+                    if (sbx.contains(i,j,k)) {
+                        const amrex::Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
+                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
+                    }
+                });
+            }
 
             amrex::Real dz_inv = geom.InvCellSize(2);
+            const auto& dxInv = geom.InvCellSizeArray();
             int izmin = geom.Domain().smallEnd(2);
             int izmax = geom.Domain().bigEnd(2);
 
@@ -110,43 +137,23 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
 
+            const amrex::Array4<amrex::Real const> z_nd;
+            if (use_terrain) {
+                const auto& z_nd = z_phys_nd->array(mfi);
+            }
+
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Compute some partial derivatives that we will need (second order)
                 // U and V derivatives are interpolated to account for staggered grid
+                const amrex::Real met_h_zeta = use_terrain ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd) : 1.0;
                 amrex::Real dthetadz, dudz, dvdz;
-                if ( k==izmax && c_ext_dir_on_zhi ) {
-                    dthetadz = (1.0/3.0)*(-cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp)
-                                          - 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                                          + 4.0 * cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp) )*dz_inv;
-                } else if ( k==izmin && c_ext_dir_on_zlo ) {
-                    dthetadz = (1.0/3.0)*( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                           + 3.0 * cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp)
-                                           - 4.0 * cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dz_inv;
-                } else {
-                    dthetadz = 0.5*(cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                    - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp))*dz_inv;
-                }
-
-                if ( k==izmax && u_ext_dir_on_zhi ) {
-                    dudz = (1.0/6.0)*( (-uvel(i  ,j,k-1) - 3.0 * uvel(i  ,j,k  ) + 4.0 * uvel(i  ,j,k+1))
-                                       + (-uvel(i+1,j,k-1) - 3.0 * uvel(i+1,j,k  ) + 4.0 * uvel(i+1,j,k+1)) )*dz_inv;
-                } else if ( k==izmin && u_ext_dir_on_zlo ) {
-                    dudz = (1.0/6.0)*( (uvel(i  ,j,k+1) + 3.0 * uvel(i  ,j,k  ) - 4.0 * uvel(i  ,j,k-1))
-                                       + (uvel(i+1,j,k+1) + 3.0 * uvel(i+1,j,k  ) - 4.0 * uvel(i+1,j,k-1)) )*dz_inv;
-                } else {
-                    dudz = 0.25*(uvel(i,j,k+1) - uvel(i,j,k-1) + uvel(i+1,j,k+1) - uvel(i+1,j,k-1))*dz_inv;
-                }
-
-                if ( k==izmax && v_ext_dir_on_zhi ) {
-                    dvdz = (1.0/6.0)*( (-vvel(i,j  ,k-1) - 3.0 * vvel(i,j  ,k  ) + 4.0 * vvel(i,j  ,k+1))
-                                       + (-vvel(i,j+1,k-1) - 3.0 * vvel(i,j+1,k  ) + 4.0 * vvel(i,j+1,k+1)) )*dz_inv;
-                } else if ( k==izmin && v_ext_dir_on_zlo ) {
-                    dvdz = (1.0/6.0)*( (vvel(i,j  ,k+1) + 3.0 * vvel(i,j  ,k  ) - 4.0 * vvel(i,j  ,k-1))
-                                       + (vvel(i,j+1,k+1) + 3.0 * vvel(i,j+1,k  ) - 4.0 * vvel(i,j+1,k-1)) )*dz_inv;
-                } else {
-                    dvdz = 0.25*(vvel(i,j,k+1) - vvel(i,j,k-1) + vvel(i,j+1,k+1) - vvel(i,j+1,k-1))*dz_inv;
-                }
+                ComputeVerticalDerivativesPBL(i, j, k,
+                                              uvel, vvel, cell_data, izmin, izmax, dz_inv/met_h_zeta,
+                                              c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                              u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                              v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                              dthetadz, dudz, dvdz);
 
                 // Spatially varying MOST
                 amrex::Real surface_heat_flux = -u_star_arr(i,j,0) * t_star_arr(i,j,0);
