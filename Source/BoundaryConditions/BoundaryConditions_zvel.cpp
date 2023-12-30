@@ -202,87 +202,63 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
-    for (int i = 0; i < ncomp; i++)
-        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++)
+    for (int i = 0; i < ncomp; i++) {
+        for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
             l_bc_extdir_vals_d[i][ori] = m_bc_extdir_vals[bccomp_w+i][ori];
+        }
+    }
 
+    // *******************************************************
+    // Bottom boundary
+    // *******************************************************
+
+    // At the bottom boundary we always assert no normal flow
+    AMREX_ALWAYS_ASSERT(bc_ptr_w[0].lo(2) == ERFBCType::ext_dir);
+
+    // Moving terrain
+    if (l_use_terrain && l_moving_terrain)
     {
-        Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
-        Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+2);
+        //************************************************************
+        // NOTE: z_t depends on the time interval in which it is
+        //       evaluated so we can't arbitrarily define it at a
+        //       given time, we must specify an interval
+        //************************************************************
 
-        // Populate face values on z-boundaries themselves only if EXT_DIR
-        Box bx_zlo_face(bx); bx_zlo_face.setSmall(2,dom_lo.z  ); bx_zlo_face.setBig(2,dom_lo.z  );
-        Box bx_zhi_face(bx); bx_zhi_face.setSmall(2,dom_hi.z+1); bx_zhi_face.setBig(2,dom_hi.z+1);
+    // Static terrain
+    } else if (l_use_terrain) {
 
-        ParallelFor(bx_zlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            int n = 0;
-            int kflip = dom_lo.z - k;
-            if (bc_ptr_w[n].lo(2) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-            } else if (bc_ptr_w[n].lo(2) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
-            } else if (bc_ptr_w[n].lo(2) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,j,kflip);
-            } else if (bc_ptr_w[n].lo(2) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,j,kflip);
-            }
+        AMREX_ALWAYS_ASSERT( (bc_ptr_u[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v[0].lo(2) == ERFBCType::ext_dir) ||
+                             (bc_ptr_u[0].lo(2) != ERFBCType::ext_dir && bc_ptr_v[0].lo(2) != ERFBCType::ext_dir) );
+
+        ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+            dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
         });
 
-        if (l_use_terrain && l_moving_terrain)
+    // No terrain
+    } else {
+        ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+           dest_arr(i,j,k) = l_bc_extdir_vals_d[0][2];
+        });
+    }
+
+    // *******************************************************
+    // Top boundary
+    // *******************************************************
+
+    AMREX_ALWAYS_ASSERT(bc_ptr_w[0].hi(2) == ERFBCType::ext_dir ||
+                        bc_ptr_w[0].hi(2) == ERFBCType::foextrap);
+
+    // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
+    // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
+    if (bc_ptr_w[0].hi(2) == ERFBCType::ext_dir) {
+        ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            //************************************************************
-            // NOTE: z_t depends on the time interval in which it is
-            //       evaluated so we can't arbitrarily define it at a
-            //       given time, we must specify an interval
-            //************************************************************
-        } else if (l_use_terrain) {
-            ParallelFor(bx_zlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr_w[n].lo(2) == ERFBCType::ext_dir) {
-                    if (bc_ptr_u[n].lo(2) == ERFBCType::ext_dir &&
-                        bc_ptr_v[n].lo(2) == ERFBCType::ext_dir) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
-
-                    } else if (bc_ptr_u[n].lo(2) != ERFBCType::ext_dir &&
-                               bc_ptr_v[n].lo(2) != ERFBCType::ext_dir) {
-                        dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
-                    } else {
-#ifndef AMREX_USE_GPU
-                       amrex::Abort("Bad combination of boundary conditions");
-#endif
-                    }
-                }
-            });
-        } else {
-            ParallelFor(bx_zlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr_w[n].lo(2) == ERFBCType::ext_dir) {
-                   dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
-                }
-            });
-        }
-
-        ParallelFor(
-          bx_zhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            int kflip =  2*(dom_hi.z + 1) - k;
-            if (bc_ptr_w[n].hi(5) == ERFBCType::ext_dir) {
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
-            } else if (bc_ptr_w[n].hi(5) == ERFBCType::foextrap) {
-                dest_arr(i,j,k) =  dest_arr(i,j,dom_hi.z+1);
-            } else if (bc_ptr_w[n].hi(5) == ERFBCType::reflect_even) {
-                dest_arr(i,j,k) =  dest_arr(i,j,kflip);
-            } else if (bc_ptr_w[n].hi(5) == ERFBCType::reflect_odd) {
-                dest_arr(i,j,k) = -dest_arr(i,j,kflip);
+            if (l_use_terrain) {
+                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
+            } else {
+                dest_arr(i,j,k) = l_bc_extdir_vals_d[0][5];
             }
-
-          },
-          bx_zhi_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-            if (bc_ptr_w[n].hi(2) == ERFBCType::ext_dir) {
-                if (l_use_terrain)
-                    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[n][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
-                else
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
-            }
-          }
-        );
+        });
     }
     Gpu::streamSynchronize();
 }
