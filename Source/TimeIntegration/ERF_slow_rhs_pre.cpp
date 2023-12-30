@@ -80,7 +80,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-                       Vector<MultiFab*> qmoist,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -543,7 +542,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         FArrayBox pprime; pprime.resize(gbx,1);
         Elixir pp_eli = pprime.elixir();
         const Array4<Real      > & pp_arr = pprime.array();
-        const Array4<Real const> & qv_arr = (use_moisture) ? qmoist[0]->const_array(mfi) : Array4<Real> {};
         {
         BL_PROFILE("slow_rhs_pre_pprime");
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -551,10 +549,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
             //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
             AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            Real qv_for_p = 0.0;
-            if (use_moisture) {
-                qv_for_p = qv_arr(i,j,k);
-            }
+            Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
             pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
         });
         } // end profile

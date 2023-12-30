@@ -22,9 +22,11 @@ namespace MicVar_FE {
       // independent variables
       qv = 0,
       qc,
+      qt,
+      rho,   // density
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
-      rho,   // density
+      pres,  // pressure
       NumVars
   };
 }
@@ -77,11 +79,6 @@ public:
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
-    // update ERF variables
-    void
-    Update (amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist) override;
-
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
@@ -115,9 +112,15 @@ public:
     int
     Qmoist_Size () override { return FastEddy::m_qmoist_size; }
 
+    int
+    Qstate_Size () { return FastEddy::m_qstate_size; }
+
 private:
-    // Number of qmoist variables
-    int m_qmoist_size = 2;
+    // Number of qmoist variables (qt, qv, qc)
+    int m_qmoist_size = 3;
+
+    // Number of qstate variables
+    int m_qstate_size = 2;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;

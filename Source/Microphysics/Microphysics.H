@@ -56,14 +56,6 @@ public:
     }
 
     void
-    Update (const int& lev,
-            amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist)
-    {
-        m_moist_model[lev]->Update(cons_in, qmoist);
-    }
-
-    void
     Update_Micro_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
     {
         m_moist_model[lev]->Update_Micro_Vars(cons_in);
@@ -80,6 +72,9 @@ public:
 
     int
     Get_Qmoist_Size () { return m_moist_model[0]->Qmoist_Size(); }
+
+    int
+    Get_Qstate_Size () { return m_moist_model[0]->Qstate_Size(); }
 
 private:
     amrex::Vector<std::unique_ptr<NullMoist>> m_moist_model;

@@ -170,8 +170,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
 
-      int ncomp = S_data[IntVar::cons].nComp();
-
       int start_comp;
       int   num_comp;
 
@@ -183,7 +181,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(tbx,dir),ncomp);
+            flux[dir].resize(amrex::surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -300,7 +298,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (solverChoice.moisture_type != MoistureType::None)
         {
             start_comp = RhoQ1_comp;
-              num_comp = 2;
+              num_comp = nvars - start_comp;
 
             AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
             AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
@@ -370,8 +368,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
+
             start_comp = RhoScalar_comp;
-              num_comp = S_data[IntVar::cons].nComp() - start_comp;
+              num_comp = nvars - start_comp;
             if (l_use_terrain) {
                 DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
@@ -460,7 +459,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         } else {
             auto const& src_arr = source.const_array(mfi);
             start_comp = RhoScalar_comp;
-            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
+            num_comp   = nvars - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -535,7 +534,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = RhoTheta_comp + 1;
-            int  num_comp_reflux = ncomp - strt_comp_reflux;
+            int  num_comp_reflux = nvars - strt_comp_reflux;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

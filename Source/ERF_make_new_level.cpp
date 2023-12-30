@@ -44,7 +44,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     init_stuff(lev, ba, dm);
 
-    int ncomp_cons = (solverChoice.moisture_type == MoistureType::None) ? NVAR_max-2 : NVAR_max;
+    int n_qstate   = micro.Get_Qstate_Size();
+    int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     lev_new[Vars::cons].define(ba, dm, ncomp_cons, ngrow_state);
     lev_old[Vars::cons].define(ba, dm, ncomp_cons, ngrow_state);

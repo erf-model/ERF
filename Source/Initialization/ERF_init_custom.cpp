@@ -26,6 +26,8 @@ ERF::init_custom (int lev)
 {
     auto& lev_new = vars_new[lev];
 
+    int n_qstate   = micro.Get_Qstate_Size();
+
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
@@ -40,13 +42,6 @@ ERF::init_custom (int lev)
     xvel_pert.setVal(0.);
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
-
-    MultiFab qv_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrow());
-    MultiFab qc_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrow());
-    MultiFab qi_pert(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrow());
-    qv_pert.setVal(0.);
-    qc_pert.setVal(0.);
-    qi_pert.setVal(0.);
 
     int fix_random_seed = 0;
     ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
@@ -82,12 +77,8 @@ ERF::init_custom (int lev)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        const auto &qv_pert_arr = qv_pert.array(mfi);
-        const auto &qc_pert_arr = qc_pert.array(mfi);
-        const auto &qi_pert_arr = qi_pert.array(mfi);
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_pert_arr, xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
-                               qv_pert_arr, qc_pert_arr, qi_pert_arr,
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
     } //mfi
@@ -107,11 +98,7 @@ ERF::init_custom (int lev)
     if (solverChoice.moisture_type != MoistureType::None) {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ1_comp,    RhoQ1_comp,    1, cons_pert.nGrow());
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ2_comp,    RhoQ2_comp,    1, cons_pert.nGrow());
-
-        MultiFab::Add(*(qmoist[lev][0])  , qv_pert  ,          0,             0,    1, qv_pert.nGrow());
-        MultiFab::Add(*(qmoist[lev][1])  , qc_pert  ,          0,             0,    1, qc_pert.nGrow());
-        if (qmoist[lev].size() > 2)
-            MultiFab::Add(*(qmoist[lev][2])  , qi_pert  ,          0,             0,    1, qi_pert.nGrow());
+        if (n_qstate >= 3) MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ3_comp,    RhoQ3_comp,    1, cons_pert.nGrow());
     }
 
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());

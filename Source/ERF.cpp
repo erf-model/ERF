@@ -694,6 +694,12 @@ ERF::InitData ()
         }
     }
 
+    // Update micro vars before first plot file
+    if (solverChoice.moisture_type != MoistureType::None) {
+        for (int lev = 0; lev <= finest_level; ++lev) micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+    }
+
+
     if (restart_chkfile.empty() && check_int > 0)
     {
 #ifdef ERF_USE_NETCDF

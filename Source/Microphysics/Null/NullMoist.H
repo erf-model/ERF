@@ -28,11 +28,6 @@ class NullMoist {
 
     virtual
     void
-    Update (amrex::MultiFab& /*cons_in*/,
-            amrex::MultiFab& /*qmoist*/) { }
-
-    virtual
-    void
     Update_Micro_Vars (amrex::MultiFab& /*cons_in*/) { }
 
     virtual
@@ -59,7 +54,12 @@ class NullMoist {
     int
     Qmoist_Size () { return NullMoist::m_qmoist_size; }
 
+    virtual
+    int
+    Qstate_Size () { return NullMoist::m_qstate_size; }
+
  private:
     int m_qmoist_size = 1;
+    int m_qstate_size = 0;
 };
 #endif

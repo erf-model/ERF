@@ -21,7 +21,7 @@ void FastEddy::AdvanceFE ()
         auto qc_array    = mic_fab_vars[MicVar_FE::qc]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_FE::tabs]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_FE::theta]->array(mfi);
-        auto rho_array   = mic_fab_vars[MicVar_FE::rho]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_FE::pres]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
 
@@ -36,7 +36,7 @@ void FastEddy::AdvanceFE ()
             //------- Autoconversion/accretion
             Real dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
-            Real pressure = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k))/100.0;
+            Real pressure = pres_array(i,j,k);
             erf_qsatw(tabs_array(i,j,k), pressure, qsat);
 
             // If there is precipitating water (i.e. rain), and the cell is not saturated

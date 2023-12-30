@@ -95,18 +95,12 @@ public:
     void
     Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
-    // update ERF variables
-    void
-    Update (amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist) override;
-
     // update micro vars
     void
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
         this->Diagnose();
-        this->Compute_Tabs_and_Pres();
     }
 
     // update state vars
@@ -124,7 +118,6 @@ public:
 
         this->AdvanceKessler();
         this->Diagnose();
-        this->Compute_Tabs_and_Pres();
     }
 
     amrex::MultiFab*
@@ -134,15 +127,18 @@ public:
         return mic_fab_vars[MicVarMap[varIdx]].get();
     }
 
-    void
-    Compute_Tabs_and_Pres ();
-
     int
     Qmoist_Size () override { return Kessler::m_qmoist_size; }
 
+    int
+    Qstate_Size () { return Kessler::m_qstate_size; }
+
 private:
-    // Number of qmoist variables
-    int m_qmoist_size = 6;
+    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi)
+    int m_qmoist_size = 7;
+
+    // Number of qstate variables
+    int m_qstate_size = 3;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -173,40 +169,5 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
-
-#if 0
-    // microphysics parameters/coefficients
-    amrex::TableData<amrex::Real, 1> accrrc;
-    amrex::TableData<amrex::Real, 1> accrsi;
-    amrex::TableData<amrex::Real, 1> accrsc;
-    amrex::TableData<amrex::Real, 1> coefice;
-    amrex::TableData<amrex::Real, 1> evaps1;
-    amrex::TableData<amrex::Real, 1> evaps2;
-    amrex::TableData<amrex::Real, 1> accrgi;
-    amrex::TableData<amrex::Real, 1> accrgc;
-    amrex::TableData<amrex::Real, 1> evapg1;
-    amrex::TableData<amrex::Real, 1> evapg2;
-    amrex::TableData<amrex::Real, 1> evapr1;
-    amrex::TableData<amrex::Real, 1> evapr2;
-
-    // vertical plane average data
-    amrex::TableData<amrex::Real, 1> rho1d;
-    amrex::TableData<amrex::Real, 1> pres1d;
-    amrex::TableData<amrex::Real, 1> tabs1d;
-    amrex::TableData<amrex::Real, 1> qt1d;
-    amrex::TableData<amrex::Real, 1> qv1d;
-    amrex::TableData<amrex::Real, 1> qn1d;
-
-    // independent variables
-    amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
-
-    amrex::TableData<amrex::Real, 1> gamaz;
-    amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
-
-    // data (output)
-    amrex::TableData<amrex::Real, 1> qifall;
-    amrex::TableData<amrex::Real, 1> tlatqi;
-#endif
-
 };
 #endif
