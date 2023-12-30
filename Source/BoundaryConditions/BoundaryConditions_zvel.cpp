@@ -13,7 +13,7 @@ using namespace amrex;
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] bccomp    index into m_domain_bcs_type
  */
-void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real>& dest_arr,
+void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real      >& dest_arr,
                                               const Array4<Real const>& xvel_arr,
                                               const Array4<Real const>& yvel_arr,
                                               const Box& bx, const Box& domain,
@@ -181,21 +181,10 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     amrex::setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
     amrex::setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_u_d(ncomp);
-    amrex::Gpu::DeviceVector<BCRec> bcrs_v_d(ncomp);
-    amrex::Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
-    Gpu::htod_memcpy_async(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
-    Gpu::htod_memcpy_async(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
-#else
-    std::memcpy(bcrs_u_d.data(), bcrs_u.data(), sizeof(BCRec));
-    std::memcpy(bcrs_v_d.data(), bcrs_v.data(), sizeof(BCRec));
-    std::memcpy(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
-#endif
-    const amrex::BCRec* bc_ptr_u = bcrs_u_d.data();
-    const amrex::BCRec* bc_ptr_v = bcrs_v_d.data();
-    const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
+    // We use these for the asserts below
+    const amrex::BCRec* bc_ptr_u_h = bcrs_u.data();
+    const amrex::BCRec* bc_ptr_v_h = bcrs_v.data();
+    const amrex::BCRec* bc_ptr_w_h = bcrs_w.data();
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
     bool l_moving_terrain = (terrain_type == TerrainType::Moving);
@@ -213,7 +202,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
 
     // At the bottom boundary we always assert no normal flow
-    AMREX_ALWAYS_ASSERT(bc_ptr_w[0].lo(2) == ERFBCType::ext_dir);
+    AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
 
     // Moving terrain
     if (l_use_terrain && l_moving_terrain)
@@ -227,8 +216,8 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // Static terrain
     } else if (l_use_terrain) {
 
-        AMREX_ALWAYS_ASSERT( (bc_ptr_u[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v[0].lo(2) == ERFBCType::ext_dir) ||
-                             (bc_ptr_u[0].lo(2) != ERFBCType::ext_dir && bc_ptr_v[0].lo(2) != ERFBCType::ext_dir) );
+        AMREX_ALWAYS_ASSERT( (bc_ptr_u_h[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) == ERFBCType::ext_dir) ||
+                             (bc_ptr_u_h[0].lo(2) != ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) != ERFBCType::ext_dir) );
 
         ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
@@ -245,12 +234,12 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // Top boundary
     // *******************************************************
 
-    AMREX_ALWAYS_ASSERT(bc_ptr_w[0].hi(2) == ERFBCType::ext_dir ||
-                        bc_ptr_w[0].hi(2) == ERFBCType::foextrap);
+    AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
+                        bc_ptr_w_h[0].hi(2) == ERFBCType::foextrap);
 
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
-    if (bc_ptr_w[0].hi(2) == ERFBCType::ext_dir) {
+    if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
         ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             if (l_use_terrain) {
