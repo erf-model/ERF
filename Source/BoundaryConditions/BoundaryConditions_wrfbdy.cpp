@@ -29,13 +29,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
     amrex::Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0, WRFBdyVars::QV, 0};
-# else
-    Vector<int> cons_read = {1, 1, 0, 0, 0}; // R, RT, RKE, RQKE, RS
-    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0}; // R, RT, RKE, RQKE, RS
-#endif
+    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0, 0, 0};
+    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0, WRFBdyVars::QV, 0, 0, 0};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
