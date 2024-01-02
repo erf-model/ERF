@@ -352,7 +352,6 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
       // are set to zero in aer_rad_props_sw as far as I can tell.
       //
       // NOTE: dimension ordering is different than for cloud optics!
-      //real(r8), dimension(ncol,0:pver,nswbands) ::
       real3d tau("tau", ncol, nlev+1, nswbands);
       real3d tau_w("tau_w", ncol, nlev+1, nswbands);
       real3d tau_w_g("tau_w_g", ncol, nlev+1, nswbands);

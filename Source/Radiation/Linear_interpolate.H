@@ -48,7 +48,6 @@ class LinInterp
       real cmin, cmax;
       real dyinwrap;
       real avgdyin;
-
       //
       // Check validity of input coordinate arrays: must be monotonically increasing,
       // and have a total of at least 2 elements
@@ -71,9 +70,9 @@ class LinInterp
       interp_wgts.wgts = real1d("wgts", nout);
       interp_wgts.wgtn = real1d("wgtn", nout);
 
-      parallel_for(SimpleBounds<1>(nin), YAKL_LAMBDA (int j) {
+      parallel_for(SimpleBounds<1>(nin-1), YAKL_LAMBDA (int j) {
          if(yin(j) > yin(j+1)) {
-           printf("inputs are not monotonic!\n");
+           printf("init: inputs are not monotonic!\n");
            return;
          }
       });

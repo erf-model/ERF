@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-
-#include <AMReX_TableData.H>
 #include <AMReX_GpuComplex.H>
 #include "ERF_Constants.H"
 #include "Aero_rad_props.H"
@@ -24,22 +22,12 @@ class ModalAeroWateruptake {
    constexpr static real huge_real = std::numeric_limits<real>::max();
    constexpr static int imax = 200;
   public:
-   // The calculation has been enabled for diagnostic mode lists
-   // via optional arguments.  If the list_idx arg is present then
-   // all the optional args must be present.
    static
    void modal_aero_wateruptake_dr(int list_idx, int ncol, int nlev, int nmodes, int top_lev,
                                   MamConstituents& consti, const real2d& h2ommr, const real2d& t, const real2d& pmid, 
                                   const real3d& dgnumdry_m, const real3d& dgnumwet_m, const real3d& qaerwat_m,
                                   const real3d& wetdens_m, const real2d& clear_rh_in) {
-   int itim_old;
-   int nspec;
-
-//   real2d h2ommr("h2ommr",ncol,nlev); // specific humidity
-//   real2d t("temperature",ncol,nlev);      // temperatures (K)
-//   real2d pmid("pmid",ncol,nlev);   // layer pressure (Pa)
    real2d raer("raer",ncol,nlev);     // aerosol species MRs (kg/kg and #/kg)
-
    real2d cldn("cldn",ncol,nlev);               // layer cloud fraction (0-1)
    real3d dgncur_a("dgncur",ncol,nlev,nmodes);
    real3d dgncur_awet("dgncur_awet",ncol,nlev,nmodes);
@@ -107,18 +95,16 @@ class ModalAeroWateruptake {
       yakl::memset(dryvolmr, 0.);
 
       // get mode properties
-      consti.get_mode_props(list_idx, m, sigmag,
-                            rhcrystal(m), rhdeliques(m));
+      consti.get_mode_props(list_idx, m-1, sigmag, rhcrystal(m), rhdeliques(m));
 
       // get mode species
-      consti.get_mode_nspec(list_idx, m, nspec);
-
+      int nspec;
+      consti.get_mode_nspec(list_idx, m-1, nspec);
       for(auto l = 0; l < nspec; ++l) {
          // get species interstitial mixing ratio ('a')
-         consti.rad_cnst_get_mam_mmr_by_idx(list_idx, m, l, "a", raer);
-
-         consti.get_mam_density_aer(list_idx, m, l, specdens);
-         consti.get_mam_hygro_aer(list_idx, m, l, spechygro);
+         consti.rad_cnst_get_mam_mmr_by_idx(list_idx, m-1, l, "a", raer);
+         consti.get_mam_density_aer(list_idx, m-1, l, specdens);
+         consti.get_mam_hygro_aer(list_idx, m-1, l, spechygro);
 
          if (l == 1) {
             // save off these values to be used as defaults
@@ -126,6 +112,7 @@ class ModalAeroWateruptake {
             spechygro_1    = spechygro;
          }
 
+         top_lev = 1;
          for(auto k = top_lev; k <= nlev; ++k) {
             for(auto i = 1; i <= ncol; ++i) {
                duma          = raer(i,k);
@@ -138,7 +125,7 @@ class ModalAeroWateruptake {
       } // l = 1, nspec
 
       alnsg = log(sigmag);
-
+      top_lev = 1;
       for(auto k = top_lev; k <= nlev; ++k) {
          for(auto i = 1; i <= ncol; ++i) {
 
@@ -167,9 +154,6 @@ class ModalAeroWateruptake {
             dryvol(i,k,m)   = 1.0/v2ncur_a;
             drymass(i,k,m)  = drydens*dryvol(i,k,m);
             dryrad(i,k,m)   = std::pow((dryvol(i,k,m)/pi43), third);
-
-printf("i=%d, k=%d, m=%d, dryrad=%13.6e, dryvol=%13.6e, drymass=%13.6e, v2ncur=%13.6e\n",i,k,m,dryrad(i,k,m),dryvol(i,k,m),drymass(i,k,m),v2ncur_a);
-
          } // i = 1, ncol
       } // k = top_lev, pver
    } // modes
@@ -190,7 +174,6 @@ printf("i=%d, k=%d, m=%d, dryrad=%13.6e, dryvol=%13.6e, drymass=%13.6e, v2ncur=%
             rh(i,k) = std::min(rh(i,k), 0.98);
          } // i
       }
-
     } else {
       // estimate clear air relative humidity using cloud fraction
       for(auto k = top_lev; k <= nlev; ++k) {
@@ -234,7 +217,6 @@ printf("i=%d, k=%d, m=%d, dryrad=%13.6e, dryvol=%13.6e, drymass=%13.6e, v2ncur=%
                   wetdens(i,k,m) = specdens_1(m);
                }
             }
-printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13.6d\n",i,k,m,qaerwat(i,k,m),rhoh2o,naer(i,k,m),wtrvol(i,k,m));
          }  //i = 1, ncol
       } // k = top_lev, pver
      } // m = 1, nmodes
@@ -288,19 +270,6 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
   YAKL_INLINE
   static void modal_aero_kohler(const real& rdry_in, const real& hygro, const real& s,
                                 real& rwet_out) {
-     real a, b;
-     real p40, p41, p42, p43; // coefficients of polynomial
-     real p30, p31, p32;                  // coefficients of polynomial
-     real p, r3, r4, r;            // wet radius (microns)
-     real rdry;    // radius of dry particle (microns)
-     real ss;                     // relative humidity (1 = saturated)
-     real slog;    // log relative humidity
-     real vol;      // total volume of particle (microns**3)
-     real xi, xr;
-
-     real1d cx4r("cx4r",4), cx3r("cx3r",3);
-     real1d cx4i("cx4i",4), cx3i("cx3i",3);
-
      const real eps = 1.e-4;
      const real mw = 18.;
      const real pi = 3.14159;
@@ -311,33 +280,34 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
      const real ugascon = 8.3e7;
 
      //effect of organics on surface tension is neglected
-     a=2.e4*mw*surften/(ugascon*tair*rhow);
+     auto a=2.e4*mw*surften/(ugascon*tair*rhow);
 
-     rdry = rdry_in*1.0e6;   // convert (m) to (microns)
-     vol  = std::pow(rdry, 3.);          // vol is r**3, not volume
-     b    = vol*hygro;
+     auto rdry = rdry_in*1.0e6;   // convert (m) to (microns)
+     auto vol  = std::pow(rdry, 3.);          // vol is r**3, not volume
+     auto b    = vol*hygro;
 
      //quartic
-      ss   = std::min(s,1.-eps);
-      ss   = std::max(ss,1.e-10);
-      slog = std::log(ss);
-      p43  = -a/slog;
-      p42  = 0.;
-      p41  = b/slog-vol;
-      p40  = a*vol/slog;
+     auto ss   = std::min(s,1.-eps); // relative humidity
+     ss   = std::max(ss,1.e-10);
+     auto slog = std::log(ss); // log relative humidity
+     auto p43  = -a/slog;
+     auto p42  = 0.;
+     auto p41  = b/slog-vol;
+     auto p40  = a*vol/slog;
 
-      // cubic for rh=1
-      p32 = 0.;
-      p31 = -b/a;
-      p30 = -vol;
+     // cubic for rh=1
+     auto p32 = 0.;
+     auto p31 = -b/a;
+     auto p30 = -vol;
 
-      if(vol <= 1.e-12) {
-         r=rdry;
-         return;
-      }
+     real r, r3, r4;
+     if(vol <= 1.e-12) {
+        r=rdry;
+        return;
+     }
 
-      p = std::abs(p31)/(rdry*rdry);
-      if(p < eps) {
+     auto p = std::abs(p31)/(rdry*rdry);
+     if(p < eps) {
          //approximate solution for small particles
          r=rdry*(1.+p*third/(1.-slog*rdry/a));
       }
@@ -348,8 +318,8 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
          r = 1000.*rdry;
          auto nsol = 0;
          for(auto n=0; n<4; ++n) {
-            xr=cx4[n].real();
-            xi=cx4[n].imag();
+            auto xr=cx4[n].real();
+            auto xi=cx4[n].imag();
             if(abs(xi) > abs(xr)*eps) continue;
             if(xr > r) continue;
             if(xr < rdry*(1.-eps)) continue;
@@ -357,10 +327,9 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
             r=xr;
             nsol=n;
          }
-
          if(nsol != 0) {
-            amrex::Print() << "ccm kohlerc - no real(r8) solution found (quartic)\n";
-            r=rdry;
+           amrex::Print() << "kohlerc: no real solution found(quartic), nsol= " << nsol << "\n";
+           r=rdry;
          }
       }
 
@@ -379,8 +348,8 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
             r=1000.*rdry;
             auto nsol = 0;
             for(auto n=0; n<3; ++n) {
-               xr = cx3[n].real();
-               xi = cx3[n].imag();
+               auto xr = cx3[n].real();
+               auto xi = cx3[n].imag();
                if(abs(xi) > abs(xr)*eps) continue;
                if(xr > r) continue;
                if(xr < rdry*(1.-eps)) continue;
@@ -388,17 +357,15 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
                r=xr;
                nsol=n;
             }
-
             if(nsol == 0) {
-               amrex::Print() << "ccm kohlerc - no real(r8) solution found (cubic)\n";
-               r=rdry;
+              amrex::Print() << "kohlerc: no real solution found (cubic)\n";
+              r=rdry;
             }
          }
          r3=r;
          //now interpolate between quartic, cubic solutions
          r=(r4*(1.-s)+r3*(s-1.+eps))/eps;
        }
-
      // bound and convert from microns to m
      r = std::min(r,30.); // upper bound based on 1 day lifetime
      rwet_out = r*1.e-6;
@@ -443,7 +410,6 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
     // where p0, p1, p2, p3 are real
     static
     void makoh_quartic(amrex::GpuComplex<real> cx[], const real& p3, const real& p2, const real& p1, const real& p0) {
-
       const real third=1./3.;
       auto q = -p2*p2/36.+(p3*p1-4*p0)/12.;
       auto r = -std::pow((p2/6), 3.0) + p2*(p3*p1-4.*p0)/48.
@@ -451,7 +417,6 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
 
       auto crad = amrex::GpuComplex<real>(r*r+q*q*q, 0.);
       crad = amrex::sqrt(crad);
-
       auto cb = r-crad;
 
       if (cb.real() == 0. && cb.imag() == 0.) {
@@ -459,13 +424,11 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
          cx[0] = amrex::pow(amrex::GpuComplex<real>(-p1, 0.0), third);
          cx[1] = cx[0];
          cx[2] = cx[0];
-         cx[3] = cx[0];;
+         cx[3] = cx[0];
       } 
       else {
          cb = amrex::pow(cb, third);
-
          auto cy = -cb+q/cb+p2/6.;
-
          auto cb0 = amrex::sqrt(cy*cy-p0);
          auto cb1 = (p3*cy-p1)/(2.*cb0);
 
@@ -474,7 +437,6 @@ printf("i=%d, k=%d, m=%d, qaerwat=%13.6e, rhoh2d=%13.6e, naer=%13.6e, wtrvol=%13
          crad = amrex::sqrt(crad);
          cx[1] = (-cb+crad)/2.;
          cx[2] = (-cb-crad)/2.;
-
          cb    = p3/2.-cb1;
          crad  = cb*cb-4.*(cy-cb0);
          crad  = amrex::sqrt(crad);

@@ -42,22 +42,12 @@ void AerRadProps::initialize(int ngas_, int nmodes_, int num_aeroes_,
 void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const int& nnite,
                const int1d& idxnite, const bool is_cmip6_volc, const real3d& tau, const real3d& tau_w,
                const real3d& tau_w_g, const real3d& tau_w_f, const real2d& clear_rh) {
-   // local variables
-   // for table lookup into rh grid
-   real2d es("es", ncol, nlev);     // saturation vapor pressure
-   real2d qs("qs", ncol, nlev);     // saturation specific humidity
-   real2d rh("rh", ncol, nlev);
-   real2d rhtrunc("rhtrunc", ncol, nlev);
-   real2d wrh("wrh", ncol, nlev);
-   int2d krh("krh", ncol, nlev);
-
-   real2d mmr_to_mass("mmr_to_mass", ncol, nlev); // conversion factor for mmr to mass
-
    // for cmip6 style volcanic file
    int1d trop_level("trop_level", ncol);
    real3d ext_cmip6_sw_inv_m("ext_cmip6_sw_inv_m", ncol, nlev, nswbands); // short wave extinction in the units of 1/m
 
    // compute mixing ratio to mass conversion
+   real2d mmr_to_mass("mmr_to_mass", ncol, nlev); // conversion factor for mmr to mass
    parallel_for(SimpleBounds<2>(ncol, nlev) , YAKL_LAMBDA (int icol, int ilev) {
       mmr_to_mass(icol,ilev) = rgas * pdeldry(icol,ilev);
    });
@@ -78,14 +68,17 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
      tau_w_f(icol,1,isw) = 0.;
    });
 
+   // local variables
+   real2d wrh("wrh", ncol, nlev);
+   int2d  krh("krh", ncol, nlev);
    // calculate relative humidity for table lookup into rh grid
    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-      WaterVaporSat::qsat(temp(icol,ilev), pmid(icol,ilev), es(icol,ilev), qs(icol,ilev));
-      rh(icol, ilev) = qt(icol,ilev) / qs(icol,ilev);
-
-      rhtrunc(icol,ilev) = std::min(rh(icol,ilev),1.);
-      krh(icol, ilev) = std::min(std::floor(rhtrunc(icol, ilev)*nrh )+1, nrh - 1.); // index into rh mesh
-      wrh(icol, ilev) = rhtrunc(icol,ilev)*nrh - krh(icol, ilev);       // (-) weighting on left side values
+      real es, qs, rh, rhtrunc;
+      WaterVaporSat::qsat(temp(icol,ilev), pmid(icol,ilev), es, qs);
+      rh = qt(icol,ilev)/qs;
+      rhtrunc = std::min(rh,1.);
+      krh(icol, ilev) = std::min(std::floor(rhtrunc*nrh )+1, nrh - 1.); // index into rh mesh
+      wrh(icol, ilev) = rhtrunc*nrh-krh(icol, ilev);       // (-) weighting on left side values
    });
 
    // Special treatment for CMIP6 volcanic aerosols, where extinction, ssa
@@ -93,7 +86,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
 
    // Point ext_cmip6_sw to null so that the code breaks if they are used for is_cmip6_volc=.false. case
    // This is done to avoid having optional arguments in modal_aero_sw call
-   yakl::memset(trop_level, 10000000);
+   yakl::memset(trop_level, 10000);
    // I was thinking whether we have to include volcanic effects on radiation?
    if (is_cmip6_volc) {
       // get extinction so as to supply to modal_aero_sw routine for computing EXTINCT variable
