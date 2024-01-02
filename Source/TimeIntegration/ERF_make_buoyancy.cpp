@@ -160,8 +160,14 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                 amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) + cell_data(i,j,k  ,RhoQ3_comp) - r0_arr(i,j,k  );
-                    Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) + cell_data(i,j,k-1,RhoQ3_comp)  - r0_arr(i,j,k-1);
+                    Real rhop_lo, rhop_hi;
+                    if(solverChoice.moisture_type == MoistureType::FastEddy){
+                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
+                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
+                    }else{
+                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) + cell_data(i,j,k  ,RhoQ3_comp) - r0_arr(i,j,k  );
+                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) + cell_data(i,j,k-1,RhoQ3_comp) - r0_arr(i,j,k-1);
+                    }
                     buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
                 });
             } // mfi
