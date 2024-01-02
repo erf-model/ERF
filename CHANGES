@@ -1,3 +1,16 @@
+# 24.01
+    -- AMReX submodule set to 24.01 release hash (a068330)
+    
+    -- Addition of more moisture vars (#1350)
+
+    -- Make PBL model terrain aware (#1348)
+
+    -- Moisture is no longer a compile time option (#1334)
+
+    -- Radiation cleanup (#1318)
+
+    -- Enable multiple moisture models (#1303)
+        
 # 23.12
     -- AMReX submodule set to 23.12 release hash (9b733ec)
 
@@ -12,20 +25,18 @@
     -- Metgrid initialization with SST and LandMask (#1280)
 
 # 23.11
+    -- AMReX submodule set to 23.11 release hash (ae7b64b)
 
-  -- AMReX submodule set to 23.11 release hash (ae7b64b)
+    -- Bug fix with vertical grid stretching and MOST (#1275)
 
-  -- Bug fix with vertical grid stretching and MOST (#1275)
+    -- Bug fix with negative K_turb below surface and MYNN2.5 PBL model (#1271)
 
-  -- Bug fix with negative K_turb below surface and MYNN2.5 PBL model (#1271)
+    -- Correction to equation of state with moisture (#1263)
 
-  -- Correction to equation of state with moisture (#1263)
-
-  -- Generalized multi-level sponge zones. This allows for nudging of fine solution
-     towards coarse solution with complex box arrays. (#1233)
+    -- Generalized multi-level sponge zones. This allows for nudging of fine solution
+       towards coarse solution with complex box arrays. (#1233)
 
 # 23.10
+    -- First release since JOSS paper. Too many key ERF PRs to summarize.
 
-  -- First release since JOSS paper. Too many key ERF PRs to summarize.
-
-  -- AMReX submodule set to 23.10 release hash (388738d)
+    -- AMReX submodule set to 23.10 release hash (388738d)
