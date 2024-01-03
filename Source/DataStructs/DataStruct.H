@@ -206,7 +206,7 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level);
         }
 
-        // If running LES/PBL then must use "ConstantAlpha"
+        // If running LES/PBL then molecular diffusion must be "Constant" or "None"
         for (int lev = 0; lev <= max_level; lev++) {
             if (turbChoice[lev].les_type != LESType::None) {
                 if ( diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha ) {
