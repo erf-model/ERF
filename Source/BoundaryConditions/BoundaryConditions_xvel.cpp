@@ -95,7 +95,7 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
             },
             // We only set the values on the domain faces themselves if EXT_DIR
             bx_xhi_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(3) == ERFBCType::ext_dir)
+                if (bc_ptr[n].hi(0) == ERFBCType::ext_dir)
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
             }
         );
