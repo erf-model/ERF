@@ -471,8 +471,14 @@ ERF::InitData ()
         }
 #endif
 
-        if ( (init_type == "ideal" || init_type == "input_sounding") && solverChoice.use_terrain) {
-            amrex::Abort("We do not currently support init_type = ideal or input_sounding with terrain");
+        if (solverChoice.use_terrain) {
+            if (init_type == "ideal") {
+                amrex::Abort("We do not currently support init_type = ideal with terrain");
+            } else if (init_type == "input_sounding") {
+                amrex::Print() << "Note: use_terrain==true with input_sounding"
+                    << " -- the expected use case is to enable grid stretching"
+                    << std::endl;
+            }
         }
 
         // If using the Deardoff LES model,
