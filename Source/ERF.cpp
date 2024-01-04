@@ -119,9 +119,7 @@ ERF::ERF ()
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
-    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
-
-    // Geometry on all levels has been defined already.
+    // Initialize staggered vertical levels for grid stretching or terrain.
 
     if (solverChoice.use_terrain) {
         init_zlevels(zlevels_stag,
@@ -129,7 +127,25 @@ ERF::ERF ()
                      solverChoice.grid_stretching_ratio,
                      solverChoice.zsurf,
                      solverChoice.dz0);
+
+        int nz = geom[0].Domain().length(2) + 1; // staggered
+        if (zlevels_stag[nz-1] != geom[0].ProbHi(2)) {
+            amrex::Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
+                << " does not match highest requested z level " << zlevels_stag[nz-1]
+                << std::endl;
+        }
+        if (zlevels_stag[0] != geom[0].ProbLo(2)) {
+            amrex::Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
+                << " does not match lowest requested level " << zlevels_stag[0]
+                << std::endl;
+        }
+
+        // Redefine the problem domain here?
     }
+
+    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+
+    // Geometry on all levels has been defined already.
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
