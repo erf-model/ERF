@@ -11,6 +11,7 @@ constexpr amrex::Real R_d          = 287.0;    // dry air constant for dry air [
 constexpr amrex::Real R_v          = 461.505;  // water vapor constant for water vapor [J/(kg-K)]
 constexpr amrex::Real Cp_d         = 1004.5;   // We have set this so that with qv=0 we get identically gamma = 1.4
 constexpr amrex::Real Cp_v         = 1859.0;
+constexpr amrex::Real Cp_l         = 4200.0;
 
 constexpr amrex::Real L_v          = 2.5e6;    // latent heat of vaporization (J / kg)
 

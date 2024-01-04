@@ -9,31 +9,37 @@
 #include "EOS.H"
 
 struct ProbParm : ProbParmDefaults {
-  // background conditions
-  // if init_type != "" then these are perturbations and should be 0
-  amrex::Real T_0 = 300.0;
-  amrex::Real U_0 = 0.0;
-  amrex::Real V_0 = 0.0;
-  amrex::Real W_0 = 0.0;
+    // background conditions
+    // if init_type != "" then these are perturbations and should be 0
+    amrex::Real T_0 = 300.0;
+    amrex::Real U_0 = 0.0;
+    amrex::Real V_0 = 0.0;
+    amrex::Real W_0 = 0.0;
 
-  // center of thermal perturbation
-  amrex::Real x_c = 0.0;
-  amrex::Real y_c = 0.0;
-  amrex::Real z_c = 0.0;
+    // center of thermal perturbation
+    amrex::Real x_c = 0.0;
+    amrex::Real y_c = 0.0;
+    amrex::Real z_c = 0.0;
 
-  // radial extent of thermal perturbation
-  amrex::Real x_r = 0.0;
-  amrex::Real y_r = 0.0;
-  amrex::Real z_r = 0.0;
+    // radial extent of thermal perturbation
+    amrex::Real x_r = 0.0;
+    amrex::Real y_r = 0.0;
+    amrex::Real z_r = 0.0;
 
-  // perturbation temperature
-  amrex::Real T_pert = -15.0;
-  bool T_pert_is_airtemp = true; // T_pert input is air temperature
-  bool perturb_rho = true; // not rho*theta (i.e., p is constant); otherwise perturb rho*theta
+    // perturbation temperature
+    amrex::Real T_pert = -15.0;
+    bool T_pert_is_airtemp = true; // T_pert input is air temperature
+    bool perturb_rho = true; // not rho*theta (i.e., p is constant); otherwise perturb rho*theta
 
-  // rayleigh damping
-  amrex::Real dampcoef = 0.0; // inverse time scale [1/s]
-  amrex::Real zdamp = 5000.0; // damping depth [m] from model top
+    // rayleigh damping
+    amrex::Real dampcoef = 0.0;    // inverse time scale [1/s]
+    amrex::Real zdamp    = 5000.0; // damping depth [m] from model top
+
+    // Moist bubble params
+    bool do_moist_bubble = false;
+    amrex::Real theta_pert  = 2.0;
+    amrex::Real qt_init     = 0.02;
+    amrex::Real eq_pot_temp = 320.0;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -62,10 +68,65 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
+    void erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
+                                  std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                  amrex::Geometry const& geom) override;
+
     void init_custom_terrain (
         const amrex::Geometry& geom,
         amrex::MultiFab& z_phys_nd,
         const amrex::Real& time) override;
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real compute_theta (const amrex::Real T_b, const amrex::Real p_b);
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real compute_temperature (const amrex::Real p_b);
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real compute_F_for_temp(const amrex::Real T_b, const amrex::Real p_b);
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real compute_p_k (amrex::Real& p_k,
+                             const amrex::Real p_k_minus_1,
+                             amrex::Real& theta_k,
+                             amrex::Real& rho_k,
+                             amrex::Real& q_v_k,
+                             amrex::Real& T_dp,
+                             amrex::Real& T_b,
+                             const amrex::Real dz,
+                             const amrex::Real rho_k_minus_1);
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    amrex::Real compute_F (const amrex::Real& p_k,
+                           const amrex::Real& p_k_minus_1,
+                           amrex::Real &theta_k,
+                           amrex::Real& rho_k,
+                           amrex::Real& q_v_k,
+                           amrex::Real& T_dp,
+                           amrex::Real& T_b,
+                           const amrex::Real& dz,
+                           const amrex::Real& rho_k_minus_1);
+
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
+    void compute_rho (const amrex::Real& pressure,
+                      amrex::Real &theta,
+                      amrex::Real& rho,
+                      amrex::Real& q_v,
+                      amrex::Real& T_dp,
+                      amrex::Real& T_b);
+
+  void init_isentropic_hse_no_terrain(amrex::Real *theta,
+                                        amrex::Real* r,
+                                        amrex::Real* p,
+                                        amrex::Real *q_v,
+                                        const amrex::Real& dz,
+                                        const int& khi);
 
 #include "Prob/init_rayleigh_damping.H"
 
@@ -111,7 +172,7 @@ perturb_rho_theta (const amrex::Real x,
         dT = 0.0;
     }
     else {
-        dT = pp.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        dT = pp.T_pert * std::pow(cos(PI*L/2.0),2);
     }
 
     // Temperature that satisfies the EOS given the hydrostatically balanced (r,p)

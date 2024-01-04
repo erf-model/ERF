@@ -271,8 +271,8 @@
         // will be used to advance to
         Real slow_dt = new_stage_time - old_step_time;
 
-        bool moist_zero = false;
 #if defined(ERF_USE_NETCDF)
+        bool moist_zero = false;
         if (solverChoice.moisture_type != MoistureType::None && level==0) {
             // Flag for moisture relaxation zone
             if (init_type=="real"    &&      wrfbdy_set_width > 0) moist_zero = true;
