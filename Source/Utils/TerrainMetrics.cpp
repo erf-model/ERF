@@ -69,14 +69,14 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
 void
 init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real> const& z_levels_h)
 {
-  auto ProbHiArr = geom.ProbHiArray();
-
   // z_nd is nodal in all directions
   const amrex::Box& domain = geom.Domain();
   int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
   int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
   int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
-  int nz = domain.length(2)+1;
+  int nz = domain.length(2)+1; // staggered
+
+  Real ztop = z_levels_h[nz-1];
 
   // User-selected method from inputs file (BTF default)
   ParmParse pp("erf");
@@ -104,7 +104,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     case 0: // BTF Method
     {
       int k0    = 0;
-      Real ztop = ProbHiArr[2];
 
       for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
@@ -297,7 +296,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     case 2: // Sullivan TF Method
     {
         int k0    = 0;
-        Real ztop = ProbHiArr[2];
 
         for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
@@ -333,7 +331,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     case 3: // Debugging Test Method -- applies Sullivan TF starting at k = 1 so that domain does not change size
     {
         int k0    = 0;
-        Real ztop = ProbHiArr[2];
 
         for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
