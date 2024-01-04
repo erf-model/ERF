@@ -38,5 +38,4 @@
     real fraction = temperature-int(temperature);
     return RadConstants::retab[index]*(1.-fraction)+RadConstants::retab[index+1]*fraction;
  }
-
 #endif

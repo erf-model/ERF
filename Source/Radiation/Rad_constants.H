@@ -17,7 +17,7 @@ class RadConstants {
 
    // Wavenumbers of band boundaries
    //
-   //Note: Currently rad_solar_var extends the lowest band down to
+   // Note: Currently rad_solar_var extends the lowest band down to
    // 100 cm^-1 if it is too high to cover the far-IR. Any changes meant
    // to affect IR solar variability should take note of this.
 

@@ -89,7 +89,9 @@ void Optics::get_cloud_optics_sw(int ncol, int nlev, int nbnd,
             ice_tau_ssa_g, ice_tau_ssa_f);
       }
       else if (icecldoptics == "ebertcurry") {
-         EbertCurry::ec_ice_optics_sw(ncol, nlev, nbnd, cld, iciwp, rei, ice_tau, ice_tau_ssa, ice_tau_ssa_g, ice_tau_ssa_f);
+         EbertCurry::ec_ice_optics_sw(ncol, nlev, nbnd, cld, iciwp,
+                                     rei, ice_tau, ice_tau_ssa,
+                                     ice_tau_ssa_g, ice_tau_ssa_f);
       }
 
       // Get liquid cloud optics
@@ -294,15 +296,15 @@ void Optics::sample_cloud_optics_sw(
 
       // Generate subcolumns for homogeneous clouds
       parallel_for(SimpleBounds<3>(ngpt, nlev, ncol), YAKL_LAMBDA (int igpt, int ilev, int icol) {
-          if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
-             tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
-             ssa_gpt(icol,ilev,igpt) = ssa_bnd(icol,ilev,gpt2bnd(igpt));
-             asm_gpt(icol,ilev,igpt) = asm_bnd(icol,ilev,gpt2bnd(igpt));
-          } else {
-             tau_gpt(icol,ilev,igpt) = 0.;
-             ssa_gpt(icol,ilev,igpt) = 1.;
-             asm_gpt(icol,ilev,igpt) = 0.;
-          }
+        if (iscloudy(igpt,icol,ilev) && combined_cld(icol,ilev) > 0.) {
+           tau_gpt(icol,ilev,igpt) = tau_bnd(icol,ilev,gpt2bnd(igpt));
+           ssa_gpt(icol,ilev,igpt) = ssa_bnd(icol,ilev,gpt2bnd(igpt));
+           asm_gpt(icol,ilev,igpt) = asm_bnd(icol,ilev,gpt2bnd(igpt));
+        } else {
+           tau_gpt(icol,ilev,igpt) = 0.;
+           ssa_gpt(icol,ilev,igpt) = 1.;
+           asm_gpt(icol,ilev,igpt) = 0.;
+        }
      });
  }
 
@@ -310,8 +312,8 @@ void Optics::sample_cloud_optics_sw(
 // Do MCICA sampling of optics here. This will map bands to gpoints,
 // while doing stochastic sampling of cloud state
 void Optics::sample_cloud_optics_lw(int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
-         const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
-         const real3d& tau_bnd, const real3d& tau_gpt) {
+                                    const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
+                                    const real3d& tau_bnd, const real3d& tau_gpt) {
       //real(r8), dimension(ncol,nlev) :: combined_cld
       real2d combined_cld("combined_cld", ncol, nlev);
 
@@ -340,8 +342,9 @@ void Optics::sample_cloud_optics_lw(int ncol, int nlev, int ngpt, const int1d& g
  }
 
 //----------------------------------------------------------------------------
-void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, const int1d& night_indices,
-             bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out, const real2d& clear_rh) {
+void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt,
+                                   const int1d& night_indices, bool is_cmip6_volc, const real3d& tau_out,
+                                   const real3d& ssa_out, const real3d& asm_out, const real2d& clear_rh) {
       // NOTE: aer_rad_props expects 0:pver indexing on these! It appears this is to
       // account for the extra layer added above model top, but it is not entirely
       // clear. This is not done for the longwave, and it is not really documented
@@ -349,7 +352,6 @@ void Optics::set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, 
       // are set to zero in aer_rad_props_sw as far as I can tell.
       //
       // NOTE: dimension ordering is different than for cloud optics!
-      //real(r8), dimension(ncol,0:pver,nswbands) ::
       real3d tau("tau", ncol, nlev+1, nswbands);
       real3d tau_w("tau_w", ncol, nlev+1, nswbands);
       real3d tau_w_g("tau_w_g", ncol, nlev+1, nswbands);

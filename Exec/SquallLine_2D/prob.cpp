@@ -1,4 +1,5 @@
 #include "prob.H"
+#include <ERF_Constants.H>
 
 using namespace amrex;
 
@@ -57,7 +58,7 @@ Real compute_relative_humidity (const Real z, const Real height, const Real z_tr
 {
     Real p_s = compute_saturation_pressure(T_b);
 
-    Real q_s = 0.622*p_s/(p_b - p_s);
+    Real q_s = Rd_on_Rv*p_s/(p_b - p_s);
 
     if(z <= height){
         return 0.014/q_s;
@@ -82,7 +83,7 @@ Real vapor_mixing_ratio (const Real z, const Real height, const Real p_b, const 
     Real p_s = compute_saturation_pressure(T_b);
     Real p_v = compute_vapor_pressure(p_s, RH);
 
-    Real q_v = 0.622*p_v/(p_b - p_v);
+    Real q_v = Rd_on_Rv*p_v/(p_b - p_v);
 
     if(z < height){
         return 0.014;

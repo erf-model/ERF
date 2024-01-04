@@ -32,6 +32,9 @@
 #include <mo_fluxes_byband.h>
 #include <rrtmgp_const.h>
 
+using yakl::fortran::parallel_for;
+using yakl::fortran::SimpleBounds;
+
 // Radiation code interface class
 class Rrtmgp {
   public:
@@ -95,7 +98,7 @@ class Rrtmgp {
        return std::max(k_dist_sw.temp_ref_max, k_dist_lw.temp_ref_max);
     }
 
-    void get_gpoint_bands_sw(int1d gpoint_bands) {
+    void get_gpoint_bands_sw(int1d& gpoint_bands) {
        gpoint_bands = k_dist_sw.get_gpoint_bands();
        yakl::fence();
     }
@@ -106,13 +109,6 @@ class Rrtmgp {
     }
 
   private:
-   // tools code for multifab to yakl array
-   template<typename DType>
-   void multifab_to_array();
-
-   template<typename DType>
-   void array_to_multifab();
-
    // number of gas for radiation model
    int ngas;
    string1d active_gases;

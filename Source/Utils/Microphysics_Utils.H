@@ -9,6 +9,7 @@
 #include <vector>
 #include <AMReX_REAL.H>
 #include <AMReX_Array.H>
+#include <ERF_Constants.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_gammafff (amrex::Real x){
@@ -114,24 +115,24 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsati (amrex::Real t, amrex::Real p, amrex::Real &qsati) {
     amrex::Real esati;
     esati = erf_esati(t);
-    qsati = 0.622*esati/std::max(esati,p-esati);
+    qsati = Rd_on_Rv*esati/std::max(esati,p-esati);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
     amrex::Real esatw;
     esatw = erf_esatw(t);
-    qsatw = 0.622*esatw/std::max(esatw,p-esatw);
+    qsatw = Rd_on_Rv*esatw/std::max(esatw,p-esatw);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsati (amrex::Real t, amrex::Real p, amrex::Real &dtqsati) {
-    dtqsati = 0.622*erf_dtesati(t)/p;
+    dtqsati = Rd_on_Rv*erf_dtesati(t)/p;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_dtqsatw (amrex::Real t, amrex::Real p, amrex::Real &dtqsatw) {
-    dtqsatw = 0.622*erf_dtesatw(t)/p;
+    dtqsatw = Rd_on_Rv*erf_dtesatw(t)/p;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
