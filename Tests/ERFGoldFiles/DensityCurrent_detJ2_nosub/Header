@@ -4,10 +4,10 @@ density
 x_velocity
 y_velocity
 z_velocity
-pressure
 theta
 pres_hse
 dens_hse
+pressure
 3
 2.0000000000000004
 0

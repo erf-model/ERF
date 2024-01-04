@@ -1,6 +1,10 @@
 #ifndef _PROB_H_
 #define _PROB_H_
 
+/* Based on ABL problem
+ * - initial QKE based on specified initial TKE profile
+ */
+
 #include <string>
 
 #include "AMReX_REAL.H"
@@ -69,7 +73,7 @@ public:
         const SolverChoice& sc) override;
 
 protected:
-    std::string name() override { return "ABL"; }
+    std::string name() override { return "ABL-GABLS1"; }
 
 private:
     ProbParm parms;

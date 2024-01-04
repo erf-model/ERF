@@ -63,6 +63,9 @@ Problem::init_custom_pert(
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+    if (use_moisture) {
+        amrex::Print() << "Note: GABLS1 is a dry case" << std::endl;
+    }
 
   if (state.nComp() > RhoQKE_comp) {
     amrex::Print() << "Initializing QKE" << std::endl;
@@ -121,8 +124,10 @@ Problem::init_custom_pert(
         }
     }
 
-    state(i, j, k, RhoQ1_comp) = 0.0;
-    state(i, j, k, RhoQ2_comp) = 0.0;
+    if (use_moisture) {
+        state(i, j, k, RhoQ1_comp) = 0.0;
+        state(i, j, k, RhoQ2_comp) = 0.0;
+    }
   });
 
   // Set the x-velocity

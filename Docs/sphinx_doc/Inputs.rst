@@ -553,19 +553,19 @@ List of Parameters
 | Parameter                        | Definition         | Acceptable          | Default      |
 |                                  |                    | Values              |              |
 +==================================+====================+=====================+==============+
-| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Centered_2nd |
+| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dycore vars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Centered_2nd |
+| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dycore vars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Centered_2nd |
+| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Centered_2nd |
+| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Upwind_3rd |
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -670,11 +670,11 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 - the dynamic viscosity in the momentum equation is assumed to have the form :math:`\mu = \rho \alpha_M`
   where :math:`\alpha_M` is a momentum diffusivity constant with units of kinematic viscosity, calculated as
   ``erf.dynamicViscosity`` divided by ``erf.rho0_trans``;
-  this diffusivity is multiplied by the current density :math:`\rho` to form the coefficient in the momentum equation; and
+  this diffusivity is multiplied by the instantaneous local density :math:`\rho` to form the coefficient in the momentum equation; and
 
-- ``erf.alpha_T`` is multiplied by the current density :math:`\rho` to form the coefficient for potential temperature, and
+- ``erf.alpha_T`` is multiplied by the instantaneous local density :math:`\rho` to form the coefficient for potential temperature, and
 
-- ``erf.alpha_C`` is multiplied by the current density :math:`\rho` to form the coefficient for an advected scalar.
+- ``erf.alpha_C`` is multiplied by the instantaneous local density :math:`\rho` to form the coefficient for an advected scalar.
 
 
 PBL Scheme
