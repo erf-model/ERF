@@ -201,13 +201,13 @@ struct AdvChoice {
     // Default prefix
     std::string pp_prefix {"erf"};
 
-    // Spatial discretization
     // Order and type of spatial discretizations used in advection
+    // Defaults given below but these can be over-written at run-time
     bool use_efficient_advection = false;
-    AdvType dycore_horiz_adv_type    = AdvType::Centered_2nd;
-    AdvType dycore_vert_adv_type     = AdvType::Centered_2nd;
-    AdvType dryscal_horiz_adv_type   = AdvType::Centered_2nd;
-    AdvType dryscal_vert_adv_type    = AdvType::Centered_2nd;
+    AdvType dycore_horiz_adv_type    = AdvType::Upwind_3rd;
+    AdvType dycore_vert_adv_type     = AdvType::Upwind_3rd;
+    AdvType dryscal_horiz_adv_type   = AdvType::Upwind_3rd;
+    AdvType dryscal_vert_adv_type    = AdvType::Upwind_3rd;
     AdvType moistscal_horiz_adv_type = AdvType::Weno_3;
     AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
 };

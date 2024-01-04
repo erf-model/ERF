@@ -553,19 +553,19 @@ List of Parameters
 | Parameter                        | Definition         | Acceptable          | Default      |
 |                                  |                    | Values              |              |
 +==================================+====================+=====================+==============+
-| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Centered_2nd |
+| **erf.dycore_horiz_adv_type**    | Horizontal         | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dycore vars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Centered_2nd |
+| **erf.dycore_vert_adv_type**     | Vertical           | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dycore vars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Centered_2nd |
+| **erf.dryscal_horiz_adv_type**   | Horizontal         | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Centered_2nd |
+| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Upwind_3rd |
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+

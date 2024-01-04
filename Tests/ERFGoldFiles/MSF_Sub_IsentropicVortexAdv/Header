@@ -4,10 +4,10 @@ density
 x_velocity
 y_velocity
 z_velocity
-pressure
 temp
 theta
 scalar
+pressure
 3
 0.0029999999999999996
 0
