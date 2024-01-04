@@ -61,11 +61,6 @@ public:
                                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                   amrex::Geometry const& geom) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
-        const amrex::Real& time) override;
-
     void erf_init_rayleigh (
         amrex::Vector<amrex::Real>& tau,
         amrex::Vector<amrex::Real>& ubar,

@@ -167,29 +167,6 @@ Problem::init_custom_pert(
   });
 }
 
-void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    MultiFab& z_phys_nd,
-    const Real& /*time*/)
-{
-    auto dx = geom.CellSizeArray();
-
-    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        const Box& gbx = mfi.growntilebox(1);
-        Array4<Real> z_arr = z_phys_nd.array(mfi);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-
-            Real z = k * dx[2];
-
-            // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,k) = z;
-        });
-    }
-    z_phys_nd.FillBoundary(geom.periodicity());
-}
-
 #if 0
 AMREX_GPU_DEVICE
 Real

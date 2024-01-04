@@ -52,11 +52,6 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
-        const amrex::Real& time) override;
-
     void erf_init_rayleigh (
         amrex::Vector<amrex::Real>& tau,
         amrex::Vector<amrex::Real>& ubar,

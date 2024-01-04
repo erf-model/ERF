@@ -67,11 +67,6 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
-        const amrex::Real& time) override;
-
 protected:
     std::string name() override { return "ABL with input sounding"; }
 
