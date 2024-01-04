@@ -52,6 +52,11 @@ erf.molec_diff_type  = "Constant"
 erf.rho0_trans       = 1.0
 erf.dynamicViscosity = 0.0
 
+erf.dycore_horiz_adv_type  = Centered_2nd
+erf.dycore_vert_adv_type   = Centered_2nd
+erf.dryscal_horiz_adv_type = Centered_2nd
+erf.dryscal_vert_adv_type  = Centered_2nd
+
 erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS

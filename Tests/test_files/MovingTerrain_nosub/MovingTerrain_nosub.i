@@ -48,6 +48,11 @@ erf.use_rayleigh_damping = false
 
 erf.buoyancy_type = 1
 
+erf.dycore_horiz_adv_type  = Centered_2nd
+erf.dycore_vert_adv_type   = Centered_2nd
+erf.dryscal_horiz_adv_type = Centered_2nd
+erf.dryscal_vert_adv_type  = Centered_2nd
+
 # MULTILEVEL
 amr.max_level = 0
 
