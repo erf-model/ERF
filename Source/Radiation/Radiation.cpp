@@ -45,7 +45,7 @@ namespace internal {
     fluxes.bnd_flux_dn_dir = real3d("flux_dn_dir", nz, nlay+1, nbands);
   }
 
-  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes, 
+  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes,
                          const int1d& day_indices) {
       auto ncol  = size(daytime_fluxes.bnd_flux_up, 1);
       auto nlev  = size(daytime_fluxes.bnd_flux_up, 2);
@@ -88,7 +88,7 @@ namespace internal {
 }
 
 // init
-void Radiation::initialize(const MultiFab& cons_in, 
+void Radiation::initialize(const MultiFab& cons_in,
                            const MultiFab& qmoist,
                            const BoxArray& grids,
                            const Geometry& geom,
@@ -316,9 +316,9 @@ void Radiation::run() {
        icswp(i,k) = qn(i,k)/std::max(1.0e-4,cldfsnow(i,k))*pmid(i,k)/CONST_GRAV;
      });
 
-     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid, 
+     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid,
                      rel, rei, dei, lambdac, mu, des);
- 
+
      optics.get_cloud_optics_sw(ncol, nlev, nswbands, do_snow_optics, cld,
                                 cldfsnow, iclwp, iciwp, icswp,
                                 lambdac, mu, dei, des, rel, rei,
@@ -510,12 +510,12 @@ void Radiation::run() {
 }
 
 void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
-           const real2d& pmid, const real2d& pint, const real2d& tmid, 
-           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs, 
+           const real2d& pmid, const real2d& pint, const real2d& tmid,
+           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
            const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
            const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
-           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs, 
-           const real2d& qrsc) 
+           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs,
+           const real2d& qrsc)
 {
    // Incoming solar radiation, scaled for solar zenith angle
    // and earth-sun distance
@@ -647,7 +647,7 @@ void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
 
    // Do shortwave radiative transfer calculations
    radiation.run_shortwave_rrtmgp( ngas, num_day(1), nlev,
-      gas_vmr_rad, pmid, 
+      gas_vmr_rad, pmid,
       tmid_day, pint_day, coszrs_day, albedo_dir_day, albedo_dif_day,
       cld_tau_gpt_rad, cld_ssa_gpt_rad, cld_asm_gpt_rad, aer_tau_bnd_rad, aer_ssa_bnd_rad, aer_asm_bnd_rad,
       fluxes_allsky_day.flux_up    , fluxes_allsky_day.flux_dn    , fluxes_allsky_day.flux_net    , fluxes_allsky_day.flux_dn_dir    ,

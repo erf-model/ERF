@@ -112,7 +112,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
           if ((tlev == -1) || (stobie < strop(1))) {
              tlev  = k;
              strop(1) = stobie;
-          }        
+          }
          }
          if (tlev != -1) trop_level(i) = tlev;
       });
@@ -135,7 +135,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
          ext_cmip6_sw_2d(icol,ilev) = ext_cmip6_sw_inv_m(icol,ilev,RadConstants::idx_sw_diag);
       });
 
-      mam_aer.modal_aero_sw(list_idx, dt, nnite, idxnite, is_cmip6_volc, 
+      mam_aer.modal_aero_sw(list_idx, dt, nnite, idxnite, is_cmip6_volc,
                             pdeldry, pmid, temp, qt, ext_cmip6_sw_2d,
                             trop_level, tau, tau_w, tau_w_g, tau_w_f, clear_rh);
    } else {

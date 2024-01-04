@@ -173,7 +173,7 @@ class Mam4_aer {
             for (i = 1; i <= im; ++i) {
               if(x(ic) < xtab(i)) break;
             }
-            
+
             ix(ic)   = std::max(i-1,1);
             auto ip1 = std::min(ix(ic)+1,im);
             auto dx  = (xtab(ip1)-xtab(ix(ic)));
@@ -205,7 +205,7 @@ class Mam4_aer {
              if(std::abs(dy) > 1.e-20) {
                 u(ic) = (y(ic)-ytab(jy(ic)))/dy;
                 if(u(ic) < 0. || u(ic) > 1.)
-                  amrex::Print() << "u= " << u(ic) << "; y= " << y(ic) << "; ytab= " 
+                  amrex::Print() << "u= " << u(ic) << "; y= " << y(ic) << "; ytab= "
                                  << ytab(jy(ic)) << "; dy= " << dy << std::endl;
              } else {
                u(ic)=0.;
@@ -217,7 +217,7 @@ class Mam4_aer {
             u(i)  = 0.;
           });
         }
-     } 
+     }
 
      parallel_for (SimpleBounds<2>(ncol, km), YAKL_LAMBDA (int ic, int k) {
         tu(ic)   = t(ic)*u(ic);
@@ -319,7 +319,7 @@ class Mam4_aer {
    //
    void  modal_aero_sw(int list_idx, real dt, int nnite,
                        const int1d& idxnite, const bool& is_cmip6_volc,
-                       const real2d& pdeldry, const real2d& pmid, const real2d& temperature, const real2d& qt, 
+                       const real2d& pdeldry, const real2d& pmid, const real2d& temperature, const real2d& qt,
                        const real2d& ext_cmip6_sw, const int1d& trop_level,
                        const real3d& tauxar, const real3d& wa, const real3d& ga,
                        const real3d& fa, const real2d& clear_rh) {
@@ -555,7 +555,7 @@ class Mam4_aer {
   //
   // calcualtes aerosol lw radiative properties
   //
-  void  modal_aero_lw(int list_idx, real dt, 
+  void  modal_aero_lw(int list_idx, real dt,
                       const real2d& pdeldry, const real2d& pmid, const real2d& temperature, const real2d& qt,
                       const real3d& tauxar, const real2d& clear_rh) {
      real   sigma_logr_aer;          // geometric standard deviation of number distribution
