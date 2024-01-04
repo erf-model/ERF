@@ -24,7 +24,7 @@ class ModalAeroWateruptake {
   public:
    static
    void modal_aero_wateruptake_dr(int list_idx, int ncol, int nlev, int nmodes, int top_lev,
-                                  MamConstituents& consti, const real2d& h2ommr, const real2d& t, const real2d& pmid, 
+                                  MamConstituents& consti, const real2d& h2ommr, const real2d& t, const real2d& pmid,
                                   const real3d& dgnumdry_m, const real3d& dgnumwet_m, const real3d& qaerwat_m,
                                   const real3d& wetdens_m, const real2d& clear_rh_in) {
    real2d raer("raer",ncol,nlev);     // aerosol species MRs (kg/kg and #/kg)
@@ -388,7 +388,7 @@ class ModalAeroWateruptake {
          cx[0] = amrex::GpuComplex<real>(std::pow(-p0, third), 0.);
          cx[1] = cx[0];
          cx[2] = cx[1];
-      } 
+      }
       else {
          auto q = amrex::GpuComplex<real>(p1/3., 0.);
          auto r = amrex::GpuComplex<real>(p0/2., 0.);
@@ -425,7 +425,7 @@ class ModalAeroWateruptake {
          cx[1] = cx[0];
          cx[2] = cx[0];
          cx[3] = cx[0];
-      } 
+      }
       else {
          cb = amrex::pow(cb, third);
          auto cy = -cb+q/cb+p2/6.;
