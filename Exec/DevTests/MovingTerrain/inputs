@@ -53,6 +53,11 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pr
 # SOLVER CHOICE
 erf.use_gravity = true
 
+erf.dycore_horiz_adv_type  = Centered_2nd
+erf.dycore_vert_adv_type   = Centered_2nd
+erf.dryscal_horiz_adv_type = Centered_2nd
+erf.dryscal_vert_adv_type  = Centered_2nd
+
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
 
