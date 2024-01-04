@@ -40,33 +40,27 @@ Problem::init_custom_pert(
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& z_cc,
-#if defined(ERF_USE_MOISTURE)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#endif
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
+    const int khi = geomdata.Domain().bigEnd()[2];
 
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  const Real l_x_r = parms.x_r;
-  //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
-  const Real l_z_r = parms.z_r;
-  const Real l_x_c = parms.x_c;
-  const Real l_z_c = parms.z_c;
-  const Real l_Tpt = parms.T_pert;
-  const Real rdOcp = sc.rdOcp;
+    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-  if (z_cc) {
+    const Real l_x_r = parms.x_r;
+    //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf
+    const Real l_z_r = parms.z_r;
+    const Real l_x_c = parms.x_c;
+    const Real l_z_c = parms.z_c;
+    const Real l_Tpt = parms.T_pert;
+    const Real rdOcp = sc.rdOcp;
+
+    if (z_cc) {
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
       {
         // Geometry (note we must include these here to get the data on device)
@@ -93,13 +87,10 @@ Problem::init_custom_pert(
         // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;
 
-#if defined(ERF_USE_MOISTURE)
-        state(i, j, k, RhoQt_comp) = 0.0;
-        state(i, j, k, RhoQp_comp) = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        state(i, j, k, RhoQv_comp) = 0.0;
-        state(i, j, k, RhoQc_comp) = 0.0;
-#endif
+        if (use_moisture) {
+            state(i, j, k, RhoQ1_comp) = 0.0;
+            state(i, j, k, RhoQ2_comp) = 0.0;
+        }
       });
   } else {
       amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -128,10 +119,10 @@ Problem::init_custom_pert(
         // Set scalar = 0 everywhere
         state(i, j, k, RhoScalar_comp) = 0.0;
 
-#ifdef ERF_USE_MOISTURE
-        state(i, j, k, RhoQt_comp) = 0.0;
-        state(i, j, k, RhoQp_comp) = 0.0;
-#endif
+        if (use_moisture) {
+            state(i, j, k, RhoQ1_comp) = 0.0;
+            state(i, j, k, RhoQ2_comp) = 0.0;
+        }
       });
   }
 

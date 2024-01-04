@@ -9,34 +9,34 @@
 using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;
 
-void AerRadProps::initialize(int ngas_, int nmodes_, int num_aeroes_,
-                             int nswbands_, int nlwbands_,
-                             int ncol_, int nlev_, int nrh_, int top_lev_,
-                             const std::vector<std::string>& aero_names_,
-                             const real2d& zi_, const real2d& pmid_, const real2d& temp_,
-                             const real2d& qt_, const real2d& geom_radius) {
-   nmodes = nmodes_;
-   ngas = ngas_;
-   num_aeroes = num_aeroes_;
-   aero_names = aero_names_;
+void AerRadProps::initialize (int ngas_, int nmodes_, int num_aeroes_,
+                              int nswbands_, int nlwbands_,
+                              int ncol_, int nlev_, int nrh_, int top_lev_,
+                              const std::vector<std::string>& aero_names_,
+                              const real2d& zi_, const real2d& pmid_, const real2d& temp_,
+                              const real2d& qt_, const real2d& geom_radius) {
+    nmodes = nmodes_;
+    ngas = ngas_;
+    num_aeroes = num_aeroes_;
+    aero_names = aero_names_;
 
-   nswbands = nswbands_;
-   nlwbands = nlwbands_;
-   ncol     = ncol_;
-   nlev     = nlev_;
-   nrh      = nrh_;
-   top_lev  = top_lev_;
+    nswbands = nswbands_;
+    nlwbands = nlwbands_;
+    ncol     = ncol_;
+    nlev     = nlev_;
+    nrh      = nrh_;
+    top_lev  = top_lev_;
 
-   pmid = pmid_;
-   pdeldry = pmid_;
-   temp = temp_;
-   qt   = qt_;
-   // geometric radius
-   geometric_radius = geom_radius;
-   // vertical grid
-   zi = zi_;
-   // initialize mam4 aero model
-   mam_aer.initialize(ncol, nlev, top_lev, nswbands, nlwbands);
+    pmid = pmid_;
+    pdeldry = pmid_;
+    temp = temp_;
+    qt   = qt_;
+    // geometric radius
+    geometric_radius = geom_radius;
+    // vertical grid
+    zi = zi_;
+    // initialize mam4 aero model
+    mam_aer.initialize(ncol, nlev, top_lev, nswbands, nlwbands);
 }
 
 void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const int& nnite,
@@ -112,12 +112,11 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
           if ((tlev == -1) || (stobie < strop(1))) {
              tlev  = k;
              strop(1) = stobie;
-          }
-        }
-        if (tlev != -1) trop_level(i) = tlev;
+          }        
+         }
+         if (tlev != -1) trop_level(i) = tlev;
       });
 
-      //
       //Quit if tropopause is not found
       if (yakl::intrinsics::any(trop_level) == -1) {
          amrex::Print() << "aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found\n";
@@ -164,9 +163,7 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
       parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
         if (ilev < top_lev) {
           aermass(icol,ilev) = 0.;
-        } else {
-          aermass(icol,ilev) = aermmr(icol,ilev) * mmr_to_mass(icol,ilev);
-        }
+
       });
 
       std::string opticstype;       // hygro or nonhygro
@@ -265,7 +262,6 @@ void AerRadProps::aer_rad_props_sw(const int& list_idx, const real& dt, const in
    // diagnostic output of total aerosol optical properties
    // currently implemented for climate list only
 //   call aer_vis_diag_out(lchnk, ncol, nnite, idxnite, 0, tau(:,:,idx_sw_diag), list_idx)
-#endif
 }
 
 // Purpose: Compute aerosol transmissions needed in absorptivity/
@@ -457,74 +453,161 @@ void AerRadProps::aer_rad_props_lw(const bool& is_cmip6_volc,
             } else {
                mu(icol,ilev) = 0.;
             }
-            auto mutrunc = std::max(std::min(mu(icol,ilev),r_mu_max),r_mu_min);
-            auto kmu = std::max(std::min(1 + (mutrunc-r_mu_min)/(r_mu_max-r_mu_min)*(nmu-1),nmu-1.),1.);
-            auto wmu = std::max(std::min( (mutrunc -r_mu(kmu)) / (r_mu(kmu+1) - r_mu(kmu)) ,1.),0.);
-            for (auto bnd_idx = 0; bnd_idx < nlwbands; ++bnd_idx) {
-                odap_aer(icol,ilev,bnd_idx) = odap_aer(icol,ilev,bnd_idx) +
-                     aermass(icol,ilev) * ((1. - wmu) * r_lw_abs(bnd_idx, kmu) +
-                     (wmu) * r_lw_abs(bnd_idx, kmu+1));
+            if (tlev != -1) trop_level(i) = tlev;
+        });
+
+        // Quit if tropopause is not found
+        if (yakl::intrinsics::any(trop_level) == -1)
+            amrex::Print() << "aer_rad_props_lw: tropopause not found\n";
+
+        // If tropopause is found, update taus with 50% contributuions from the volcanic input
+        // file and 50% from the existing model computed values
+        // First handle the case of tropopause layer itself:
+        parallel_for(SimpleBounds<2>(ncol, nlwbands), YAKL_LAMBDA (int icol, int ilw)
+        {
+            int ilev_tropp = trop_level(icol); //tropopause level
+            auto lyr_thk    = zi(icol,ilev_tropp) - zi(icol,ilev_tropp+1); //in meters
+            auto ext_cmip6_inv_m = km_inv_to_m_inv * ext_cmip6_lw_inv_m(icol,ilev_tropp,ilw);
+            odap_aer(icol,ilev_tropp,ilw) = 0.5 * (odap_aer(icol,ilev_tropp,ilw) + lyr_thk * ext_cmip6_inv_m);
+        });
+
+        // As it will be more efficient for FORTRAN to loop over levels and then columns, the following loops
+        // are nested keeping that in mind
+        parallel_for(SimpleBounds<3>(ncol, nlev, nlwbands), YAKL_LAMBDA (int icol, int ilev, int ilw)
+        {
+            int ilev_tropp = trop_level(icol); //tropopause level
+            if (ilev < ilev_tropp) {
+                auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
+                // odap_aer(icol,ilev,ilw) = lyr_thk * ext_cmip6_lw_inv_m(icol,ilev,ilw);
             }
         });
-      }
-   }
- }
+    }
 
- void AerRadProps::get_hygro_rad_props(const int& ncol,
-                                      const int2d& krh,
-                                      const real2d& wrh,
-                                      const real2d& mass,
-                                      const real2d& extb,
-                                      const real2d& ssab,
-                                      const real2d& asmb,
-                                      const real3d& tau,
-                                      const real3d& tau_w,
-                                      const real3d& tau_w_g,
-                                      const real3d& tau_w_f) {
 
-   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands) , YAKL_LAMBDA (int icol, int ilev, int iswband) {
-     auto ext1 = (1 + wrh(icol,ilev)) * extb(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * extb(krh(icol,ilev),iswband);
-     auto ssa1 = (1 + wrh(icol,ilev)) * ssab(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * ssab(krh(icol,ilev),iswband);
-     auto asm1 = (1 + wrh(icol,ilev)) * asmb(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * asmb(krh(icol,ilev),iswband);
+    // Loop over bulk aerosols in list.
+    for (auto iaerosol = 0; iaerosol < numaerosols; ++iaerosol) {
 
-     tau    (icol, ilev, iswband) = mass(icol, ilev) * ext1;
-     tau_w  (icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1;
-     tau_w_g(icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1 * asm1;
-     tau_w_f(icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1 * asm1 * asm1;
-  });
+        // get aerosol mass mixing ratio
+        //      mam_consti.rad_cnst_get_aer_mmr(list_idx, iaerosol, aermmr);
+        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
+        {
+            if (ilev < top_lev) {
+                aermass(icol,ilev) = 0.;
+            } else {
+                aermass(icol,ilev) = aermmr(icol,ilev) * mmr_to_mass(icol,ilev);
+            }
+        });
+
+        // get optics type
+        mam_consti.get_aer_opticstype(list_idx, iaerosol, opticstype);
+
+        if (opticstype == "hygroscopic") {
+            // get optical properties for hygroscopic aerosols
+            mam_consti.get_aer_lw_hygro_abs(list_idx, iaerosol, lw_hygro_abs);
+            parallel_for(SimpleBounds<3>(ncol, nlev, nlwbands), YAKL_LAMBDA (int icol, int ilev, int bnd_idx)
+            {
+                odap_aer(icol, ilev, bnd_idx) = odap_aer(icol, ilev, bnd_idx) + aermass(icol, ilev) *
+                    ((1 + wrh(icol,ilev)) * lw_hygro_abs(krh(icol, ilev)+1,bnd_idx)
+                     - wrh(icol, ilev)  * lw_hygro_abs(krh(icol, ilev),  bnd_idx));
+            });
+        } else if (opticstype == "insoluble" || opticstype == "nonhygro" || opticstype == "hygro" || opticstype == "volcanic") {
+            // get optical properties for hygroscopic aerosols
+            mam_consti.get_aer_lw_abs(list_idx, iaerosol, lw_abs);
+            parallel_for(SimpleBounds<3>(ncol, nlev, nlwbands), YAKL_LAMBDA (int icol, int ilev, int bnd_idx)
+            {
+                odap_aer(icol,ilev,bnd_idx) = odap_aer(icol,ilev,bnd_idx) + lw_abs(bnd_idx)*aermass(icol,ilev);
+            });
+        } else if (opticstype == "volcanic_radius") {
+            // get optical properties for hygroscopic aerosols
+            mam_consti.get_aer_r_lw_abs(list_idx, iaerosol, r_lw_abs);
+            mam_consti.get_aer_mu(list_idx, iaerosol, r_mu);
+            // get microphysical properties for volcanic aerosols
+            //         idx = pbuf_get_index('VOLC_RAD_GEOM')
+            //         call pbuf_get_field(pbuf, idx, geometric_radius )
+
+            // interpolate in radius
+            // caution: clip the table with no warning when outside bounds
+            parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
+            {
+                auto nmu = r_mu.extent(0);
+                auto r_mu_max = r_mu(nmu);
+                auto r_mu_min = r_mu(1);
+
+                if(geometric_radius(icol,ilev) > 0.) {
+                    mu(icol,ilev) = std::log(geometric_radius(icol,ilev));
+                } else {
+                    mu(icol,ilev) = 0.;
+                }
+                auto mutrunc = std::max(std::min(mu(icol,ilev),r_mu_max),r_mu_min);
+                auto kmu = std::max(std::min(1 + (mutrunc-r_mu_min)/(r_mu_max-r_mu_min)*(nmu-1),nmu-1.),1.);
+                auto wmu = std::max(std::min( (mutrunc -r_mu(kmu)) / (r_mu(kmu+1) - r_mu(kmu)) ,1.),0.);
+                for (auto bnd_idx = 0; bnd_idx < nlwbands; ++bnd_idx) {
+                    odap_aer(icol,ilev,bnd_idx) = odap_aer(icol,ilev,bnd_idx) +
+                        aermass(icol,ilev) * ((1. - wmu) * r_lw_abs(bnd_idx, kmu) +
+                                              (wmu) * r_lw_abs(bnd_idx, kmu+1));
+                }
+            });
+        }
+    }
 }
 
-void AerRadProps::get_nonhygro_rad_props(const int& ncol,
-                                         const real2d& mass,
-                                         const real1d& extb,
-                                         const real1d& ssab,
-                                         const real1d& asmb,
-                                         const real3d& tau,
-                                         const real3d& tau_w,
-                                         const real3d& tau_w_g,
-                                         const real3d& tau_w_f) {
+ void AerRadProps::get_hygro_rad_props (const int& ncol,
+                                        const int2d& krh,
+                                        const real2d& wrh,
+                                        const real2d& mass,
+                                        const real2d& extb,
+                                        const real2d& ssab,
+                                        const real2d& asmb,
+                                        const real3d& tau,
+                                        const real3d& tau_w,
+                                        const real3d& tau_w_g,
+                                        const real3d& tau_w_f) {
 
-   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands) , YAKL_LAMBDA (int icol, int ilev, int iswband) {
-      auto ext1 = extb(iswband);
-      auto ssa1 = ssab(iswband);
-      auto asm1 = asmb(iswband);
-      tau    (icol,ilev,iswband) = mass(icol,ilev) * ext1;
-      tau_w  (icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1;
-      tau_w_g(icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1 * asm1;
-      tau_w_f(icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1 * asm1 * asm1;
+   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands) , YAKL_LAMBDA (int icol, int ilev, int iswband)
+   {
+       auto ext1 = (1 + wrh(icol,ilev)) * extb(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * extb(krh(icol,ilev),iswband);
+       auto ssa1 = (1 + wrh(icol,ilev)) * ssab(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * ssab(krh(icol,ilev),iswband);
+       auto asm1 = (1 + wrh(icol,ilev)) * asmb(krh(icol,ilev)+1,iswband) - wrh(icol,ilev) * asmb(krh(icol,ilev),iswband);
+
+       tau    (icol, ilev, iswband) = mass(icol, ilev) * ext1;
+       tau_w  (icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1;
+       tau_w_g(icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1 * asm1;
+       tau_w_f(icol, ilev, iswband) = mass(icol, ilev) * ext1 * ssa1 * asm1 * asm1;
    });
 }
 
- void AerRadProps::get_volcanic_radius_rad_props(const int& ncol,
-                                                 const real2d& mass,
-                                                 const real2d& r_ext,
-                                                 const real2d& r_scat,
-                                                 const real2d& r_ascat,
-                                                 const real1d& r_mu,
-                                                 const real3d& tau,
-                                                 const real3d& tau_w,
-                                                 const real3d& tau_w_g,
-                                                 const real3d& tau_w_f) {
+void AerRadProps::get_nonhygro_rad_props (const int& ncol,
+                                          const real2d& mass,
+                                          const real1d& extb,
+                                          const real1d& ssab,
+                                          const real1d& asmb,
+                                          const real3d& tau,
+                                          const real3d& tau_w,
+                                          const real3d& tau_w_g,
+                                          const real3d& tau_w_f) {
+
+   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands) , YAKL_LAMBDA (int icol, int ilev, int iswband)
+   {
+       auto ext1 = extb(iswband);
+       auto ssa1 = ssab(iswband);
+       auto asm1 = asmb(iswband);
+       tau    (icol,ilev,iswband) = mass(icol,ilev) * ext1;
+       tau_w  (icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1;
+       tau_w_g(icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1 * asm1;
+       tau_w_f(icol,ilev,iswband) = mass(icol,ilev) * ext1 * ssa1 * asm1 * asm1;
+   });
+}
+
+ void AerRadProps::get_volcanic_radius_rad_props (const int& ncol,
+                                                  const real2d& mass,
+                                                  const real2d& r_ext,
+                                                  const real2d& r_scat,
+                                                  const real2d& r_ascat,
+                                                  const real1d& r_mu,
+                                                  const real3d& tau,
+                                                  const real3d& tau_w,
+                                                  const real3d& tau_w_g,
+                                                  const real3d& tau_w_f) {
    yakl::memset(tau, 0.);
    yakl::memset(tau_w, 0.);
    yakl::memset(tau_w_g, 0.);
@@ -546,25 +629,26 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
    real1d ascat("ascat", nswbands);
    real2d mu("mu", ncol, nlev);
 
-   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands), YAKL_LAMBDA (int icol, int ilev, int iswband) {
+   parallel_for(SimpleBounds<3>(ncol,nlev,nswbands), YAKL_LAMBDA (int icol, int ilev, int iswband)
+   {
        if(geometric_radius(icol,ilev) > 0.)
-          mu(icol,ilev) = std::log(geometric_radius(icol,ilev));
+           mu(icol,ilev) = std::log(geometric_radius(icol,ilev));
        else
-          mu(icol,ilev) = 0.;
+           mu(icol,ilev) = 0.;
 
        auto mutrunc = std::max(std::min(mu(icol,ilev),r_mu_max),r_mu_min);
        auto kmu = std::max(std::min(1 + (mutrunc-r_mu_min)/(r_mu_max-r_mu_min)*(nmu-1),nmu-1.),1.);
        auto wmu = std::max(std::min((mutrunc -r_mu(kmu)) / (r_mu(kmu+1) - r_mu(kmu)),1.),0.);
 
        ext(iswband) = ((1. - wmu) * r_ext(iswband, kmu  ) +
-                      (wmu) * r_ext(iswband, kmu+1));
+                       (wmu) * r_ext(iswband, kmu+1));
        scat(iswband) = ((1. - wmu) * r_scat(iswband, kmu  ) +
-                       (wmu) * r_scat(iswband, kmu+1));
+                        (wmu) * r_scat(iswband, kmu+1));
        ascat(iswband) = ((1. - wmu) * r_ascat(iswband, kmu  ) +
-                       (wmu) * r_ascat(iswband, kmu+1));
+                         (wmu) * r_ascat(iswband, kmu+1));
        real g = 0;
        if (scat(iswband) > 0.)
-          g = ascat(iswband)/scat(iswband);
+           g = ascat(iswband)/scat(iswband);
 
        tau    (icol,ilev,iswband) = mass(icol,ilev) * ext(iswband);
        tau_w  (icol,ilev,iswband) = mass(icol,ilev) * scat(iswband);
@@ -598,60 +682,63 @@ void AerRadProps::get_nonhygro_rad_props(const int& ncol,
          ext_ssa_asym("ext_ssa_asym",nswbands);
 
   // First handle the case of tropopause layer itself:
-  parallel_for(SimpleBounds<2>(ncol,nswbands), YAKL_LAMBDA (int icol, int isw) {
-     auto ilev_tropp = trop_level(icol); //tropopause level
-     auto lyr_thk = zi(icol,ilev_tropp) - zi(icol,ilev_tropp+1);
+  parallel_for(SimpleBounds<2>(ncol,nswbands), YAKL_LAMBDA (int icol, int isw)
+  {
+      auto ilev_tropp = trop_level(icol); //tropopause level
+      auto lyr_thk = zi(icol,ilev_tropp) - zi(icol,ilev_tropp+1);
 
-     ext_unitless(isw)  = lyr_thk * ext_cmip6_sw_inv_m(icol,ilev_tropp,isw);
-     asym_unitless(isw) = af_cmip6_sw (icol,ilev_tropp,isw);
-     ext_ssa(isw)       = ext_unitless(isw) * ssa_cmip6_sw(icol,ilev_tropp,isw);
-     ext_ssa_asym(isw)  = ext_ssa(isw) * asym_unitless(isw);
+      ext_unitless(isw)  = lyr_thk * ext_cmip6_sw_inv_m(icol,ilev_tropp,isw);
+      asym_unitless(isw) = af_cmip6_sw (icol,ilev_tropp,isw);
+      ext_ssa(isw)       = ext_unitless(isw) * ssa_cmip6_sw(icol,ilev_tropp,isw);
+      ext_ssa_asym(isw)  = ext_ssa(isw) * asym_unitless(isw);
 
-     tau    (icol,ilev_tropp,isw) = 0.5 * ( tau    (icol,ilev_tropp,isw) + ext_unitless(isw) );
-     tau_w  (icol,ilev_tropp,isw) = 0.5 * ( tau_w  (icol,ilev_tropp,isw) + ext_ssa(isw));
-     tau_w_g(icol,ilev_tropp,isw) = 0.5 * ( tau_w_g(icol,ilev_tropp,isw) + ext_ssa_asym(isw));
-     tau_w_f(icol,ilev_tropp,isw) = 0.5 * ( tau_w_f(icol,ilev_tropp,isw) + ext_ssa_asym(isw) * asym_unitless(isw));
+      tau    (icol,ilev_tropp,isw) = 0.5 * ( tau    (icol,ilev_tropp,isw) + ext_unitless(isw) );
+      tau_w  (icol,ilev_tropp,isw) = 0.5 * ( tau_w  (icol,ilev_tropp,isw) + ext_ssa(isw));
+      tau_w_g(icol,ilev_tropp,isw) = 0.5 * ( tau_w_g(icol,ilev_tropp,isw) + ext_ssa_asym(isw));
+      tau_w_f(icol,ilev_tropp,isw) = 0.5 * ( tau_w_f(icol,ilev_tropp,isw) + ext_ssa_asym(isw) * asym_unitless(isw));
   });
 
   // As it will be more efficient for FORTRAN to loop over levels and then columns, the following loops
   // are nested keeping that in mind
-  parallel_for(SimpleBounds<3>(ncol,nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw) {
-     auto ilev_tropp = trop_level(icol); //tropopause level
+  parallel_for(SimpleBounds<3>(ncol,nlev, nswbands), YAKL_LAMBDA (int icol, int ilev, int isw)
+  {
+      auto ilev_tropp = trop_level(icol); //tropopause level
 
-     if (ilev < ilev_tropp) { //BALLI: see if this is right!
-        auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
+      if (ilev < ilev_tropp) { //BALLI: see if this is right!
+          auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
 
-        ext_unitless(isw)  = lyr_thk * ext_cmip6_sw_inv_m(icol,ilev,isw);
-        asym_unitless(isw) = af_cmip6_sw(icol,ilev,isw);
-        ext_ssa(isw)       = ext_unitless(isw) * ssa_cmip6_sw(icol,ilev,isw);
-        ext_ssa_asym(isw)  = ext_ssa(isw) * asym_unitless(isw);
+          ext_unitless(isw)  = lyr_thk * ext_cmip6_sw_inv_m(icol,ilev,isw);
+          asym_unitless(isw) = af_cmip6_sw(icol,ilev,isw);
+          ext_ssa(isw)       = ext_unitless(isw) * ssa_cmip6_sw(icol,ilev,isw);
+          ext_ssa_asym(isw)  = ext_ssa(isw) * asym_unitless(isw);
 
-        tau    (icol,ilev,isw) = ext_unitless(isw);
-        tau_w  (icol,ilev,isw) = ext_ssa(isw);
-        tau_w_g(icol,ilev,isw) = ext_ssa_asym(isw);
-        tau_w_f(icol,ilev,isw) = ext_ssa_asym(isw) * asym_unitless(isw);
-     }
+          tau    (icol,ilev,isw) = ext_unitless(isw);
+          tau_w  (icol,ilev,isw) = ext_ssa(isw);
+          tau_w_g(icol,ilev,isw) = ext_ssa_asym(isw);
+          tau_w_f(icol,ilev,isw) = ext_ssa_asym(isw) * asym_unitless(isw);
+      }
   });
 }
 
-void AerRadProps::get_volcanic_rad_props(const int& ncol,
-                                         const real2d& mass,
-                                         const real1d& ext,
-                                         const real1d& scat,
-                                         const real1d& ascat,
-                                         const real3d& tau,
-                                         const real3d& tau_w,
-                                         const real3d& tau_w_g,
-                                         const real3d& tau_w_f) {
+void AerRadProps::get_volcanic_rad_props (const int& ncol,
+                                          const real2d& mass,
+                                          const real1d& ext,
+                                          const real1d& scat,
+                                          const real1d& ascat,
+                                          const real3d& tau,
+                                          const real3d& tau_w,
+                                          const real3d& tau_w_g,
+                                          const real3d& tau_w_f) {
    int nswbands;
-   parallel_for(SimpleBounds<3>(nswbands, ncol,nlev), YAKL_LAMBDA (int iswband, int icol, int ilev) {
-     real g = 0;
-     if (scat(iswband) > 0.)
-        g = ascat(iswband)/scat(iswband);
+   parallel_for(SimpleBounds<3>(nswbands, ncol,nlev), YAKL_LAMBDA (int iswband, int icol, int ilev)
+   {
+       real g = 0;
+       if (scat(iswband) > 0.)
+           g = ascat(iswband)/scat(iswband);
 
-     tau    (icol, ilev, iswband) = mass(icol, ilev) * ext(iswband);
-     tau_w  (icol, ilev, iswband) = mass(icol, ilev) * scat(iswband);
-     tau_w_g(icol, ilev, iswband) = mass(icol, ilev) * ascat(iswband);
-     tau_w_f(icol, ilev, iswband) = mass(icol, ilev) * g * ascat(iswband);
-  });
+       tau    (icol, ilev, iswband) = mass(icol, ilev) * ext(iswband);
+       tau_w  (icol, ilev, iswband) = mass(icol, ilev) * scat(iswband);
+       tau_w_g(icol, ilev, iswband) = mass(icol, ilev) * ascat(iswband);
+       tau_w_f(icol, ilev, iswband) = mass(icol, ilev) * g * ascat(iswband);
+   });
 }

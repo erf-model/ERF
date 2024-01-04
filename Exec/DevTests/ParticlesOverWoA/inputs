@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 50
+max_step = 20
 
 amrex.fpe_trap_invalid = 1
 
@@ -15,7 +15,7 @@ geometry.is_periodic = 0 1 0
 
 xlo.type = "Inflow"
 xhi.type = "Outflow"
-xlo.velocity = 1. 0. 0.
+xlo.velocity = 10. 0. 0.
 xlo.density  = 1.16
 xlo.theta    = 300.
 xlo.scalar   = 0.
@@ -27,8 +27,7 @@ zhi.type = "SlipWall"
 erf.use_tracer_particles = 1
 
 # TIME STEP CONTROL
-erf.no_substepping     = 1
-erf.fixed_dt           = 1E-5     
+erf.fixed_dt           = 2E-3
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -44,7 +43,7 @@ erf.check_int       = 10  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 1       # number of timesteps between plotfiles
+erf.plot_int_1      = 5       # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particle_count
 
 # SOLVER CHOICE
@@ -65,6 +64,11 @@ erf.box1.in_box_hi =  8. 0.75
 # TERRRAIN GRID TYPE
 erf.use_terrain = true
 erf.terrain_smoothing = 0
+
+erf.dycore_horiz_adv_type  = Centered_2nd
+erf.dycore_vert_adv_type   = Centered_2nd
+erf.dryscal_horiz_adv_type = Centered_2nd
+erf.dryscal_vert_adv_type  = Centered_2nd
 
 # Diffusion coefficient from Straka, K = 75 m^2/s
 erf.molec_diff_type = "ConstantAlpha"

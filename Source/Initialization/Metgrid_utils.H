@@ -45,7 +45,8 @@ init_terrain_from_metgrid (amrex::FArrayBox& z_phys_nd_fab,
                            const amrex::Vector<amrex::FArrayBox>& NC_hgt_fab);
 
 void
-init_state_from_metgrid (const amrex::Real l_rdOcp,
+init_state_from_metgrid (const bool use_moisture,
+                         const amrex::Real l_rdOcp,
                          amrex::Box& tbxc,
                          amrex::Box& tbxu,
                          amrex::Box& tbxv,
@@ -80,7 +81,8 @@ init_msfs_from_metgrid (amrex::FArrayBox& msfu_fab,
                         const amrex::Vector<amrex::FArrayBox>& NC_MSFM_fab);
 
 void
-init_base_state_from_metgrid (const amrex::Real l_rdOcp,
+init_base_state_from_metgrid (const bool use_moisture,
+                              const amrex::Real l_rdOcp,
                               const amrex::Box& valid_bx,
                               const amrex::Vector<int>& flag_psfc,
                               amrex::FArrayBox& state,
@@ -101,9 +103,7 @@ calc_rho_p (const int& kmax,
             const amrex::Real& psfc,
             amrex::Real* Thetad_vec,
             amrex::Real* Thetam_vec,
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
             amrex::Real* Q_vec,
-#endif
             amrex::Real* z_vec,
             amrex::Real* Rhod_vec,
             amrex::Real* Rhom_vec,
@@ -123,11 +123,7 @@ calc_rho_p (const int& kmax,
 
     // calculate virtual potential temperature at the surface.
     {
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         amrex::Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[0];
-#else
-        amrex::Real qvf = 1.0;
-#endif
         Thetam_vec[0] = Thetad_vec[0]*qvf;
     }
 
@@ -137,11 +133,7 @@ calc_rho_p (const int& kmax,
     // integrate from the surface to the top boundary.
     for (int k=1; k<=kmax; k++) {
         amrex::Real dz = z_vec[k]-z_vec[k-1];
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         amrex::Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[k];
-#else
-        amrex::Real qvf = 1.0;
-#endif
         Thetam_vec[k] = Thetad_vec[k]*qvf;
           Rhom_vec[k] = Rhom_vec[k-1]; // an initial guess.
         for (int it=0; it<maxiter; it++) {
@@ -197,7 +189,7 @@ interpolate_column_metgrid (const int& i,
     amrex::Real z0, z1;
     int klow   = -1;
     int khi0   = -1;
-    amrex::Real dzlow = 10000.0;
+    amrex::Real dzlow =  10000.0;
     amrex::Real dzhi0 = -10000.0;
     for (int kk = 0; kk < kmax_orig; kk++) {
         amrex::Real orig_z_stag = 0.0;

@@ -3,6 +3,8 @@
 
 #include <NullMoist.H>
 #include <SAM.H>
+#include <Kessler.H>
+#include <FastEddy.H>
 
 class Microphysics {
 
@@ -10,52 +12,71 @@ public:
 
     Microphysics () { }
 
-   ~Microphysics () = default;
+    ~Microphysics () = default;
+
+    void
+    ReSize (const int& nlev) { m_moist_model.resize(nlev); }
 
     template<class NewMoistModel>
     void
     SetModel ()
     {
-        m_moist_model = std::make_unique<NewMoistModel>();
+        for (int lev(0); lev<m_moist_model.size(); ++lev) {
+            m_moist_model[lev] = std::make_unique<NewMoistModel>();
+        }
     }
 
     void
-    define (SolverChoice& sc)
+    Define (const int& lev,
+            SolverChoice& sc)
     {
-        m_moist_model->define(sc);
+        m_moist_model[lev]->Define(sc);
     }
 
     void
-    Init (const amrex::MultiFab& cons_in,
-                amrex::MultiFab& qmoist,
+    Init (const int& lev,
+          const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
           const amrex::Real& dt_advance)
     {
-        m_moist_model->Init(cons_in, qmoist, grids, geom, dt_advance);
+        m_moist_model[lev]->Init(cons_in, grids, geom, dt_advance);
     }
 
     void
-    Advance ( )
+    Advance (const int& lev, const amrex::Real& dt_advance)
     {
-        m_moist_model->Advance();
+        m_moist_model[lev]->Advance(dt_advance);
     }
 
     void
-    Diagnose ( )
+    Diagnose (const int& lev)
     {
-        m_moist_model->Diagnose();
+        m_moist_model[lev]->Diagnose();
     }
 
     void
-    Update (amrex::MultiFab& cons_in,
-            amrex::MultiFab& qmoist)
+    Update_Micro_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
     {
-        m_moist_model->Update(cons_in, qmoist);
+        m_moist_model[lev]->Update_Micro_Vars(cons_in);
     }
 
+    void
+    Update_State_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
+    {
+        m_moist_model[lev]->Update_State_Vars(cons_in);
+    }
+
+    amrex::MultiFab*
+    Get_Qmoist_Ptr (const int& lev, const int& varIdx) { return m_moist_model[lev]->Qmoist_Ptr(varIdx); }
+
+    int
+    Get_Qmoist_Size () { return m_moist_model[0]->Qmoist_Size(); }
+
+    int
+    Get_Qstate_Size () { return m_moist_model[0]->Qstate_Size(); }
 
 private:
-    std::unique_ptr<NullMoist> m_moist_model;
+    amrex::Vector<std::unique_ptr<NullMoist>> m_moist_model;
 };
 #endif

@@ -14,16 +14,17 @@ void ERF::advance_radiation (int lev,
    bool do_snow_opt {true};
    bool is_cmip6_volcano {false};
 
-   rad.initialize(cons, qmoist[lev],
-                  grids[lev],
-                  Geom(lev),
-                  dt_advance,
-                  do_sw_rad,
-                  do_lw_rad,
-                  do_aero_rad,
-                  do_snow_opt,
-                  is_cmip6_volcano);
-   rad.run();
-   rad.on_complete();
+    // TODO: Only passing qv from the qmoist vector!!!
+    rad.initialize(cons, *(qmoist[lev][0]),
+                   grids[lev],
+                   Geom(lev),
+                   dt_advance,
+                   do_sw_rad,
+                   do_lw_rad,
+                   do_aero_rad,
+                   do_snow_opt,
+                   is_cmip6_volcano);
+    rad.run();
+    rad.on_complete();
 }
 #endif

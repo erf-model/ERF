@@ -46,28 +46,28 @@ ERF::ComputeDt ()
  * @param[out] dt_fast_ratio ratio of slow to fast time step
  */
 Real
-ERF::estTimeStep(int level, long& dt_fast_ratio) const
+ERF::estTimeStep (int level, long& dt_fast_ratio) const
 {
-  BL_PROFILE("ERF::estTimeStep()");
+    BL_PROFILE("ERF::estTimeStep()");
 
-  amrex::Real estdt_comp = 1.e20;
-  amrex::Real estdt_lowM = 1.e20;
+    amrex::Real estdt_comp = 1.e20;
+    amrex::Real estdt_lowM = 1.e20;
 
-  auto const dxinv = geom[level].InvCellSizeArray();
-  auto const dzinv = 1.0 / dz_min;
+    auto const dxinv = geom[level].InvCellSizeArray();
+    auto const dzinv = 1.0 / dz_min;
 
-  MultiFab const& S_new = vars_new[level][Vars::cons];
+    MultiFab const& S_new = vars_new[level][Vars::cons];
 
-  MultiFab ccvel(grids[level],dmap[level],3,0);
+    MultiFab ccvel(grids[level],dmap[level],3,0);
 
-  average_face_to_cellcenter(ccvel,0,
-      Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
-                               &vars_new[level][Vars::yvel],
-                               &vars_new[level][Vars::zvel]});
+    average_face_to_cellcenter(ccvel,0,
+                               Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
+                                                            &vars_new[level][Vars::yvel],
+                                                            &vars_new[level][Vars::zvel]});
 
-  int l_no_substepping = solverChoice.no_substepping;
+    int l_no_substepping = solverChoice.no_substepping;
 
-  Real estdt_comp_inv = amrex::ReduceMax(S_new, ccvel, 0,
+    Real estdt_comp_inv = amrex::ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u) -> Real
@@ -101,10 +101,10 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
            return new_comp_dt;
        });
 
-   amrex::ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
-   estdt_comp = cfl / estdt_comp_inv;;
+    amrex::ParallelDescriptor::ReduceRealMax(estdt_comp_inv);
+    estdt_comp = cfl / estdt_comp_inv;
 
-   Real estdt_lowM_inv = amrex::ReduceMax(ccvel, 0,
+     Real estdt_lowM_inv = amrex::ReduceMax(ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& u) -> Real
        {
@@ -118,65 +118,65 @@ ERF::estTimeStep(int level, long& dt_fast_ratio) const
            return new_lm_dt;
        });
 
-   amrex::ParallelDescriptor::ReduceRealMax(estdt_lowM_inv);
-   if (estdt_lowM_inv > 0.0_rt)
-       estdt_lowM = cfl / estdt_lowM_inv;;
+     amrex::ParallelDescriptor::ReduceRealMax(estdt_lowM_inv);
+     if (estdt_lowM_inv > 0.0_rt)
+         estdt_lowM = cfl / estdt_lowM_inv;
 
-  if (verbose) {
-    if (fixed_dt <= 0.0) {
-        amrex::Print() << "Using cfl = " << cfl << std::endl;
-        amrex::Print() << "Fast  dt at level " << level << ":  " << estdt_comp << std::endl;
-        if (estdt_lowM_inv > 0.0_rt) {
-            amrex::Print() << "Slow  dt at level " << level << ":  " << estdt_lowM << std::endl;
-        } else {
-            amrex::Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
-        }
-    }
+     if (verbose) {
+         if (fixed_dt <= 0.0) {
+             amrex::Print() << "Using cfl = " << cfl << std::endl;
+             amrex::Print() << "Fast  dt at level " << level << ":  " << estdt_comp << std::endl;
+             if (estdt_lowM_inv > 0.0_rt) {
+                 amrex::Print() << "Slow  dt at level " << level << ":  " << estdt_lowM << std::endl;
+             } else {
+                 amrex::Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
+             }
+         }
 
-    if (fixed_dt > 0.0) {
-        amrex::Print() << "Based on cfl of 1.0 " << std::endl;
-        amrex::Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
-        if (estdt_lowM_inv > 0.0_rt) {
-            amrex::Print() << "Slow  dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
-        } else {
-            amrex::Print() << "Slow  dt at level " << level << " would be undefined " << std::endl;
-        }
-        amrex::Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
-        if (fixed_fast_dt > 0.0) {
-            amrex::Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt << std::endl;
-        }
-    }
-  }
+         if (fixed_dt > 0.0) {
+             amrex::Print() << "Based on cfl of 1.0 " << std::endl;
+             amrex::Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
+             if (estdt_lowM_inv > 0.0_rt) {
+                 amrex::Print() << "Slow  dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
+             } else {
+                 amrex::Print() << "Slow  dt at level " << level << " would be undefined " << std::endl;
+             }
+             amrex::Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
+             if (fixed_fast_dt > 0.0) {
+                 amrex::Print() << "Fixed fast dt at level " << level << "       is:  " << fixed_fast_dt << std::endl;
+             }
+         }
+     }
 
-  if (fixed_dt > 0. && fixed_fast_dt > 0.) {
-      dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
-  } else if (fixed_dt > 0.) {
-      dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
-  } else {
-      dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
-  }
+     if (fixed_dt > 0. && fixed_fast_dt > 0.) {
+         dt_fast_ratio = static_cast<long>( fixed_dt / fixed_fast_dt );
+     } else if (fixed_dt > 0.) {
+         dt_fast_ratio = static_cast<long>( std::ceil((fixed_dt/estdt_comp)) );
+     } else {
+         dt_fast_ratio = (estdt_lowM_inv > 0.0) ? static_cast<long>( std::ceil((estdt_lowM/estdt_comp)) ) : 1;
+     }
 
-  // Force time step ratio to be an even value
-  if (solverChoice.force_stage1_single_substep) {
-      if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
-  } else {
-      if ( dt_fast_ratio%6 != 0) {
-          amrex::Print() << "mri_dt_ratio = " << dt_fast_ratio
-            << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
-          dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
-      }
-  }
+     // Force time step ratio to be an even value
+     if (solverChoice.force_stage1_single_substep) {
+         if ( dt_fast_ratio%2 != 0) dt_fast_ratio += 1;
+     } else {
+         if ( dt_fast_ratio%6 != 0) {
+             amrex::Print() << "mri_dt_ratio = " << dt_fast_ratio
+                            << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+             dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
+         }
+     }
 
-  if (verbose)
-    amrex::Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
+     if (verbose)
+         amrex::Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
 
-  if (fixed_dt > 0.0) {
-    return fixed_dt;
-  } else {
-    if (l_no_substepping) {
-        return estdt_comp;
-    } else {
-        return estdt_lowM;
-    }
-  }
+     if (fixed_dt > 0.0) {
+         return fixed_dt;
+     } else {
+         if (l_no_substepping) {
+             return estdt_comp;
+         } else {
+             return estdt_lowM;
+         }
+     }
 }

@@ -34,12 +34,12 @@
 // Radiation code interface class
 class Radiation {
   public:
-   Radiation() {
+   Radiation () {
      // First, make sure yakl has been initialized
      if (!yakl::isInitialized()) yakl::init();
    }
 
-   ~Radiation() = default;
+   ~Radiation () = default;
 
    // init
    void initialize(const amrex::MultiFab& cons_in, 
@@ -54,37 +54,37 @@ class Radiation {
                    const bool& is_cmip6_volcano);
 
    // run radiation model
-   void run();
+   void run ();
 
    // call back
-   void on_complete();
+   void on_complete ();
 
-   void radiation_driver_lw(int ncol, int nlev,
-                            const real3d& gas_vmr,
-                            const real2d& pmid, const real2d& pint, const real2d& tmid, const real2d& tint,
-                            const real3d& cld_tau_gpt, const real3d& aer_tau_bnd,
-                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
-                            const real2d& qrl, const real2d& qrlc);
+   void radiation_driver_lw (int ncol, int nlev,
+                             const real3d& gas_vmr,
+                             const real2d& pmid, const real2d& pint, const real2d& tmid, const real2d& tint,
+                             const real3d& cld_tau_gpt, const real3d& aer_tau_bnd,
+                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+                             const real2d& qrl, const real2d& qrlc);
 
-   void radiation_driver_sw(int ncol,
-                            const real3d& gas_vmr, const real2d& pmid, const real2d& pint, const real2d& tmid,
-                            const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
-                            const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
-                            const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
-                            FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
+   void radiation_driver_sw (int ncol,
+                             const real3d& gas_vmr, const real2d& pmid, const real2d& pint, const real2d& tmid,
+                             const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
+                             const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
+                             const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
+                             FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky,
                             const real2d& qrs, const real2d& qrsc);
 
-   void set_daynight_indices(const real1d& coszrs,
-                             const int1d& day_indices,
-                             const int1d& night_indices);
+   void set_daynight_indices (const real1d& coszrs,
+                              const int1d& day_indices,
+                              const int1d& night_indices);
 
-   void get_gas_vmr(const std::vector<std::string>& gas_names,
-                    const real3d& gas_vmr);
+   void get_gas_vmr (const std::vector<std::string>& gas_names,
+                     const real3d& gas_vmr);
 
-   void calculate_heating_rate(const real2d& flux_up,
-                               const real2d& flux_dn,
-                               const real2d& pint,
-                               const real2d& heating_rate);
+   void calculate_heating_rate (const real2d& flux_up,
+                                const real2d& flux_dn,
+                                const real2d& pint,
+                                const real2d& heating_rate);
   private:
    // geometry
    amrex::Geometry m_geom;

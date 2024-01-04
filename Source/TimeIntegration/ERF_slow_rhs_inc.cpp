@@ -78,9 +78,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-#ifdef ERF_USE_MOISTURE
-                       const MultiFab& qv,
-#endif
+                       const MultiFab* qv,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,

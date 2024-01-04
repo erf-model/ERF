@@ -74,7 +74,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
+#if defined(ERF_USE_NETCDF)
                         const bool& moist_zero,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
@@ -170,6 +170,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
 
+      int start_comp;
+      int   num_comp;
+
       for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& tbx = mfi.tilebox();
@@ -178,7 +181,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(tbx,dir),NVAR);
+            flux[dir].resize(amrex::surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -226,7 +229,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
         // **************************************************************************
-        int nsv = Cons::NumVars-2;
+        int nsv = S_old[IntVar::cons].nComp() - 2;
         const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0};
         const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0};
 
@@ -270,8 +273,6 @@ void erf_slow_rhs_post (int level, int finest_level,
               vert_adv_type = EfficientAdvType(nrk,ac.dryscal_vert_adv_type);
         }
 
-        int start_comp;
-        int   num_comp;
         if (l_use_deardorff) {
             start_comp = RhoKE_comp;
               num_comp = 1;
@@ -294,37 +295,22 @@ void erf_slow_rhs_post (int level, int finest_level,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
 
-#ifdef ERF_USE_MOISTURE
-        start_comp = RhoQt_comp;
-          num_comp = 2;
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            start_comp = RhoQ1_comp;
+              num_comp = nvars - start_comp;
 
-        AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
-        AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
+            AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
+            AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
 
-        if (ac.use_efficient_advection){
-             moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
-             moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
+            if (ac.use_efficient_advection){
+                 moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
+                 moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
+            }
+            AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                   cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                                   moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
         }
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
-
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        start_comp = RhoQv_comp;
-          num_comp = 2;
-
-        AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
-        AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
-
-        if (ac.use_efficient_advection){
-             moist_horiz_adv_type = EfficientAdvType(nrk,solverChoice.moistscal_horiz_adv_type);
-             moist_vert_adv_type  = EfficientAdvType(nrk,solverChoice.moistscal_vert_adv_type);
-        }
-
-        AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                               cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
-#endif
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -382,8 +368,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        new_cons, cell_rhs, mf_u, mf_v, false, false);
                 }
             }
+
             start_comp = RhoScalar_comp;
-              num_comp = S_data[IntVar::cons].nComp() - start_comp;
+              num_comp = nvars - start_comp;
             if (l_use_terrain) {
                 DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
@@ -404,21 +391,19 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    new_cons, cell_rhs, mf_u, mf_v, false, false);
             }
         }
-#if defined(ERF_USE_NETCDF) && (defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP))
-        // Zero moist RHS in set region
-        if (moist_zero) {
-            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi);
-            int icomp;
-#if defined(ERF_USE_MOISTURE)
-            icomp = RhoQt_comp;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            icomp = RhoQv_comp;
-#endif
-            wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
-        }
+#if defined(ERF_USE_NETCDF)
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            // Zero moist RHS in set region
+            if (moist_zero) {
+                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                              bx_xlo, bx_xhi,
+                                              bx_ylo, bx_yhi);
+                int icomp = RhoQ1_comp;
+                wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
+            } // moist_zero
+        } // moisture_type
 #endif
 
         // NOTE: Computing the RHS is done over bx (union w/ grids to evolve).
@@ -474,7 +459,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         } else {
             auto const& src_arr = source.const_array(mfi);
             start_comp = RhoScalar_comp;
-            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
+            num_comp   = nvars - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -549,7 +534,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = RhoTheta_comp + 1;
-            int  num_comp_reflux = NVAR - strt_comp_reflux;
+            int  num_comp_reflux = nvars - strt_comp_reflux;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

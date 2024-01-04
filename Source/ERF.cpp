@@ -109,6 +109,12 @@ ERF::ERF ()
         amrex::Print() << "\n";
     }
 
+    int nlevs_max = max_level + 1;
+
+    // NOTE: size micro before readparams (chooses the model at all levels)
+    micro.ReSize(nlevs_max);
+    qmoist.resize(nlevs_max);
+
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -127,8 +133,6 @@ ERF::ERF ()
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
-
-    int nlevs_max = max_level + 1;
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
@@ -156,10 +160,6 @@ ERF::ERF ()
         vars_new[lev].resize(Vars::NumTypes);
         vars_old[lev].resize(Vars::NumTypes);
     }
-
-#if defined(ERF_USE_MOISTURE)
-    qmoist.resize(nlevs_max);
-#endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);
@@ -219,8 +219,7 @@ ERF::ERF ()
     }
 }
 
-ERF::~ERF ()
-= default;
+ERF::~ERF () = default;
 
 // advance solution to final time
 void
@@ -318,12 +317,10 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     particleData.Redistribute();
 #endif
 
-    if (solverChoice.coupling_type == CouplingType::TwoWay ||
-        solverChoice.coupling_type == CouplingType::Mixed)
+    if (solverChoice.coupling_type == CouplingType::TwoWay)
     {
-        // If we doing mixed rather than two-way coupling, we only reflux the "slow" variables (not rho and rhotheta)
-        int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
-        int  num_comp_reflux = NVAR - src_comp_reflux;
+        int  src_comp_reflux = 0;
+        int  num_comp_reflux = vars_new[0][Vars::cons].nComp();
         bool use_terrain = solverChoice.use_terrain;
         for (int lev = finest_level-1; lev >= 0; lev--)
         {
@@ -533,11 +530,9 @@ ERF::InitData ()
             }
         }
 
-
-        if (solverChoice.coupling_type == CouplingType::TwoWay ||
-            solverChoice.coupling_type == CouplingType::Mixed) {
-            int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
-            int  num_comp_reflux = NVAR - src_comp_reflux;
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+            int src_comp_reflux = 0;
+            int num_comp_reflux = vars_new[0][Vars::cons].nComp();
             AverageDown(src_comp_reflux, num_comp_reflux);
         }
 
@@ -549,12 +544,13 @@ ERF::InitData ()
 
         restart();
 
-#ifdef ERF_USE_MOISTURE
         // Need to fill ghost cells here since we will use this qmoist in advance
-        for (int lev = 0; lev <= finest_level; lev++) {
-            FillPatchMoistVars(lev, qmoist[lev]);
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            for (int lev = 0; lev <= finest_level; lev++) {
+                FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
+            }
         }
-#endif
     }
 
     if (input_bndry_planes) {
@@ -570,33 +566,17 @@ ERF::InitData ()
     }
 
     // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay ||
-        solverChoice.coupling_type == CouplingType::Mixed) {
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
         advflux_reg[0] = nullptr;
+        int ncomp_reflux = vars_new[0][Vars::cons].nComp();
         for (int lev = 1; lev <= finest_level; lev++)
         {
             advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
                                                    dmap[lev],  dmap[lev-1],
                                                    geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, NVAR);
+                                              ref_ratio[lev-1], lev, ncomp_reflux);
         }
     }
-
-#ifdef ERF_USE_MOISTURE
-    // Initialize microphysics here
-    micro.define(solverChoice);
-
-    // Call Init which will call Diagnose to fill qmoist
-    for (int lev = 0; lev <= finest_level; ++lev)
-    {
-        // If not restarting we need to fill qmoist given qt and qp.
-        if (restart_chkfile.empty()) {
-            micro.Init(vars_new[lev][Vars::cons], qmoist[lev],
-                       grids[lev], Geom(lev), 0.0); // dummy value, not needed just to diagnose
-            micro.Update(vars_new[lev][Vars::cons], qmoist[lev]);
-        }
-    }
-#endif
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine before calling WritePlotFile because
@@ -616,8 +596,8 @@ ERF::InitData ()
         {
             amrex::IntVect ng = IntVect(0,0,0);
             MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
-            MultiFab::Copy(  *Theta_prim[lev], S, Cons::RhoTheta, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S, Cons::Rho     , 0, 1, ng);
+            MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
             m_most->update_fluxes(lev, t_new[lev]);
         }
@@ -668,10 +648,12 @@ ERF::InitData ()
         auto& lev_new = vars_new[lev];
         auto& lev_old = vars_old[lev];
 
-        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,NVAR,lev_new[Vars::cons].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,   1,lev_new[Vars::xvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,   1,lev_new[Vars::yvel].nGrowVect());
-        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,   1,lev_new[Vars::zvel].nGrowVect());
+        int ncomp = lev_new[Vars::cons].nComp();
+
+        MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,ncomp,lev_new[Vars::cons].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,    1,lev_new[Vars::xvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,    1,lev_new[Vars::yvel].nGrowVect());
+        MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,    1,lev_new[Vars::zvel].nGrowVect());
     }
 
     // Compute the minimum dz in the domain (to be used for setting the timestep)
@@ -685,21 +667,24 @@ ERF::InitData ()
     // Fill ghost cells/faces
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        //
-        // NOTE: we must set up the FillPatcher object before calling FillPatch at a fine level
-        //
-        if (solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0 && lev>0) {
+        if (lev > 0 && cf_width > 0) {
             Construct_ERFFillPatchers(lev);
-            Register_ERFFillPatchers(lev);
         }
 
+
+        //
+        // We don't use the FillPatcher in this call because
+        //    we don't need to fill the interior data at this point.
+        //
+        bool fillset = false;
         auto& lev_new = vars_new[lev];
-
         FillPatch(lev, t_new[lev],
-                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]});
+                  {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
+                  fillset);
 
-        // We need to fill the ghost cell values of the base state in case it wasn't
-        //    done in the initialization
+        //
+        // We fill the ghost cell values of the base state in case it wasn't done in the initialization
+        //
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
         // For moving terrain only
@@ -708,6 +693,12 @@ ERF::InitData ()
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
     }
+
+    // Update micro vars before first plot file
+    if (solverChoice.moisture_type != MoistureType::None) {
+        for (int lev = 0; lev <= finest_level; ++lev) micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+    }
+
 
     if (restart_chkfile.empty() && check_int > 0)
     {
@@ -815,6 +806,7 @@ ERF::InitData ()
 void
 ERF::restart ()
 {
+    // TODO: This could be deleted since ba/dm are not created yet?
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
@@ -890,10 +882,6 @@ ERF::init_only (int lev, Real time)
         init_from_hse(lev);
     }
 
-#if defined(ERF_USE_MOISTURE)
-    qmoist[lev].setVal(0.);
-#endif
-
     // Add problem-specific flow features
     //
     // Notes:
@@ -959,16 +947,6 @@ ERF::ReadParameters ()
 
 #ifdef ERF_USE_PARTICLES
         particleData.init_particle_params();
-#endif
-
-#ifdef ERF_USE_MOISTURE
-        // What type of moisture model to use
-        pp.query("moisture_model", moisture_model);
-        if (moisture_model == "SAM") {
-            micro.SetModel<SAM>();
-        } else {
-            amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
-        }
 #endif
 
         // If this is set, it must be even
@@ -1106,9 +1084,9 @@ ERF::ReadParameters ()
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
-        AMREX_ALWAYS_ASSERT(cf_width >= 0);
-        AMREX_ALWAYS_ASSERT(cf_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(cf_width >= cf_set_width);
+        if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
+            amrex::Abort("You must set cf_width >= cf_set_width >= 0");
+        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -1125,8 +1103,28 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level);
+
+    // What type of moisture model to use
+    // NOTE: Must be checked after init_params
+    if (solverChoice.moisture_type == MoistureType::SAM) {
+        micro.SetModel<SAM>();
+    } else if (solverChoice.moisture_type == MoistureType::Kessler) {
+        micro.SetModel<Kessler>();
+    } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
+        micro.SetModel<FastEddy>();
+    } else if (solverChoice.moisture_type == MoistureType::None) {
+        micro.SetModel<NullMoist>();
+        amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
+    } else {
+        amrex::Abort("Dont know this moisture_type!") ;
+    }
+
     if (verbose > 0) {
         solverChoice.display();
+    }
+
+    if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
+        amrex::Abort("For two-way coupling you must set cf_width = 0");
     }
 }
 
@@ -1138,85 +1136,91 @@ ERF::MakeHorizontalAverages ()
     int lev = 0;
 
     // First, average down all levels (if doing two-way coupling)
-    if (solverChoice.coupling_type == CouplingType::TwoWay ||
-        solverChoice.coupling_type == CouplingType::Mixed) {
-        int  src_comp_reflux = (solverChoice.coupling_type == CouplingType::TwoWay) ? 0 : 2;
-        int  num_comp_reflux = NVAR - src_comp_reflux;
+    if (solverChoice.coupling_type == CouplingType::TwoWay) {
+        int  src_comp_reflux = 0;
+        int  num_comp_reflux = vars_new[lev][Vars::cons].nComp();
         AverageDown(src_comp_reflux, num_comp_reflux);
     }
 
     MultiFab mf(grids[lev], dmap[lev], 5, 0);
 
-#if defined(ERF_USE_MOISTURE)
-    MultiFab qv(qmoist[lev], make_alias, 0, 1);
-#endif
+    int zdir = 2;
+    auto domain = geom[0].Domain();
+
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
 
     for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.validbox();
         auto  fab_arr = mf.array(mfi);
-        auto cons_arr = vars_new[lev][Vars::cons].array(mfi);
-#if defined(ERF_USE_MOISTURE)
-        auto   qv_arr = qv.array(mfi);
-#endif
+        auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real dens = cons_arr(i, j, k, Cons::Rho);
+            Real dens = cons_arr(i, j, k, Rho_comp);
             fab_arr(i, j, k, 0) = dens;
-            fab_arr(i, j, k, 1) = cons_arr(i, j, k, Cons::RhoTheta) / dens;
-#if defined(ERF_USE_MOISTURE)
-            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta), qv_arr(i,j,k));
-#else
-            fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, Cons::RhoTheta));
-#endif
-#if defined(ERF_USE_MOISTURE)
-            fab_arr(i, j, k, 3) = cons_arr(i, j, k, Cons::RhoQt) / dens;
-            fab_arr(i, j, k, 4) = cons_arr(i, j, k, Cons::RhoQp) / dens;
-#endif
+            fab_arr(i, j, k, 1) = cons_arr(i, j, k, RhoTheta_comp) / dens;
+            if (!use_moisture) {
+                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
+            }
         });
     }
 
-    int zdir = 2;
-    auto domain = geom[0].Domain();
+    if (use_moisture)
+    {
+        for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.validbox();
+            auto  fab_arr = mf.array(mfi);
+            auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+            auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real dens = cons_arr(i, j, k, Rho_comp);
+                fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+                fab_arr(i, j, k, 3) = cons_arr(i, j, k, RhoQ1_comp) / dens;
+                fab_arr(i, j, k, 4) = cons_arr(i, j, k, RhoQ2_comp) / dens;
+            });
+        }
+
+        Gpu::HostVector<Real> h_avg_qv          = sumToLine(mf,3,1,domain,zdir);
+        Gpu::HostVector<Real> h_avg_qc          = sumToLine(mf,4,1,domain,zdir);
+    }
 
     // Sum in the horizontal plane
     Gpu::HostVector<Real> h_avg_density     = sumToLine(mf,0,1,domain,zdir);
     Gpu::HostVector<Real> h_avg_temperature = sumToLine(mf,1,1,domain,zdir);
     Gpu::HostVector<Real> h_avg_pressure    = sumToLine(mf,2,1,domain,zdir);
-#ifdef ERF_USE_MOISTURE
-    Gpu::HostVector<Real> h_avg_qv          = sumToLine(mf,3,1,domain,zdir);
-    Gpu::HostVector<Real> h_avg_qc          = sumToLine(mf,4,1,domain,zdir);
-#endif
 
     // Divide by the total number of cells we are averaging over
-     int size_z = domain.length(zdir);
+    int size_z = domain.length(zdir);
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     int klen = static_cast<int>(h_avg_density.size());
+
     for (int k = 0; k < klen; ++k) {
         h_havg_density[k]     /= area_z;
         h_havg_temperature[k] /= area_z;
         h_havg_pressure[k]    /= area_z;
-#if defined(ERF_USE_MOISTURE)
-        h_havg_qc[k]          /= area_z;
-        h_havg_qv[k]          /= area_z;
-#endif
-    }
+        if (solverChoice.moisture_type != MoistureType::None)
+        {
+            h_havg_qc[k]          /= area_z;
+            h_havg_qv[k]          /= area_z;
+        }
+    } // k
 
     // resize device vectors
     d_havg_density.resize(size_z, 0.0_rt);
     d_havg_temperature.resize(size_z, 0.0_rt);
     d_havg_pressure.resize(size_z, 0.0_rt);
-#if defined(ERF_USE_MOISTURE)
-    d_havg_qv.resize(size_z, 0.0_rt);
-    d_havg_qc.resize(size_z, 0.0_rt);
-#endif
 
     // copy host vectors to device vectors
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
-#if defined(ERF_USE_MOISTURE)
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
-#endif
+
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        d_havg_qv.resize(size_z, 0.0_rt);
+        d_havg_qc.resize(size_z, 0.0_rt);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
+    }
 }
 
 // Create horizontal average quantities for the MultiFab passed in
@@ -1273,8 +1277,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 void
 ERF::AverageDown (int scomp, int ncomp)
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
-                        solverChoice.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
     for (int lev = finest_level-1; lev >= 0; --lev)
     {
         AverageDownTo(lev, scomp, ncomp);
@@ -1285,8 +1288,7 @@ ERF::AverageDown (int scomp, int ncomp)
 void
 ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay ||
-                        solverChoice.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
 
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         const BoxArray& ba(vars_new[crse_lev][var_idx].boxArray());
@@ -1353,8 +1355,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
-                        solverChoice.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay);
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1363,8 +1364,7 @@ ERF::Construct_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
-    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+    int ncomp = vars_new[lev][Vars::cons].nComp();
 
     FPr_c.emplace_back(ba_fine, dm_fine, geom[lev]  ,
                        ba_crse, dm_crse, geom[lev-1],
@@ -1383,8 +1383,7 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay ||
-                        solverChoice.coupling_type == CouplingType::Mixed);
+    AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::OneWay);
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1393,8 +1392,7 @@ ERF::Define_ERFFillPatchers (int lev)
     auto& dm_fine  = fine_new[Vars::cons].DistributionMap();
     auto& dm_crse  = crse_new[Vars::cons].DistributionMap();
 
-    // NOTE: if "Mixed", then crse-fine set/relaxation only done on Rho/RhoTheta
-    int ncomp = (solverChoice.coupling_type == CouplingType::OneWay) ? NVAR : 2;
+    int ncomp = fine_new[Vars::cons].nComp();
 
     FPr_c[lev-1].Define(ba_fine, dm_fine, geom[lev]  ,
                         ba_crse, dm_crse, geom[lev-1],
@@ -1413,12 +1411,12 @@ ERF::Define_ERFFillPatchers (int lev)
 void
 ERF::Register_ERFFillPatchers (int lev)
 {
-    auto& lev_new = vars_new[lev-1];
-    auto& lev_old = vars_old[lev-1];
-    FPr_c[lev-1].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_u[lev-1].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_v[lev-1].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev-1], t_new[lev-1]});
-    FPr_w[lev-1].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev-1], t_new[lev-1]});
+    auto& lev_new = vars_new[lev];
+    auto& lev_old = vars_old[lev];
+    FPr_c[lev].RegisterCoarseData({&lev_old[Vars::cons], &lev_new[Vars::cons]}, {t_old[lev], t_new[lev]});
+    FPr_u[lev].RegisterCoarseData({&lev_old[Vars::xvel], &lev_new[Vars::xvel]}, {t_old[lev], t_new[lev]});
+    FPr_v[lev].RegisterCoarseData({&lev_old[Vars::yvel], &lev_new[Vars::yvel]}, {t_old[lev], t_new[lev]});
+    FPr_w[lev].RegisterCoarseData({&lev_old[Vars::zvel], &lev_new[Vars::zvel]}, {t_old[lev], t_new[lev]});
 }
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -1452,6 +1450,12 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
         amrex::Print() << "\n";
     }
 
+    int nlevs_max = max_level + 1;
+
+    // NOTE: size micro before readparams (chooses the model at all levels)
+    micro.ReSize(nlevs_max);
+    qmoist.resize(nlevs_max);
+
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -1462,8 +1466,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
 
     // No valid BoxArray and DistributionMapping have been defined.
     // But the arrays for them have been resized.
-
-    int nlevs_max = max_level + 1;
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
@@ -1491,10 +1493,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     rU_old.resize(nlevs_max);
     rV_old.resize(nlevs_max);
     rW_old.resize(nlevs_max);
-
-#if defined(ERF_USE_MOISTURE)
-    qmoist.resize(nlevs_max);
-#endif
 
     mri_integrator_mem.resize(nlevs_max);
     physbcs.resize(nlevs_max);

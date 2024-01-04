@@ -1,7 +1,7 @@
 #include <Diffusion.H>
 #include <EddyViscosity.H>
 #include <TerrainMetrics.H>
-#include <ComputeQKESourceTerm.H>
+#include <PBLModels.H>
 
 using namespace amrex;
 
@@ -91,9 +91,9 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
     const int qty_offset = RhoTheta_comp;
 
     // Theta, KE, QKE, Scalar
-    Vector<Real>    alpha_eff(NUM_PRIM, 0.0);
+    Vector<Real>    alpha_eff(NVAR_max, 0.0);
     if (l_consA) {
-    for (int i = 0; i < NUM_PRIM; ++i) {
+    for (int i = 0; i < NVAR_max; ++i) {
        switch (i) {
            case PrimTheta_comp:
             alpha_eff[PrimTheta_comp] = diffChoice.alpha_T;
@@ -101,28 +101,19 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
            case PrimScalar_comp:
             alpha_eff[PrimScalar_comp] = diffChoice.alpha_C;
             break;
-#if defined(ERF_USE_MOISTURE)
-           case PrimQt_comp:
-            alpha_eff[PrimQt_comp] = diffChoice.alpha_C;
+           case PrimQ1_comp:
+            alpha_eff[PrimQ1_comp] = diffChoice.alpha_C;
             break;
-           case PrimQp_comp:
-            alpha_eff[PrimQp_comp] = diffChoice.alpha_C;
+           case PrimQ2_comp:
+            alpha_eff[PrimQ2_comp] = diffChoice.alpha_C;
             break;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-           case PrimQv_comp:
-            alpha_eff[PrimQv_comp] = diffChoice.alpha_C;
-            break;
-           case PrimQc_comp:
-            alpha_eff[PrimQc_comp] = diffChoice.alpha_C;
-            break;
-#endif
            default:
             alpha_eff[i] = 0.0;
             break;
       }
        }
     } else {
-        for (int i = 0; i < NUM_PRIM; ++i) {
+        for (int i = 0; i < NVAR_max; ++i) {
            switch (i) {
                case PrimTheta_comp:
                     alpha_eff[PrimTheta_comp] = diffChoice.rhoAlpha_T;
@@ -130,21 +121,12 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                case PrimScalar_comp:
                     alpha_eff[PrimScalar_comp] = diffChoice.rhoAlpha_C;
                     break;
-#if defined(ERF_USE_MOISTURE)
-               case PrimQt_comp:
-                    alpha_eff[PrimQt_comp] = diffChoice.rhoAlpha_C;
+               case PrimQ1_comp:
+                    alpha_eff[PrimQ1_comp] = diffChoice.rhoAlpha_C;
                     break;
-               case PrimQp_comp:
-                    alpha_eff[PrimQp_comp] = diffChoice.rhoAlpha_C;
+               case PrimQ2_comp:
+                    alpha_eff[PrimQ2_comp] = diffChoice.rhoAlpha_C;
                     break;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-               case PrimQv_comp:
-                    alpha_eff[PrimQv_comp] = diffChoice.rhoAlpha_C;
-                    break;
-               case PrimQc_comp:
-                    alpha_eff[PrimQc_comp] = diffChoice.rhoAlpha_C;
-                    break;
-#endif
                default:
                     alpha_eff[i] = 0.0;
                     break;
@@ -152,19 +134,9 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
        }
     }
 
-#if defined(ERF_USE_MOISTURE)
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qt_h, EddyDiff::Qp_h};
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qt_v, EddyDiff::Qp_v};
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Qv_h, EddyDiff::Qc_h};
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Qv_v, EddyDiff::Qc_v};
-#else
-    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
-    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h};
-    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v};
-#endif
+    Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Q1_h, EddyDiff::Q2_h};
+    Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h, EddyDiff::Q1_h, EddyDiff::Q2_h};
+    Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v, EddyDiff::Q1_v, EddyDiff::Q2_v};
 
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;
@@ -593,11 +565,13 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
         amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,dxInv,domain,pbl_B1_l,tm_arr(i,j,0),
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                                                   u_ext_dir_on_zlo, u_ext_dir_on_zhi,
-                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi);
+                                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                                  met_h_zeta);
         });
     }
 }

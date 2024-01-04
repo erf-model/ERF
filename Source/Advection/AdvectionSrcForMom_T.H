@@ -324,24 +324,24 @@ AdvectionSrcForZMom_T (int i, int j, int k,
  */
 template<typename InterpType_H, typename InterpType_V, typename WallInterpType>
 void
-AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
-                            const amrex::Array4<amrex::Real>& rho_u_rhs,
-                            const amrex::Array4<amrex::Real>& rho_v_rhs,
-                            const amrex::Array4<amrex::Real>& rho_w_rhs,
-                            const amrex::Array4<const amrex::Real>& rho_u,
-                            const amrex::Array4<const amrex::Real>& rho_v,
-                            const amrex::Array4<const amrex::Real>& Omega,
-                            const amrex::Array4<const amrex::Real>& u,
-                            const amrex::Array4<const amrex::Real>& v,
-                            const amrex::Array4<const amrex::Real>& w,
-                            const amrex::Array4<const amrex::Real>& z_nd,
-                            const amrex::Array4<const amrex::Real>& detJ,
-                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u_inv,
-                            const amrex::Array4<const amrex::Real>& mf_v_inv,
-                            const AdvType vert_adv_type,
-                            const int domhi_z)
+AdvectionSrcForMomWrapper_T (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                             const amrex::Array4<amrex::Real>& rho_u_rhs,
+                             const amrex::Array4<amrex::Real>& rho_v_rhs,
+                             const amrex::Array4<amrex::Real>& rho_w_rhs,
+                             const amrex::Array4<const amrex::Real>& rho_u,
+                             const amrex::Array4<const amrex::Real>& rho_v,
+                             const amrex::Array4<const amrex::Real>& Omega,
+                             const amrex::Array4<const amrex::Real>& u,
+                             const amrex::Array4<const amrex::Real>& v,
+                             const amrex::Array4<const amrex::Real>& w,
+                             const amrex::Array4<const amrex::Real>& z_nd,
+                             const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                             const amrex::Array4<const amrex::Real>& mf_m,
+                             const amrex::Array4<const amrex::Real>& mf_u_inv,
+                             const amrex::Array4<const amrex::Real>& mf_v_inv,
+                             const AdvType vert_adv_type,
+                             const int domhi_z)
 {
     // Instantiate the appropriate structs
     InterpType_H interp_u_h(u); InterpType_V interp_u_v(u); // X-MOM
@@ -374,23 +374,23 @@ AdvectionSrcForMomWrapper_T(const amrex::Box& bxx, const amrex::Box& bxy, const 
  */
 template<typename InterpType_H>
 void
-AdvectionSrcForMomVert_T(const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
-                            const amrex::Array4<amrex::Real>& rho_u_rhs,
-                            const amrex::Array4<amrex::Real>& rho_v_rhs,
-                            const amrex::Array4<amrex::Real>& rho_w_rhs,
-                            const amrex::Array4<const amrex::Real>& rho_u,
-                            const amrex::Array4<const amrex::Real>& rho_v,
-                            const amrex::Array4<const amrex::Real>& Omega,
-                            const amrex::Array4<const amrex::Real>& u,
-                            const amrex::Array4<const amrex::Real>& v,
-                            const amrex::Array4<const amrex::Real>& w,
-                            const amrex::Array4<const amrex::Real>& z_nd,
-                            const amrex::Array4<const amrex::Real>& detJ,
-                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                            const amrex::Array4<const amrex::Real>& mf_m,
-                            const amrex::Array4<const amrex::Real>& mf_u_inv,
-                            const amrex::Array4<const amrex::Real>& mf_v_inv,
-                            const AdvType vert_adv_type, const int domhi_z)
+AdvectionSrcForMomVert_T (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+                          const amrex::Array4<amrex::Real>& rho_u_rhs,
+                          const amrex::Array4<amrex::Real>& rho_v_rhs,
+                          const amrex::Array4<amrex::Real>& rho_w_rhs,
+                          const amrex::Array4<const amrex::Real>& rho_u,
+                          const amrex::Array4<const amrex::Real>& rho_v,
+                          const amrex::Array4<const amrex::Real>& Omega,
+                          const amrex::Array4<const amrex::Real>& u,
+                          const amrex::Array4<const amrex::Real>& v,
+                          const amrex::Array4<const amrex::Real>& w,
+                          const amrex::Array4<const amrex::Real>& z_nd,
+                          const amrex::Array4<const amrex::Real>& detJ,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                          const amrex::Array4<const amrex::Real>& mf_m,
+                          const amrex::Array4<const amrex::Real>& mf_u_inv,
+                          const amrex::Array4<const amrex::Real>& mf_v_inv,
+                          const AdvType vert_adv_type, const int domhi_z)
 {
     if (vert_adv_type == AdvType::Centered_2nd) {
         AdvectionSrcForMomWrapper_T<InterpType_H,CENTERED2,UPWINDALL>(bxx, bxy, bxz,

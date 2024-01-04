@@ -67,12 +67,6 @@ void ERF::advance_dycore(int level,
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
     MultiFab pi_hse(base_state[level], make_alias, 2, 1); // pi_0 is second component
 
-#if defined(ERF_USE_MOISTURE)
-    MultiFab qvapor (qmoist[level], make_alias, 0, 1);
-    MultiFab qcloud (qmoist[level], make_alias, 1, 1);
-    MultiFab qice   (qmoist[level], make_alias, 2, 1);
-#endif
-
     // These pointers are used in the MRI utility functions
     MultiFab* r0  = &r_hse;
     MultiFab* p0  = &p_hse;
@@ -95,7 +89,9 @@ void ERF::advance_dycore(int level,
     const BoxArray& ba_z          = zvel_old.boxArray();
     const DistributionMapping& dm = cons_old.DistributionMap();
 
-    MultiFab    S_prim  (ba  , dm, NUM_PRIM,          cons_old.nGrowVect());
+    int num_prim = cons_old.nComp() - 1;
+
+    MultiFab    S_prim  (ba  , dm, num_prim,          cons_old.nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
@@ -224,6 +220,7 @@ void ERF::advance_dycore(int level,
                                   state_old[IntVar::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
+                                  z_phys_nd[level],
                                   tc, solverChoice.gravity, m_most, bc_ptr_d);
     }
 
@@ -253,34 +250,6 @@ void ERF::advance_dycore(int level,
               vel_and_mom_synced);
     cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
     } // profile
-
-#ifdef ERF_USE_MOISTURE
-    PlaneAverage qv_ave(&qvapor, geom[level], solverChoice.ave_plane);
-    PlaneAverage qc_ave(&qcloud, geom[level], solverChoice.ave_plane);
-    PlaneAverage qi_ave(&qice, geom[level], solverChoice.ave_plane);
-
-    // Compute plane averages
-    qv_ave.compute_averages(ZDir(), qv_ave.field());
-    qc_ave.compute_averages(ZDir(), qc_ave.field());
-    qi_ave.compute_averages(ZDir(), qi_ave.field());
-
-    // get plane averaged data
-    int ncell = qv_ave.ncell_line();
-
-    Gpu::HostVector  <Real> qv_h(ncell), qi_h(ncell), qc_h(ncell);
-    Gpu::DeviceVector<Real> qv_d(ncell), qc_d(ncell), qi_d(ncell);
-
-    // Fill the vectors with the line averages computed above
-    qv_ave.line_average(0, qv_h);
-    qi_ave.line_average(0, qi_h);
-    qc_ave.line_average(0, qc_h);
-
-    // Copy data to device
-    Gpu::copyAsync(Gpu::hostToDevice, qv_h.begin(), qv_h.end(), qv_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qi_h.begin(), qi_h.end(), qi_d.begin());
-    Gpu::copyAsync(Gpu::hostToDevice, qc_h.begin(), qc_h.end(), qc_d.begin());
-    Gpu::streamSynchronize();
-#endif
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"

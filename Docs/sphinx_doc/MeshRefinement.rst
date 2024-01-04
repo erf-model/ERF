@@ -7,8 +7,7 @@
 Mesh Refinement
 ===============
 
-ERF allows both static and dynamic mesh refinement, as well as three different options for
-how the coarse and fine data.
+ERF allows both static and dynamic mesh refinement, as well as the choice of one-way or two-way coupling.
 
 Note that any tagged region will be covered by one or more boxes.  The user may
 specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
@@ -124,11 +123,11 @@ computed by dividing the variable named rhotheta by the variable named density.
 Coupling Types
 --------------
 
-ERF supports one-way, two-way, and "mixed" coupling between levels; this is a run-time input
+ERF supports one-way and two-way coupling between levels; this is a run-time input
 
 ::
 
-      erf.coupling_type = "OneWay" or "TwoWay" or "Mixed"
+      erf.coupling_type = "OneWay" or "TwoWay"
 
 By one-way coupling, we mean that between each pair of refinement levels,
 the coarse level communicates data to the fine level to serve as boundary conditions
@@ -157,10 +156,7 @@ the fine level also communicates data back to the coarse level in two ways:
 - A "reflux" operation is performed for all cell-centered data; this updates values on the coarser
 level outside of regions covered by the finer level.
 
-We define "mixed" coupling as using the two-way coupling algorithm for all cell-centered quantities except for
-:math:`\rho` and :math:`\rho \theta.`
-
-We note that all three coupling schemes are conservative for mass because the fluxes for the continuity
+We note that both coupling schemes conserve mass because the fluxes for the continuity
 equation are the momenta themselves, which are interpolated on faces at the coarse-fine interface.
 Other advected quantities which are advanced in conservation form will lose conservation with one-way coupling.
 Two-way coupling ensures conservation of the advective contribution to all scalar updates but

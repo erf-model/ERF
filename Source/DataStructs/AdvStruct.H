@@ -31,11 +31,9 @@ struct AdvChoice {
         pp.query("dryscal_horiz_adv_type"  , dryscal_horiz_adv_string);
         pp.query("dryscal_vert_adv_type"   , dryscal_vert_adv_string);
 
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
         std::string moistscal_horiz_adv_string = ""; std::string moistscal_vert_adv_string = "";
         pp.query("moistscal_horiz_adv_type", moistscal_horiz_adv_string);
         pp.query("moistscal_vert_adv_type" , moistscal_vert_adv_string);
-#endif
 
         if (use_efficient_advection){
            amrex::Print() << "Using efficient advection scheme" << std::endl;;
@@ -99,7 +97,6 @@ struct AdvChoice {
             amrex::Print() << "Using default dryscal_vert_adv_type" << std::endl;;
         }
 
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
         if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
              (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
              (moistscal_horiz_adv_string == "Centered_4th") ||
@@ -133,7 +130,6 @@ struct AdvChoice {
         } else {
             amrex::Print() << "Using default moistscal_vert_adv_type" << std::endl;;
         }
-#endif
     }
 
     void display()
@@ -143,10 +139,8 @@ struct AdvChoice {
         amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type) << std::endl;
         amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type) << std::endl;
         amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type) << std::endl;
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
         amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type) << std::endl;
         amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type) << std::endl;
-#endif
     }
 
     std::string
@@ -207,16 +201,14 @@ struct AdvChoice {
     // Default prefix
     std::string pp_prefix {"erf"};
 
-    // Spatial discretization
     // Order and type of spatial discretizations used in advection
+    // Defaults given below but these can be over-written at run-time
     bool use_efficient_advection = false;
-    AdvType dycore_horiz_adv_type    = AdvType::Centered_2nd;
-    AdvType dycore_vert_adv_type     = AdvType::Centered_2nd;
-    AdvType dryscal_horiz_adv_type   = AdvType::Centered_2nd;
-    AdvType dryscal_vert_adv_type    = AdvType::Centered_2nd;
-#if defined(ERF_USE_MOISTURE) or defined(ERF_USE_WARM_NO_PRECIP)
+    AdvType dycore_horiz_adv_type    = AdvType::Upwind_3rd;
+    AdvType dycore_vert_adv_type     = AdvType::Upwind_3rd;
+    AdvType dryscal_horiz_adv_type   = AdvType::Upwind_3rd;
+    AdvType dryscal_vert_adv_type    = AdvType::Upwind_3rd;
     AdvType moistscal_horiz_adv_type = AdvType::Weno_3;
     AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
-#endif
 };
 #endif

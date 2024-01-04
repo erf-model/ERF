@@ -16,6 +16,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                            const amrex::Geometry& geom,
                            const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
+                           const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                            const TurbChoice& turbChoice, const amrex::Real const_grav,
                            std::unique_ptr<ABLMost>& most,
                            const amrex::BCRec* bc_ptr,

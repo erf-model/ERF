@@ -14,6 +14,7 @@ void
 init_bx_scalars_from_input_sounding (const amrex::Box &bx,
                                      amrex::Array4<amrex::Real> const &state,
                                      amrex::GeometryData const &geomdata,
+                                     const bool& l_moist,
                                      InputSoundingData const &inputSoundingData);
 void
 init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
@@ -22,7 +23,9 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
                                          amrex::Array4<amrex::Real> const &p_hse_arr,
                                          amrex::Array4<amrex::Real> const &pi_hse_arr,
                                          amrex::GeometryData const &geomdata,
-                                         amrex::Real l_gravity, amrex::Real l_rdOcp,
+                                         const amrex::Real& l_gravity,
+                                         const amrex::Real& l_rdOcp,
+                                         const bool& l_moist,
                                          InputSoundingData const &inputSoundingData);
 
 void
@@ -61,6 +64,7 @@ ERF::init_from_input_sounding (int lev)
 
     const Real l_gravity = solverChoice.gravity;
     const Real l_rdOcp   = solverChoice.rdOcp;
+    const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -81,14 +85,14 @@ ERF::init_from_input_sounding (int lev)
             init_bx_scalars_from_input_sounding_hse(
                 bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr,
-                geom[lev].data(), l_gravity, l_rdOcp, input_sounding_data);
+                geom[lev].data(), l_gravity, l_rdOcp, l_moist, input_sounding_data);
         }
         else
         {
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
-                geom[lev].data(), input_sounding_data);
+                geom[lev].data(), l_moist, input_sounding_data);
         }
 
         init_bx_velocities_from_input_sounding(
@@ -111,15 +115,12 @@ void
 init_bx_scalars_from_input_sounding (const amrex::Box &bx,
                                      amrex::Array4<amrex::Real> const &state,
                                      amrex::GeometryData const &geomdata,
+                                     const bool& l_moist,
                                      InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-#if defined(ERF_USE_MOISTURE)
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-#endif
     const int   inp_sound_size  = inputSoundingData.size();
 
     // We want to set the lateral BC values, too
@@ -143,12 +144,10 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state(i, j, k, RhoScalar_comp) = 0;
 
-        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there is no cloud water or cloud ice
-#if defined(ERF_USE_MOISTURE)
-        state(i, j, k, RhoQt_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        state(i, j, k, RhoQv_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
-#endif
+        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there is no cloud water or cloud ice
+        if (l_moist)
+            state(i, j, k, RhoQ1_comp) = rho_0 * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+
     });
 }
 
@@ -173,18 +172,15 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
                                          amrex::Array4<amrex::Real> const &p_hse_arr,
                                          amrex::Array4<amrex::Real> const &pi_hse_arr,
                                          amrex::GeometryData const &geomdata,
-                                         const amrex::Real l_gravity,
-                                         const amrex::Real l_rdOcp,
+                                         const amrex::Real& l_gravity,
+                                         const amrex::Real& l_rdOcp,
+                                         const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
     const Real* rho_inp_sound   = inputSoundingData.rho_inp_sound_d.dataPtr();
     const Real* theta_inp_sound = inputSoundingData.theta_inp_sound_d.dataPtr();
-#if defined(ERF_USE_MOISTURE)
     const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    const Real* qv_inp_sound    = inputSoundingData.qv_inp_sound_d.dataPtr();
-#endif
     const int   inp_sound_size  = inputSoundingData.size();
 
     // We want to set the lateral BC values, too
@@ -234,13 +230,10 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
             pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
         }
 
-#if defined(ERF_USE_MOISTURE)
-        // total nonprecipitating water (Qt) == water vapor (Qv), i.e., there
+        // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
-        state(i, j, k, RhoQt_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        state(i, j, k, RhoQv_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
-#endif
+        if (l_moist)
+            state(i, j, k, RhoQ1_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
     });
 }
 

@@ -34,20 +34,14 @@ Problem::init_custom_pert(
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-#if defined(ERF_USE_MOISTURE)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-#endif
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
-    const SolverChoice&)
+    const SolverChoice& sc)
 {
+    const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
   ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     //const Real* prob_lo = geomdata.ProbLo();
@@ -59,13 +53,10 @@ Problem::init_custom_pert(
     // Set scalar = 0 everywhere
     state(i, j, k, RhoScalar_comp) = 0.0;
 
-#if defined(ERF_USE_MOISTURE)
-    state(i, j, k, RhoQt_comp) = 0.0;
-    state(i, j, k, RhoQp_comp) = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    state(i, j, k, RhoQv_comp) = 0.0;
-    state(i, j, k, RhoQc_comp) = 0.0;
-#endif
+    if (use_moisture) {
+        state(i, j, k, RhoQ1_comp) = 0.0;
+        state(i, j, k, RhoQ2_comp) = 0.0;
+    }
 
   });
 

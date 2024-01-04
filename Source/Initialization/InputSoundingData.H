@@ -79,7 +79,7 @@ public:
                 iss_z >> z >> theta >> qv >> U >> V;
                 if (z == 0) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
-                    AMREX_ALWAYS_ASSERT(qv == qv_inp_sound_tmp[0]);
+                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]);
                     U_inp_sound_tmp[0] = U;
                     V_inp_sound_tmp[0] = V;
                 } else {

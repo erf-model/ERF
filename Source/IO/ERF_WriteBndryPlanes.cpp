@@ -159,7 +159,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const Real time,
         int nghost = 0;
         if (var_name == "density")
         {
-            bndry.copyFrom(S, nghost, Cons::Rho, 0, ncomp, m_geom[bndry_lev].periodicity());
+            bndry.copyFrom(S, nghost, Rho_comp, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else if (var_name == "temperature") {
 

@@ -16,7 +16,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
                               const amrex::BCRec* bc_ptr,
-                              bool /*vert_only*/);
+                              bool /*vert_only*/,
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
 /**
  * Function for computing the turbulent viscosity with LES.
@@ -169,16 +170,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
-#if defined(ERF_USE_MOISTURE)
-    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qt_h      Qp_h
-    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Qv_h      Qc_h
-    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
-#else
-    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h
-    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k}; // alpha = mu/Pr
-#endif
+    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Q1_h      Q2_h      Q3_h
+    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
@@ -376,6 +369,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                 const amrex::Geometry& geom,
                                 const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
+                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
                                 const amrex::BCRec* bc_ptr,
@@ -415,6 +409,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
     if (turbChoice.pbl_type != PBLType::None) {
         // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, bc_ptr, vert_only);
+                                     geom, turbChoice, most, bc_ptr, vert_only, z_phys_nd);
     }
 }

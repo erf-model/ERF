@@ -29,13 +29,8 @@ void ERF::init_bcs ()
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-#if defined(ERF_USE_MOISTURE)
-        m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = 0.0;
-#endif
+        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.0;
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
@@ -47,17 +42,11 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_neumann_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-#if defined(ERF_USE_MOISTURE)
-        m_bc_neumann_vals[BCVars::RhoQt_bc_comp][ori]    = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQp_bc_comp][ori]    = 0.0;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        m_bc_neumann_vals[BCVars::RhoQv_bc_comp][ori]    = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQc_bc_comp][ori]    = 0.0;
-#endif
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]    = 0.0;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
-
 
         ParmParse pp(bcid);
         std::string bc_type_in = "null";
@@ -120,37 +109,24 @@ void ERF::init_bcs ()
                 if (pp.query("scalar", scalar_in))
                 m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = rho_in*scalar_in;
             }
-#if defined(ERF_USE_MOISTURE)
-            Real qt_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qt()) {
-                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = 0.;
-            } else {
-                if (pp.query("qt", qt_in))
-                m_bc_extdir_vals[BCVars::RhoQt_bc_comp][ori] = rho_in*qt_in;
+
+            if (solverChoice.moisture_type != MoistureType::None) {
+                Real qt_in = 0.;
+                if (input_bndry_planes && m_r2d->ingested_q1()) {
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.;
+                } else {
+                    if (pp.query("qt", qt_in))
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qt_in;
+                }
+                Real qp_in = 0.;
+                if (input_bndry_planes && m_r2d->ingested_q2()) {
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.;
+                } else {
+                    if (pp.query("qp", qp_in))
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qp_in;
+                }
             }
-            Real qp_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qp()) {
-                m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = 0.;
-            } else {
-                if (pp.query("qp", qp_in))
-                m_bc_extdir_vals[BCVars::RhoQp_bc_comp][ori] = rho_in*qp_in;
-            }
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-            Real qv_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qv()) {
-                m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = 0.;
-            } else {
-                if (pp.query("qv", qv_in))
-                m_bc_extdir_vals[BCVars::RhoQv_bc_comp][ori] = rho_in*qv_in;
-            }
-            Real qc_in = 0.;
-            if (input_bndry_planes && m_r2d->ingested_qc()) {
-                m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = 0.;
-            } else {
-                if (pp.query("qc", qc_in))
-                m_bc_extdir_vals[BCVars::RhoQc_bc_comp][ori] = rho_in*qc_in;
-            }
-#endif
+
             Real KE_in = 0.;
             if (input_bndry_planes && m_r2d->ingested_KE()) {
                 m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori] = 0.;
@@ -276,8 +252,8 @@ void ERF::init_bcs ()
     //
     // *****************************************************************************
     {
-        domain_bcs_type.resize(AMREX_SPACEDIM+NVAR);
-        domain_bcs_type_d.resize(AMREX_SPACEDIM+NVAR);
+        domain_bcs_type.resize(AMREX_SPACEDIM+NVAR_max);
+        domain_bcs_type_d.resize(AMREX_SPACEDIM+NVAR_max);
 
         for (OrientationIter oit; oit; ++oit) {
             Orientation ori = oit();
@@ -384,34 +360,34 @@ void ERF::init_bcs ()
             if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::reflect_even);
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::reflect_even);
                 }
             }
             else if ( bct == ERF_BC::outflow )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                 }
             }
             else if ( bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
                     if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
@@ -422,7 +398,7 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
@@ -431,7 +407,7 @@ void ERF::init_bcs ()
                     if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.)
                         domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
                     if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
@@ -444,41 +420,30 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::inflow)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++) {
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir);
                         if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#if defined(ERF_USE_MOISTURE)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qt()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qp()     )
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     )
-#endif
-                           ) ) {
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )) ) {
                             domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::ext_dir_ingested);
                            }
                     }
                 } else {
-                    for (int i = 0; i < NVAR; i++) {
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir);
                         if (input_bndry_planes && dir < 2 && (
                            ( (BCVars::cons_bc+i == BCVars::Rho_bc_comp)       && m_r2d->ingested_density()) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoTheta_bc_comp)  && m_r2d->ingested_theta()  ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoKE_bc_comp)     && m_r2d->ingested_KE()     ) ||
                            ( (BCVars::cons_bc+i == BCVars::RhoQKE_bc_comp)    && m_r2d->ingested_QKE()    ) ||
-                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() )
-#if defined(ERF_USE_MOISTURE)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQt_bc_comp)     && m_r2d->ingested_qt()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQp_bc_comp)     && m_r2d->ingested_qp()     )
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQv_bc_comp)     && m_r2d->ingested_qv()     )
-                        || ( (BCVars::cons_bc+i == BCVars::RhoQc_bc_comp)     && m_r2d->ingested_qc()     )
-#endif
+                           ( (BCVars::cons_bc+i == BCVars::RhoScalar_bc_comp) && m_r2d->ingested_scalar() ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ1_bc_comp)     && m_r2d->ingested_q1()     ) ||
+                           ( (BCVars::cons_bc+i == BCVars::RhoQ2_bc_comp)     && m_r2d->ingested_q2()     )
                            ) ) {
                             domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::ext_dir_ingested);
                            }
@@ -488,17 +453,17 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::int_dir);
                 } else {
-                    for (int i = 0; i < NVAR; i++)
+                    for (int i = 0; i < NVAR_max; i++)
                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::int_dir);
                 }
             }
             else if ( bct == ERF_BC::MOST )
             {
                 AMREX_ALWAYS_ASSERT(dir == 2 && side == Orientation::low);
-                for (int i = 0; i < NVAR; i++) {
+                for (int i = 0; i < NVAR_max; i++) {
                     domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                 }
             }
@@ -508,11 +473,11 @@ void ERF::init_bcs ()
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy
         (domain_bcs_type_d.data(), domain_bcs_type.data(),
-         sizeof(amrex::BCRec)*(NVAR+AMREX_SPACEDIM));
+         sizeof(amrex::BCRec)*(NVAR_max+AMREX_SPACEDIM));
 #else
     std::memcpy
         (domain_bcs_type_d.data(), domain_bcs_type.data(),
-         sizeof(amrex::BCRec)*(NVAR+AMREX_SPACEDIM));
+         sizeof(amrex::BCRec)*(NVAR_max+AMREX_SPACEDIM));
 #endif
 }
 

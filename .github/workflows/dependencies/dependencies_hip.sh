@@ -41,7 +41,8 @@ sudo apt-get install -y --no-install-recommends \
     rocprim-dev     \
     rocfft          \
     rocprim         \
-    rocrand
+    rocrand         \
+    hiprand-dev
 
 # activate
 #

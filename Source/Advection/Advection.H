@@ -21,7 +21,7 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<      amrex::Real>& avg_zmom,
                          const amrex::Array4<const amrex::Real>& z_nd,
                          const amrex::Array4<const amrex::Real>& detJ,
-                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                         const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
@@ -37,7 +37,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
                              const amrex::Array4<const amrex::Real>& detJ,
-                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSize,
+                             const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const bool use_terrain,
@@ -62,41 +62,41 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 AdvType
-EfficientAdvType(int nrk, AdvType adv_type)
+EfficientAdvType (int nrk, AdvType adv_type)
 {
-     AdvType eff_adv_type;
+    AdvType eff_adv_type;
 
-     if (nrk == 0) {
+    if (nrk == 0) {
 
-         eff_adv_type = AdvType::Centered_2nd;
+        eff_adv_type = AdvType::Centered_2nd;
 
-     } else if (nrk == 1) {
+    } else if (nrk == 1) {
 
-         if ( (adv_type == AdvType::Centered_2nd) ||
-              (adv_type == AdvType::Upwind_3rd)   ||
-              (adv_type == AdvType::Centered_4th) ||
-              (adv_type == AdvType::Weno_3)       ||
-              (adv_type == AdvType::Weno_3Z)      ||
-              (adv_type == AdvType::Weno_3MZQ)    )
-         {
-             eff_adv_type = AdvType::Centered_2nd;
+        if ( (adv_type == AdvType::Centered_2nd) ||
+             (adv_type == AdvType::Upwind_3rd)   ||
+             (adv_type == AdvType::Centered_4th) ||
+             (adv_type == AdvType::Weno_3)       ||
+             (adv_type == AdvType::Weno_3Z)      ||
+             (adv_type == AdvType::Weno_3MZQ)    )
+            {
+                eff_adv_type = AdvType::Centered_2nd;
 
-         } else if ( (adv_type == AdvType::Upwind_5th) ||
-                     (adv_type == AdvType::Weno_5)     ||
-                     (adv_type == AdvType::Weno_5Z)    )
-         {
-             eff_adv_type = AdvType::Upwind_3rd;
+            } else if ( (adv_type == AdvType::Upwind_5th) ||
+                        (adv_type == AdvType::Weno_5)     ||
+                        (adv_type == AdvType::Weno_5Z)    )
+            {
+                eff_adv_type = AdvType::Upwind_3rd;
 
-         } else { // (adv_type == AdvType::Centered_6th)
+            } else { // (adv_type == AdvType::Centered_6th)
 
-             eff_adv_type = AdvType::Centered_4th;
-         }
+            eff_adv_type = AdvType::Centered_4th;
+        }
 
-     } else {
+    } else {
 
-         eff_adv_type = adv_type;
-     }
+        eff_adv_type = adv_type;
+    }
 
-     return(eff_adv_type);
+    return(eff_adv_type);
 }
 #endif

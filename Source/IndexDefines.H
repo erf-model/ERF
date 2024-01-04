@@ -14,32 +14,28 @@
 #define RhoKE_comp     2 // for Deardorff LES Model
 #define RhoQKE_comp    3 // for MYNN or YSU PBL Model
 #define RhoScalar_comp 4
-#if defined(ERF_USE_MOISTURE)
-  #define RhoQt_comp   5
-  #define RhoQp_comp   6
-  #define NVAR         7
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-  #define RhoQv_comp   5
-  #define RhoQc_comp   6
-  #define NVAR         7
-#else
-  #define NVAR         5
-#endif
+#define RhoQ1_comp     5
+#define RhoQ2_comp     6
+#define RhoQ3_comp     7
+
+// This is the number of components if using moisture
+// We use this to allocate the 1d arrays of boundary condition types,
+//    but not to allocate actual solution data
+#define NVAR_max 8
+
+// This defines the maximum number of moisture vars
+#define NMOIST_max 3
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
 #define PrimKE_comp      (RhoKE_comp    -1)
 #define PrimQKE_comp     (RhoQKE_comp   -1)
 #define PrimScalar_comp  (RhoScalar_comp-1)
-#if defined(ERF_USE_MOISTURE)
-  #define PrimQt_comp    (RhoQt_comp-1)
-  #define PrimQp_comp    (RhoQp_comp-1)
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-  #define PrimQv_comp    (RhoQv_comp-1)
-  #define PrimQc_comp    (RhoQc_comp-1)
-#endif
-#define NUM_PRIM         (NVAR-1)
+#define PrimQ1_comp      (RhoQ1_comp-1)
+#define PrimQ2_comp      (RhoQ2_comp-1)
+#define PrimQ3_comp      (RhoQ3_comp-1)
 
+// NOTE: we still use this indexing even if no moisture
 namespace BCVars {
     enum {
         cons_bc = 0,
@@ -48,16 +44,11 @@ namespace BCVars {
         RhoKE_bc_comp,
         RhoQKE_bc_comp,
         RhoScalar_bc_comp,
-#if defined(ERF_USE_MOISTURE)
-        RhoQt_bc_comp,
-        RhoQp_bc_comp,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        RhoQv_bc_comp,
-        RhoQc_bc_comp,
-#endif
-        xvel_bc = NVAR,
-        yvel_bc,
-        zvel_bc,
+        RhoQ1_bc_comp,
+        RhoQ2_bc_comp,
+        xvel_bc = NVAR_max,
+        yvel_bc = NVAR_max+1,
+        zvel_bc = NVAR_max+2,
         NumTypes
     };
 }
@@ -99,41 +90,6 @@ namespace Vars {
     };
 }
 
-namespace Cons {
-    enum {
-        Rho = 0,
-        RhoTheta,
-        RhoKE,
-        RhoQKE,
-        RhoScalar,
-#if defined(ERF_USE_MOISTURE)
-        RhoQt,
-        RhoQp,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        RhoQv,
-        RhoQc,
-#endif
-        NumVars
-    };
-}
-
-namespace Prim {
-    enum {
-        Theta = 0,
-        KE,
-        QKE,
-        Scalar,
-#if defined(ERF_USE_MOISTURE)
-        Qt,
-        Qp,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        Qv,
-        Qc,
-#endif
-        NumVars
-    };
-}
-
 // We separate out horizontal and vertical turbulent diffusivities
 // These are the same for LES, but different for PBL models
 namespace EddyDiff {
@@ -143,25 +99,17 @@ namespace EddyDiff {
         Scalar_h,
         KE_h,
         QKE_h,
-#if defined(ERF_USE_MOISTURE)
-        Qt_h,
-        Qp_h,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        Qv_h,
-        Qc_h,
-#endif
+        Q1_h,
+        Q2_h,
+        Q3_h,
         Mom_v,
         Theta_v,
         Scalar_v,
         KE_v,
         QKE_v,
-#if defined(ERF_USE_MOISTURE)
-        Qt_v,
-        Qp_v,
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        Qv_v,
-        Qc_v,
-#endif
+        Q1_v,
+        Q2_v,
+        Q3_v,
         PBL_lengthscale,
         NumDiffs
     };

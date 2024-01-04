@@ -8,7 +8,7 @@
  */
 
 AMREX_FORCE_INLINE
-amrex::IntVect TileNoZ()
+amrex::IntVect TileNoZ ()
 {
     if (amrex::TilingIfNotGPU()) {
         return amrex::IntVect{amrex::FabArrayBase::mfiter_tile_size[0],

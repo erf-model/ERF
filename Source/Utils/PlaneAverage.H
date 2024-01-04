@@ -13,45 +13,45 @@
 class PlaneAverage {
 public:
     AMREX_FORCE_INLINE
-    explicit PlaneAverage(const amrex::MultiFab* field_in,
-                          amrex::Geometry geom_in,
-                          int axis_in);
-    PlaneAverage() = delete;
-    ~PlaneAverage() = default;
+    explicit PlaneAverage (const amrex::MultiFab* field_in,
+                           amrex::Geometry geom_in,
+                           int axis_in);
+    PlaneAverage () = delete;
+    ~PlaneAverage () = default;
 
     AMREX_FORCE_INLINE
     void operator()();
 
     /** evaluate line average at specific location for any average component */
     [[nodiscard]] AMREX_FORCE_INLINE
-    amrex::Real line_average_interpolated(amrex::Real x, int comp) const;
+    amrex::Real line_average_interpolated (amrex::Real x, int comp) const;
 
     /** change precision of text file output */
-    void set_precision(int p) { m_precision = p; }
+    void set_precision (int p) { m_precision = p; }
 
-    [[nodiscard]] amrex::Real dx() const { return m_dx; }
-    [[nodiscard]] amrex::Real xlo() const { return m_xlo; }
+    [[nodiscard]] amrex::Real dx () const { return m_dx; }
+    [[nodiscard]] amrex::Real xlo () const { return m_xlo; }
 
-    [[nodiscard]] int axis() const { return m_axis; }
-    [[nodiscard]] int level() const { return m_level; }
-    [[nodiscard]] int ncomp() const { return m_ncomp; }
-    [[nodiscard]] int ncell_plane() const { return m_ncell_plane; }
-    [[nodiscard]] int ncell_line() const { return m_ncell_line; }
+    [[nodiscard]] int axis () const { return m_axis; }
+    [[nodiscard]] int level () const { return m_level; }
+    [[nodiscard]] int ncomp () const { return m_ncomp; }
+    [[nodiscard]] int ncell_plane () const { return m_ncell_plane; }
+    [[nodiscard]] int ncell_line () const { return m_ncell_line; }
 
-    [[nodiscard]] const amrex::Vector<amrex::Real>& line_average() const
+    [[nodiscard]] const amrex::Vector<amrex::Real>& line_average () const
     {
         return m_line_average;
     }
 
     AMREX_FORCE_INLINE
-    void line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
+    void line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec);
 
-    [[nodiscard]] const amrex::Vector<amrex::Real>& line_centroids() const
+    [[nodiscard]] const amrex::Vector<amrex::Real>& line_centroids () const
     {
         return m_line_xcentroid;
     }
 
-    [[nodiscard]] const amrex::MultiFab& field() const { return *m_field; }
+    [[nodiscard]] const amrex::MultiFab& field () const { return *m_field; }
 
 protected:
     int m_ncomp; /** number of average components */
@@ -78,7 +78,7 @@ public:
     /** fill line storage with averages */
     template <typename IndexSelector>
     AMREX_FORCE_INLINE
-    void compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab);
+    void compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab);
 };
 
 
@@ -113,7 +113,7 @@ PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
 }
 
 amrex::Real
-PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
+PlaneAverage::line_average_interpolated (amrex::Real x, int comp) const
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
@@ -138,7 +138,7 @@ PlaneAverage::line_average_interpolated(amrex::Real x, int comp) const
 }
 
 void
-PlaneAverage::line_average(int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec)
+PlaneAverage::line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec)
 {
     AMREX_ALWAYS_ASSERT(comp >= 0 && comp < m_ncomp);
 
@@ -168,7 +168,7 @@ PlaneAverage::operator()()
 
 template <typename IndexSelector>
 void
-PlaneAverage::compute_averages(const IndexSelector& idxOp, const amrex::MultiFab& mfab)
+PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFab& mfab)
 {
     const amrex::Real denom = 1.0 / (amrex::Real)m_ncell_plane;
     amrex::AsyncArray<amrex::Real> lavg(m_line_average.data(), m_line_average.size());
@@ -184,8 +184,9 @@ PlaneAverage::compute_averages(const IndexSelector& idxOp, const amrex::MultiFab
         amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect{0, 0, 0});
 
         ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
-           AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
-                             amrex::Gpu::Handler const& handler) noexcept {
+                    AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
+                                      amrex::Gpu::Handler const& handler) noexcept
+        {
             // Loop over the direction perpendicular to the plane.
             // This reduces the atomic pressure on the destination arrays.
 
@@ -197,12 +198,12 @@ PlaneAverage::compute_averages(const IndexSelector& idxOp, const amrex::MultiFab
                         int ind = idxOp.getIndx(i, j, k);
                         for (int n = 0; n < ncomp; ++n) {
                             amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
-                                            fab_arr(i, j, k, n) * denom, handler);
+                                                        fab_arr(i, j, k, n) * denom, handler);
                         }
-                     }
-                 }
-             }
-       });
+                    }
+                }
+            }
+        });
     }
 
     lavg.copyToHost(m_line_average.data(), m_line_average.size());

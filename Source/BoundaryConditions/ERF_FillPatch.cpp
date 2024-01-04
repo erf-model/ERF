@@ -15,7 +15,6 @@ PhysBCFunctNoOp null_bc;
  * @param[in] time time at which the data should be filled
  * @param[out] mfs Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
  */
-
 void
 ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 {
@@ -73,7 +72,7 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
     } // var_idx
 
     // Coarse-Fine set region
-    if (lev>0 && solverChoice.coupling_type == CouplingType::OneWay && cf_set_width>0 && fillset) {
+    if (lev>0 && cf_set_width>0 && fillset) {
         FPr_c[lev-1].FillSet(*mfs[Vars::cons], time, null_bc, domain_bcs_type);
         FPr_u[lev-1].FillSet(*mfs[Vars::xvel], time, null_bc, domain_bcs_type);
         FPr_v[lev-1].FillSet(*mfs[Vars::yvel], time, null_bc, domain_bcs_type);
@@ -92,14 +91,20 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
 
 #ifdef ERF_USE_NETCDF
     // We call this here because it is an ERF routine
-    if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time);
-    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time);
+    if (init_type == "real"    && lev==0) fill_from_wrfbdy (mfs,time,false,0,ncomp_cons);
+    if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time,false,0,ncomp_cons);
 #endif
 
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
     (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
+
+    /*
+    // Update vars in the micro model
+    if (solverChoice.moisture_type != MoistureType::None)
+        micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+    */
 }
 
 /*
@@ -109,8 +114,6 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
  * @param[in] time time at which the data should be filled
  * @param[out] mf MultiFab to be filled (qmoist[lev])
  */
-
-#ifdef ERF_USE_MOISTURE
 void
 ERF::FillPatchMoistVars (int lev, MultiFab& mf)
 {
@@ -123,8 +126,8 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     int ncomp_cons = 1; // We only fill qv, the first component
 
     // Note that we are filling qv, stored in qmoist[lev], with the input data (if there is any), stored
-    // in RhoQt_comp.
-    int bccomp_cons = BCVars::RhoQt_bc_comp;
+    // in RhoQ1_comp.
+    int bccomp_cons = BCVars::RhoQ1_bc_comp;
 
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
@@ -135,7 +138,6 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
 
     mf.FillBoundary(geom[lev].periodicity());
 }
-#endif
 
 /*
  * Fill valid and ghost data
@@ -153,7 +155,6 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
  * @param[in]  eddyDiffs      diffusion coefficients for LES turbulence models
  * @param[in]  allow_most_bcs if true then use MOST bcs at the low boundary
  */
-
 void
 ERF::FillIntermediatePatch (int lev, Real time,
                             const Vector<MultiFab*>& mfs,
@@ -262,9 +263,13 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
         m_most->impose_most_bcs(lev,mfs,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
-}
 
-//
+    /*
+   // Update vars in the micro model
+    if (solverChoice.moisture_type != MoistureType::None && (!cons_only && ncomp_cons > 2))
+        micro.Update_Micro_Vars_Lev(lev, *mfs[Vars::cons]);
+    */
+}
 
 /*
  * Fill valid and ghost data.
@@ -276,7 +281,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
  * @param[in]  time           time at which the data should be filled
  * @param[out] mfs            Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
  */
-
 void
 ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
 {
@@ -297,17 +301,17 @@ ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
         }
         else if (var_idx == Vars::xvel || var_idx == Vars::xmom)
         {
-            bccomp = NVAR;
+            bccomp = BCVars::xvel_bc;
             mapper = &face_linear_interp;
         }
         else if (var_idx == Vars::yvel || var_idx == Vars::ymom)
         {
-            bccomp = NVAR+1;
+            bccomp = BCVars::yvel_bc;
             mapper = &face_linear_interp;
         }
         else if (var_idx == Vars::zvel || var_idx == Vars::zmom)
         {
-            bccomp = NVAR+2;
+            bccomp = BCVars::zvel_bc;
             mapper = &face_linear_interp;
         }
 

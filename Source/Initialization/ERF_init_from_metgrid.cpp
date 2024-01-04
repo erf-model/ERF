@@ -15,15 +15,12 @@ using namespace amrex;
 void
 ERF::init_from_metgrid (int lev)
 {
-#ifndef AMREX_USE_GPU
-#if defined(ERF_USE_MOISTURE)
-    amrex::Print() << "Init with met_em with ERF_USE_MOISTURE" << std::endl;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    amrex::Print() << "Init with met_em with ERF_USE_WARM_NO_PRECIP" << std::endl;
-#else
-    amrex::Print() << "Init with met_em without moisture" << std::endl;
-#endif
-#endif
+    bool use_moisture = (solverChoice.moisture_type == MoistureType::None);
+    if (use_moisture) {
+        amrex::Print() << "Init with met_em with valid moisture model." << std::endl;
+    } else {
+        amrex::Print() << "Init with met_em without moisture model." << std::endl;
+    }
 
     int nboxes = num_boxes_at_level[lev];
     int ntimes = num_files_at_level[lev];
@@ -230,11 +227,9 @@ ERF::init_from_metgrid (int lev)
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
 
     // Set up FABs to hold data that will be used to set lateral boundary conditions.
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-    int MetGridBdyEnd = MetGridBdyVars::NumTypes;
-#else
     int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
-#endif
+    if (use_moisture) MetGridBdyEnd = MetGridBdyVars::NumTypes;
+
     //amrex::Vector<amrex::Vector<amrex::MultiFab> > fabs_for_bcs;
     amrex::Vector<amrex::Vector<FArrayBox>> fabs_for_bcs;
     fabs_for_bcs.resize(ntimes);
@@ -280,7 +275,6 @@ ERF::init_from_metgrid (int lev)
         Box tbxc = mfi.tilebox();
         Box tbxu = mfi.tilebox(IntVect(1,0,0));
         Box tbxv = mfi.tilebox(IntVect(0,1,0));
-        Box tbxw = mfi.tilebox(IntVect(0,0,1));
 
         // Define FABs for hlding some of the initial data
         FArrayBox &cons_fab = lev_new[Vars::cons][mfi];
@@ -299,7 +293,7 @@ ERF::init_from_metgrid (int lev)
         //     z_vel   set to 0.0
         //     theta   calculate on origin levels then interpolate
         //     mxrat   convert RH -> Q on origin levels then interpolate
-        init_state_from_metgrid(l_rdOcp,
+        init_state_from_metgrid(use_moisture, l_rdOcp,
                                 tbxc, tbxu, tbxv,
                                 cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                 z_phys_nd_fab,
@@ -343,7 +337,7 @@ ERF::init_from_metgrid (int lev)
         //     r_hse     calculate dry density
         //     pi_hse    calculate Exner term given pressure
         const Box valid_bx = mfi.validbox();
-        init_base_state_from_metgrid(l_rdOcp,
+        init_base_state_from_metgrid(use_moisture, l_rdOcp,
                                      valid_bx,
                                      flag_psfc,
                                      cons_fab, r_hse_fab, p_hse_fab, pi_hse_fab,
@@ -608,7 +602,8 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
-init_state_from_metgrid (const Real l_rdOcp,
+init_state_from_metgrid (const bool use_moisture,
+                         const Real l_rdOcp,
                          Box& tbxc,
                          Box& tbxu,
                          Box& tbxv,
@@ -737,55 +732,51 @@ init_state_from_metgrid (const Real l_rdOcp,
         });
         }
 
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-        // ********************************************************
-        // specific humidity / relative humidity / mixing ratio
-        // ********************************************************
-        // TODO: we will need to check what input data we have for moisture
-        // and then, if necessary, compute mixing ratio. For now, we will
-        // focus on the case where we have relative humidity. Alternate cases
-        // could be specific humidity or a mixing ratio.
-        //
-        { // calculate vapor mixing ratio from relative humidity.
-            Box bx = NC_temp_fab[it].box() & tbxc;
-            auto const rhum  = NC_rhum_fab[it].const_array();
-            auto const temp  = NC_temp_fab[it].const_array();
-            auto const pres  = NC_pres_fab[it].const_array();
-            auto       mxrat = mxrat_fab[it].array();
+        if (use_moisture) {
+            // ********************************************************
+            // specific humidity / relative humidity / mixing ratio
+            // ********************************************************
+            // TODO: we will need to check what input data we have for moisture
+            // and then, if necessary, compute mixing ratio. For now, we will
+            // focus on the case where we have relative humidity. Alternate cases
+            // could be specific humidity or a mixing ratio.
+            //
+            { // calculate vapor mixing ratio from relative humidity.
+                Box bx = NC_temp_fab[it].box() & tbxc;
+                auto const rhum  = NC_rhum_fab[it].const_array();
+                auto const temp  = NC_temp_fab[it].const_array();
+                auto const pres  = NC_pres_fab[it].const_array();
+                auto       mxrat = mxrat_fab[it].array();
 
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
-            });
-        }
-
-        // vertical interpolation of vapor mixing ratio.
-        {
-        Box bx2d = NC_temp_fab[it].box() & tbxc;
-        bx2d.setRange(2,0);
-        auto const orig_data = mxrat_fab[it].const_array();
-        auto const orig_z    = NC_ght_fab[it].const_array();
-        auto       new_data  = state_fab.array();
-        auto       bc_data   = fabs_for_bcs[it][MetGridBdyVars::QV].array();
-        auto const new_z     = z_phys_nd_fab.const_array();
-
-        int kmax = amrex::ubound(tbxc).z;
-
-#if defined(ERF_USE_MOISTURE)
-        int state_indx = RhoQt_comp;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-        int state_indx = RhoQv_comp;
-#endif
-        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
-        {
-            for (int k = 0; k<=kmax; k++) {
-              Real Interp_Val  = interpolate_column_metgrid(i,j,k,'M',0,orig_z,orig_data,new_z);
-              if (mask_c_arr(i,j,k)) bc_data(i,j,k,0) = Interp_Val;
-              if (it==0) new_data(i,j,k,state_indx)   = Interp_Val;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    rh_to_mxrat(i,j,k,rhum,temp,pres,mxrat);
+                });
             }
-        });
+
+            // vertical interpolation of vapor mixing ratio.
+            {
+                Box bx2d = NC_temp_fab[it].box() & tbxc;
+                bx2d.setRange(2,0);
+                auto const orig_data = mxrat_fab[it].const_array();
+                auto const orig_z    = NC_ght_fab[it].const_array();
+                auto       new_data  = state_fab.array();
+                auto       bc_data   = fabs_for_bcs[it][MetGridBdyVars::QV].array();
+                auto const new_z     = z_phys_nd_fab.const_array();
+
+                int kmax = amrex::ubound(tbxc).z;
+
+                int state_indx = RhoQ1_comp;
+                ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                {
+                    for (int k = 0; k<=kmax; k++) {
+                        Real Interp_Val  = interpolate_column_metgrid(i,j,k,'M',0,orig_z,orig_data,new_z);
+                        if (mask_c_arr(i,j,k)) bc_data(i,j,k,0) = Interp_Val;
+                        if (it==0) new_data(i,j,k,state_indx)   = Interp_Val;
+                    }
+                });
+            }
         }
-#endif
 
         // TODO: TEMPORARY CODE TO RUN QUIESCENT, REMOVE WHEN NOT NEEDED.
 //        if (it == 0) {
@@ -815,7 +806,8 @@ init_state_from_metgrid (const Real l_rdOcp,
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void
-init_base_state_from_metgrid (const Real l_rdOcp,
+init_base_state_from_metgrid (const bool use_moisture,
+                              const Real l_rdOcp,
                               const Box& valid_bx,
                               const Vector<int>& flag_psfc,
                               FArrayBox& state_fab,
@@ -828,11 +820,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
                               Vector<Vector<FArrayBox>>& fabs_for_bcs,
                               const amrex::Array4<const int>& mask_c_arr)
 {
-#if defined(ERF_USE_MOISTURE)
-    int RhoQ_comp = RhoQt_comp;
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    int RhoQ_comp = RhoQv_comp;
-#endif
+    int RhoQ_comp = RhoQ1_comp;
     int kmax = amrex::ubound(valid_bx).z;
 
     // Device vectors for columnwise operations
@@ -843,9 +831,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
     Gpu::DeviceVector<Real>   Rhom_vec_d(kmax+1,0); Real* Rhom_vec   =   Rhom_vec_d.data();
     Gpu::DeviceVector<Real>     Pd_vec_d(kmax+1,0); Real* Pd_vec     =     Pd_vec_d.data();
     Gpu::DeviceVector<Real>     Pm_vec_d(kmax+1,0); Real* Pm_vec     =     Pm_vec_d.data();
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
     Gpu::DeviceVector<Real>      Q_vec_d(kmax+1,0); Real* Q_vec      =      Q_vec_d.data();
-#endif
 
     // Device vectors for psfc flags
     Gpu::DeviceVector<int>flag_psfc_d(flag_psfc.size());
@@ -872,16 +858,12 @@ init_base_state_from_metgrid (const Real l_rdOcp,
             for (int k=0; k<=kmax; k++) {
                      z_vec[k] = new_z(i,j,k);
                 Thetad_vec[k] = new_data(i,j,k,RhoTheta_comp);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-                    Q_vec[k] = new_data(i,j,k,RhoQ_comp);
-#endif
+                    Q_vec[k]  = (use_moisture) ? new_data(i,j,k,RhoQ_comp) : 0.0;
             }
             z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
             calc_rho_p(kmax,flag_psfc_vec[0],orig_psfc(i,j,0),Thetad_vec,Thetam_vec,
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
                        Q_vec,
-#endif
                        z_vec,Rhod_vec,Rhom_vec,Pd_vec,Pm_vec);
 
             for (int k=0; k<=kmax; k++) {
@@ -894,13 +876,13 @@ init_base_state_from_metgrid (const Real l_rdOcp,
         {
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoScalar_comp) = 0.0;
-            // RhoTheta and RhoQt or RhoQv currently hold Theta and Qt or Qv. Multiply by Rho.
+            // RhoTheta and RhoQ1 or RhoQv currently hold Theta and Q1 or Qv. Multiply by Rho.
             Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
             new_data(i,j,k,RhoTheta_comp) = RhoTheta;
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-            Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
-            new_data(i,j,k,RhoQ_comp) = RhoQ;
-#endif
+            if (use_moisture){
+                Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
+                new_data(i,j,k,RhoQ_comp) = RhoQ;
+            }
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             //pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
@@ -925,9 +907,7 @@ init_base_state_from_metgrid (const Real l_rdOcp,
         auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto const     new_z = z_phys_nd_fab.const_array();
         auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
         auto           Q_arr = fabs_for_bcs[it][MetGridBdyVars::QV].array();
-#endif
         auto r_hse_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto p_hse_arr = p_hse_bcs_fab.array();
 
@@ -936,25 +916,19 @@ init_base_state_from_metgrid (const Real l_rdOcp,
             for (int k=0; k<=kmax; k++) {
                      z_vec[k] = new_z(i,j,k);
                 Thetad_vec[k] = Theta_arr(i,j,k);
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-                    Q_vec[k] = Q_arr(i,j,k);
-#endif
+                Q_vec[k] = (use_moisture) ? Q_arr(i,j,k) : 0.0;
             }
             z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
             calc_rho_p(kmax,flag_psfc_vec[it],orig_psfc(i,j,0),Thetad_vec,Thetam_vec,
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
                        Q_vec,
-#endif
                        z_vec,Rhod_vec,Rhom_vec,Pd_vec,Pm_vec);
 
             for (int k=0; k<=kmax; k++) {
                 p_hse_arr(i,j,k) =   Pd_vec[k];
                 if (mask_c_arr(i,j,k)) {
                     r_hse_arr(i,j,k) = Rhod_vec[k];
-#if defined(ERF_USE_MOISTURE) || defined(ERF_USE_WARM_NO_PRECIP)
-                    Q_arr(i,j,k)     = Rhod_vec[k]*Q_vec[k];
-#endif
+                    Q_arr(i,j,k)     = (use_moisture) ? Rhod_vec[k]*Q_vec[k] : 0.0;
                     Theta_arr(i,j,k) = Rhod_vec[k]*Thetad_vec[k];
                   }
             } // k
