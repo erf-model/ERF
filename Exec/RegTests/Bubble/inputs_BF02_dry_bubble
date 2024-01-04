@@ -43,12 +43,10 @@ erf.use_gravity          = true
 erf.use_coriolis         = false
 erf.use_rayleigh_damping = false
 
-erf.dycore_horiz_adv_type    = "Upwind_3rd"
-erf.dycore_vert_adv_type     = "Upwind_3rd"
-erf.dryscal_horiz_adv_type   = "Upwind_3rd"
-erf.dryscal_vert_adv_type    = "Upwind_3rd"
-erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.dycore_horiz_adv_type    = "Upwind_5th"
+erf.dycore_vert_adv_type     = "Upwind_5th"
+erf.dryscal_horiz_adv_type   = "Upwind_5th"
+erf.dryscal_vert_adv_type    = "Upwind_5th"     
 
 # PHYSICS OPTIONS
 erf.les_type        = "None"
