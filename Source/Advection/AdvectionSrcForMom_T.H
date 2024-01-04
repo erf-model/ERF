@@ -47,7 +47,7 @@ AdvectionSrcForXMom_T (int i, int j, int k,
     // ****************************************************************************************
 
     rho_u_avg_hi = 0.5 * (rho_u(i+1, j, k) * mf_u_inv(i+1,j  ,0) + rho_u(i, j, k) * mf_u_inv(i  ,j  ,0));
-    interp_u_h.InterpolateInX(i,j,k+1,0,interp_hi,rho_u_avg_hi);
+    interp_u_h.InterpolateInX(i+1,j,k,0,interp_hi,rho_u_avg_hi);
 
     rho_u_avg_lo = 0.5 * (rho_u(i-1, j, k) * mf_u_inv(i-1,j  ,0) + rho_u(i, j, k) * mf_u_inv(i  ,j  ,0));
     interp_u_h.InterpolateInX(i,j,k,0,interp_lo,rho_u_avg_lo);
