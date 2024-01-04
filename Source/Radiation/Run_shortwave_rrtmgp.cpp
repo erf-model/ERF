@@ -23,7 +23,7 @@ void Rrtmgp::run_shortwave_rrtmgp (
     real2d tmp2d;
     tmp2d = real2d("tmp", ncol, nlay);
     for (int igas = 1; igas <= ngas; igas++) {
-        yakl::c::parallel_for(yakl::c::Bounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol) {
+        parallel_for(SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol) {
             tmp2d(icol,ilay) = gas_vmr(igas,icol,ilay);
         });
         gas_concs.set_vmr(active_gases(igas), tmp2d);
@@ -38,7 +38,7 @@ void Rrtmgp::run_shortwave_rrtmgp (
     k_dist_sw.gas_optics(ncol, nlay, top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
 
     // Apply TOA flux scaling
-    yakl::c::parallel_for(yakl::c::Bounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {
+    parallel_for(SimpleBounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {
         toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol, igpt);
         *top_at_1 = pmid(1, 1) < pmid (1, 2);
     });
@@ -52,20 +52,22 @@ void Rrtmgp::run_shortwave_rrtmgp (
     if (true) {
         aerosol_optics.alloc_2str(ncol, nlay, k_dist_sw);
         auto gpt_bnd = aerosol_optics.get_gpoint_bands();
-        yakl::c::parallel_for(yakl::c::Bounds<3>(nswgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nswgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
             aerosol_optics_tau(icol,ilay,igpt) = aer_tau_bnd(icol,ilay,gpt_bnd(igpt));
             aerosol_optics_ssa(icol,ilay,igpt) = aer_ssa_bnd(icol,ilay,gpt_bnd(igpt));
             aerosol_optics_g  (icol,ilay,igpt) = aer_asm_bnd(icol,ilay,gpt_bnd(igpt));
         });
     } else {
         aerosol_optics.alloc_2str(ncol, nlay, k_dist_sw.get_band_lims_wavenumber());
-        yakl::c::parallel_for(yakl::c::Bounds<3>(nswbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nswbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol) {
             aerosol_optics_tau(icol,ilay,ibnd) = aer_tau_bnd(icol,ilay,ibnd);
             aerosol_optics_ssa(icol,ilay,ibnd) = aer_ssa_bnd(icol,ilay,ibnd);
             aerosol_optics_g  (icol,ilay,ibnd) = aer_asm_bnd(icol,ilay,ibnd);
         });
     }
+
     aerosol_optics.delta_scale();
+
     aerosol_optics.increment(combined_optics);
 
     // Do the clearsky calculation before adding in clouds
@@ -96,7 +98,7 @@ void Rrtmgp::run_shortwave_rrtmgp (
     auto &cloud_optics_tau = cloud_optics.tau;
     auto &cloud_optics_ssa = cloud_optics.ssa;
     auto &cloud_optics_g   = cloud_optics.g  ;
-    yakl::c::parallel_for(yakl::c::Bounds<3>(nswgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
+    parallel_for(SimpleBounds<3>(nswgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
         cloud_optics_tau(icol,ilay,igpt) = cld_tau_gpt(icol,ilay,igpt);
         cloud_optics_ssa(icol,ilay,igpt) = cld_ssa_gpt(icol,ilay,igpt);
         cloud_optics_g  (icol,ilay,igpt) = cld_asm_gpt(icol,ilay,igpt);

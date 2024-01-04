@@ -1,6 +1,7 @@
 //
 // get the cloud radiation props data
 //
+#include <cstdlib>
 #include "YAKL_netcdf.h"
 #include "Cloud_rad_props.H"
 using yakl::fortran::parallel_for;
@@ -19,6 +20,11 @@ void CloudRadProps::initialize() {
     realHost2d ssa_sw_ice_h;
     realHost2d asm_sw_ice_h;
     realHost2d abs_lw_ice_h;
+
+    const char* erf_home = std::getenv("ERF_HOME");
+    auto erf_rad_data_dir = (std::string)erf_home + "/Source/Radiation/data/";
+    liquid_file = erf_rad_data_dir + "F_nwvl200_mu20_lam50_res64_t298_c080428.nc";
+    ice_file = erf_rad_data_dir + "iceoptics_c080917.nc";
 
     yakl::SimpleNetCDF liquid, ice;
     liquid.open(liquid_file, yakl::NETCDF_MODE_READ);

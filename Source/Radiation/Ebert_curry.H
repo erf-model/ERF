@@ -6,11 +6,12 @@ using yakl::fortran::SimpleBounds;
 
 class EbertCurry {
   public:
-  static constexpr real scalefactor = 1.;  //500._r8/917._r8
+   static constexpr real scalefactor = 1.;  //500._r8/917._r8
 
-  static void ec_ice_optics_sw(int ncol, int nlev, int nswbands, const real2d& cldn, const real2d& cicewp, const real2d& rei,
-                               const real3d& ice_tau, const real3d& ice_tau_w, const real3d& ice_tau_w_g, const real3d& ice_tau_w_f) {
-
+   static void ec_ice_optics_sw(int ncol, int nlev, int nswbands,
+                                const real2d& cldn, const real2d& cicewp, const real2d& rei,
+                                const real3d& ice_tau, const real3d& ice_tau_w,
+                                const real3d& ice_tau_w_g, const real3d& ice_tau_w_f) {
     real1d wavmin("wavmin", nswbands);
     real1d wavmax("wavmax", nswbands);
 
@@ -68,7 +69,6 @@ class EbertCurry {
     RadConstants::get_sw_spectral_boundaries(wavmin,wavmax,RadConstants::micrometer);
 
     for (auto ns=0; ns<nswbands; ++ns) {
-
        if(wavmax(ns) <= 0.7) {
           indxsl = 1;
        } else if(wavmax(ns) <= 1.25) {
@@ -78,7 +78,6 @@ class EbertCurry {
        } else if(wavmax(ns) > 2.38) {
           indxsl = 4;
        }
-
        parallel_for(SimpleBounds<2>(nlev, ncol), YAKL_LAMBDA (int k, int i) {
           real tmp1i, tmp2i, tmp3i, g;
           auto abarii = abari(indxsl);
@@ -111,8 +110,9 @@ class EbertCurry {
   }
 
 
-  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands, const real2d& cldn, const real2d& iclwpth,
-              const real2d& iciwpth, const real2d& rei, const real3d& abs_od) {
+  static void ec_ice_optics_lw(int ncol, int nlev, int nlwbands,
+                               const real2d& cldn, const real2d& iclwpth,
+                               const real2d& iciwpth, const real2d& rei, const real3d& abs_od) {
      real2d ficemr("ficemr",ncol,nlev);
      real2d cwp("cwp",ncol,nlev);
      real2d cldtau("cldtau",ncol,nlev);
@@ -142,7 +142,7 @@ class EbertCurry {
      });
 
      parallel_for(SimpleBounds<3>(nlwbands, ncol, nlev), YAKL_LAMBDA (int lwband, int icol, int ilev) {
-             abs_od(lwband,icol,ilev)=cldtau(icol,ilev);
+        abs_od(lwband,icol,ilev)=cldtau(icol,ilev);
      });
   }
 };
