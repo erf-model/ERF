@@ -47,6 +47,8 @@ Real compute_saturation_pressure (const Real T_b)
     return erf_esatw(T_b)*100.0;
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real compute_relative_humidity ()
 {
     return 1.0;
@@ -69,7 +71,8 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH)
     return q_v;
 }
 
-
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real Problem::compute_F_for_temp(const Real T_b, const Real p_b)
 {
     Real q_t = parms.qt_init;
@@ -102,8 +105,6 @@ Real Problem::compute_temperature (const Real p_b)
     return T_b;
 }
 
-
-
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 Real compute_dewpoint_temperature (const Real T_b, const Real RH)
@@ -119,16 +120,22 @@ Real compute_dewpoint_temperature (const Real T_b, const Real RH)
     return T_dp;
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real Problem::compute_theta(const Real T_b, const Real p_b)
 {
     return T_b*std::pow(p_0/p_b, R_d/Cp_d);
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real compute_temperature_from_theta(const Real theta, const Real p)
 {
     return theta*std::pow(p/p_0, R_d/Cp_d);
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 void Problem::compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q_v, Real& T_dp, Real& T_b)
 {
     T_b     = compute_temperature(pressure);
@@ -140,6 +147,8 @@ void Problem::compute_rho (const Real& pressure, Real& theta, Real& rho, Real& q
     T_dp    = compute_dewpoint_temperature(T_b, RH);
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real Problem::compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                          Real& T_dp, Real& T_b, const Real& dz, const Real& rho_k_minus_1)
 {
@@ -159,6 +168,8 @@ Real Problem::compute_F (const Real& p_k, const Real& p_k_minus_1, Real &theta_k
     return F;
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
 Real Problem::compute_p_k (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real& rho_k, Real& q_v_k,
                            Real& T_dp, Real& T_b, const Real dz, const Real rho_k_minus_1)
 {
@@ -348,7 +359,6 @@ Problem::init_custom_pert(
             const Real x_c = parms.x_c, y_c = parms.y_c, z_c = parms.z_c;
             const Real x_r = parms.x_r, y_r = parms.y_r, z_r = parms.z_r;
             const Real theta_pert = parms.theta_pert;
-            Real Rd_by_Cp = sc.rdOcp;
 
             amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k)
             {
@@ -359,7 +369,7 @@ Problem::init_custom_pert(
                 const amrex::Real y        = prob_lo[1] + (j + 0.5) * dx[1];
                 const amrex::Real z        = prob_lo[2] + (k + 0.5) * dx[2];
 
-                Real rad, delta_theta, theta_total, rho, RH, scalar;
+                Real rad, delta_theta, theta_total, rho, RH;
 
                 // Introduce the warm bubble. Assume that the bubble is pressure matched with the background
                 rad = 0.0;

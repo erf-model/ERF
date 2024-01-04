@@ -77,12 +77,20 @@ public:
         amrex::MultiFab& z_phys_nd,
         const amrex::Real& time) override;
 
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     amrex::Real compute_theta (const amrex::Real T_b, const amrex::Real p_b);
 
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     amrex::Real compute_temperature (const amrex::Real p_b);
 
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     amrex::Real compute_F_for_temp(const amrex::Real T_b, const amrex::Real p_b);
 
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     amrex::Real compute_p_k (amrex::Real& p_k,
                              const amrex::Real p_k_minus_1,
                              amrex::Real& theta_k,
@@ -92,7 +100,8 @@ public:
                              amrex::Real& T_b,
                              const amrex::Real dz,
                              const amrex::Real rho_k_minus_1);
-
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     amrex::Real compute_F (const amrex::Real& p_k,
                            const amrex::Real& p_k_minus_1,
                            amrex::Real &theta_k,
@@ -103,6 +112,8 @@ public:
                            const amrex::Real& dz,
                            const amrex::Real& rho_k_minus_1);
 
+    AMREX_FORCE_INLINE
+    AMREX_GPU_HOST_DEVICE
     void compute_rho (const amrex::Real& pressure,
                       amrex::Real &theta,
                       amrex::Real& rho,
@@ -110,7 +121,7 @@ public:
                       amrex::Real& T_dp,
                       amrex::Real& T_b);
 
-    void init_isentropic_hse_no_terrain(amrex::Real *theta,
+  void init_isentropic_hse_no_terrain(amrex::Real *theta,
                                         amrex::Real* r,
                                         amrex::Real* p,
                                         amrex::Real *q_v,
