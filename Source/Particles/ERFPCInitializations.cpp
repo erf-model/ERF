@@ -97,8 +97,8 @@ void ERFPC::initializeParticlesDefaultTracersWoA(const std::unique_ptr<amrex::Mu
 
                     Real x = plo[0] + (iv[0] + r[0])*dx[0];
                     Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv) 
-                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1))) 
+                    Real z = (*height_ptr)(iv)
+                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
                                          - (*height_ptr)(iv) );
 
                     ParticleType p;
@@ -200,14 +200,14 @@ void ERFPC::initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFa
 #endif
             for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
                 // This is a random choice to put them above the ground and let them fall
-                if (iv[2] == 13) { 
+                if (iv[2] == 13) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
                     Real x = plo[0] + (iv[0] + r[0])*dx[0];
                     Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv) 
-                             + r[2]*(   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1))) 
+                    Real z = (*height_ptr)(iv)
+                             + r[2]*(   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
                                       - (*height_ptr)(iv) );
 
                     ParticleType p;
@@ -233,7 +233,7 @@ void ERFPC::initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFa
 
             for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
                 // This is a random choice to put them above the ground and let them fall
-                if (iv[2] == 23) { 
+                if (iv[2] == 23) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
@@ -275,7 +275,7 @@ void ERFPC::initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFa
     }
 }
 
-/*! Uniform distribution: the number of particles per grid cell is specified 
+/*! Uniform distribution: the number of particles per grid cell is specified
  *  by "initial_particles_per_cell", and they are randomly distributed. */
 void ERFPC::initializeParticlesUniformDistribution(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
@@ -316,8 +316,8 @@ void ERFPC::initializeParticlesUniformDistribution(const std::unique_ptr<amrex::
 
                     Real x = plo[0] + (iv[0] + r[0])*dx[0];
                     Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv) 
-                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1))) 
+                    Real z = (*height_ptr)(iv)
+                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
                                          - (*height_ptr)(iv) );
 
                     ParticleType p;

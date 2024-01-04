@@ -69,15 +69,15 @@ void ERF::evolveTracers( int                                        a_lev,
                          const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
     if (m_use_tracer_particles) {
-      particleData[ERFParticleNames::tracers]->EvolveParticles(  a_lev, 
-                                                                 a_dt_lev, 
-                                                                 a_vars_new, 
+      particleData[ERFParticleNames::tracers]->EvolveParticles(  a_lev,
+                                                                 a_dt_lev,
+                                                                 a_vars_new,
                                                                  a_z_phys_nd );
     }
     if (m_use_hydro_particles) {
-      particleData[ERFParticleNames::hydro]->EvolveParticles( a_lev, 
-                                                              a_dt_lev, 
-                                                              a_vars_new, 
+      particleData[ERFParticleNames::hydro]->EvolveParticles( a_lev,
+                                                              a_dt_lev,
+                                                              a_vars_new,
                                                               a_z_phys_nd );
     }
     return;

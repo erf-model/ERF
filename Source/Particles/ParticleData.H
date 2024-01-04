@@ -84,12 +84,12 @@ class ParticleData
         }
 
         /*! Get species of a given name */
-        inline ERFPC* GetSpecies( const std::string& a_name ) 
+        inline ERFPC* GetSpecies( const std::string& a_name )
         {
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                amrex::Print()  << "ERROR: unable to fine particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -103,7 +103,7 @@ class ParticleData
             BL_PROFILE("ParticleData::operator[]");
             ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                amrex::Print()  << "ERROR: unable to fine particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -117,7 +117,7 @@ class ParticleData
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                amrex::Print()  << "ERROR: unable to fine particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -126,12 +126,12 @@ class ParticleData
         }
 
         /*! accessor */
-        inline const ERFPC* operator[] ( const std::string& a_name ) const 
+        inline const ERFPC* operator[] ( const std::string& a_name ) const
         {
             BL_PROFILE("ParticleData::operator[]");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \"" 
+                amrex::Print()  << "ERROR: unable to fine particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -157,21 +157,21 @@ class ParticleData
         }
 
         /*! Returns list of names of particle species */
-        inline const ParticlesNamesVector& getNames() const 
-        { 
+        inline const ParticlesNamesVector& getNames() const
+        {
             BL_PROFILE("ParticleData::getNames()");
-            return m_namelist; 
+            return m_namelist;
         }
 
         /*! Returns list of names of particle species that are unallocated */
-        inline ParticlesNamesList& getNamesUnalloc() 
-        { 
+        inline ParticlesNamesList& getNamesUnalloc()
+        {
             BL_PROFILE("ParticleData::getNamesUnalloc()");
-            return m_namelist_unalloc; 
+            return m_namelist_unalloc;
         }
 
         /*! queries if containe has species of a certain name */
-        inline bool contains( const std::string& a_name ) const 
+        inline bool contains( const std::string& a_name ) const
         {
             BL_PROFILE("ParticleData::contains()");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
@@ -189,7 +189,7 @@ class ParticleData
     private:
 
         /*! Vector of all particle species */
-        ParticleSpeciesMap m_particle_species; 
+        ParticleSpeciesMap m_particle_species;
         /*! Vector of particle species names */
         ParticlesNamesVector m_namelist;
         /*! List with names of unallocated species */

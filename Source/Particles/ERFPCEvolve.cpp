@@ -28,9 +28,9 @@ void ERFPC::EvolveParticles( int                                        a_lev,
 }
 
 /*! Uses midpoint method to advance particles using flow velocity. */
-void ERFPC::AdvectWithFlow( MultiFab*                           a_umac, 
-                            int                                 a_lev, 
-                            Real                                a_dt, 
+void ERFPC::AdvectWithFlow( MultiFab*                           a_umac,
+                            int                                 a_lev,
+                            Real                                a_dt,
                             const std::unique_ptr<MultiFab>&    a_z_height )
 {
     BL_PROFILE("ERFPCPC::AdvectWithUmac()");
@@ -163,8 +163,8 @@ void ERFPC::AdvectWithFlow( MultiFab*                           a_umac,
     }
 }
 
-void ERFPC::AdvectWithGravity(  int                                 a_lev, 
-                                Real                                a_dt, 
+void ERFPC::AdvectWithGravity(  int                                 a_lev,
+                                Real                                a_dt,
                                 const std::unique_ptr<MultiFab>&    a_z_height )
 {
     BL_PROFILE("ERFPC::AdvectWithGravity()");

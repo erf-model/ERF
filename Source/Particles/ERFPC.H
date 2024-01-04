@@ -46,12 +46,12 @@ struct ERFParticlesAssignor
     template <typename P>
     AMREX_GPU_HOST_DEVICE
     amrex::IntVect operator() (  P const& p,
-                                 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& plo,   
+                                 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& plo,
                                  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
                                  const amrex::Box& domain ) const noexcept
     {
         /* TODO: What is this about? */
-        amrex::IntVect iv( 
+        amrex::IntVect iv(
             AMREX_D_DECL(   int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                             int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
                             p.idata(ERFParticlesIntIdx::k) ) );
@@ -72,13 +72,13 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
 
         /*! Constructor */
         ERFPC ( amrex::ParGDBBase* a_gdb,
-                const std::string& a_name = "particles" ) 
+                const std::string& a_name = "particles" )
             : amrex::ParticleContainer< ERFParticlesRealIdx::ncomps,
                                         ERFParticlesIntIdx::ncomps,
                                         0,
                                         0,
                                         amrex::DefaultAllocator,
-                                        ERFParticlesAssignor> (a_gdb) 
+                                        ERFParticlesAssignor> (a_gdb)
         {
             BL_PROFILE("ERFPCPC::ERFPC()");
             m_name = a_name;
@@ -89,7 +89,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         ERFPC ( const amrex::Geometry&            a_geom,
                 const amrex::DistributionMapping& a_dmap,
                 const amrex::BoxArray&            a_ba,
-                const std::string&                a_name = "particles" ) 
+                const std::string&                a_name = "particles" )
             : amrex::ParticleContainer< ERFParticlesRealIdx::ncomps,
                                         ERFParticlesIntIdx::ncomps,
                                         0,
@@ -106,9 +106,9 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         virtual void InitializeParticles(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Evolve particles for one time step */
-        virtual void EvolveParticles(   int, 
-                                        amrex::Real, 
-                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&, 
+        virtual void EvolveParticles(   int,
+                                        amrex::Real,
+                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! Get real-type particle attribute names */
@@ -119,16 +119,16 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         }
 
         /*! Specify if particles should advect with flow */
-        inline void setAdvectWithFlow (bool a_flag) 
-        { 
+        inline void setAdvectWithFlow (bool a_flag)
+        {
             BL_PROFILE("ERFPCPC::setAdvectWithFlow()");
-            m_advect_w_flow = a_flag; 
+            m_advect_w_flow = a_flag;
         }
         /*! Specify if particles fall under gravity */
-        inline void setAdvectWithGravity (bool a_flag) 
-        { 
+        inline void setAdvectWithGravity (bool a_flag)
+        {
             BL_PROFILE("ERFPCPC::setAdvectWithGravity()");
-            m_advect_w_gravity = a_flag; 
+            m_advect_w_gravity = a_flag;
         }
 
     protected:
@@ -137,7 +137,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         bool m_advect_w_gravity;            /*!< advect under gravitational force */
 
         std::string m_name;                 /*!< name of this particle species */
-        
+
         std::string m_initialization_type;  /*!< initial particle distribution type */
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
@@ -148,14 +148,14 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         void initializeParticlesUniformDistribution(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Uses midpoint method to advance particles using flow velocity. */
-        void AdvectWithFlow(    amrex::MultiFab*, 
-                                int, 
-                                amrex::Real, 
+        void AdvectWithFlow(    amrex::MultiFab*,
+                                int,
+                                amrex::Real,
                                 const std::unique_ptr<amrex::MultiFab>& );
 
         /*! Uses midpoint method to advance particles falling under gravity. */
-        void AdvectWithGravity( int, 
-                                amrex::Real, 
+        void AdvectWithGravity( int,
+                                amrex::Real,
                                 const std::unique_ptr<amrex::MultiFab>& );
 
     private:

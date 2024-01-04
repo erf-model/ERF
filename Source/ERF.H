@@ -678,12 +678,12 @@ private:
     void readTracersParams();
 
     /*! Initialize tracer and hydro particles */
-    void initializeTracers ( amrex::ParGDBBase*, 
+    void initializeTracers ( amrex::ParGDBBase*,
                              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
     /*! Evolve tracers and hydro particles */
-    void evolveTracers( int, 
-                        amrex::Real, 
-                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&, 
+    void evolveTracers( int,
+                        amrex::Real,
+                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
 #endif
