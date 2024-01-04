@@ -9,6 +9,8 @@
 #include "Rad_constants.H"
 #include <complex>
 #include <cstring>
+#include <fstream>
+
 using yakl::fortran::parallel_for;
 using yakl::fortran::SimpleBounds;
 
@@ -86,6 +88,7 @@ class PhysProp {
     // array.
     std::vector<std::string> uniquefilenames;
 
+  public:
     void physprop_accum_unique_files(const std::string& filename,
                                      const std::string& type)
     {
@@ -109,7 +112,7 @@ class PhysProp {
     void physprop_init()
     {
       int numphysprops = uniquefilenames.size();
-      physprop.reserve(numphysprops);
+      physprop.resize(numphysprops);
 
       for(auto fileindex = 0; fileindex < numphysprops; ++fileindex) {
           physprop[fileindex].sourcefile = uniquefilenames[fileindex];
@@ -121,278 +124,322 @@ class PhysProp {
     // If found, return it's index in the list.  Otherwise return -1.
     int physprop_get_id(std::string filename)
     {
-       auto physprop_get_id = -1;
+       auto physprop_id = -1;
        auto numphysprops = uniquefilenames.size();
        for(auto iphysprop = 0; iphysprop < numphysprops; ++iphysprop) {
-         if(uniquefilenames[iphysprop] == filename) {
-           physprop_get_id = iphysprop;
-           return 0;
+         if(uniquefilenames[iphysprop] == filename) { 
+           physprop_id = iphysprop;
+           break;
          }
        }
-      return physprop_get_id;
+      return physprop_id;
    }
 
-   void get_sourcefile(int id, std::string sourcefile)
+   void get_sourcefile(int& id, std::string& sourcefile)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sourcefile: illegal ID value %d\n", id);
      sourcefile = physprop[id].sourcefile;
    }
 
-   void get_opticstype(int id, std::string opticstype)
+   void get_opticstype(int& id, std::string& opticstype)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_opticstype: illegal ID value %d\n", id);
      opticstype  = physprop[id].opticsmethod;
    }
 
-   void get_sw_hygro_ext(int id, real2d& sw_hygro_ext)
+   void get_sw_hygro_ext(int& id, real2d& sw_hygro_ext)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_hygro_ext: illegal ID value %d\n", id);
      sw_hygro_ext = physprop[id].sw_hygro_ext;
    }
 
-   void get_sw_hygro_ssa(int id, real2d& sw_hygro_ssa)
+   void get_sw_hygro_ssa(int& id, real2d& sw_hygro_ssa)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_hygro_ssa: illegal ID value %d\n", id);
      sw_hygro_ssa = physprop[id].sw_hygro_ssa;
    }
 
-   void get_sw_hygro_asm(int id, real2d& sw_hygro_asm)
+   void get_sw_hygro_asm(int& id, real2d& sw_hygro_asm)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_hygro_asm: illegal ID value %d\n", id);
      sw_hygro_asm = physprop[id].sw_hygro_asm;
    }
 
-   void get_lw_hygro_abs(int id, real2d& lw_hygro_abs)
+   void get_lw_hygro_abs(int& id, real2d& lw_hygro_abs)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_lw_hygro_abs: illegal ID value %d\n", id);
      lw_hygro_abs = physprop[id].lw_hygro_abs;
    }
 
-   void get_sw_nonhygro_ext(int id, real1d& sw_nonhygro_ext)
+   void get_sw_nonhygro_ext(int& id, real1d& sw_nonhygro_ext)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_nonhygro_ext: illegal ID value %d\n", id);
      sw_nonhygro_ext = physprop[id].sw_nonhygro_ext;
    }
 
-   void get_sw_nonhygro_ssa(int id, real1d& sw_nonhygro_ssa)
+   void get_sw_nonhygro_ssa(int& id, real1d& sw_nonhygro_ssa)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_nonhygro_ssa: illegal ID value %d\n", id);
      sw_nonhygro_ssa = physprop[id].sw_nonhygro_ssa;
    }
 
-   void get_sw_nonhygro_asm(int id, real1d& sw_nonhygro_asm)
+   void get_sw_nonhygro_asm(int& id, real1d& sw_nonhygro_asm)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_nonhygro_asm: illegal ID value %d\n", id);
      sw_nonhygro_asm = physprop[id].sw_nonhygro_asm;
    }
 
-   void get_sw_nonhygro_scat(int id, real1d& sw_nonhygro_scat)
+   void get_sw_nonhygro_scat(int& id, real1d& sw_nonhygro_scat)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_nonhygro_scat: illegal ID value %d\n", id);
      sw_nonhygro_scat = physprop[id].sw_nonhygro_scat;
    }
 
-   void get_sw_nonhygro_ascat(int id, real1d& sw_nonhygro_ascat)
+   void get_sw_nonhygro_ascat(int& id, real1d& sw_nonhygro_ascat)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sw_nonhygro_ascat: illegal ID value %d\n", id);
      sw_nonhygro_ascat = physprop[id].sw_nonhygro_ascat;
    }
 
-   void get_lw_abs(int id, real1d& lw_abs)
+   void get_lw_abs(int& id, real1d& lw_abs)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_lw_abs: illegal ID value %d\n", id);
      lw_abs = physprop[id].lw_abs;
    }
 
-   void get_ref_real_aer_sw(int id, real1d& ref_real_aer_sw)
+   void get_ref_real_aer_sw(int& id, real1d& ref_real_aer_sw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_ref_real_aer_sw: illegal ID value %d\n", id);
      ref_real_aer_sw = physprop[id].refindex_real_aer_sw;
    }
 
-   void get_ref_real_aer_lw(int id, real1d& ref_real_aer_lw)
+   void get_ref_real_aer_lw(int& id, real1d& ref_real_aer_lw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_ref_real_aer_lw: illegal ID value %d\n", id);
      ref_real_aer_lw = physprop[id].refindex_real_aer_lw;
    }
 
-   void get_ref_im_aer_sw(int id, real1d& ref_im_aer_sw)
+   void get_ref_im_aer_sw(int& id, real1d& ref_im_aer_sw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_ref_im_aer_sw: illegal ID value %d\n", id);
      ref_im_aer_sw = physprop[id].refindex_im_aer_sw;
    }
 
-   void get_ref_im_aer_lw(int id, real1d& ref_im_aer_lw)
+   void get_ref_im_aer_lw(int& id, real1d& ref_im_aer_lw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_ref_im_aer_lw: illegal ID value %d\n", id);
      ref_im_aer_lw = physprop[id].refindex_im_aer_lw;
    }
 
-   void get_r_sw_ext(int id, real2d& r_sw_ext)
+   void get_r_sw_ext(int& id, real2d& r_sw_ext)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+       printf("get_r_sw_ext: illegal ID value %d\n", id);
      r_sw_ext = physprop[id].r_sw_ext;
    }
 
-   void get_r_sw_scat(int id, real2d& r_sw_scat)
+   void get_r_sw_scat(int& id, real2d& r_sw_scat)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_r_sw_scat: illegal ID value %d\n", id);
      r_sw_scat = physprop[id].r_sw_scat;
    }
 
-   void get_r_sw_ascat(int id, real2d& r_sw_ascat)
+   void get_r_sw_ascat(int& id, real2d& r_sw_ascat)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_r_sw_ascat: illegal ID value %d\n", id);
      r_sw_ascat = physprop[id].r_sw_ascat;
    }
 
-   void get_r_lw_abs(int id, real2d& r_lw_abs)
+   void get_r_lw_abs(int& id, real2d& r_lw_abs)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_r_lw_abs: illegal ID value %d\n", id);
      r_lw_abs = physprop[id].r_lw_abs;
    }
 
-   void get_mu(int id, real1d& mu)
+   void get_mu(int& id, real1d& mu)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_mu: illegal ID value %d\n", id);
      mu = physprop[id].mu;
    }
 
-   void get_extpsw(int id, real4d& extpsw)
+   void get_extpsw(int& id, real4d& extpsw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_expsw: illegal ID value %d\n", id);
      extpsw = physprop[id].extpsw;
    }
 
-   void get_abspsw(int id, real4d& abspsw)
+   void get_abspsw(int& id, real4d& abspsw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_abspsw: illegal ID value %d\n", id);
      abspsw = physprop[id].abspsw;
    }
 
-   void get_asmpsw(int id, real4d& asmpsw)
+   void get_asmpsw(int& id, real4d& asmpsw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_asmpsw: illegal ID value %d\n", id);
      asmpsw = physprop[id].asmpsw;
    }
 
-   void get_absplw(int id, real4d& absplw)
+   void get_absplw(int& id, real4d& absplw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_absplw: illegal ID value %d\n", id);
      absplw = physprop[id].absplw;
    }
 
-   void get_refrtabsw(int id, real2d& refrtabsw)
+   void get_refrtabsw(int& id, real2d& refrtabsw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_refrtabsw: illegal ID value %d\n", id);
      refrtabsw = physprop[id].refrtabsw;
    }
 
-   void get_refitabsw(int id, real2d& refitabsw)
+   void get_refitabsw(int& id, real2d& refitabsw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_refitabsw: illegal ID value %d\n", id);
      refitabsw = physprop[id].refitabsw;
    }
 
-   void get_refrtablw(int id, real2d& refrtablw)
+   void get_refrtablw(int& id, real2d& refrtablw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+       printf("get_refrtablw: illegal ID value %d\n", id);
      refrtablw = physprop[id].refrtablw;
    }
 
-   void get_refitablw(int id, real2d& refitablw)
+   void get_refitablw(int& id, real2d& refitablw)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("ger_refitablw: illegal ID value %d\n", id);
      refitablw = physprop[id].refitablw;
    }
 
-   void get_aername(int id, std::string aername)
+   void get_aername(int& id, std::string& aername)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_aername: illegal ID value %d\n", id);
      aername = physprop[id].aername;
    }
 
-   void get_density_aer(int id, real& density_aer)
+   void get_density_aer(int& id, real& density_aer)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_density_aer: illegal ID value %d\n", id);
      density_aer = physprop[id].density_aer;
    }
 
-   void get_hygro_aer(int id, real& hygro_aer)
+   void get_hygro_aer(int& id, real& hygro_aer)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_hygro_aer: illegal ID value %d\n", id);
      hygro_aer = physprop[id].hygro_aer;
    }
 
-   void get_dryrad_aer(int id, real& dryrad_aer)
+   void get_dryrad_aer(int& id, real& dryrad_aer)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_dryrad_aer: illegal ID value %d\n", id);
      dryrad_aer = physprop[id].dryrad_aer;
    }
 
-   void get_dispersion_aer(int id, real& dispersion_aer)
+   void get_dispersion_aer(int& id, real& dispersion_aer)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_dispersion_aer: illegal ID value %d\n", id);
      dispersion_aer = physprop[id].dispersion_aer;
    }
 
-   void get_num_to_mass_aer(int id, real& num_to_mass_aer)
+   void get_num_to_mass_aer(int& id, real& num_to_mass_aer)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_num_to_mass_aer: illegal ID value %d\n", id);
      num_to_mass_aer = physprop[id].num_to_mass_aer;
    }
 
-   void get_ncoef(int id, int& ncoef)
+   void get_ncoef(int& id, int& ncoef)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_ncoef: illegal ID value %d\n", id);
      ncoef = physprop[id].ncoef;
    }
 
-   void get_prefr(int id, int& prefr)
+   void get_prefr(int& id, int& prefr)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_prefr: illegal ID value %d\n", id);
      prefr = physprop[id].prefr;
    }
 
-   void get_prefi(int id, int& prefi)
+   void get_prefi(int& id, int& prefi)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+       printf("get_prefi: illegal ID value %d\n", id);
      prefi = physprop[id].prefi;
    }
 
-   void get_sigmag(int id, real& sigmag)
+   void get_sigmag(int& id, real& sigmag)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_sigmag: illegal ID value %d\n", id);
      sigmag = physprop[id].sigmag;
    }
 
-   void get_dgnum(int id, real& dgnum)
+   void get_dgnum(int& id, real& dgnum)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_dgnum: illegal ID value %d\n", id);
      dgnum = physprop[id].dgnum;
    }
 
-   void get_dgnumlo(int id, real& dgnumlo)
+   void get_dgnumlo(int& id, real& dgnumlo)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_dgnumlo: illegal ID value %d\n", id);
      dgnumlo = physprop[id].dgnumlo;
    }
 
-   void get_dgnumhi(int id, real& dgnumhi)
+   void get_dgnumhi(int& id, real& dgnumhi)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_dgnumhi: illegal ID value %d\n", id);
      dgnumhi = physprop[id].dgnumhi;
    }
 
-   void get_rhcrystal(int id, real& rhcrystal)
+   void get_rhcrystal(int& id, real& rhcrystal)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_rhcrystal: illegal ID value %d\n", id);
      rhcrystal = physprop[id].rhcrystal;
    }
 
-   void get_rhdeliques(int id, real& rhdeliques)
+   void get_rhdeliques(int& id, real& rhdeliques)
    {
-     if (id <= 0 || id > physprop.size()) printf("illegal ID value %d\n", id);
+     if (id < 0 || id > physprop.size()) 
+        printf("get_rhdeliques: illegal ID value %d\n", id);
      rhdeliques = physprop[id].rhdeliques;
    }
 
@@ -403,11 +450,9 @@ class PhysProp {
       using charHost1d = FArray<char,1,yakl::memHost>;
       yakl::SimpleNetCDF prop;
       prop.open(phys_prop.sourcefile, yakl::NETCDF_MODE_READ);
-
       charHost1d temp;
       prop.read(temp, "opticsmethod");
-      phys_prop.opticsmethod = "";
-      for (auto ichar = 0 ; ichar <= temp.extent(0); ichar++)
+      for (auto ichar = 1 ; ichar <= temp.extent(0); ichar++)
          if (!isspace(temp(ichar))) phys_prop.opticsmethod += temp(ichar);
 
       if(strcmp(phys_prop.opticsmethod.c_str(),"zero") == 0) {
@@ -456,20 +501,17 @@ class PhysProp {
      // interpolate onto cam's rh mesh
      for(auto kbnd = 0; kbnd < nswbands; ++kbnd) {
         for(auto krh = 0; krh < nrh; ++krh) {
-          fswe(krh) = fsw_ext(krh, kbnd)/fsw_ext(1, kbnd);
-          fsws(krh) = fsw_ssa(krh, kbnd)/fsw_ssa(1, kbnd);
-          fswa(krh) = fsw_asm(krh, kbnd)/fsw_asm(1, kbnd);
+          fswe(krh) = fsw_ext(krh,kbnd)/fsw_ext(1,kbnd);
+          fsws(krh) = fsw_ssa(krh,kbnd)/fsw_ssa(1,kbnd);
+          fswa(krh) = fsw_asm(krh,kbnd)/fsw_asm(1,kbnd);
         }
 
         // interpolation
         for(auto krh = 0; krh < nrh; ++krh) {
-           auto rh = 1.0 / nrh * (krh - 1);
-           phys_prop.sw_hygro_ext(krh, kbnd) =
-              exp_interpol( frh, fswe, rh ) * fsw_ext(1, kbnd);
-           phys_prop.sw_hygro_ssa(krh,kbnd) =
-              lin_interpol( frh, fsws, rh ) * fsw_ssa(1, kbnd);
-           phys_prop.sw_hygro_asm(krh,kbnd) =
-              lin_interpol( frh, fswa, rh ) * fsw_asm(1, kbnd);
+           auto rh = 1.0/nrh*(krh-1);
+           phys_prop.sw_hygro_ext(krh,kbnd) = exp_interpol(frh,fswe,rh)*fsw_ext(1,kbnd);
+           phys_prop.sw_hygro_ssa(krh,kbnd) = lin_interpol(frh,fsws,rh)*fsw_ssa(1,kbnd);
+           phys_prop.sw_hygro_asm(krh,kbnd) = lin_interpol(frh,fswa,rh)*fsw_asm(1,kbnd);
         }
      }
 
@@ -502,11 +544,27 @@ class PhysProp {
    {
      auto nbnd      = prop.getDimSize( "lw_band" );
      auto nswbands  = prop.getDimSize( "sw_band" );
+     realHost2d ext_sw, ssa_sw, asm_sw, abs_lw;
 
-     prop.read( phys_prop.sw_nonhygro_ext, "ext_sw");
-     prop.read( phys_prop.sw_nonhygro_ssa, "ssa_sw");
-     prop.read( phys_prop.sw_nonhygro_asm, "asm_sw");
-     prop.read( phys_prop.lw_abs,          "abs_lw");
+     phys_prop.sw_nonhygro_ext = real1d("sw_nonhygro_ext", nswbands);
+     phys_prop.sw_nonhygro_ssa = real1d("sw_nonhygro_ssa", nswbands);
+     phys_prop.sw_nonhygro_asm = real1d("sw_nonhygro_asm", nswbands);
+     phys_prop.lw_abs          = real1d("lw_abs", nbnd);
+
+     prop.read( ext_sw, "ext_sw");
+     prop.read( ssa_sw, "ssa_sw");
+     prop.read( asm_sw, "asm_sw");
+     prop.read( abs_lw, "abs_lw");
+
+     parallel_for (SimpleBounds<1>(nswbands), YAKL_LAMBDA (int i) {
+       phys_prop.sw_nonhygro_ext(i) = ext_sw(i,1);
+       phys_prop.sw_nonhygro_ssa(i) = ssa_sw(i,1);
+       phys_prop.sw_nonhygro_asm(i) = asm_sw(i,1);
+     });
+
+     parallel_for (SimpleBounds<1>(nbnd), YAKL_LAMBDA (int i) {
+       phys_prop.lw_abs(i) = abs_lw(i,1);
+     });
 
      // read refractive index data if available
      refindex_aer_init(phys_prop, prop);
@@ -553,16 +611,16 @@ class PhysProp {
     // temp data from hygroscopic file before interpolation onto cam-rh-mesh
     int nfilerh; // number of rh values in file
     real1d frh;
-    real2d fsw_ext;
-    real2d fsw_ssa;
-    real2d fsw_asm;
-    real2d flw_abs;
-
-    real rh; // real rh value on cam rh mesh (indexvalue)
+    real2d fsw_ext, fsw_ssa, fsw_asm, flw_abs;
 
     auto nrh      = RadConstants::nrh;
     auto nlwbands = prop.getDimSize( "lw_band" );
     auto nswbands = prop.getDimSize( "sw_band" );
+
+    phys_prop.sw_hygro_ext = real2d("sw_hygro_ext",nrh,nswbands);
+    phys_prop.sw_hygro_ssa = real2d("sw_hygro_ssa",nrh,nswbands);
+    phys_prop.sw_hygro_asm = real2d("sw_hygro_asm",nrh,nswbands);
+    phys_prop.lw_hygro_abs = real2d("lw_hygro_abs",nrh,nlwbands);
 
     prop.read( fsw_ext, "ext_sw");
     prop.read( fsw_ssa, "ssa_sw");
@@ -570,41 +628,32 @@ class PhysProp {
     prop.read( flw_abs, "abs_lw");
     prop.read( frh,     "rh");
 
-    real1d fswe("",nrh),
-           fsws("",nrh),
-           fswa("",nrh),
-           flwa("",nrh);
+    real1d fswe("",nrh), fsws("",nrh),
+           fswa("",nrh), flwa("",nrh);
 
     // interpolate onto cam's rh mesh
-    for(auto kbnd = 0; kbnd < nswbands; ++kbnd) {
-       for(auto krh = 0; krh < nrh; ++krh) {
-         fswe(krh) = fsw_ext(krh,kbnd) / fsw_ext(1,kbnd);
-         fsws(krh) = fsw_ssa(krh,kbnd) / fsw_ssa(1,kbnd);
-         fswa(krh) = fsw_asm(krh,kbnd) / fsw_asm(1,kbnd);
-       }
+    parallel_for (SimpleBounds<2> (nswbands, nrh), YAKL_LAMBDA (int kbnd, int krh) {
+      fswe(krh) = fsw_ext(krh,kbnd) / fsw_ext(1,kbnd);
+      fsws(krh) = fsw_ssa(krh,kbnd) / fsw_ssa(1,kbnd);
+      fswa(krh) = fsw_asm(krh,kbnd) / fsw_asm(1,kbnd);
+    });
+    
+    parallel_for (SimpleBounds<2> (nswbands, nrh), YAKL_LAMBDA (int kbnd, int krh) {
+      auto rh = 1.0 / nrh * (krh - 1);
+      phys_prop.sw_hygro_ext(krh,kbnd) = exp_interpol( frh, fswe, rh ) * fsw_ext(1, kbnd);
+      phys_prop.sw_hygro_ssa(krh,kbnd) = lin_interpol( frh, fswe, rh ) * fsw_ssa(1, kbnd);
+      phys_prop.sw_hygro_asm(krh,kbnd) = lin_interpol( frh, fswa, rh ) * fsw_asm(1, kbnd);
+    });
 
-       for(auto krh = 0; krh < nrh; ++krh) {
-          rh = 1.0 / nrh * (krh - 1);
-          phys_prop.sw_hygro_ext(krh,kbnd) =
-             exp_interpol( frh, fswe, rh ) * fsw_ext(1, kbnd);
-          phys_prop.sw_hygro_ssa(krh,kbnd) =
-             lin_interpol( frh, fswe, rh ) * fsw_ssa(1, kbnd);
-          phys_prop.sw_hygro_asm(krh,kbnd) =
-             lin_interpol( frh, fswa, rh ) * fsw_asm(1, kbnd);
-       }
-    }
+    // interpolate long wave 
+    parallel_for (SimpleBounds<2> (nlwbands, nrh), YAKL_LAMBDA (int kbnd, int krh) {
+      flwa(krh) = flw_abs(krh,kbnd) / flw_abs(1,kbnd);
+    });
 
-    for(auto kbnd = 0; kbnd < nlwbands; ++kbnd) {
-       for(auto krh = 0; krh < nrh; ++krh) {
-         flwa(krh) = flw_abs(krh,kbnd) / flw_abs(1,kbnd);
-       }
-
-      for(auto krh = 0; krh < nrh; ++krh) {
-         rh = 1.0 / nrh * (krh - 1);
-         phys_prop.lw_hygro_abs(krh,kbnd) =
-            exp_interpol( frh, flwa, rh ) * flw_abs(1, kbnd);
-      }
-    }
+    parallel_for (SimpleBounds<2> (nlwbands, nrh), YAKL_LAMBDA (int kbnd, int krh) {
+      auto rh = 1.0 / nrh * (krh - 1);
+      phys_prop.lw_hygro_abs(krh,kbnd) = exp_interpol( frh, flwa, rh ) * flw_abs(1, kbnd);
+    });
 
     // read refractive index data if available
     refindex_aer_init(phys_prop, prop);
@@ -616,8 +665,8 @@ class PhysProp {
   // Read optics data of type 'nonhygro'
   void nonhygro_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
   {
-    auto nbnd         = prop.getDimSize( "lw_band" );
-    auto nswbands     = prop.getDimSize( "sw_band" );
+    auto nlwbands = prop.getDimSize( "lw_band" );
+    auto nswbands = prop.getDimSize( "sw_band" );
 
     prop.read( phys_prop.sw_nonhygro_ext, "ext_sw");
     prop.read( phys_prop.sw_nonhygro_ssa, "ssa_sw");
@@ -642,50 +691,70 @@ class PhysProp {
  }
 
  // Read optics data for modal aerosols
- void modal_optics_init(physprop_t& props, yakl::SimpleNetCDF& prop)
+ void modal_optics_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
  {
-     auto ncoef        = prop.getDimSize( "coef_number" );
-     auto nbnd         = prop.getDimSize( "lw_band" );
-     auto nswbands     = prop.getDimSize( "sw_band" );
-     props.prefr        = prop.getDimSize( "refindex_real" );
-     props.prefi        = prop.getDimSize( "refindex_im" );
+     realHost5d extpsw, abspsw, asmpsw, absplw;
+     auto nlwbnd = prop.getDimSize( "lw_band" );
+     auto nswbnd = prop.getDimSize( "sw_band" );
+     auto ncoef  = prop.getDimSize( "coef_number" );
+     auto prefr  = prop.getDimSize( "refindex_real" );
+     auto prefi  = prop.getDimSize( "refindex_im" );
+     phys_prop.ncoef = ncoef;
+     phys_prop.prefr = prefr;
+     phys_prop.prefi = prefi;
 
-     prop.read(props.extpsw,      "extpsw" );
-     prop.read(props.abspsw,      "abspsw" );
-     prop.read(props.asmpsw,      "asmpsw" );
+     prop.read(extpsw, "extpsw" );
+     prop.read(abspsw, "abspsw" );
+     prop.read(asmpsw, "asmpsw" );
+     prop.read(absplw, "absplw" );
 
-     prop.read(props.absplw,      "absplw" );
-     prop.read(props.refrtabsw,   "refindex_real_sw" );
-     prop.read(props.refitabsw,   "refindex_im_sw" );
+     phys_prop.extpsw = real4d("extpsw", nswbnd, prefi, prefr, ncoef);
+     phys_prop.abspsw = real4d("abspsw", nswbnd, prefi, prefr, ncoef);
+     phys_prop.asmpsw = real4d("asmpsw", nswbnd, prefi, prefr, ncoef);
+     phys_prop.absplw = real4d("absplw", nlwbnd, prefi, prefr, ncoef);
 
-     prop.read(props.refrtablw,   "refindex_real_lw" );
-     prop.read(props.refitablw,   "refindex_im_lw" );
+     parallel_for (SimpleBounds<4>(nswbnd, prefi, prefr, ncoef), 
+                   YAKL_LAMBDA (int i, int j, int k, int l) {
+        phys_prop.extpsw(i,j,k,l) = extpsw(i,1,j,k,l);
+        phys_prop.abspsw(i,j,k,l) = abspsw(i,1,j,k,l);
+        phys_prop.asmpsw(i,j,k,l) = asmpsw(i,1,j,k,l);
+     });
 
-     prop.read(props.sigmag,      "sigmag" );
-     prop.read(props.dgnum,       "dgnum" );
+     parallel_for (SimpleBounds<4>(nlwbnd, prefi, prefr, ncoef), 
+                   YAKL_LAMBDA (int i, int j, int k, int l) {
+        phys_prop.absplw(i,j,k,l) = absplw(i,1,j,k,l);
+     });
 
-     prop.read(props.dgnumlo,     "dgnumlo" );
-     prop.read(props.dgnumhi,     "dgnumhi" );
+     prop.read(phys_prop.refrtabsw,   "refindex_real_sw" );
+     prop.read(phys_prop.refitabsw,   "refindex_im_sw" );
+     prop.read(phys_prop.refrtablw,   "refindex_real_lw" );
+     prop.read(phys_prop.refitablw,   "refindex_im_lw" );
 
-     prop.read(props.rhcrystal,   "rhcrystal" );
-     prop.read(props.rhdeliques,  "rhdeliques" );
+     prop.read(phys_prop.sigmag,      "sigmag" );
+     prop.read(phys_prop.dgnum,       "dgnum" );
+
+     prop.read(phys_prop.dgnumlo,     "dgnumlo" );
+     prop.read(phys_prop.dgnumhi,     "dgnumhi" );
+
+     prop.read(phys_prop.rhcrystal,   "rhcrystal" );
+     prop.read(phys_prop.rhdeliques,  "rhdeliques" );
  }
 
- void bulk_props_init(physprop_t& physprop, yakl::SimpleNetCDF& prop)
+ void bulk_props_init(physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
  {
      using charHost1d = FArray<char,1,yakl::memHost>;
      charHost1d temp;
      prop.read(temp, "name");
-     physprop.aername = "";
-     for (auto ichar = 0 ; ichar <= temp.extent(0); ichar++)
-        if (!isspace(temp(ichar))) physprop.aername += temp(ichar);
+     phys_prop.aername = "";
+     for (auto ichar = 1 ; ichar <= temp.extent(0); ichar++)
+        if (!isspace(temp(ichar))) phys_prop.aername += temp(ichar);
 
      //  Read props for bulk aerosols
-     prop.read( physprop.density_aer,       "density" );
-     prop.read( physprop.dispersion_aer,    "sigma_logr" );
-     prop.read( physprop.dryrad_aer,        "dryrad" );
-     prop.read( physprop.hygro_aer,         "hygroscopicity" );
-     prop.read( physprop.num_to_mass_aer,   "num_to_mass_ration" );
+     prop.read( phys_prop.density_aer,       "density" );
+     prop.read( phys_prop.dispersion_aer,    "sigma_logr" );
+     prop.read( phys_prop.dryrad_aer,        "dryrad" );
+     prop.read( phys_prop.hygro_aer,         "hygroscopicity" );
+     prop.read( phys_prop.num_to_mass_aer,   "num_to_mass_ratio" );
  }
 
  // Purpose:
@@ -715,8 +784,8 @@ class PhysProp {
    }
 
    // interpolate
-   auto a = (  log( f(k+1) / f(k) )  ) / ( x(k+1) - x(k) );
-   return f(k) * exp( a * (y - x(k)) );
+   auto a = (log(f(k+1)/f(k)))/(x(k+1)-x(k));
+   return f(k)*exp(a*(y-x(k)));
  }
 
  //Purpose:
@@ -757,26 +826,23 @@ class PhysProp {
  {
    const int nrh_test = 36;
    int krh;
-   real rh;
    real1d rh_test("rh_test", nrh_test);
-   real exti, ssai, asmi, wrh;
-
    auto nrh = ext.extent(0);
 
-   for(auto krh_test = 0; krh_test < nrh_test; ++krh_test) {
-      rh_test(krh_test) = sqrt(sqrt(sqrt(sqrt(((krh_test - 1.0) / (nrh_test - 1))))));
-   }
+   parallel_for (SimpleBounds<1> (nrh_test), YAKL_LAMBDA (int krh_test) {
+     rh_test(krh_test) = sqrt(sqrt(sqrt(sqrt(((krh_test - 1.0) / (nrh_test - 1))))));
+   });
 
    // loop through test rh values
-   for(auto krh_test = 0; krh_test < nrh_test; ++krh_test) {
-      // find corresponding rh index
-      rh = rh_test(krh_test);
-      krh = std::min(floor( (rh) * nrh ) + 1, static_cast<real>(nrh - 1));
-      wrh = (rh) *nrh - krh;
-      exti = ext(krh + 1) * (wrh + 1) - ext(krh) * wrh;
-      ssai = ssa(krh + 1) * (wrh + 1) - ssa(krh) * wrh;
-      asmi = asmin(krh + 1) * (wrh + 1) - asmin(krh) * wrh;
-   }
+   parallel_for (SimpleBounds<1> (nrh_test), YAKL_LAMBDA (int krh_test) {
+     // find corresponding rh index
+     auto rh = rh_test(krh_test);
+     auto krh = std::min(floor( (rh) * nrh ) + 1, static_cast<real>(nrh - 1));
+     auto wrh = (rh) *nrh - krh;
+     auto exti = ext(krh + 1) * (wrh + 1) - ext(krh) * wrh;
+     auto ssai = ssa(krh + 1) * (wrh + 1) - ssa(krh) * wrh;
+     auto asmi = asmin(krh + 1) * (wrh + 1) - asmin(krh) * wrh;
+   });
  }
 };
 

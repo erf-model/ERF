@@ -42,16 +42,16 @@ class Radiation {
    ~Radiation () = default;
 
    // init
-   void initialize (const amrex::MultiFab& cons_in,
-                    amrex::MultiFab& qmoist,
-                    const amrex::BoxArray& grids,
-                    const amrex::Geometry& geom,
-                    const amrex::Real& dt_advance,
-                    const bool& do_sw_rad,
-                    const bool& do_lw_rad,
-                    const bool& do_aero_rad,
-                    const bool& do_snow_opt,
-                    const bool& is_cmip6_volcano);
+   void initialize(const amrex::MultiFab& cons_in, 
+                   const amrex::MultiFab& qmoist,
+                   const amrex::BoxArray& grids,
+                   const amrex::Geometry& geom,
+                   const amrex::Real& dt_advance,
+                   const bool& do_sw_rad,
+                   const bool& do_lw_rad,
+                   const bool& do_aero_rad,
+                   const bool& do_snow_opt,
+                   const bool& is_cmip6_volcano);
 
    // run radiation model
    void run ();
@@ -195,7 +195,7 @@ class Radiation {
    real2d qrl; // longwave  radiative heating rate
 
    // Pointers to fields on the physics buffer
-   real2d zi, qt;
+   real2d zi;
    real2d clear_rh;
 
    // Clear-sky heating rates are not on the physics buffer, and we have no
@@ -203,6 +203,7 @@ class Radiation {
    real2d qrsc;
    real2d qrlc;
 
+   real2d qt, qi, qc, qn;
    real2d tmid, pmid, pdel;
    real2d pint, tint;
    real2d albedo_dir, albedo_dif;

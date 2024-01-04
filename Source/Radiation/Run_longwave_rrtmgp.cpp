@@ -28,7 +28,7 @@ void Rrtmgp::run_longwave_rrtmgp (
     real2d tmp2d;
     tmp2d = real2d("tmp", ncol, nlay);
     for (int igas = 1; igas <= ngas; igas++) {
-        yakl::c::parallel_for(yakl::c::Bounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol) {
+        parallel_for(SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol) {
             tmp2d(icol,ilay) = gas_vmr(igas,icol,ilay);
         });
         gas_concs.set_vmr(active_gases(igas), tmp2d);
@@ -64,7 +64,7 @@ void Rrtmgp::run_longwave_rrtmgp (
     combined_optics.alloc_1scl(ncol, nlay, k_dist_lw);
     bool* top_at_1;
     real1d t_sfc("t_sfc", ncol);
-    parallel_for(yakl::c::Bounds<1>(ncol), YAKL_LAMBDA (int icol) {
+    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol) {
         t_sfc(icol) = tint(icol,nlay+1);
         *top_at_1 = pmid(1, 1) < pmid (1, 2);
     });
@@ -78,12 +78,12 @@ void Rrtmgp::run_longwave_rrtmgp (
     if (false) {
         aerosol_optics.alloc_1scl(ncol, nlay, k_dist_lw);
         auto gpt_bnd = aerosol_optics.get_gpoint_bands();
-        yakl::c::parallel_for(yakl::c::Bounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
             aerosol_optics_tau(icol,ilay,igpt) = aer_tau_bnd(icol,ilay,gpt_bnd(igpt));
         });
     } else {
         aerosol_optics.alloc_1scl(ncol, nlay, k_dist_lw.get_band_lims_wavenumber());
-        yakl::c::parallel_for(yakl::c::Bounds<3>(nlwbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nlwbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol) {
             aerosol_optics_tau(icol,ilay,ibnd) = aer_tau_bnd(icol,ilay,ibnd);
         });
     }
@@ -111,7 +111,7 @@ void Rrtmgp::run_longwave_rrtmgp (
     OpticalProps1scl cloud_optics;
     cloud_optics.alloc_1scl(ncol, nlay, k_dist_lw);
     auto &cloud_optics_tau = cloud_optics.tau;
-    yakl::c::parallel_for(yakl::c::Bounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
+    parallel_for(SimpleBounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
         cloud_optics_tau(icol,ilay,igpt) = cld_tau_gpt(icol,ilay,igpt);
     });
     cloud_optics.increment(combined_optics);
