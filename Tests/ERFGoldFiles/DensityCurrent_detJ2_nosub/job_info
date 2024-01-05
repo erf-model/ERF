@@ -1,33 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: /home/almgren/GitCode/ERF/build/Tests/test_files/DensityCurrent_detJ2_nosub/DensityCurrent_detJ2_nosub.i
+inputs file: DensityCurrent_detJ2_nosub.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.00218016
+CPU time used since start of simulation (CPU-hours): 0.0218262
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Wed Jan  3 15:08:06 2024
-output dir:         /home/almgren/GitCode/ERF/build/Tests/test_files/DensityCurrent_detJ2_nosub
+output data / time: Fri Jan  5 14:46:24 2024
+output dir:         /Users/equon/ERF/Tests/test_files/DensityCurrent_detJ2_nosub
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Jan  3 2024 15:07:47
-build machine: Linux manda 5.15.0-76-generic #83~20.04.1-Ubuntu SMP Wed Jun 21 20:23:31 UTC 2023 x86_64
-build dir:     /home/almgren/GitCode/ERF/build/Exec
-AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
+build date:    Jan  5 2024 14:41:33
+build machine: macOS equon-38562s 12.7 21G816 arm64
+build dir:     /Users/equon/ERF/MyBuild/Exec
+AMReX dir:     /Users/equon/ERF/Submodules/AMReX
 
-COMP:          GNU
-COMP version:  9.4.0
+COMP:          AppleClang
+COMP version:  14.0.0.14000029
 
 
-ERF       git hash: 23.12-30-ga209eb38b6a7-dirty
-AMReX       git hash: 23.11-23-g9b733ec45cd9
+ERF       git hash: 24.01-7-gefcb2720b399
+AMReX       git hash: 24.01
 
 
 ===============================================================================
@@ -124,7 +124,7 @@ amrex.the_comms_arena_release_threshold = 9223372036854775807
 amrex.the_async_arena_release_threshold = 9223372036854775807
 amrex.the_arena_is_managed = 0
 amrex.abort_on_out_of_gpu_memory = 0
-fab.init_snan = 0
+fab.init_snan = 1
 DistributionMapping.v = 0
 DistributionMapping.verbose = 0
 DistributionMapping.efficiency = 0.90000000000000002
@@ -132,7 +132,7 @@ DistributionMapping.sfc_threshold = 0
 DistributionMapping.node_size = 0
 DistributionMapping.verbose_mapper = 0
 fab.initval = nan
-fab.do_initval = 0
+fab.do_initval = 1
 fabarray.maxcomp = 25
 vismf.v = 0
 vismf.headerversion = 1
