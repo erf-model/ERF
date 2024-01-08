@@ -103,16 +103,16 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         }
 
         /*! Initialize particles in domain */
-        virtual void InitializeParticles(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Evolve particles for one time step */
-        virtual void EvolveParticles(   int,
-                                        amrex::Real,
-                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                        const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+        virtual void EvolveParticles (   int,
+                                         amrex::Real,
+                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> varNames() const
+        virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
             return {AMREX_D_DECL("xvel","yvel","zvel"),"mass"};
@@ -142,30 +142,30 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         int m_ppc_init;                     /*!< initial number of particles per cell */
 
         /*! read inputs from file */
-        virtual void readInputs();
+        virtual void readInputs ();
 
         /*! Default particle initialization */
-        void initializeParticlesUniformDistribution(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
         /*! Uses midpoint method to advance particles using flow velocity. */
-        void AdvectWithFlow(    amrex::MultiFab*,
-                                int,
-                                amrex::Real,
-                                const std::unique_ptr<amrex::MultiFab>& );
+        void AdvectWithFlow (    amrex::MultiFab*,
+                                 int,
+                                 amrex::Real,
+                                 const std::unique_ptr<amrex::MultiFab>& );
 
         /*! Uses midpoint method to advance particles falling under gravity. */
-        void AdvectWithGravity( int,
-                                amrex::Real,
-                                const std::unique_ptr<amrex::MultiFab>& );
+        void AdvectWithGravity ( int,
+                                 amrex::Real,
+                                 const std::unique_ptr<amrex::MultiFab>& );
 
     private:
 
         /*! Default particle initialization */
-        void initializeParticlesDefault(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        void initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
         /*! Default initialization for tracer particles for WoA case (ref: AA) */
-        void initializeParticlesDefaultTracersWoA(const std::unique_ptr<amrex::MultiFab>& a_ptr=nullptr);
+        void initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_ptr=nullptr);
         /*! Default initialization for hydro particles (ref: AA) */
-        void initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        void initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
 };
 

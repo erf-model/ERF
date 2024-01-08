@@ -7,7 +7,7 @@
 using namespace amrex;
 
 /*! Read tracer and hydro particles parameters */
-void ERF::readTracersParams()
+void ERF::readTracersParams ()
 {
     ParmParse pp(pp_prefix);
 
@@ -28,8 +28,8 @@ void ERF::readTracersParams()
 }
 
 /*! Initialize tracer and hydro particles */
-void ERF::initializeTracers( ParGDBBase* a_gdb,
-                             const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
+void ERF::initializeTracers ( ParGDBBase* a_gdb,
+                              const Vector<std::unique_ptr<MultiFab>>& a_z_phys_nd )
 {
     auto& namelist_unalloc( particleData.getNamesUnalloc() );
 
@@ -63,10 +63,10 @@ void ERF::initializeTracers( ParGDBBase* a_gdb,
 }
 
 /*! Evolve tracers and hydro particles for one time step*/
-void ERF::evolveTracers( int                                        a_lev,
-                         Real                                       a_dt_lev,
-                         Vector<Vector<MultiFab>>&                  a_vars_new,
-                         const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
+void ERF::evolveTracers ( int                                        a_lev,
+                          Real                                       a_dt_lev,
+                          Vector<Vector<MultiFab>>&                  a_vars_new,
+                          const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
     if (m_use_tracer_particles) {
       particleData[ERFParticleNames::tracers]->EvolveParticles(  a_lev,
