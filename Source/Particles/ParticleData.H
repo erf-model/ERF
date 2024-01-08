@@ -28,7 +28,7 @@ class ParticleData
     public:
 
         /*! Constructor */
-        ParticleData()
+        ParticleData ()
         {
             BL_PROFILE("ParticleData::ParticleData()");
             m_particle_species.clear();
@@ -37,7 +37,7 @@ class ParticleData
         }
 
         /*! Destructor */
-        ~ParticleData()
+        ~ParticleData ()
         {
             BL_PROFILE("ParticleData::~ParticleData()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
@@ -50,7 +50,7 @@ class ParticleData
         }
 
         /*! Write checkpoint files */
-        void Checkpoint( const std::string& a_fname )
+        void Checkpoint ( const std::string& a_fname )
         {
             BL_PROFILE("ParticleData::Checkpoint()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
@@ -61,7 +61,7 @@ class ParticleData
         }
 
         /*! Read from restart file */
-        void Restart( amrex::ParGDBBase* a_gdb, const std::string& a_fname )
+        void Restart ( amrex::ParGDBBase* a_gdb, const std::string& a_fname )
         {
             BL_PROFILE("ParticleData::Restart()");
             AMREX_ASSERT(isEmpty());
@@ -75,7 +75,7 @@ class ParticleData
         }
 
         /*! Redistribute/rebalance particles data */
-        inline void Redistribute()
+        inline void Redistribute ()
         {
             BL_PROFILE("ParticleData::Redistribute()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
@@ -84,7 +84,7 @@ class ParticleData
         }
 
         /*! Get species of a given name */
-        inline ERFPC* GetSpecies( const std::string& a_name )
+        inline ERFPC* GetSpecies ( const std::string& a_name )
         {
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
@@ -112,7 +112,7 @@ class ParticleData
         }
 
         /*! Get species of a given name (const version) */
-        inline const ERFPC* GetSpecies( const std::string& a_name ) const
+        inline const ERFPC* GetSpecies ( const std::string& a_name ) const
         {
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
@@ -140,7 +140,7 @@ class ParticleData
         }
 
         /*! Add a particle species to this container */
-        inline void pushBack(const std::string&  a_name,
+        inline void pushBack (const std::string&  a_name,
                              ERFPC* const        a_pc )
         {
             BL_PROFILE("ParticleData::pushBack()");
@@ -150,28 +150,28 @@ class ParticleData
         }
 
         /*! Add a name; particle container will be initialized later */
-        inline void addName(const std::string& a_name )
+        inline void addName (const std::string& a_name )
         {
             BL_PROFILE("ParticleData::addName()");
             m_namelist_unalloc.push_back(a_name);
         }
 
         /*! Returns list of names of particle species */
-        inline const ParticlesNamesVector& getNames() const
+        inline const ParticlesNamesVector& getNames () const
         {
             BL_PROFILE("ParticleData::getNames()");
             return m_namelist;
         }
 
         /*! Returns list of names of particle species that are unallocated */
-        inline ParticlesNamesList& getNamesUnalloc()
+        inline ParticlesNamesList& getNamesUnalloc ()
         {
             BL_PROFILE("ParticleData::getNamesUnalloc()");
             return m_namelist_unalloc;
         }
 
         /*! queries if containe has species of a certain name */
-        inline bool contains( const std::string& a_name ) const
+        inline bool contains ( const std::string& a_name ) const
         {
             BL_PROFILE("ParticleData::contains()");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
@@ -179,7 +179,7 @@ class ParticleData
         }
 
         /*! query if container is empty */
-        inline bool isEmpty() const
+        inline bool isEmpty () const
         {
             BL_PROFILE("ParticleData::isEmpty()");
             return (m_particle_species.size() == 0);
