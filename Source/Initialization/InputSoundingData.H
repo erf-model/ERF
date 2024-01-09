@@ -22,12 +22,17 @@ public:
     InputSoundingData () {}
 
     void read_from_file (const std::string input_sounding_file,
-                         amrex::Geometry const &geom)
+                         const amrex::Geometry &geom,
+                         const amrex::Vector<amrex::Real>& zlevels_stag)
     {
-        const amrex::Real zbot = geom.ProbLo(AMREX_SPACEDIM-1);
-        const amrex::Real ztop = geom.ProbHi(AMREX_SPACEDIM-1);
-        const amrex::Real dz = geom.CellSize(AMREX_SPACEDIM-1);
+        const int klo = 0;
+        const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
+        const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
+
+        const bool use_terrain = (zlevels_stag.size() > 0);
+        const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
+        const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
         z_inp_sound.resize(Nz+2);
         theta_inp_sound.resize(Nz+2);
@@ -95,7 +100,8 @@ public:
             U_inp_sound[0]     = U_inp_sound_tmp[0];
             V_inp_sound[0]     = V_inp_sound_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sound[k+1] = zbot + (k + 0.5) * dz;
+                z_inp_sound[k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                 : zbot + (k + 0.5) * dz;
                 theta_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
                    qv_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
                     U_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
