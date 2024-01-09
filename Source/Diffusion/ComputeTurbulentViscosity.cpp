@@ -91,8 +91,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
               if (use_terrain) {
-                  dxInv /= Compute_h_xi_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
-                  dyInv /= Compute_h_eta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                  // the terrain grid is only deformed in z for now
                   dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
               }
               Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
@@ -141,8 +140,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real dyInv = cellSizeInv[1];
           Real dzInv = cellSizeInv[2];
           if (use_terrain) {
-              dxInv /= Compute_h_xi_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
-              dyInv /= Compute_h_eta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+              // the terrain grid is only deformed in z for now
               dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
           }
           Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
