@@ -164,28 +164,3 @@ Problem::init_custom_pert(
     }
   });
 }
-
-void
-Problem::init_custom_terrain(
-    const Geometry& /*geom*/,
-    MultiFab& z_phys_nd,
-    const Real& /*time*/)
-{
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
-    for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
-        Array4<Real> z_arr = z_phys_nd.array(mfi);
-
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-
-            // Flat terrain with z = 0 at k = 0
-            z_arr(i,j,0) = 0.;
-        });
-    }
-}

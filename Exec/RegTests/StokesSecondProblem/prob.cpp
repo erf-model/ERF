@@ -81,40 +81,6 @@ Problem::init_custom_pert(
 
 }
 
-void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    MultiFab& z_phys_nd,
-    const Real& /*time*/)
-{
-
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    // int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
-    int domlo_z = domain.smallEnd(2);
-
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
-
-    // Populate bottom plane
-    int k0 = domlo_z;
-
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-    {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
-
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
-
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-
-        z_arr(i,j,k0) = 0.0;
-
-        });
-    }
-}
-
 Real
 Problem::compute_terrain_velocity(const Real time)
 {

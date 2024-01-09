@@ -60,6 +60,10 @@ struct SolverChoice {
                 use_terrain = true;
             }
             pp.query("zsurface", zsurf);
+            if (zsurf != 0.0) {
+                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
+                    << std::endl;
+            }
             pp.get("initial_dz", dz0);
         }
 

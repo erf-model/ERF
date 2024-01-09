@@ -72,11 +72,6 @@ public:
                                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                   amrex::Geometry const& geom) override;
 
-    void init_custom_terrain (
-        const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
-        const amrex::Real& time) override;
-
     AMREX_FORCE_INLINE
     AMREX_GPU_HOST_DEVICE
     amrex::Real compute_theta (const amrex::Real T_b, const amrex::Real p_b);

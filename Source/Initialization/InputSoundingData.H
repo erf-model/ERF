@@ -22,25 +22,23 @@ public:
     InputSoundingData () {}
 
     void read_from_file (const std::string input_sounding_file,
-                         amrex::Geometry const &geom)
+                         const amrex::Geometry &geom,
+                         const amrex::Vector<amrex::Real>& zlevels_stag)
     {
-        const amrex::Real zbot = geom.ProbLo(AMREX_SPACEDIM-1);
-        AMREX_ALWAYS_ASSERT(zbot == 0);
-        const amrex::Real ztop = geom.ProbHi(AMREX_SPACEDIM-1);
-        const amrex::Real dz = geom.CellSize(AMREX_SPACEDIM-1);
+        const int klo = 0;
+        const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
+        const amrex::Real dz = geom.CellSize()[AMREX_SPACEDIM-1];
+
+        const bool use_terrain = (zlevels_stag.size() > 0);
+        const amrex::Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom.ProbLo(AMREX_SPACEDIM-1);
+        const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
         z_inp_sound.resize(Nz+2);
         theta_inp_sound.resize(Nz+2);
         qv_inp_sound.resize(Nz+2);
         U_inp_sound.resize(Nz+2);
         V_inp_sound.resize(Nz+2);
-
-        pm_integ.resize(Nz+2);
-        rhom_integ.resize(Nz+2);
-
-        pd_integ.resize(Nz+2);
-        rhod_integ.resize(Nz+2);
 
         // Read the input_sounding file
         amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
@@ -58,7 +56,7 @@ public:
             amrex::Vector<amrex::Real> z_inp_sound_tmp, theta_inp_sound_tmp, qv_inp_sound_tmp,
                                        U_inp_sound_tmp, V_inp_sound_tmp;
 
-            // Read the first line
+            // Read surface quantities from the first line
             std::getline(input_sounding_reader, line);
             std::istringstream iss(line);
             iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
@@ -66,7 +64,7 @@ public:
             qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
 
             // Add surface
-            z_inp_sound_tmp.push_back(0); // height AGL
+            z_inp_sound_tmp.push_back(zbot); // height above sea level [m]
             theta_inp_sound_tmp.push_back(theta_ref_inp_sound);
             qv_inp_sound_tmp.push_back(qv_ref_inp_sound);
             U_inp_sound_tmp.push_back(0);
@@ -77,23 +75,23 @@ public:
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
-                if (z == 0) {
+                if (z == zbot) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
-                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]);
+                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
                     U_inp_sound_tmp[0] = U;
                     V_inp_sound_tmp[0] = V;
                 } else {
-                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
+                    AMREX_ALWAYS_ASSERT(z > z_inp_sound_tmp[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
                     z_inp_sound_tmp.push_back(z);
                     theta_inp_sound_tmp.push_back(theta);
-                    qv_inp_sound_tmp.push_back(qv*0.001);
+                    qv_inp_sound_tmp.push_back(qv*0.001); // convert from g/kg to kg/kg
                     U_inp_sound_tmp.push_back(U);
                     V_inp_sound_tmp.push_back(V);
                     if (z >= ztop) break;
                 }
             }
 
-            // At this point, we have an input_sounding from z=0 AGL up to
+            // At this point, we have an input_sounding from zbot up to
             // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
             const int Ninp = z_inp_sound_tmp.size();
             z_inp_sound[0]     = zbot;
@@ -102,7 +100,8 @@ public:
             U_inp_sound[0]     = U_inp_sound_tmp[0];
             V_inp_sound[0]     = V_inp_sound_tmp[0];
             for (int k=0; k < Nz; ++k) {
-                z_inp_sound[k+1] = zbot + (k + 0.5) * dz;
+                z_inp_sound[k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                                 : zbot + (k + 0.5) * dz;
                 theta_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(), theta_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
                    qv_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),    qv_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
                     U_inp_sound[k+1] = interpolate_1d(z_inp_sound_tmp.dataPtr(),     U_inp_sound_tmp.dataPtr(), z_inp_sound[k+1], Ninp);
@@ -235,11 +234,12 @@ public:
 
     void host_to_device ()
     {
-        z_inp_sound_d.resize(size());
-        theta_inp_sound_d.resize(size());
-        qv_inp_sound_d.resize(size());
-        U_inp_sound_d.resize(size());
-        V_inp_sound_d.resize(size());
+        const int Ninp = size();
+        z_inp_sound_d.resize(Ninp);
+        theta_inp_sound_d.resize(Ninp);
+        qv_inp_sound_d.resize(Ninp);
+        U_inp_sound_d.resize(Ninp);
+        V_inp_sound_d.resize(Ninp);
 
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                          z_inp_sound.begin(), z_inp_sound.end(),
