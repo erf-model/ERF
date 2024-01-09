@@ -25,7 +25,6 @@ public:
                          amrex::Geometry const &geom)
     {
         const amrex::Real zbot = geom.ProbLo(AMREX_SPACEDIM-1);
-        AMREX_ALWAYS_ASSERT(zbot == 0);
         const amrex::Real ztop = geom.ProbHi(AMREX_SPACEDIM-1);
         const amrex::Real dz = geom.CellSize(AMREX_SPACEDIM-1);
         const int Nz = geom.Domain().size()[AMREX_SPACEDIM-1];
@@ -58,7 +57,7 @@ public:
             amrex::Vector<amrex::Real> z_inp_sound_tmp, theta_inp_sound_tmp, qv_inp_sound_tmp,
                                        U_inp_sound_tmp, V_inp_sound_tmp;
 
-            // Read the first line
+            // Read surface quantities from the first line
             std::getline(input_sounding_reader, line);
             std::istringstream iss(line);
             iss >> press_ref_inp_sound >> theta_ref_inp_sound >> qv_ref_inp_sound;
@@ -66,7 +65,7 @@ public:
             qv_ref_inp_sound *= 0.001; // convert from g/kg to kg/kg
 
             // Add surface
-            z_inp_sound_tmp.push_back(0); // height AGL
+            z_inp_sound_tmp.push_back(zbot); // height above sea level [m]
             theta_inp_sound_tmp.push_back(theta_ref_inp_sound);
             qv_inp_sound_tmp.push_back(qv_ref_inp_sound);
             U_inp_sound_tmp.push_back(0);
@@ -93,7 +92,7 @@ public:
                 }
             }
 
-            // At this point, we have an input_sounding from z=0 AGL up to
+            // At this point, we have an input_sounding from zbot up to
             // z_inp_sound_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
             const int Ninp = z_inp_sound_tmp.size();
             z_inp_sound[0]     = zbot;
