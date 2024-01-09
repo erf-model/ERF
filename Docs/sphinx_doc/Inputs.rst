@@ -172,7 +172,8 @@ This automatically activates **erf.use_terrain**. By default, the
 problem-specific terrain is initialized to be flat at an elevation of z=0.
 These inputs are used to automatically generate the staggered z levels used to
 calculate the grid metric transformation. Alternatively, arbitrary z levels may
-be specified with the **erf.terrain_z_levels** parameter.
+be specified with the **erf.terrain_z_levels** parameter, which should vary
+from 0 (at the surface) to the domain height.
 
 .. _list-of-parameters-3:
 

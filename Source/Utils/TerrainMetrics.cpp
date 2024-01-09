@@ -55,6 +55,11 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
         }
 
         pp.queryarr("terrain_z_levels", zlevels_stag, 0, nz);
+
+        // These levels should range from 0 at the surface to the height of the
+        // top of model domain (see the coordinate surface height, zeta, in
+        // Klemp 2011)
+        AMREX_ALWAYS_ASSERT(zlevels_stag[0] == 0);
     }
 }
 
