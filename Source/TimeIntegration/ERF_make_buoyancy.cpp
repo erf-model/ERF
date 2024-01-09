@@ -158,10 +158,10 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // TODO: A microphysics model may have more than q1 & q2 components for the
                 //       non-precipitating phase.
 
-                amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                amrex::ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rhop_lo, rhop_hi;
-                    if(solverChoice.moisture_type == MoistureType::FastEddy){
+                    if(moisture_type == MoistureType::FastEddy){
                         rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
                         rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
                     }else{
@@ -234,7 +234,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
-                    amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    amrex::ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
                         Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
@@ -253,7 +253,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                         Real qp_plus  = (n_moist_var >= 3) ? cell_prim(i,j,k  ,PrimQ3_comp) : 0.0;
                         Real qp_minus = (n_moist_var >= 3) ? cell_prim(i,j,k-1,PrimQ3_comp) : 0.0;
 
-                        if (solverChoice.buoyancy_type == 2) {
+                        if (buoyancy_type == 2) {
                             qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
                                             ( qc_plus - qc_d_ptr[k]   +
                                               qp_plus - qp_d_ptr[k] )
@@ -264,7 +264,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                                               qp_minus - qp_d_ptr[k-1] )
                                    + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
-                        } else if (solverChoice.buoyancy_type == 4) {
+                        } else if (buoyancy_type == 4) {
                             qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
                                             ( qc_plus - qc_d_ptr[k]   +
                                               qp_plus - qp_d_ptr[k] )
