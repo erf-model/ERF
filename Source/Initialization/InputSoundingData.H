@@ -35,12 +35,6 @@ public:
         U_inp_sound.resize(Nz+2);
         V_inp_sound.resize(Nz+2);
 
-        pm_integ.resize(Nz+2);
-        rhom_integ.resize(Nz+2);
-
-        pd_integ.resize(Nz+2);
-        rhod_integ.resize(Nz+2);
-
         // Read the input_sounding file
         amrex::Print() << "input_sounding file location : " << input_sounding_file << std::endl;
         std::ifstream input_sounding_reader(input_sounding_file);
@@ -76,16 +70,16 @@ public:
             while(std::getline(input_sounding_reader, line)) {
                 std::istringstream iss_z(line);
                 iss_z >> z >> theta >> qv >> U >> V;
-                if (z == 0) {
+                if (z == zbot) {
                     AMREX_ALWAYS_ASSERT(theta == theta_inp_sound_tmp[0]);
-                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]);
+                    AMREX_ALWAYS_ASSERT(qv*0.001 == qv_inp_sound_tmp[0]); // convert from g/kg to kg/kg
                     U_inp_sound_tmp[0] = U;
                     V_inp_sound_tmp[0] = V;
                 } else {
-                    AMREX_ALWAYS_ASSERT(z > z_inp_sound[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
+                    AMREX_ALWAYS_ASSERT(z > z_inp_sound_tmp[z_inp_sound_tmp.size()-1]); // sounding is increasing in height
                     z_inp_sound_tmp.push_back(z);
                     theta_inp_sound_tmp.push_back(theta);
-                    qv_inp_sound_tmp.push_back(qv*0.001);
+                    qv_inp_sound_tmp.push_back(qv*0.001); // convert from g/kg to kg/kg
                     U_inp_sound_tmp.push_back(U);
                     V_inp_sound_tmp.push_back(V);
                     if (z >= ztop) break;
@@ -234,11 +228,12 @@ public:
 
     void host_to_device ()
     {
-        z_inp_sound_d.resize(size());
-        theta_inp_sound_d.resize(size());
-        qv_inp_sound_d.resize(size());
-        U_inp_sound_d.resize(size());
-        V_inp_sound_d.resize(size());
+        const int Ninp = size();
+        z_inp_sound_d.resize(Ninp);
+        theta_inp_sound_d.resize(Ninp);
+        qv_inp_sound_d.resize(Ninp);
+        U_inp_sound_d.resize(Ninp);
+        V_inp_sound_d.resize(Ninp);
 
         amrex::Gpu::copy(amrex::Gpu::hostToDevice,
                          z_inp_sound.begin(), z_inp_sound.end(),
