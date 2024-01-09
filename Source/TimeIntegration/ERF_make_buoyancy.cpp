@@ -233,7 +233,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
-                    
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
                     amrex::ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
