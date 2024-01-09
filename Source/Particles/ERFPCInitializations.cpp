@@ -8,7 +8,7 @@
 using namespace amrex;
 
 /*! Read inputs from file */
-void ERFPC::readInputs()
+void ERFPC::readInputs ()
 {
     BL_PROFILE("ERFPC::readInputs");
 
@@ -30,7 +30,7 @@ void ERFPC::readInputs()
 }
 
 /*! Initialize particles in domain */
-void ERFPC::InitializeParticles(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticles");
 
@@ -48,7 +48,7 @@ void ERFPC::InitializeParticles(const std::unique_ptr<amrex::MultiFab>& a_height
 }
 
 /*! Default particle initialization */
-void ERFPC::initializeParticlesDefault(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
     BL_PROFILE(" ERFPC::initializeParticlesDefault");
 
@@ -60,7 +60,7 @@ void ERFPC::initializeParticlesDefault(const std::unique_ptr<amrex::MultiFab>& a
 }
 
 /*! Default initialization for tracer particles for WoA case (ref: AA) */
-void ERFPC::initializeParticlesDefaultTracersWoA(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesDefaultTracersWoA");
 
@@ -168,7 +168,7 @@ void ERFPC::initializeParticlesDefaultTracersWoA(const std::unique_ptr<amrex::Mu
 }
 
 /*! Default initialization for hydro particles (ref: AA) */
-void ERFPC::initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesDefaultHydro");
 
@@ -277,7 +277,7 @@ void ERFPC::initializeParticlesDefaultHydro(const std::unique_ptr<amrex::MultiFa
 
 /*! Uniform distribution: the number of particles per grid cell is specified
  *  by "initial_particles_per_cell", and they are randomly distributed. */
-void ERFPC::initializeParticlesUniformDistribution(const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesUniformDistribution");
 
