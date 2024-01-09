@@ -4,6 +4,7 @@
 #include <EddyViscosity.H>
 #include <Diffusion.H>
 #include <TileNoZ.H>
+#include <TerrainMetrics.H>
 
 using namespace amrex;
 
@@ -45,10 +46,13 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
+                                   const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav)
 {
-    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
+
+    const bool use_terrain = (z_phys_nd != nullptr);
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
@@ -78,10 +82,20 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Array4<Real const> mf_u = mapfac_u.array(mfi);
           Array4<Real const> mf_v = mapfac_v.array(mfi);
 
+          Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
               Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
-              Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+              Real dxInv = cellSizeInv[0];
+              Real dyInv = cellSizeInv[1];
+              Real dzInv = cellSizeInv[2];
+              if (use_terrain) {
+                  dxInv /= Compute_h_xi_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                  dyInv /= Compute_h_eta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                  dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+              }
+              Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
               Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
               Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
@@ -119,15 +133,25 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         Array4<Real const> mf_u = mapfac_u.array(mfi);
         Array4<Real const> mf_v = mapfac_v.array(mfi);
 
+        Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-          Real cellVolMsf = 1.0 / (dxInv[0] * mf_u(i,j,0) * dxInv[1] * mf_v(i,j,0) * dxInv[2]);
+          Real dxInv = cellSizeInv[0];
+          Real dyInv = cellSizeInv[1];
+          Real dzInv = cellSizeInv[2];
+          if (use_terrain) {
+              dxInv /= Compute_h_xi_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+              dyInv /= Compute_h_eta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+              dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+          }
+          Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
           Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
 
           // Calculate stratification-dependent mixing length (Deardorff 1980)
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dxInv[2];
+                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
           Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
           Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
           Real length;
@@ -403,6 +427,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
+                                     z_phys_nd,
                                      turbChoice, const_grav);
     }
 
