@@ -1,0 +1,50 @@
+name: ERF CI (sycl)
+
+on:
+  push:
+    # branches: [development]
+    paths-ignore:
+      - Docs
+      - README.rst
+      - license.txt
+
+  pull_request:
+    branches: [development]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-sycl
+  cancel-in-progress: true
+
+jobs:
+  Build-And-Test-SYCL:
+    name: oneAPI SYCL
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_dpcpp.sh
+
+    - name: Build & Install
+      run: |
+        set +e
+        source /opt/intel/oneapi/setvars.sh
+        set -e
+        mkdir build
+        cd build
+        cmake .. \
+          -DCMAKE_VERBOSE_MAKEFILE=ON                   \
+          -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DERF_DIM:STRING=3 \
+          -DERF_ENABLE_MPI:BOOL=ON \
+          -DERF_ENABLE_SYCL:BOOL=ON \
+          -DERF_ENABLE_TESTS:BOOL=ON \
+          -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
+          -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          -DCMAKE_C_COMPILER=$(which icx) \
+          -DCMAKE_CXX_COMPILER=$(which icpx) \
+          -DCMAKE_CXX_STANDARD=17
+        make -j 2;
