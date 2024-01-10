@@ -25,7 +25,6 @@ jobs:
         include:
           - cuda_ver: "11.0"
             cuda_pkg: 11-0
-            cuda_extra: libcurand-dev-11-0 cuda-cupti-dev-11-0 libcusolver-dev-11-0 libcublas-dev-11-0 libcusparse-dev-11-0
     steps:
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.6.0
@@ -35,19 +34,12 @@ jobs:
         with:
           submodules: true
       - name: Prepare CUDA environment
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-          sudo apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
-          echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64 /" | sudo tee /etc/apt/sources.list.d/cuda.list
-          echo "deb https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64 /" | sudo tee /etc/apt/sources.list.d/nvidia-ml.list
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-              libopenmpi-dev cuda-command-line-tools-${{matrix.cuda_pkg}} cuda-compiler-${{matrix.cuda_pkg}} cuda-minimal-build-${{matrix.cuda_pkg}} cuda-nvml-dev-${{matrix.cuda_pkg}} cuda-nvtx-${{matrix.cuda_pkg}} ${{matrix.cuda_extra}}
+        run: Submodules/AMReX/.github/workflows/dependencies/dependencies_nvcc.sh ${{matrix.cuda_ver}}
       - name: Configure and build
         run: |
-          export PATH=/usr/local/nvidia/bin:/usr/local/cuda-${{matrix.cuda_ver}}/bin:${PATH}
-          export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda-${{matrix.cuda_ver}}/lib:${LD_LIBRARY_PATH}
+          export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
+          export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+          which nvcc || echo "nvcc not in PATH!"
           cmake -Bbuild-${{matrix.cuda_pkg}} \
             -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
             -DAMReX_CUDA_ERROR_CROSS_EXECUTION_SPACE_CALL=ON \

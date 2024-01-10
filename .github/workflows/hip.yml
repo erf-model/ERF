@@ -40,7 +40,7 @@ jobs:
         submodules: true
 
     - name: Dependencies
-      run: .github/workflows/dependencies/dependencies_hip.sh
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_hip.sh
 
     - name: Build & Install
       run: |
