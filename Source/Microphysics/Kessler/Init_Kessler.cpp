@@ -67,8 +67,6 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
-        auto qi_array    = mic_fab_vars[MicVar_Kess::qci]->array(mfi);
-        auto qn_array    = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
         auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
 
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
@@ -84,7 +82,6 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
             qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
             qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
             qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
-            qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),

@@ -13,15 +13,12 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler ()
 {
-    auto qt   = mic_fab_vars[MicVar_Kess::qt];
+    auto qv   = mic_fab_vars[MicVar_Kess::qv];
+    auto qc   = mic_fab_vars[MicVar_Kess::qcl];
     auto qp   = mic_fab_vars[MicVar_Kess::qp];
-    auto qn   = mic_fab_vars[MicVar_Kess::qn];
     auto tabs = mic_fab_vars[MicVar_Kess::tabs];
     auto pres = mic_fab_vars[MicVar_Kess::pres];
-
-    auto qcl   = mic_fab_vars[MicVar_Kess::qcl];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
-    auto qv    = mic_fab_vars[MicVar_Kess::qv];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
 
     auto dz = m_geom.CellSize(2);
@@ -69,16 +66,13 @@ void Kessler::AdvanceKessler ()
 
     Real dtn = dt;
 
-    // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
+        auto qc_array   = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+        auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
         auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
-        auto qn_array   = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-        auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
-        auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-
         auto theta_array = theta->array(mfi);
-        auto qv_array    = qv->array(mfi);
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
@@ -90,14 +84,9 @@ void Kessler::AdvanceKessler ()
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
+            qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
+            qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
-            qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k));
-
-            if(qt_array(i,j,k) == 0.0){
-                qv_array(i,j,k) = 0.0;
-                qn_array(i,j,k) = 0.0;
-            }
 
             //------- Autoconversion/accretion
             Real qcc, autor, accrr, dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
@@ -115,8 +104,8 @@ void Kessler::AdvanceKessler ()
             dq_clwater_to_vapor = 0.0;
 
 
-            //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
-            Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+            Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
+            //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
 
             // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
             if(qv_array(i,j,k) > qsat){
@@ -126,8 +115,8 @@ void Kessler::AdvanceKessler ()
 
             // If water vapor is less than the satruated value, then the cloud water can evaporate, leading to evaporative cooling and
             // reducing temperature
-            if(qv_array(i,j,k) < qsat and qn_array(i,j,k) > 0.0){
-                dq_clwater_to_vapor = std::min(qn_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
+            if(qv_array(i,j,k) < qsat and qc_array(i,j,k) > 0.0){
+                dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
             }
 
             if(qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
@@ -143,8 +132,8 @@ void Kessler::AdvanceKessler ()
 
             // If there is cloud water present then do accretion and autoconversion to rain
 
-            if (qn_array(i,j,k) > 0.0) {
-                qcc = qn_array(i,j,k);
+            if (qc_array(i,j,k) > 0.0) {
+                qcc = qc_array(i,j,k);
 
                 autor = 0.0;
                 if (qcc > qcw0) {
@@ -156,7 +145,7 @@ void Kessler::AdvanceKessler ()
                 dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - 0.001));
 
                 // If the amount of change is more than the amount of qc present, then dq = qc
-                dq_clwater_to_rain = std::min(dq_clwater_to_rain, qn_array(i,j,k));
+                dq_clwater_to_rain = std::min(dq_clwater_to_rain, qc_array(i,j,k));
             }
 
             if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
@@ -165,15 +154,15 @@ void Kessler::AdvanceKessler ()
             if(std::fabs(dq_sed) < 1e-14)dq_sed = 0.0;
             //dq_sed = 0.0;
 
-            qt_array(i,j,k) = qt_array(i,j,k) + dq_rain_to_vapor - dq_clwater_to_rain;
+            qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor + dq_rain_to_vapor;
+            qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
             qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
-            qn_array(i,j,k) = qn_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
 
             theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*(dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
 
-            qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k));
+            qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
+            qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
-            qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k));
         });
     }
 }
