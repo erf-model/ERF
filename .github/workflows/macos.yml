@@ -17,7 +17,7 @@ jobs:
         submodules: true
 
     - name: Install Dependencies
-      run: .github/workflows/dependencies/dependencies_mac.sh
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_mac.sh
 
     - name: Configure Project and Generate Build System
       run: |
