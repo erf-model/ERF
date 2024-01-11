@@ -141,6 +141,8 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
     // Geometry
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* dx = geomdata.CellSize();
+    const amrex::Real  z_lo = prob_lo[2];
+    const amrex::Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
@@ -148,7 +150,7 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
 
     amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : prob_lo[2] + (k + 0.5) * dx[2];
+                                         : z_lo + (k + 0.5) * dz;
 
         amrex::Real rho_0 = 1.0;
 
@@ -205,6 +207,8 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
     int ktop = bx.bigEnd(2);
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* dx = geomdata.CellSize();
+    const amrex::Real  z_lo = prob_lo[2];
+    const amrex::Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
@@ -212,7 +216,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
 
     amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
-                                         : prob_lo[2] + (k + 0.5) * dx[2];
+                                         : z_lo + (k + 0.5) * dz;
 
         Real rho_k, rhoTh_k;
 
@@ -238,15 +242,15 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
             // set the ghost cell with dz and rho at boundary
             amrex::Real rho_surf =
                 interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
-            p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dx[2] * rho_surf * l_gravity;
+            p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dz * rho_surf * l_gravity;
             pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), l_rdOcp);
         }
         else if (k==ktop)
         {
             // set the ghost cell with dz and rho at boundary
             amrex::Real rho_top =
-                interpolate_1d(z_inp_sound, rho_inp_sound, z+dx[2]/2, inp_sound_size);
-            p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dx[2] * rho_top * l_gravity;
+                interpolate_1d(z_inp_sound, rho_inp_sound, z+dz/2, inp_sound_size);
+            p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dz * rho_top * l_gravity;
             pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
         }
 
@@ -284,6 +288,8 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
     // Geometry
     const amrex::Real* prob_lo = geomdata.ProbLo();
     const amrex::Real* dx = geomdata.CellSize();
+    const amrex::Real  z_lo = prob_lo[2];
+    const amrex::Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
@@ -304,7 +310,7 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
                                                 + z_nd_arr(i,j+1,k  )
                                                 + z_nd_arr(i,j  ,k+1)
                                                 + z_nd_arr(i,j+1,k+1))
-                                         : prob_lo[2] + (k + 0.5) * dx[2];
+                                         : z_lo + (k + 0.5) * dz;
 
         // Set the x-velocity
         x_vel(i, j, k) = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
@@ -315,7 +321,7 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
                                                 + z_nd_arr(i+1,j,k  )
                                                 + z_nd_arr(i  ,j,k+1)
                                                 + z_nd_arr(i+1,j,k+1))
-                                         : prob_lo[2] + (k + 0.5) * dx[2];
+                                         : z_lo + (k + 0.5) * dz;
 
         // Set the y-velocity
         y_vel(i, j, k) = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);

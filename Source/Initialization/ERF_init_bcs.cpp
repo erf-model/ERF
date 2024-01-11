@@ -277,9 +277,11 @@ void ERF::init_bcs ()
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
+                    domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::neumann_int);
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++)
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
+                    domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::neumann_int);
                 }
             }
             else if (bct == ERF_BC::inflow)

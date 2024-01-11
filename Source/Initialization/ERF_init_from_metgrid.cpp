@@ -15,7 +15,7 @@ using namespace amrex;
 void
 ERF::init_from_metgrid (int lev)
 {
-    bool use_moisture = (solverChoice.moisture_type == MoistureType::None);
+    bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     if (use_moisture) {
         amrex::Print() << "Init with met_em with valid moisture model." << std::endl;
     } else {
@@ -230,7 +230,7 @@ ERF::init_from_metgrid (int lev)
     int MetGridBdyEnd = MetGridBdyVars::NumTypes-1;
     if (use_moisture) MetGridBdyEnd = MetGridBdyVars::NumTypes;
 
-    //amrex::Vector<amrex::Vector<amrex::MultiFab> > fabs_for_bcs;
+    // Zero out fabs_for_bcs on the global domain
     amrex::Vector<amrex::Vector<FArrayBox>> fabs_for_bcs;
     fabs_for_bcs.resize(ntimes);
     for (int it(0); it < ntimes; it++) {
@@ -907,7 +907,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto const     new_z = z_phys_nd_fab.const_array();
         auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
-        auto           Q_arr = fabs_for_bcs[it][MetGridBdyVars::QV].array();
+        auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
         auto r_hse_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto p_hse_arr = p_hse_bcs_fab.array();
 

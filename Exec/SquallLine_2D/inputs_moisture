@@ -13,11 +13,9 @@ amr.n_cell           =  192    4    128    # dx=dy=dz=100 m
 
 # periodic in x to match WRF setup
 # - as an alternative, could use symmetry at x=0 and outflow at x=25600
-geometry.is_periodic = 0 1 0
-xlo.type = "Outflow"
-xhi.type = "Outflow"
+geometry.is_periodic = 1 1 0
 zlo.type = "SlipWall"
-zhi.type = "Outflow"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
@@ -36,7 +34,6 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 1000       # number of timesteps between checkpoints
-#amr.restart         = chk09000
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
@@ -49,15 +46,10 @@ erf.buoyancy_type = 1
 erf.use_coriolis = false
 erf.use_rayleigh_damping = false
 
-#erf.les_type = "Smagorinsky"
-erf.Cs              = 0.25
-erf.les_type = "None"
-
 #
 # diffusion coefficient from Straka, K = 75 m^2/s
 #
 erf.molec_diff_type = "ConstantAlpha"
-#erf.molec_diff_type = "Constant"
 erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
 erf.dynamicViscosity = 100.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T = 100.0 # [m^2/s]
@@ -66,12 +58,13 @@ erf.alpha_C = 100.0
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true
 
-erf.dycore_horiz_adv_type    = "Centered_2nd"
-erf.dycore_vert_adv_type     = "Centered_2nd"
-erf.dryscal_horiz_adv_type   = "Centered_2nd"
-erf.dryscal_vert_adv_type    = "Centered_2nd"
+erf.dycore_horiz_adv_type    = "Upwind_3rd"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.dryscal_horiz_adv_type   = "Upwind_3rd"
+erf.dryscal_vert_adv_type    = "Upwind_3rd"
 erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"       
+erf.moistscal_vert_adv_type  = "Upwind_3rd"
+
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0

@@ -94,7 +94,8 @@ void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
         Box bx_yhi_face(bx); bx_yhi_face.setSmall(1,dom_hi.y+1); bx_yhi_face.setBig(1,dom_hi.y+1);
 
         ParallelFor(
-            bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+            bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            {
                 int jflip = dom_lo.y-j;
                 if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
@@ -104,16 +105,23 @@ void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                } else if (bc_ptr[n].lo(1) == ERFBCType::neumann_int) {
+                    dest_arr(i,j,k) = (4.0*dest_arr(i,dom_lo.y+1,k) - dest_arr(i,dom_lo.y+2,k))/3.0;
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR
-            bx_ylo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(1) == ERFBCType::ext_dir)
+            bx_ylo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            {
+                if (bc_ptr[n].lo(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
+                } else if (bc_ptr[n].lo(1) == ERFBCType::neumann_int) {
+                    dest_arr(i,j,k) = (4.0*dest_arr(i,dom_lo.y+1,k) - dest_arr(i,dom_lo.y+2,k))/3.0;
+                }
             }
         );
         ParallelFor(
-            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+            bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            {
                  int jflip =  2*(dom_hi.y + 1) - j;
                  if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
                      dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
@@ -123,12 +131,18 @@ void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                      dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                  } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_odd) {
                      dest_arr(i,j,k) = -dest_arr(i,jflip,k);
+                } else if (bc_ptr[n].hi(1) == ERFBCType::neumann_int) {
+                    dest_arr(i,j,k) = (4.0*dest_arr(i,dom_hi.y,k) - dest_arr(i,dom_hi.y-1,k))/3.0;
                 }
             },
             // We only set the values on the domain faces themselves if EXT_DIR
-            bx_yhi_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                if (bc_ptr[n].lo(4) == ERFBCType::ext_dir)
+            bx_yhi_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+            {
+                if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
+                } else if (bc_ptr[n].hi(1) == ERFBCType::neumann_int) {
+                    dest_arr(i,j,k) = (4.0*dest_arr(i,dom_hi.y,k) - dest_arr(i,dom_hi.y-1,k))/3.0;
+                }
             }
         );
     }
