@@ -235,7 +235,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
 
     AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
-                        bc_ptr_w_h[0].hi(2) == ERFBCType::foextrap);
+                        bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
 
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
@@ -247,6 +247,11 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
             } else {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[0][5];
             }
+        });
+    } else if (bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int) {
+        ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            dest_arr(i,j,k) = (4.0*dest_arr(i,j,dom_hi.z) - dest_arr(i,j,dom_hi.z-1))/3.0;
         });
     }
     Gpu::streamSynchronize();
