@@ -133,6 +133,7 @@ enum mathematicalBndryTypes : int {
     MOST         =  101,
     ext_dir_ingested =  102,
     neumann          =  103,
+    neumann_int      =  104
 };
 }
 
