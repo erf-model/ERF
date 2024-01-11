@@ -205,8 +205,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
             Real zz       = z_lev_h[k];
             Real zz_minus = z_lev_h[k-1];
 
+            Real h_m     = max_h; //high point of hill
             Real gamma_m = 0.5; // min allowed fractional grid spacing
-            Real z_H     = 2.44/(1-gamma_m);
+            Real z_H     = (h_m*2.44)/(1-gamma_m);
 
             Real A;
             Real foo = cos((PI/2)*(zz/z_H));
@@ -231,7 +232,6 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
                     const auto & h_s     = ma_h_s[box_no];
                     const auto & h_s_old = ma_h_s_old[box_no];
 
-                    Real h_m    = max_h; //high point of hill
                     Real beta_k = 0.2*std::min(zz/(2*h_m),1.0); //smoothing coefficient
 
                     // Clip indices for ghost-cells
