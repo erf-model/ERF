@@ -29,20 +29,9 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
     amrex::Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
-    // See IndexDefines.H
-#if defined(ERF_USE_MOISTURE)
-    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQ1 RhoQ2 NumVars]
-    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
-#elif defined(ERF_USE_WARM_NO_PRECIP)
-    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQv RhoQc NumVars]
-    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0};
-    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0};
-# else
-    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar NumVars]
-    Vector<int> cons_read = {1, 1, 0, 0, 0};
-    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0};
-#endif
+    // Cons includes [Rho RhoTheta RhoKE RhoQKE RhoScalar RhoQ1 RhoQ2 RhoQ3]
+    Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0, 0, 0};
+    Vector<int> cons_map  = {MetGridBdyVars::R, MetGridBdyVars::T, 0, 0, 0, MetGridBdyVars::QV, 0, 0, 0};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
