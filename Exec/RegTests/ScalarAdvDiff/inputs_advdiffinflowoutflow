@@ -23,7 +23,7 @@ xlo.theta = 1.
 xlo.scalar = 0.
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 2.e-4
+erf.fixed_dt           = 1.e-4
 erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
