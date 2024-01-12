@@ -53,6 +53,10 @@ std::string ERF::plotfile_type    = "amrex";
 // init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type;
 
+// use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+//                        AND 2) we want to use the bc's from the WRF bdy file
+bool ERF::use_real_bcs;
+
 // NetCDF wrfinput (initialization) file(s)
 amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
 
@@ -1006,6 +1010,11 @@ ERF::ReadParameters ()
         {
             amrex::Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
         }
+
+        // Should we use the bcs we've read in from wrfbdy or metgrid files?
+        // We default to yes if we have them, but the user can override that option
+        use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
+        pp.query("use_real_bcs",use_real_bcs);
 
         // No moving terrain with init real
         if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {

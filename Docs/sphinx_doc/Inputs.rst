@@ -791,26 +791,32 @@ advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE
 List of Parameters
 ------------------
 
-+----------------------------------+-------------------+--------------------+------------+
-| Parameter                        | Definition        | Acceptable         | Default    |
-|                                  |                   | Values             |            |
-+==================================+===================+====================+============+
-| **erf.init_type**                | Initialization    | “custom”,          | “*custom*” |
-|                                  | type              | “ideal”,           |            |
-|                                  |                   | "real",            |            |
-|                                  |                   |"input_sounding"    |            |
-+----------------------------------+-------------------+--------------------+------------+
-| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE       |
-|                                  | initial mesoscale |                    |            |
-|                                  | data              |                    |            |
-+----------------------------------+-------------------+--------------------+------------+
-| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE       |
-|                                  | mesoscale data at |                    |            |
-|                                  | lateral boundaries|                    |            |
-+----------------------------------+-------------------+--------------------+------------+
-| **erf.project_initial_velocity** | project initial   |  Integer           | 1          |
-|                                  | velocity?         |                    |            |
-+----------------------------------+-------------------+--------------------+------------+
++----------------------------------+-------------------+--------------------+--------------+
+| Parameter                        | Definition        | Acceptable         | Default      |
+|                                  |                   | Values             |              |
++==================================+===================+====================+==============+
+| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”   |
+|                                  | type              | “ideal”,           |              |
+|                                  |                   | "real",            |              |
+|                                  |                   |"input_sounding"    |              |
++----------------------------------+-------------------+--------------------+--------------+
+| **erf.use_real_bcs**             | If init_type is   | true or false      | true if      |
+|                                  | real or metgrid,  |                    | if init_type |
+|                                  | do we want to use |                    | is real or   |
+|                                  | these bcs?        |                    | metgrid;     |
+|                                  |                   |                    | else false   |
++----------------------------------+-------------------+--------------------+--------------+
+| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE         |
+|                                  | initial mesoscale |                    |              |
+|                                  | data              |                    |              |
++----------------------------------+-------------------+--------------------+--------------+
+| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE         |
+|                                  | mesoscale data at |                    |              |
+|                                  | lateral boundaries|                    |              |
++----------------------------------+-------------------+--------------------+--------------+
+| **erf.project_initial_velocity** | project initial   |  Integer           | 1            |
+|                                  | velocity?         |                    |              |
++----------------------------------+-------------------+--------------------+--------------+
 
 Notes
 -----------------

@@ -700,6 +700,10 @@ private:
     // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
     static std::string init_type;
 
+    // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
+    //                        AND 2) we want to use the bc's from the WRF bdy file
+    static bool use_real_bcs;
+
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
 
