@@ -131,6 +131,17 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             m_advect_w_gravity = a_flag;
         }
 
+        /*! Uses midpoint method to advance particles using flow velocity. */
+        void AdvectWithFlow (    amrex::MultiFab*,
+                                 int,
+                                 amrex::Real,
+                                 const std::unique_ptr<amrex::MultiFab>& );
+
+        /*! Uses midpoint method to advance particles falling under gravity. */
+        void AdvectWithGravity ( int,
+                                 amrex::Real,
+                                 const std::unique_ptr<amrex::MultiFab>& );
+
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
@@ -146,17 +157,6 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
 
         /*! Default particle initialization */
         void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-
-        /*! Uses midpoint method to advance particles using flow velocity. */
-        void AdvectWithFlow (    amrex::MultiFab*,
-                                 int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
-
-        /*! Uses midpoint method to advance particles falling under gravity. */
-        void AdvectWithGravity ( int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
 
     private:
 
