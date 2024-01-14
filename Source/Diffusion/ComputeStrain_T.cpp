@@ -80,7 +80,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (xl_v_dir) {
         Box planexy = tbxxy; planexy.setBig(0, planexy.smallEnd(0) );
         tbxxy.growLo(0,-1);
-        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
                                              -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
             Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
@@ -101,7 +101,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (xh_v_dir) {
         Box planexy = tbxxy; planexy.setSmall(0, planexy.bigEnd(0) );
         tbxxy.growHi(0,-1);
-        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
                                              -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
             Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
@@ -124,7 +124,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         Box planexz = tbxxz; planexz.setBig(0, planexz.smallEnd(0) );
         planexz.setSmall(2, planexz.smallEnd(2)+1 ); planexz.setBig(2, planexz.bigEnd(2)-1 );
         tbxxz.growLo(0,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                             - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
@@ -142,7 +142,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         Box planexz = tbxxz; planexz.setSmall(0, planexz.bigEnd(0) );
         planexz.setSmall(2, planexz.smallEnd(2)+1 ); planexz.setBig(2, planexz.bigEnd(2)-1 );
         tbxxz.growHi(0,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                             - w(i  ,j  ,k-1) - w(i-1,j  ,k-1) );
 
@@ -162,7 +162,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (yl_u_dir) {
         Box planexy = tbxxy; planexy.setBig(1, planexy.smallEnd(1) );
         tbxxy.growLo(1,-1);
-        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
                                              -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
             Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
@@ -183,7 +183,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (yh_u_dir) {
         Box planexy = tbxxy; planexy.setSmall(1, planexy.bigEnd(1) );
         tbxxy.growHi(1,-1);
-        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
                                              -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );
             Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i-1,j  ,k+1)/mf_v(i-1,j,0)
@@ -206,7 +206,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         Box planeyz = tbxyz; planeyz.setBig(1, planeyz.smallEnd(1) );
         planeyz.setSmall(2, planeyz.smallEnd(2)+1 ); planeyz.setBig(2, planeyz.bigEnd(2)-1 );
         tbxyz.growLo(1,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                             - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
@@ -224,7 +224,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         Box planeyz = tbxyz; planeyz.setSmall(1, planeyz.bigEnd(1) );
         planeyz.setSmall(2, planeyz.smallEnd(2)+1 ); planeyz.setBig(2, planeyz.bigEnd(2)-1 );
         tbxyz.growHi(1,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
              Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                              - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
@@ -244,7 +244,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (zl_u_dir) {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.5  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                             - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
 
@@ -261,7 +261,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (zh_u_dir) {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
@@ -274,7 +274,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (zl_v_dir) {
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.5  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                             - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
 
@@ -291,7 +291,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (zh_v_dir) {
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -305,7 +305,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (zl_u_dir && zl_v_dir) {
         Box planecc = bxcc; planecc.setBig(2, planecc.smallEnd(2) );
         bxcc.growLo(2,-1);
-        amrex::ParallelFor(planecc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planecc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.5 * dxInv[2] * ( (-(8./3.) * u(i  ,j,k-1) + 3. * u(i  ,j,k) - (1./3.) * u(i  ,j,k+1))
                                            + (-(8./3.) * u(i-1,j,k-1) + 3. * u(i-1,j,k) - (1./3.) * u(i-1,j,k+1)) );
             Real GradVz = 0.5 * dxInv[2] * ( (-(8./3.) * v(i,j  ,k-1) + 3. * v(i,j  ,k) - (1./3.) * v(i,j  ,k+1))
@@ -325,7 +325,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
 
         Box planexy = tbxxy; planexy.setBig(2, planexy.smallEnd(2) );
         tbxxy.growLo(2,-1);
-        amrex::ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexy,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradUz = 0.5 * dxInv[2] * ( (-(8./3.) * u(i,j  ,k-1) + 3. * u(i,j  ,k) - (1./3.) * u(i,j  ,k+1))
                                            + (-(8./3.) * u(i,j-1,k-1) + 3. * u(i,j-1,k) - (1./3.) * u(i,j-1,k+1)) );
             Real GradVz = 0.5 * dxInv[2] * ( (-(8./3.) * v(i  ,j,k-1) + 3. * v(i  ,j,k) - (1./3.) * v(i  ,j,k+1))
@@ -349,7 +349,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (!zl_u_dir) {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.5  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i-1,j  ,k+1)
                                             - w(i  ,j  ,k  ) - w(i-1,j  ,k  ) );
 
@@ -366,7 +366,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (!zl_v_dir) {
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real GradWz = 0.5  * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                             - w(i  ,j  ,k  ) - w(i  ,j-1,k  ) );
 
@@ -386,7 +386,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (!zh_u_dir) {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtEdgeCenterJ(i,j,k,dxInv,z_nd);
 
@@ -398,7 +398,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     if (!zh_v_dir) {
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real met_h_zeta;
             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
@@ -411,7 +411,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     // Fill the interior cells
     //***********************************************************************************
     // Cell centered strains
-    amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i-1,j  ,k+1)/mf_u(i-1,j,0)
                                          -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i-1,j  ,k-1)/mf_u(i-1,j,0) );
         Real GradVz = 0.25 * dxInv[2] * ( v(i  ,j  ,k+1)/mf_v(i,j,0) + v(i  ,j-1,k+1)/mf_v(i,j-1,0)
@@ -430,7 +430,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
     });
 
     // Off-diagonal strains
-    amrex::ParallelFor(tbxxy,tbxxz,tbxyz,
+    ParallelFor(tbxxy,tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         Real GradUz = 0.25 * dxInv[2] * ( u(i  ,j  ,k+1)/mf_u(i,j,0) + u(i  ,j-1,k+1)/mf_u(i,j-1,0)
                                          -u(i  ,j  ,k-1)/mf_u(i,j,0) - u(i  ,j-1,k-1)/mf_u(i,j-1,0) );

@@ -526,8 +526,6 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 void
 convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_MSFU_fab, const FArrayBox& NC_MSFV_fab,
-                     const FArrayBox& NC_MSFM_fab,
                      const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
                      const FArrayBox& NC_RDNW_fab,
@@ -539,16 +537,9 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
     Array4<Real const> c2h_arr  = NC_C2H_fab.const_array();
     Array4<Real const> rdnw_arr = NC_RDNW_fab.const_array();
     Array4<Real const> mub_arr  = NC_MUB_fab.const_array();
-    Array4<Real const> msfu_arr = NC_MSFU_fab.const_array();
-    Array4<Real const> msfv_arr = NC_MSFV_fab.const_array();
 
     Array4<Real const>  ph_arr  = NC_PH_fab.const_array();
     Array4<Real const> phb_arr  = NC_PHB_fab.const_array();
-
-    Array4<Real const> u_arr   = NC_xvel_fab.const_array();
-    Array4<Real const> v_arr   = NC_yvel_fab.const_array();
-    Array4<Real const> r_arr   = NC_rho_fab.const_array();
-    Array4<Real const> rth_arr = NC_rhotheta_fab.const_array();
 
     int ntimes = bdy_data.size();
     for (int nt = 0; nt < ntimes; nt++)
@@ -566,7 +557,7 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
         int jhi  = domain.bigEnd()[1];
 
         const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
-        amrex::ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
             if (i == ilo) {
                 xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
@@ -598,7 +589,7 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
 #endif
 
         const auto & bx_v  = bdy_data[0][WRFBdyVars::V].box();
-        amrex::ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xmu;
             if (j == jlo) {
                 xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
@@ -632,7 +623,7 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
         const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
 
         // Define density
-        amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
             Real xmu = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
 
@@ -648,7 +639,7 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
 
         // Define theta
         amrex::Real theta_ref = 300.;
-        amrex::ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
             Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
@@ -697,7 +688,7 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
 
         // Define Qv
         const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
-        amrex::ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
 
             Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
             Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);

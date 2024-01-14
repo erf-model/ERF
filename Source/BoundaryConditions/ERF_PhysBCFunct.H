@@ -45,18 +45,18 @@ public:
    /*
     * Impose physical boundary conditions at domain boundaries
     *
-    * @param[out] mfs        Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
-    * @param[in] icomp_cons  starting component for conserved variables
-    * @param[in] ncomp_cons  number of components for conserved variables
-    * @param[in] nghost_cons number of ghost cells to be filled for conserved variables
-    * @param[in] nghost_vels number of ghost cells to be filled for velocity components
-    * @param[in] time        time at which the data should be filled
-    * @param[in] init_type   if "real" then we fill boundary conditions for interior locations
-    * @param[in] cons_only   if 1 then only fill conserved variables
+    * @param[out] mfs         Vector of MultiFabs to be filled containing, in order: cons, xvel, yvel, and zvel data
+    * @param[in] icomp_cons   starting component for conserved variables
+    * @param[in] ncomp_cons   number of components for conserved variables
+    * @param[in] nghost_cons  number of ghost cells to be filled for conserved variables
+    * @param[in] nghost_vels  number of ghost cells to be filled for velocity components
+    * @param[in] time         time at which the data should be filled
+    * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
+    * @param[in] cons_only    if 1 then only fill conserved variables
     */
     void operator() (const amrex::Vector<amrex::MultiFab*>& mfs, int icomp, int ncomp,
                      amrex::IntVect const& nghost_cons, amrex::IntVect const& nghost_vels,
-                     std::string& init_type, bool cons_only, int bccomp_cons, const amrex::Real time = 0.0);
+                     bool use_real_bcs, bool cons_only, int bccomp_cons, const amrex::Real time = 0.0);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,

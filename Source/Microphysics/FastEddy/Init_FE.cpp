@@ -74,7 +74,7 @@ void FastEddy::Copy_State_to_Micro (const MultiFab& cons_in)
         auto pres_array  = mic_fab_vars[MicVar_FE::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
-        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);

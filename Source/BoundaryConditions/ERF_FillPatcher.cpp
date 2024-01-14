@@ -147,7 +147,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
 
         for (auto const& b : com_bl) {
             Box com_bx = vbx & b;
-            amrex::ParallelFor(com_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(com_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 mask_arr(i,j,k) = mask_val;
             });

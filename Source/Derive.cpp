@@ -22,7 +22,7 @@ void erf_derrhodivide (const amrex::Box& bx,
     auto const dat = datfab.array();
     auto primitive  = derfab.array();
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const amrex::Real rho       = dat(i, j, k, Rho_comp);
         const amrex::Real conserved = dat(i, j, k, scalar_index);
@@ -69,7 +69,7 @@ erf_dersoundspeed (const amrex::Box& bx,
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
     amrex::Real qv = 0.;
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
         const amrex::Real rho      = dat(i, j, k, Rho_comp);
@@ -99,7 +99,7 @@ erf_dertemp (const amrex::Box& bx,
     auto const dat = datfab.array();
     auto tfab      = derfab.array();
 
-    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const amrex::Real rho = dat(i, j, k, Rho_comp);
         const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);

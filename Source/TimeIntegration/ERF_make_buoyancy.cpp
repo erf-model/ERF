@@ -67,7 +67,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // Base state density
                 const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-                amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( (cell_data(i,j,k  ) - r0_arr(i,j,k  ))
                                                                  +(cell_data(i,j,k-1) - r0_arr(i,j,k-1)) );
@@ -111,7 +111,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
-                amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
                     Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
@@ -158,7 +158,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // TODO: A microphysics model may have more than q1 & q2 components for the
                 //       non-precipitating phase.
 
-                amrex::ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rhop_lo, rhop_hi;
                     if(moisture_type == MoistureType::FastEddy){
@@ -234,7 +234,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
-                    amrex::ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
                         Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
@@ -302,7 +302,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
 
-                    amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
                         Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);

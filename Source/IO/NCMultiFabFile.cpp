@@ -113,7 +113,6 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
            }
         }
 
-        const auto& box_array = fab.boxArray();
         auto nvar      = plt_var_names.size();
         auto nbox      = fab.local_size();
 

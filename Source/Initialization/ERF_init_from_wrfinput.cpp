@@ -42,9 +42,6 @@ void
 convert_wrfbdy_data (int which, const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
-                     const FArrayBox& NC_MSFU_fab,
-                     const FArrayBox& NC_MSFV_fab,
-                     const FArrayBox& NC_MSFM_fab,
                      const FArrayBox& NC_PH_fab,
                      const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab,
@@ -223,23 +220,19 @@ ERF::init_from_wrfinput (int lev)
         if (wrfbdy_width == wrfbdy_set_width) wrfbdy_width += 1;
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
                             NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(1,domain,bdy_data_xhi,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
                             NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(2,domain,bdy_data_ylo,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
                             NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
         convert_wrfbdy_data(3,domain,bdy_data_yhi,
-                            NC_MUB_fab[0], NC_MSFU_fab[0], NC_MSFV_fab[0], NC_MSFM_fab[0],
-                            NC_PH_fab[0] , NC_PHB_fab[0],
+                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
                             NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
                             NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
     }
@@ -381,7 +374,7 @@ init_base_state_from_wrfinput (int lev, const Box& valid_bx, const Real l_rdOcp,
         const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
 
-        amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             r_hse_arr(i,j,k)  = 1.0 / alpha_arr(i,j,k);
@@ -428,7 +421,7 @@ init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
         //
         // We must be careful not to read out of bounds of the WPS data
         //
-        amrex::ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(z_phys_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
             if (k < 0) {

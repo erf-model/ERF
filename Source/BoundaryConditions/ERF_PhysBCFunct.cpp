@@ -12,18 +12,18 @@ using namespace amrex;
  * @param[in] ncomp_cons  number of components for conserved variables
  * @param[in] nghost_cons number of ghost cells to be filled for conserved variables
  * @param[in] nghost_vels number of ghost cells to be filled for velocity components
- * @param[in] init_type   if "real" then we fill boundary conditions for interior locations
- * @param[in] cons_only   if 1 then only fill conserved variables
+ * @param[in] use_real_bcs we fill boundary conditions for interior locations
+ * @param[in] cons_only    if 1 then only fill conserved variables
  */
 
 void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, int ncomp_cons,
                                  IntVect const& nghost_cons, IntVect const& nghost_vels,
-                                 std::string& init_type, bool cons_only, int bccomp_cons, const Real time)
+                                 bool use_real_bcs, bool cons_only, int bccomp_cons, const Real time)
 {
     BL_PROFILE("ERFPhysBCFunct::()");
 
 #ifndef ERF_USE_NETCDF
-    amrex::ignore_unused(init_type);
+    amrex::ignore_unused(use_real_bcs);
 #endif
 
     if (m_geom.isAllPeriodic()) return;
@@ -82,7 +82,7 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if ((init_type != "real") && (init_type != "metgrid"))
+            if (!use_real_bcs)
             {
 
                 //! If there are cells not in the valid + periodic grown box
@@ -109,10 +109,10 @@ void ERFPhysBCFunct::operator() (const Vector<MultiFab*>& mfs, int icomp_cons, i
 
                     impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,BCVars::zvel_bc);
                 } // !cons_only
-            } // init_type != "real" && init_type != "metgrid"
+            } // use_real_bcs
 
             // Every grid touches the bottom and top domain boundary so we call the vertical bcs
-            //       for every box -- and we need to call these even if init_type == real
+            //       for every box -- and we need to call these even if use_real_bcs
             {
             impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,
                                      icomp_cons,ncomp_cons,bccomp_cons);

@@ -529,7 +529,7 @@ ERF::InitData ()
                         // We want to set the lateral BC values, too
                         Box gbx = bx; // Copy constructor
                         gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                             cons_arr(i,j,k,RhoKE_comp) = cons_arr(i,j,k,Rho_comp) * KE_0;
                         });
                     } // mfi
@@ -549,7 +549,7 @@ ERF::InitData ()
                     // We want to set the lateral BC values, too
                     Box gbx = bx; // Copy constructor
                     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
-                    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         cons_arr(i,j,k,RhoQKE_comp) = cons_arr(i,j,k,Rho_comp) * QKE_0;
                     });
                 } // mfi
@@ -1015,6 +1015,9 @@ ERF::ReadParameters ()
         // We default to yes if we have them, but the user can override that option
         use_real_bcs = ( (init_type == "real") || (init_type == "metgrid") );
         pp.query("use_real_bcs",use_real_bcs);
+
+        // We don't allow use_real_bcs to be true if init_type is not either real or metgrid
+        AMREX_ALWAYS_ASSERT(!use_real_bcs || ((init_type == "real") || (init_type == "metgrid")) );
 
         // No moving terrain with init real
         if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {

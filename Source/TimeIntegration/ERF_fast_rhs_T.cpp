@@ -138,8 +138,7 @@ void erf_fast_rhs_T (int step, int nrk,
         Box gbx = mfi.tilebox(); gbx.grow(1);
 
         if (step == 0) {
-            amrex::ParallelFor(gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
@@ -149,7 +148,7 @@ void erf_fast_rhs_T (int step, int nrk,
         Box gtby = mfi.nodaltilebox(1); gtby.grow(IntVect(1,1,0));
         Box gtbz = mfi.nodaltilebox(2); gtbz.grow(IntVect(1,1,0));
 
-        amrex::ParallelFor(gtbx, gtby, gtbz,
+        ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
         },
@@ -162,7 +161,7 @@ void erf_fast_rhs_T (int step, int nrk,
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
             if (step == 0) {
@@ -183,7 +182,7 @@ void erf_fast_rhs_T (int step, int nrk,
         Box gbx = mfi.tilebox(); gbx.grow(1);
         const Array4<Real>& old_drho_theta  = Delta_rho_theta.array(mfi);
         const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
     } // mfi
@@ -241,7 +240,7 @@ void erf_fast_rhs_T (int step, int nrk,
         // *********************************************************************
         {
         BL_PROFILE("fast_rhs_xymom_T");
-        amrex::ParallelFor(tbx, tby,
+        ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
@@ -386,8 +385,7 @@ void erf_fast_rhs_T (int step, int nrk,
         // *********************************************************************
         {
         BL_PROFILE("fast_T_making_rho_rhs");
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real h_zeta_cc_xface_hi = 0.5 * dzi *
               (  z_nd(i+1,j  ,k+1) + z_nd(i+1,j+1,k+1)
                 -z_nd(i+1,j  ,k  ) - z_nd(i+1,j+1,k  ) );
@@ -426,15 +424,15 @@ void erf_fast_rhs_T (int step, int nrk,
         {
         BL_PROFILE("fast_T_making_omega");
         Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-        amrex::ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = 0.;
         });
         Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-        amrex::ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = old_drho_w(i,j,k);
         });
         Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
-        amrex::ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
         } // end profile
@@ -586,7 +584,7 @@ void erf_fast_rhs_T (int step, int nrk,
 
         {
         BL_PROFILE("fast_rho_final_update");
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
               Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
               Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);

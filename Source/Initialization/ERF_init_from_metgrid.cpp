@@ -176,7 +176,7 @@ ERF::init_from_metgrid (int lev)
                 FArrayBox& src = NC_sst_fab[it];
                 const Array4<      Real>& dst_arr = dst.array();
                 const Array4<const Real>& src_arr = src.const_array();
-                amrex::ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = amrex::min(amrex::max(i, i_lo), i_hi);
                     int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -197,7 +197,7 @@ ERF::init_from_metgrid (int lev)
                 IArrayBox& src = NC_lmask_iab[it];
                 const Array4<      int>& dst_arr = dst.array();
                 const Array4<const int>& src_arr = src.const_array();
-                amrex::ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
                 {
                     int li = amrex::min(amrex::max(i, i_lo), i_hi);
                     int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -500,25 +500,25 @@ ERF::init_from_metgrid (int lev)
             } // MetGridBdyVars::QV
 
             // west boundary
-            amrex::ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at east boundary
-            amrex::ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at south boundary
-            amrex::ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at north boundary
-            amrex::ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
@@ -570,7 +570,7 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
         amrex::Print() << "BX " << bx << std::endl;
 #endif
 
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
@@ -853,7 +853,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto       new_data  = state_fab.array();
         auto const new_z     = z_phys_nd_fab.const_array();
 
-        amrex::ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             for (int k=0; k<=kmax; k++) {
                      z_vec[k] = new_z(i,j,k);
@@ -872,7 +872,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             }
         });
 
-        amrex::ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
             new_data(i,j,k,RhoScalar_comp) = 0.0;
@@ -911,7 +911,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         auto r_hse_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto p_hse_arr = p_hse_bcs_fab.array();
 
-        amrex::ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             for (int k=0; k<=kmax; k++) {
                      z_vec[k] = new_z(i,j,k);

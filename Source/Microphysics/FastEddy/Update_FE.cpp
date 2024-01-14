@@ -24,7 +24,7 @@ void FastEddy::Copy_Micro_to_State (amrex::MultiFab& cons)
         auto qc_arr     = mic_fab_vars[MicVar_FE::qc]->array(mfi);
 
         // get potential total density, temperature, qt, qp
-        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
             states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qv_arr(i,j,k);

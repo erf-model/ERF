@@ -340,7 +340,7 @@ ERF::build_fine_mask(int level)
 
     const auto  fma =  fine_mask.arrays();
     const auto ifma = ifine_mask.arrays();
-    amrex::ParallelFor(fine_mask, [=] AMREX_GPU_DEVICE(int bno, int i, int j, int k) noexcept
+    ParallelFor(fine_mask, [=] AMREX_GPU_DEVICE(int bno, int i, int j, int k) noexcept
     {
        fma[bno](i,j,k) = ifma[bno](i,j,k);
     });

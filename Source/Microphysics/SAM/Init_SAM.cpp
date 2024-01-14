@@ -102,7 +102,7 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
-        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
@@ -185,7 +185,7 @@ void SAM::Compute_Coefficients ()
 
     Real gOcp = m_gOcp;
 
-    amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
+    ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real RhoTheta = rho_dptr[k]*theta_dptr[k];
         Real pressure = getPgivenRTh(RhoTheta, qv_dptr[k]);
@@ -202,7 +202,7 @@ void SAM::Compute_Coefficients ()
     }
 
     // Populate all the coefficients
-    amrex::ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
+    ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real pratio = sqrt(1.29 / rho1d_t(k));
         Real rrr1=393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);

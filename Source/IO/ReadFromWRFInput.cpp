@@ -26,8 +26,6 @@ read_from_wrfinput (int lev,
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
-    int ncomp = 1;
-
     Vector<FArrayBox*> NC_fabs;
     Vector<std::string> NC_names;
     Vector<enum NC_Data_Dims_Type> NC_dim_types;

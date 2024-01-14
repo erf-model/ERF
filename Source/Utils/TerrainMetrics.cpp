@@ -446,7 +446,7 @@ make_J (const amrex::Geometry& geom,
         gbx.setSmall(2,domlo_z);
         amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
         amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                detJ(i, j, k) = .25 * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
                       -z_nd(i,j,k  ) - z_nd(i+1,j,k  ) - z_nd(i,j+1,k  ) - z_nd(i+1,j+1,k  ) );
@@ -479,7 +479,7 @@ make_zcc (const amrex::Geometry& geom,
         gbx.setSmall(2,domlo_z);
         amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
         amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
            z_cc(i, j, k) = .125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                    +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
        });
