@@ -168,7 +168,7 @@ void Radiation::initialize(const MultiFab& cons_in,
      auto nx = box3d.length(0);
      auto ny = box3d.length(1);
      // Get pressure, theta, temperature, density, and qt, qp
-     amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+     ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        auto icol = j*nx+i+1;
        auto ilev = k+1;
        qt(icol,ilev)   = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);

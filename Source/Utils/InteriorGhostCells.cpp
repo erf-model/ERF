@@ -260,7 +260,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
 
         // Populate with interpolation (protect from ghost cells)
-        amrex::ParallelFor(bx_xlo, bx_xhi,
+        ParallelFor(bx_xlo, bx_xhi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(i , dom_lo.x);
@@ -280,7 +280,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                            + alpha * bdatxhi_np1(ii,jj,k,0);
         });
 
-        amrex::ParallelFor(bx_ylo, bx_yhi,
+        ParallelFor(bx_ylo, bx_yhi,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(i , dom_lo.x);
@@ -328,7 +328,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
             arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
 
-            amrex::ParallelFor(bx_xlo, bx_xhi,
+            ParallelFor(bx_xlo, bx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real rho_interp = 0.5 * ( rarr_xlo(i-1,j,k) + rarr_xlo(i,j,k) );
@@ -340,7 +340,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 arr_xhi(i,j,k) *= rho_interp;
             });
 
-            amrex::ParallelFor(bx_ylo, bx_yhi,
+            ParallelFor(bx_ylo, bx_yhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real rho_interp = 0.5 * ( rarr_ylo(i-1,j,k) + rarr_ylo(i,j,k) );
@@ -355,7 +355,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
             arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
 
-            amrex::ParallelFor(bx_xlo, bx_xhi,
+            ParallelFor(bx_xlo, bx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real rho_interp = 0.5 * ( rarr_xlo(i,j-1,k) + rarr_xlo(i,j,k) );
@@ -367,7 +367,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 arr_xhi(i,j,k) *= rho_interp;
             });
 
-            amrex::ParallelFor(bx_ylo, bx_yhi,
+            ParallelFor(bx_ylo, bx_yhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real rho_interp = 0.5 * ( rarr_ylo(i,j-1,k) + rarr_ylo(i,j,k) );
@@ -594,7 +594,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i-1,j,k) + rho_arr(i,j,k) );
@@ -621,7 +621,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j-1,k) + rho_arr(i,j,k) );
@@ -648,7 +648,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 const Array4<const Real>& rho_arr  = fmf_p_v[0].const_array(mfi);
                 const Array4<const int>&  mask_arr = mask->const_array(mfi);
 
-                amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     if (mask_arr(i,j,k) == relax_mask_val) {
                         Real rho_interp = 0.5 * ( rho_arr(i,j,k-1) + rho_arr(i,j,k) );
@@ -672,7 +672,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             const Array4<Real>& rhs_arr  = rhs.array(mfi);
             const Array4<const int>& mask_arr = mask->const_array(mfi);
 
-            amrex::ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(vbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (mask_arr(i,j,k) == set_mask_val) {
                     rhs_arr(i,j,k) = 0.0;
@@ -706,7 +706,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
             int Relax_z = width - Spec_z;
             amrex::Real num   = amrex::Real(Spec_z + Relax_z);
             amrex::Real denom = amrex::Real(Relax_z - 1);
-            amrex::ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            ParallelFor(vbx, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
             {
                if (mask_arr(i,j,k) == relax_mask_val) {
 

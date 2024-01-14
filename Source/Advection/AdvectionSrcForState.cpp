@@ -219,7 +219,7 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
         }
     }
 
-    amrex::ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
 

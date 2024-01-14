@@ -32,7 +32,7 @@ void SAM::Diagnose () {
 
         const auto& box3d = mfi.tilebox();
 
-        amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             qt_array(i,j,k)  = qv_array(i,j,k) + qn_array(i,j,k);
             amrex::Real omn  = std::max(0.0, std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));

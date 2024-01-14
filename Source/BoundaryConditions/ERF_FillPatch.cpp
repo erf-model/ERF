@@ -100,13 +100,8 @@ ERF::FillPatch (int lev, Real time, const Vector<MultiFab*>& mfs, bool fillset)
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
-
-    /*
-    // Update vars in the micro model
-    if (solverChoice.moisture_type != MoistureType::None)
-        micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
-    */
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,
+                    use_real_bcs,cons_only,BCVars::cons_bc,time);
 }
 
 /*
@@ -134,8 +129,8 @@ ERF::FillPatchMoistVars (int lev, MultiFab& mf)
     IntVect ngvect_cons = mf.nGrowVect();
     IntVect ngvect_vels = {0,0,0};
 
-    if ((init_type != "real") && (init_type != "metgrid")) {
-        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,bccomp_cons);
+    if (!use_real_bcs) {
+        (*physbcs[lev])({&mf},icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,use_real_bcs,cons_only,bccomp_cons);
     }
 
     mf.FillBoundary(geom[lev].periodicity());
@@ -259,18 +254,12 @@ ERF::FillIntermediatePatch (int lev, Real time,
     if (m_r2d) fill_from_bndryregs(mfs,time);
 
     // We call this even if init_type == real because this routine will fill the vertical bcs
-    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
+    (*physbcs[lev])(mfs,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels,use_real_bcs,cons_only,BCVars::cons_bc,time);
     // ***************************************************************************
 
     // MOST boundary conditions
     if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
         m_most->impose_most_bcs(lev,mfs,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
-
-    /*
-   // Update vars in the micro model
-    if (solverChoice.moisture_type != MoistureType::None && (!cons_only && ncomp_cons > 2))
-        micro.Update_Micro_Vars_Lev(lev, *mfs[Vars::cons]);
-    */
 }
 
 /*
@@ -331,7 +320,7 @@ ERF::FillCoarsePatch (int lev, Real time, const Vector<MultiFab*>& mfs)
     IntVect ngvect_vels = mfs[Vars::xvel]->nGrowVect();
     bool cons_only = false;
 
-    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,init_type,cons_only,BCVars::cons_bc,time);
+    (*physbcs[lev])(mfs,0,mfs[Vars::cons]->nComp(),ngvect_cons,ngvect_vels,use_real_bcs,cons_only,BCVars::cons_bc,time);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

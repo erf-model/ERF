@@ -128,8 +128,8 @@ void erf_fast_rhs_N (int step, int nrk,
         Box gbx = mfi.tilebox(); gbx.grow(1);
 
         if (step == 0) {
-            amrex::ParallelFor(gbx,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
                 cur_cons(i,j,k,Rho_comp)      = prev_cons(i,j,k,Rho_comp);
                 cur_cons(i,j,k,RhoTheta_comp) = prev_cons(i,j,k,RhoTheta_comp);
             });
@@ -137,13 +137,12 @@ void erf_fast_rhs_N (int step, int nrk,
 
         Box gtbz = mfi.nodaltilebox(2);
         gtbz.grow(IntVect(1,1,0));
-        amrex::ParallelFor(gtbz,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gtbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
         });
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
 
@@ -167,7 +166,7 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
         const Array4<Real>& old_drho_theta  = Delta_rho_theta.array(mfi);
 
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
     } // mfi
@@ -214,7 +213,7 @@ void erf_fast_rhs_N (int step, int nrk,
         // *********************************************************************
         {
         BL_PROFILE("fast_rhs_xymom");
-        amrex::ParallelFor(tbx, tby,
+        ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
@@ -334,8 +333,7 @@ void erf_fast_rhs_N (int step, int nrk,
         // *********************************************************************
         {
         BL_PROFILE("making_rho_rhs");
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xflux_lo = (temp_cur_xmom_arr(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_u(i  ,j,0);;
             Real xflux_hi = (temp_cur_xmom_arr(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_u(i+1,j,0);;
             Real yflux_lo = (temp_cur_ymom_arr(i,j  ,k) - stage_ymom(i,j  ,k)) / mf_v(i,j  ,0);;
@@ -488,7 +486,7 @@ void erf_fast_rhs_N (int step, int nrk,
         // **************************************************************************
         {
         BL_PROFILE("fast_rho_final_update");
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * old_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
@@ -536,7 +534,7 @@ void erf_fast_rhs_N (int step, int nrk,
         auto const& temp_rhs_arr     = temp_rhs.const_array(mfi);
         auto const& slow_rhs_cons    = S_slow_rhs[IntVar::cons].const_array(mfi);
 
-        amrex::ParallelFor(bx, cons_dycore, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(bx, cons_dycore, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             cur_cons(i,j,k,n) += dtau * (slow_rhs_cons(i,j,k,n) - temp_rhs_arr(i,j,k,n));
         });
@@ -550,7 +548,7 @@ void erf_fast_rhs_N (int step, int nrk,
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
 
-        amrex::ParallelFor(tbx, tby,
+        ParallelFor(tbx, tby,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             cur_xmom(i,j,k) = temp_cur_xmom_arr(i,j,k);

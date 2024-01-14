@@ -240,7 +240,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& gbx = mfi.growntilebox(1);
                 const Array4<Real> & p_arr  = pres.array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     p_arr(i,j,k) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp));
                 });
             }
@@ -327,7 +327,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& gbx = mfi.growntilebox(1);
                 const Array4<Real> & p_arr  = pres.array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-                amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     p_arr(i,j,k) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp));
                 });
             }

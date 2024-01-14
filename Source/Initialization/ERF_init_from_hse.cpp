@@ -51,7 +51,7 @@ ERF::init_from_hse (int lev)
         const Array4<Real const>& r_hse_arr = r_hse.const_array(mfi);
         const Array4<Real const>& p_hse_arr = p_hse.const_array(mfi);
 
-        amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             cons_arr(i,j,k,Rho_comp)      = r_hse_arr(i,j,k);
             cons_arr(i,j,k,RhoTheta_comp) = getRhoThetagivenP(p_hse_arr(i,j,k));

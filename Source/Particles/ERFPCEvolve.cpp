@@ -98,7 +98,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             bool use_terrain = (a_z_height != nullptr);
             auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
 
-            amrex::ParallelFor(n,
+            ParallelFor(n,
                                [=] AMREX_GPU_DEVICE (int i)
             {
                 ParticleType& p = p_pbox[i];
@@ -191,7 +191,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
         bool use_terrain = (a_z_height != nullptr);
         auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
 
-        amrex::ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
+        ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }

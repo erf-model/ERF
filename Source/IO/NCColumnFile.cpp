@@ -148,7 +148,7 @@ ERF::writeToNCColumnFile(const int lev,
     // Loop over indices where our box contains data needed for interpolation
     const amrex::Box overlap_box = vbox & target_box;
     if (overlap_box.ok()) {
-      amrex::ParallelFor(overlap_box,
+      ParallelFor(overlap_box,
       [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const int idx_vec = k - kstart;
         const int ialpha = i - iloc;

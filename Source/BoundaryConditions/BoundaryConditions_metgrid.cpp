@@ -15,7 +15,7 @@ void
 ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
                         const Real time,
                         bool cons_only,
-                        int icomp_cons,
+                        int /*icomp_cons*/,
                         int ncomp_cons)
 {
     int lev = 0;
@@ -63,9 +63,6 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
         domain.convert(mf.boxArray().ixType());
         const auto& dom_lo = amrex::lbound(domain);
         const auto& dom_hi = amrex::ubound(domain);
-
-        // Offset only applys to cons (we may fill a subset of these vars)
-        int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
         // Loop over each component
         for (int comp_idx(0); comp_idx < comp_var[var_idx]; ++comp_idx)

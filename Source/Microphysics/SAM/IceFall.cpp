@@ -57,7 +57,7 @@ void SAM::IceFall () {
 
     // for (int k=0; k<nzm; k++) {
     //  for (int icrm=0; icrm<ncrms; icrm++) {
-    amrex::ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k)
+    ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k)
     {
         qifall_t(k) = 0.0;
         tlatqi_t(k) = 0.0;
@@ -79,7 +79,7 @@ void SAM::IceFall () {
 
         const auto& box3d = mfi.tilebox();
 
-        amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k >= std::max(0,kmin-1) && k <= kmax ) {
                 // Set up indices for x-y planes above and below current plane.
@@ -123,7 +123,7 @@ void SAM::IceFall () {
         //  for (int i=0; i<nx; i++) {
         //    for (int icrm=0; icrm<ncrms; icrm++) {
         /* by Xingqiu Yuan, need setup boundary condition for fz_t here???
-           amrex::ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+           ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
            fz_t(nz-1,j,i) = 0.0;
            });
         */
@@ -134,7 +134,7 @@ void SAM::IceFall () {
         //       for (int icrm=0; icrm<ncrms; icrm++) {
         Real fac_cond = m_fac_cond;
         Real fac_fus  = m_fac_fus;
-        amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if ( k >= std::max(0,kmin-1) && k <= kmax ) {
                 Real coef = dtn/dz;
@@ -162,7 +162,7 @@ void SAM::IceFall () {
         //    for (int i=0; i<nx; i++) {
         //      for (int icrm=0; icrm<ncrms; icrm++) {
         //parallel_for( SimpleBounds<3>(ny,nx,ncrms) , YAKL_LAMBDA (int j, int i, int icrm) {
-        amrex::ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             Real coef = dtn/dz;
             Real dqi = -coef*fz(i,j,0);

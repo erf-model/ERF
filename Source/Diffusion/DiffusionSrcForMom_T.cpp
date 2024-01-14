@@ -51,7 +51,7 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
     if (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha)
     {
         auto rho0_trans = diffChoice.rho0_trans;
-        amrex::ParallelFor(bxx, bxy, bxz,
+        ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);
@@ -87,7 +87,7 @@ DiffusionSrcForMom_T (const Box& bxx, const Box& bxy , const Box& bxz,
         });
 
     } else {
-        amrex::ParallelFor(bxx, bxy, bxz,
+        ParallelFor(bxx, bxy, bxz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real mf   = mf_m(i,j,0);

@@ -45,7 +45,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // First block: compute S-D
     //***********************************************************************************
     Real OneThird   = (1./3.);
-    amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -55,7 +55,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     // Fill tau33 first (no linear combination extrapolation)
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(bxcc2,
+    ParallelFor(bxcc2,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta;
@@ -80,7 +80,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
@@ -105,7 +105,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
@@ -132,7 +132,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
@@ -157,7 +157,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
@@ -185,7 +185,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     // Fill tau13, tau23 next (valid averaging region)
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(tbxxz,tbxyz,
+    ParallelFor(tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta,met_h_zeta;
@@ -225,7 +225,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
     // Fill the remaining components: tau11, tau22, tau12/21
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(bxcc,tbxxy,
+    ParallelFor(bxcc,tbxxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_zeta;
@@ -291,7 +291,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // First block: compute S-D
     //***********************************************************************************
     Real OneThird   = (1./3.);
-    amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
         tau33(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -301,7 +301,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     // Fill tau33 first (no linear combination extrapolation)
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(bxcc2,
+    ParallelFor(bxcc2,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta;
@@ -327,7 +327,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Box planexz = tbxxz; planexz.setBig(2, planexz.smallEnd(2) );
         tbxxz.growLo(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
@@ -354,7 +354,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Box planeyz = tbxyz; planeyz.setBig(2, planeyz.smallEnd(2) );
         tbxyz.growLo(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
@@ -383,7 +383,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     {
         Box planexz = tbxxz; planexz.setSmall(2, planexz.bigEnd(2) );
         tbxxz.growHi(2,-1);
-        amrex::ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planexz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterJ  (i,j,k,dxInv,z_nd);
@@ -410,7 +410,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Box planeyz = tbxyz; planeyz.setSmall(2, planeyz.bigEnd(2) );
         tbxyz.growHi(2,-1);
-        amrex::ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(planeyz,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterI  (i,j,k,dxInv,z_nd);
@@ -440,7 +440,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     // Fill tau13, tau23 next (valid averaging region)
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(tbxxz,tbxyz,
+    ParallelFor(tbxxz,tbxyz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_xi,met_h_eta,met_h_zeta;
@@ -486,7 +486,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
     // Fill the remaining components: tau11, tau22, tau12/21
     //-----------------------------------------------------------------------------------
-    amrex::ParallelFor(bxcc,tbxxy,
+    ParallelFor(bxcc,tbxxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real met_h_zeta;

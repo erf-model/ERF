@@ -39,7 +39,7 @@ NumericalDiffusion (const Box& bx,
     Elixir mfy_eli = mf_y_bar.elixir();
     const Array4<Real>& mfx_arr  = mf_x_bar.array();
     const Array4<Real>& mfy_arr  = mf_y_bar.array();
-    amrex::ParallelFor(planebx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    ParallelFor(planebx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         if (avg_mf_x_y) {
             mfx_arr(i,j,k) = 0.5 * ( mf_x(i,j-1,k) + mf_x(i,j,k) );
@@ -57,7 +57,7 @@ NumericalDiffusion (const Box& bx,
     Real coeff6 = num_diff_coeff / (2.0 * dt);
 
     // Compute 5th order derivative and augment RHS
-    amrex::ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
+    ParallelFor(bx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int m) noexcept
     {
         int n = start_comp + m;
         Real xflux_lo = 10. * (data(i  ,j,k,n) - data(i-1,j,k,n))

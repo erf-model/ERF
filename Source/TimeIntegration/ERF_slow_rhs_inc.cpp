@@ -252,12 +252,12 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 BL_PROFILE("slow_rhs_making_er_T");
                 // First create Omega using velocity (not momentum)
                 Box gbxo = surroundingNodes(bxcc,2);
-                amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     omega_arr(i,j,k) = (k == 0) ? 0. : OmegaFromW(i,j,k,w(i,j,k),u,v,z_nd,dxInv);
                 });
 
-                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
 
                     Real met_u_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, z_nd);
@@ -298,7 +298,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
                 if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
-                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
                     });
@@ -340,14 +340,14 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
 
                 // Copy from temp FABs back to tau
-                amrex::ParallelFor(bxcc,
+                ParallelFor(bxcc,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
                 });
 
-                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau12(i,j,k) = s12(i,j,k);
                     tau21(i,j,k) = s21(i,j,k);
@@ -369,7 +369,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 //-----------------------------------------
                 {
                 BL_PROFILE("slow_rhs_making_er_N");
-                amrex::ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     Real mfsq = mf_m(i,j,0)*mf_m(i,j,0);
                     er_arr(i,j,k) = (u(i+1, j  , k  )/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]*mfsq +
                                     (v(i  , j+1, k  )/mf_v(i,j+1,0) - v(i, j, k)/mf_v(i,j,0))*dxInv[1]*mfsq +
@@ -395,7 +395,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
                 if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
-                    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
                     });
@@ -433,13 +433,13 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 if (bxcc.bigEnd(1)   == valid_bx.bigEnd(1))   bxcc.growHi(1, 1);
 
                 // Copy from temp FABs back to tau
-                amrex::ParallelFor(bxcc,
+                ParallelFor(bxcc,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
                 });
-                amrex::ParallelFor(tbxxy, tbxxz, tbxyz,
+                ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tau12(i,j,k) = s12(i,j,k);
                 },
@@ -536,7 +536,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
             // Now create Omega with momentum (not velocity)
-            amrex::ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 omega_arr(i,j,k) = rho_w(i,j,k);
             });
         } // end profile
@@ -625,7 +625,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // Add source terms for (rho theta)
         {
             auto const& src_arr = source.const_array(mfi);
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
             });
@@ -636,7 +636,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
                 cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
@@ -646,7 +646,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // If in second RK stage, take average of old-time and new-time source
         if (nrk == 1)
         {
-            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,     Rho_comp) *= 0.5;
                 cell_rhs(i,j,k,RhoTheta_comp) *= 0.5;
@@ -688,7 +688,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // ******************************************************************
         // NON-TERRAIN VERSION
         // ******************************************************************
-          amrex::ParallelFor(tbx,
+          ParallelFor(tbx,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
 
@@ -724,7 +724,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // ******************************************************************
         // NON-TERRAIN VERSION
         // ******************************************************************
-          amrex::ParallelFor(tby,
+          ParallelFor(tby,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // y-momentum equation
 
@@ -759,7 +759,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
         // Enforce no forcing term at top and bottom boundaries
-        amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
             rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
         });
@@ -770,7 +770,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // ******************************************************************
         // NON-TERRAIN VERSION
         // ******************************************************************
-          amrex::ParallelFor(tbz,
+          ParallelFor(tbz,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
 

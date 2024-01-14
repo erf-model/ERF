@@ -218,7 +218,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
         // Extrapolate outside the domain in lateral directions (planex owns corner cells)
         if (i_lo == domain.smallEnd(0)) {
-            amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
                 mu_turb(i_lo-i, j, k, EddyDiff::Mom_h) = mu_turb(i_lo, lj, k, EddyDiff::Mom_h);
@@ -226,7 +226,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             });
         }
         if (i_hi == domain.bigEnd(0)) {
-            amrex::ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(planex, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int lj = amrex::min(amrex::max(j, domain.smallEnd(1)), domain.bigEnd(1));
                 mu_turb(i_hi+i, j, k, EddyDiff::Mom_h) = mu_turb(i_hi, lj, k, EddyDiff::Mom_h);
@@ -234,7 +234,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             });
         }
         if (j_lo == domain.smallEnd(1)) {
-            amrex::ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
                 mu_turb(i, j_lo-j, k, EddyDiff::Mom_h) = mu_turb(li, j_lo, k, EddyDiff::Mom_h);
@@ -242,7 +242,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
             });
         }
         if (j_hi == domain.bigEnd(1)) {
-            amrex::ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(planey, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 int li = amrex::min(amrex::max(i, domain.smallEnd(0)), domain.bigEnd(0));
                 mu_turb(i, j_hi+j, k, EddyDiff::Mom_h) = mu_turb(li, j_hi, k, EddyDiff::Mom_h);

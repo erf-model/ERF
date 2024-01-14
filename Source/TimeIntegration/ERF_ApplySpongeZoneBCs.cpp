@@ -131,7 +131,7 @@ ApplySpongeZoneBCs (
         }
     });
 
-    amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
@@ -190,7 +190,7 @@ ApplySpongeZoneBCs (
     });
 
 
-    amrex::ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
@@ -249,7 +249,7 @@ ApplySpongeZoneBCs (
     });
 
 
-    amrex::ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k)
+    ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
         int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);

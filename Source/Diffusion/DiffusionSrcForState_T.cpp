@@ -159,7 +159,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
     // RhoAlpha & Turb model
     if (l_consA && l_turb) {
-        amrex::ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -179,7 +179,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             xflux(i,j,k,qty_index) = rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -199,7 +199,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             yflux(i,j,k,qty_index) = rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -231,7 +231,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         });
     // Alpha & Turb model
     } else if (l_turb) {
-        amrex::ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -250,7 +250,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             xflux(i,j,k,qty_index) = Alpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -269,7 +269,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             yflux(i,j,k,qty_index) = Alpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -301,7 +301,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         });
     // RhoAlpha
     } else if(l_consA) {
-        amrex::ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -319,7 +319,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             xflux(i,j,k,qty_index) = rhoAlpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -337,7 +337,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             yflux(i,j,k,qty_index) = rhoAlpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -367,7 +367,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         });
     // Alpha
     } else {
-        amrex::ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(xbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -384,7 +384,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             xflux(i,j,k,qty_index) = Alpha * mf_u(i,j,0) * ( GradCx - (met_h_xi/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(ybx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -401,7 +401,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             yflux(i,j,k,qty_index) = Alpha * mf_v(i,j,0) * ( GradCy - (met_h_eta/met_h_zeta)*GradCz );
         });
-        amrex::ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+        ParallelFor(zbx, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
         {
             const int  qty_index = start_comp + n;
             const int prim_index = qty_index - qty_offset;
@@ -437,7 +437,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
       Box planexy = zbx; planexy.setBig(2, planexy.smallEnd(2) );
       int k_lo = zbx.smallEnd(2); int k_hi = zbx.bigEnd(2);
       zbx3.growLo(2,-1); zbx3.growHi(2,-1);
-      amrex::ParallelFor(planexy, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int , int n) noexcept
+      ParallelFor(planexy, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int , int n) noexcept
       {
           const int  qty_index = start_comp + n;
           Real met_h_xi,met_h_eta;
@@ -474,7 +474,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
       });
     }
     // Average interior cells
-    amrex::ParallelFor(zbx3, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(zbx3, num_comp,[=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = start_comp + n;
 
@@ -490,13 +490,13 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
       zflux(i,j,k,qty_index) -= met_h_xi*xfluxbar + met_h_eta*yfluxbar;
     });
     // Multiply h_zeta by x/y-fluxes
-    amrex::ParallelFor(xbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(xbx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = start_comp + n;
       Real met_h_zeta      = Compute_h_zeta_AtIface(i,j,k,dxInv,z_nd);
       xflux(i,j,k,qty_index) *= met_h_zeta;
     });
-    amrex::ParallelFor(ybx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    ParallelFor(ybx, num_comp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
       const int  qty_index = start_comp + n;
       Real met_h_zeta      = Compute_h_zeta_AtJface(i,j,k,dxInv,z_nd);
@@ -510,7 +510,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
     for (int n(0); n < num_comp; ++n)
     {
         int qty_index = start_comp + n;
-        amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real stateContrib = (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv * mf_m(i,j,0)  // Diffusive flux in x-dir
                                +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv * mf_m(i,j,0)  // Diffusive flux in y-dir
@@ -527,7 +527,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
     // Using Deardorff
     if (l_use_deardorff && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
         int qty_index = RhoKE_comp;
-        amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Add Buoyancy Source
             // where the SGS buoyancy flux tau_{theta,i} = -KH * dtheta/dx_i,
@@ -563,7 +563,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
         bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
         bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
-        amrex::ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,

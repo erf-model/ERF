@@ -148,7 +148,7 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
-    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                          : z_lo + (k + 0.5) * dz;
 
@@ -214,7 +214,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
-    amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                          : z_lo + (k + 0.5) * dz;
 
@@ -303,7 +303,7 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
     const amrex::Box& zbx = amrex::surroundingNodes(gbx,2);
 
     // Set the x,y,z-velocities
-    amrex::ParallelFor(xbx, ybx, zbx,
+    ParallelFor(xbx, ybx, zbx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
         const amrex::Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )

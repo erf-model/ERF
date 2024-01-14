@@ -51,7 +51,7 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         const Array4<Real>& vely = yvel.array(mfi);
         const Array4<Real>& velz = zvel.array(mfi);
 
-        amrex::ParallelFor(tbx, tby, tbz,
+        ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             velx(i,j,k) = momx(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp)));
         },
