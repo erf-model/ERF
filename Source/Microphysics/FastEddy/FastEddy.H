@@ -113,7 +113,7 @@ public:
     Qmoist_Size () override { return FastEddy::m_qmoist_size; }
 
     int
-    Qstate_Size () { return FastEddy::m_qstate_size; }
+    Qstate_Size () override { return FastEddy::m_qstate_size; }
 
 private:
     // Number of qmoist variables (qt, qv, qc)
