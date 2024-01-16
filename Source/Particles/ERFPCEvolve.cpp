@@ -98,8 +98,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             bool use_terrain = (a_z_height != nullptr);
             auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
 
-            ParallelFor(n,
-                               [=] AMREX_GPU_DEVICE (int i)
+            ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
@@ -121,7 +120,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         p.rdata(dim) = v[dim];
                     }
 
-                    // also update z-coordinate here
+                    // Update z-coordinate carried by the particle
                     IntVect iv(
                         AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                                      int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
@@ -130,10 +129,16 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     iv[1] += domain.smallEnd()[1];
                     ParticleReal zlo, zhi;
                     if (use_terrain) {
-                        zlo = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]  ) + zheight(iv[0]+1,iv[1]  ,iv[2]  ) +
-                                            zheight(iv[0],iv[1]+1,iv[2]  ) + zheight(iv[0]+1,iv[1]+1,iv[2]  ));
-                        zhi = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]+1) + zheight(iv[0]+1,iv[1]  ,iv[2]+1) +
-                                            zheight(iv[0],iv[1]+1,iv[2]+1) + zheight(iv[0]+1,iv[1]+1,iv[2]+1));
+                        Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<Real>(iv[0]-domain.smallEnd()[0]);
+                        Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<Real>(iv[1]-domain.smallEnd()[1]);
+                        zlo =  zheight(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
+                               zheight(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
+                               zheight(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+                               zheight(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
+                        zhi =  zheight(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
+                               zheight(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
+                               zheight(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+                               zheight(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
                     } else {
                         zlo =  iv[2]    * dx[2];
                         zhi = (iv[2]+1) * dx[2];
