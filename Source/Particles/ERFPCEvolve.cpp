@@ -130,8 +130,10 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     iv[1] += domain.smallEnd()[1];
                     ParticleReal zlo, zhi;
                     if (use_terrain) {
-                        zlo = zheight(iv[0], iv[1], iv[2]);
-                        zhi = zheight(iv[0], iv[1], iv[2]+1);
+                        zlo = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]  ) + zheight(iv[0]+1,iv[1]  ,iv[2]  ) +
+                                            zheight(iv[0],iv[1]+1,iv[2]  ) + zheight(iv[0]+1,iv[1]+1,iv[2]  ));
+                        zhi = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]+1) + zheight(iv[0]+1,iv[1]  ,iv[2]+1) +
+                                            zheight(iv[0],iv[1]+1,iv[2]+1) + zheight(iv[0]+1,iv[1]+1,iv[2]+1));
                     } else {
                         zlo =  iv[2]    * dx[2];
                         zhi = (iv[2]+1) * dx[2];
@@ -224,8 +226,10 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             iv[1] += domain.smallEnd()[1];
             ParticleReal zlo, zhi;
             if (use_terrain) {
-                zlo = zheight(iv[0], iv[1], iv[2]);
-                zhi = zheight(iv[0], iv[1], iv[2]+1);
+                zlo = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]  ) + zheight(iv[0]+1,iv[1]  ,iv[2]  ) +
+                                    zheight(iv[0],iv[1]+1,iv[2]  ) + zheight(iv[0]+1,iv[1]+1,iv[2]  ));
+                zhi = Real(0.25) * (zheight(iv[0],iv[1]  ,iv[2]+1) + zheight(iv[0]+1,iv[1]  ,iv[2]+1) +
+                                    zheight(iv[0],iv[1]+1,iv[2]+1) + zheight(iv[0]+1,iv[1]+1,iv[2]+1));
             } else {
                 zlo =  iv[2]    * dx[2];
                 zhi = (iv[2]+1) * dx[2];
