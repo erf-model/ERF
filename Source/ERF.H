@@ -656,7 +656,9 @@ private:
                                                     // eddy viscosity
                                                     "Kmv","Kmh",
                                                     // eddy diffusivity of heat
-                                                    "Khv","Khh"
+                                                    "Khv","Khh",
+                                                    // mynn pbl lengthscale
+                                                    "Lpbl"
                                                      ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
