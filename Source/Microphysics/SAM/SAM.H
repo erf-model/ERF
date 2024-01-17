@@ -147,7 +147,7 @@ public:
     Qmoist_Size () override { return SAM::m_qmoist_size; }
 
     int
-    Qstate_Size () { return SAM::m_qstate_size; }
+    Qstate_Size () override { return SAM::m_qstate_size; }
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi, qpg)
