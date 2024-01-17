@@ -928,7 +928,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 p_hse_arr(i,j,k) =   Pd_vec[k];
                 if (mask_c_arr(i,j,k)) {
                     r_hse_arr(i,j,k) = Rhod_vec[k];
-                    Q_arr(i,j,k)     = (use_moisture) ? Rhod_vec[k]*Q_vec[k] : 0.0;
+                    if (use_moisture) Q_arr(i,j,k) = Rhod_vec[k]*Q_vec[k];
                     Theta_arr(i,j,k) = Rhod_vec[k]*Thetad_vec[k];
                   }
             } // k

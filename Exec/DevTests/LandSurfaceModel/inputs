@@ -1,0 +1,70 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 100
+
+amrex.fpe_trap_invalid = 1
+amrex.fpe_trap_zero = 1
+amrex.fpe_trap_overflow = 1
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  2430000 2673000 12000
+amr.n_cell           =  90      99      50
+
+geometry.is_periodic = 0 0 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+    
+ylo.type = "Outflow"
+yhi.type = "Outflow"
+
+zlo.type      = "Most"
+erf.most.z0   =  0.1
+erf.most.zref = 120.0
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.5
+erf.fixed_mri_dt_ratio = 4
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = -1       # timesteps between computing mass
+#erf.data_log      = my_data my_1d_data
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 1          # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens
+
+# SOLVER CHOICE
+erf.alpha_T = 1.0
+erf.alpha_C = 1.0
+erf.use_gravity = true
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
+
+erf.use_terrain = true
+erf.terrain_smoothing = 2
+
+erf.moisture_model = "NullMoist"
+
+erf.land_surface_model = "MM5"
+
+# INITIALIZATION WITH METGRID DATA
+erf.metgrid_bdy_width = 5
+erf.metgrid_bdy_set_width = 1
+erf.init_type      = "metgrid"
+erf.nc_init_file_0 = "met_em.d01.2016-10-06_00_00_00.nc" "met_em.d01.2016-10-06_06_00_00.nc"
+
+# NO CACHE TILING
+fabarray.mfiter_tile_size = 1024 1024 1024

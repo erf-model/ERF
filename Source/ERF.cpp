@@ -119,6 +119,11 @@ ERF::ERF ()
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
 
+    // NOTE: size lsm before readparams (chooses the model at all levels)
+    lsm.ReSize(nlevs_max);
+    lsm_data.resize(nlevs_max);
+    lsm_flux.resize(nlevs_max);
+
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
@@ -610,7 +615,7 @@ ERF::InitData ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
         m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
-                                           sst_lev, lmask_lev
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1152,6 +1157,21 @@ ERF::ReadParameters ()
         amrex::Abort("Dont know this moisture_type!") ;
     }
 
+    // What type of land surface model to use
+    // NOTE: Must be checked after init_params
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+        lsm.SetModel<SLM>();
+        amrex::Print() << "SLM land surface model!\n";
+    } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
+        lsm.SetModel<MM5>();
+        amrex::Print() << "MM5 land surface model!\n";
+    } else if (solverChoice.lsm_type == LandSurfaceType::None) {
+        lsm.SetModel<NullSurf>();
+        amrex::Print() << "Null land surface model!\n";
+    } else {
+        amrex::Abort("Dont know this moisture_type!") ;
+    }
+
     if (verbose > 0) {
         solverChoice.display();
     }
@@ -1488,6 +1508,11 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     // NOTE: size micro before readparams (chooses the model at all levels)
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
+
+    // NOTE: size micro before readparams (chooses the model at all levels)
+    lsm.ReSize(nlevs_max);
+    lsm_data.resize(nlevs_max);
+    lsm_flux.resize(nlevs_max);
 
     ReadParameters();
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);

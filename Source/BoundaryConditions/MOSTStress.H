@@ -593,7 +593,7 @@ struct moeng_flux
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -655,6 +655,8 @@ struct moeng_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+
+        return moflux;
     }
 
     AMREX_GPU_DEVICE
@@ -802,7 +804,7 @@ struct donelan_flux
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_t_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -846,6 +848,8 @@ struct donelan_flux
         amrex::Real deltaz      = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+
+        return moflux;
     }
 
     AMREX_GPU_DEVICE
