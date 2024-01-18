@@ -18,8 +18,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                               std::unique_ptr<ABLMost>& most,
                               const amrex::BCRec* bc_ptr,
                               bool /*vert_only*/,
-                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                              std::unique_ptr<ABLMost>& most);
+                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
 /**
  * Function for computing the turbulent viscosity with LES.
