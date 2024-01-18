@@ -47,11 +47,12 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                   const TurbChoice& turbChoice, const Real const_grav)
+                                   const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
-
+    const int& klo    = domain.smallEnd(2);
+    const bool use_most = (most != nullptr);
     const bool use_terrain = (z_phys_nd != nullptr);
 
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
@@ -86,7 +87,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23);
+              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most);
               Real dxInv = cellSizeInv[0];
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
@@ -100,6 +101,16 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
               mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+
+              if (i==88 && j==40) {
+                  amrex::Print() << "EddyDiff: " << IntVect(i,j,k) << ' '
+                                 << mu_turb(i, j, k, EddyDiff::Mom_h) << ' '
+                                 << Cs << ' '
+                                 << DeltaMsf << ' '
+                                 << CsDeltaSqrMsf << ' '
+                                 << cell_data(i, j, k, Rho_comp) << ' '
+                                 << std::sqrt(2.0*SmnSmn) << "\n";
+              }
           });
       }
     }
@@ -426,7 +437,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
                                      z_phys_nd,
-                                     turbChoice, const_grav);
+                                     turbChoice, const_grav, most);
     }
 
     if (turbChoice.pbl_type != PBLType::None) {

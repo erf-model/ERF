@@ -264,7 +264,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_lo.x+width-1);
+                ii = std::min(ii, dom_lo.x+width);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
             arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
@@ -272,7 +272,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            int ii = std::max(i , dom_hi.x-width+1);
+            int ii = std::max(i , dom_hi.x-width);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
@@ -286,7 +286,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_lo.y+width-1);
+                jj = std::min(jj, dom_lo.y+width);
             arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
                            + alpha * bdatylo_np1(ii,jj,k,0);
         },
@@ -294,7 +294,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         {
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_hi.y-width+1);
+            int jj = std::max(j , dom_hi.y-width);
                 jj = std::min(jj, dom_hi.y);
             arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
                            + alpha * bdatyhi_np1(ii,jj,k,0);
@@ -437,7 +437,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         }
     } // mfi
 
-//    return; // DJW debugging return statement to shut off relaxation zone.
 
     // Compute RHS in relaxation region
     //==========================================================
@@ -492,6 +491,8 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 continue;
             }
 
+            //amrex::Print() << "VAR: " << ivar << "\n";
+            //amrex::Print() << "=================================================\n";
             wrfbdy_compute_laplacian_relaxation(delta_t, icomp, 1, width, set_width, dom_lo, dom_hi, F1, F2,
                                                 tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                 arr_xlo, arr_xhi, arr_ylo, arr_yhi,

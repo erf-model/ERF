@@ -241,6 +241,12 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
 
                 K_turb(i,j,k,EddyDiff::PBL_lengthscale) = l_comb;
                 // TODO: How should this be done for other components (scalars, moisture)
+
+                if (i==88 && j==40) {
+                  amrex::Print() << "PBL Diff: " << IntVect(i,j,k) << ' '
+                                 << K_turb(i,j,k,EddyDiff::Mom_v) << ' '
+                                 << K_turb(i,j,k,EddyDiff::Theta_v) << "\n";
+                }
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {

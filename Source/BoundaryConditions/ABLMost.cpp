@@ -206,18 +206,6 @@ ABLMost::compute_most_bcs (const int& lev,
                     int is_land = (lmask_arr) ? lmask_arr(i,j,zlo) : 1;
                     if (is_land && vbx.contains(i,j,k)) {
                         lsm_flux_arr(i,j,zlo) = Tflux;
-                        if ((i==1 || i==2) && j==1) {
-                            amrex::Print() << "ABL: " << IntVect(i,j,k) << ' '
-                                           << Tflux << ' '
-                                           << t_star_arr(i,j,zlo) << ' '
-                                           << u_star_arr(i,j,zlo) << ' '
-                                           << t_surf_arr(i,j,zlo) << ' '
-                                           << tm_arr(i,j,zlo) << ' '
-                                           << umm_arr(i,j,zlo) << ' '
-                                           << velx_arr(i,j,zlo) << ' '
-                                           << vely_arr(i,j,zlo) << ' '
-                                           << cons_arr(i,j,zlo,1) <<  "\n";
-                        }
                     }
                 });
 
