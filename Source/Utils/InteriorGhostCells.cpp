@@ -264,7 +264,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_lo.x+width-1);
+                ii = std::min(ii, dom_lo.x+width);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
             arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
@@ -272,7 +272,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            int ii = std::max(i , dom_hi.x-width+1);
+            int ii = std::max(i , dom_hi.x-width);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
@@ -286,7 +286,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_lo.y+width-1);
+                jj = std::min(jj, dom_lo.y+width);
             arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
                            + alpha * bdatylo_np1(ii,jj,k,0);
         },
@@ -294,7 +294,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         {
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_hi.y-width+1);
+            int jj = std::max(j , dom_hi.y-width);
                 jj = std::min(jj, dom_hi.y);
             arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
                            + alpha * bdatyhi_np1(ii,jj,k,0);
