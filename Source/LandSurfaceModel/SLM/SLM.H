@@ -89,9 +89,22 @@ public:
         return lsm_fab_flux[lsmIdx].get();
     }
 
+    // Get lsm geometry
+    amrex::Geometry
+    Lsm_Geom ( ) override { return m_lsm_geom; }
+
     // Get number of vars lsm class contains
     int
     Lsm_Data_Size () override { return SLM::m_lsm_size; }
+
+    // Get variable names
+    std::string
+    Lsm_VarName (const int& varIdx) override
+    {
+        int lsmIdx = LsmVarMap[varIdx];
+        AMREX_ALWAYS_ASSERT(lsmIdx < SLM::m_lsm_size && lsmIdx>=0);
+        return LsmVarName[lsmIdx];
+    }
 
 private:
     // number of lsm variables (theta)
@@ -100,8 +113,14 @@ private:
     // LsmVar map (state indices -> LsmVar enum)
     amrex::Vector<int> LsmVarMap;
 
-    // geometry
+    // Lsm varnames
+    amrex::Vector<std::string> LsmVarName;
+
+    // geometry for atmosphere
     amrex::Geometry m_geom;
+
+    // geometry for lsm
+    amrex::Geometry m_lsm_geom;
 
     // timestep
     amrex::Real m_dt;
@@ -124,10 +143,10 @@ private:
     // Vars that should be parsed
     // ==========================
     // Number of grid points in z
-    int m_nz = 30;
+    int m_nz_lsm = 30;
 
     // Size of grid spacing in z
-    amrex::Real dz = 0.1; // 3 [m] below surface
+    amrex::Real m_dz_lsm = 0.1; // 3 [m] below surface
 
     // Specific heat
     amrex::Real m_cp_soil =  1.26e6; // [J/m^3 K]

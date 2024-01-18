@@ -50,10 +50,23 @@ class NullSurf {
     Lsm_Flux_Ptr (const int& /*varIdx*/ ) { return nullptr; }
 
     virtual
+    amrex::Geometry
+    Lsm_Geom ( ) { return m_lsm_geom; }
+
+    virtual
     int
     Lsm_Data_Size () { return NullSurf::m_lsm_size; }
 
+    virtual
+    std::string
+    Lsm_VarName (const int& /*varIdx*/)
+    {
+        return varname;
+    }
+
  private:
     int m_lsm_size = 1;
+    amrex::Geometry m_lsm_geom;
+    std::string varname = " ";
 };
 #endif

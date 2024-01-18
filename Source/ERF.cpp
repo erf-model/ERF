@@ -1086,6 +1086,8 @@ ERF::ReadParameters ()
 
         pp.query("profile_int", profile_int);
 
+        pp.query("plot_lsm", plot_lsm);
+
         pp.query("output_1d_column", output_1d_column);
         pp.query("column_per", column_per);
         pp.query("column_interval", column_interval);

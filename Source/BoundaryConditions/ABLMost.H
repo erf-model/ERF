@@ -164,32 +164,12 @@ public:
 
             t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
-            // TODO: do we want lsm_data to have theta at 0 index always?
-            if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) { // Valid SST data or LSM data
+            // TODO: Do we want lsm_data to have theta at 0 index always?
+            //       Do we want an external enum struct for indexing?
+            if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+                // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
                 theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-
-                for ( amrex::MFIter mfi(*(t_surf[lev])); mfi.isValid(); ++mfi) {
-                    auto box2d = mfi.tilebox();
-
-                    auto tsurf_arr = t_surf[lev]->array(mfi);
-                    auto lmask_arr = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
-                                                                amrex::Array4<int> {};
-                    auto theta_sst = (m_sst_lev[lev][0])      ? m_sst_lev[lev][0]->array(mfi) :
-                                                                amrex::Array4<amrex::Real> {};
-                    auto theta_lsm = (m_lsm_data_lev[lev][0]) ? m_lsm_data_lev[lev][0]->array(mfi) :
-                                                                amrex::Array4<amrex::Real> {};
-
-                    ParallelFor( box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                    {
-                        int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
-                        if (is_land) {
-                            tsurf_arr(i,j,k) = theta_lsm(i,j,k);
-                        } else {
-                            tsurf_arr(i,j,k) = theta_sst(i,j,k);
-                        }
-                    });
-                }
-            } else if (erf_st) {     // Constant temp
+            } else if (erf_st) {
                 t_surf[lev]->setVal(surf_temp);
             } else {
                 t_surf[lev]->setVal(0.0);
@@ -224,8 +204,8 @@ public:
                       const FluxCalc& flux_comp);
 
     void
-    time_interp_tsurf (const int& lev,
-                       const amrex::Real& time);
+    time_interp_sst (const int& lev,
+                     const amrex::Real& time);
 
     void
     get_lsm_tsurf (const int& lev);

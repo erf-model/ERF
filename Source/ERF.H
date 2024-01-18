@@ -643,6 +643,7 @@ private:
     std::string plot_file_2 {"plt_2_"};
     int plot_int_1 = -1;
     int plot_int_2 = -1;
+    bool plot_lsm = false;
 
     // other sampling output control
     int profile_int = -1;

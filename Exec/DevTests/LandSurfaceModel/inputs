@@ -23,7 +23,7 @@ erf.most.zref = 120.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.5
+erf.fixed_dt = 0.25
 erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
@@ -44,6 +44,8 @@ erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1          # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens
 
+erf.plot_lsm = true
+
 # SOLVER CHOICE
 erf.alpha_T = 1.0
 erf.alpha_C = 1.0
@@ -52,7 +54,7 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
-
+    
 erf.use_terrain = true
 erf.terrain_smoothing = 2
 
