@@ -131,7 +131,7 @@ public:
     Qmoist_Size () override { return Kessler::m_qmoist_size; }
 
     int
-    Qstate_Size () { return Kessler::m_qstate_size; }
+    Qstate_Size () override { return Kessler::m_qstate_size; }
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi)
