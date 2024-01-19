@@ -903,7 +903,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
+            amrex::Print() << "Writing native plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
