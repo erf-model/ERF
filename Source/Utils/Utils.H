@@ -199,7 +199,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(i-dom_lo.x,jj) + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = 0.0;
         } else {
             amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
             amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
@@ -213,29 +213,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-
-            /*
-            if ((std::abs((arr_xlo(i  ,j  ,k,n)-data_arr(i  ,j  ,k  ,n+icomp))/data_arr(i  ,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xlo(i+1,j  ,k,n)-data_arr(i+1,j  ,k  ,n+icomp))/data_arr(i+1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xlo(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xlo(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xlo(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "XLO error: " << Factor << ' ' << bx_xlo << "\n";
-                amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
-                               << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_xlo(i  ,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
-                               << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << arr_xlo(i+1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xm: " << icomp << ' ' << n << ' ' << amrex::IntVect(i-1,j,k) << ' '
-                               << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << arr_xlo(i-1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX yp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j+1,k) << ' '
-                               << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << arr_xlo(i  ,j+1,k,n) << "\n";
-                amrex::Print() << "RELAX ym: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j-1,k) << ' '
-                               << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << arr_xlo(i  ,j-1,k,n) << "\n";
-                amrex::Print() << "\n";
-                //exit(0);
-            }
-            */
+            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -246,7 +224,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(dom_hi.x-i,jj) + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = 0.0;
         } else {
             amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
             amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
@@ -260,29 +238,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_xhi(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-
-            /*
-            if ((std::abs((arr_xhi(i  ,j  ,k,n)-data_arr(i  ,j  ,k  ,n+icomp))/data_arr(i  ,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xhi(i+1,j  ,k,n)-data_arr(i+1,j  ,k  ,n+icomp))/data_arr(i+1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xhi(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xhi(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_xhi(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "XHI error: " << Factor << ' ' << bx_xhi << "\n";
-                amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
-                               << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_xhi(i  ,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
-                               << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << arr_xhi(i+1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xm: " << icomp << ' ' << n << ' ' << amrex::IntVect(i-1,j,k) << ' '
-                               << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << arr_xhi(i-1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX yp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j+1,k) << ' '
-                               << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << arr_xhi(i  ,j+1,k,n) << "\n";
-                amrex::Print() << "RELAX ym: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j-1,k) << ' '
-                               << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << arr_xhi(i  ,j-1,k,n) << "\n";
-                amrex::Print() << "\n";
-                //exit(0);
-            }
-            */
+            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     });
 
@@ -291,7 +247,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = 0.0;
         } else {
             amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
             amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
@@ -305,29 +261,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_ylo(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-
-            /*
-            if ((std::abs((arr_ylo(i  ,j  ,k,n)-data_arr(i  ,j  ,k  ,n+icomp))/data_arr(i  ,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_ylo(i+1,j  ,k,n)-data_arr(i+1,j  ,k  ,n+icomp))/data_arr(i+1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_ylo(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_ylo(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_ylo(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "YLO error: " << Factor << ' ' << bx_ylo << "\n";
-                amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
-                               << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_ylo(i  ,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
-                               << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << arr_ylo(i+1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xm: " << icomp << ' ' << n << ' ' << amrex::IntVect(i-1,j,k) << ' '
-                               << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << arr_ylo(i-1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX yp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j+1,k) << ' '
-                               << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << arr_ylo(i  ,j+1,k,n) << "\n";
-                amrex::Print() << "RELAX ym: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j-1,k) << ' '
-                               << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << arr_ylo(i  ,j-1,k,n) << "\n";
-                amrex::Print() << "\n";
-                //exit(0);
-            }
-            */
+            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -335,7 +269,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = 0.0;
         } else {
             amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
             amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
@@ -349,29 +283,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_yhi(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n) += (F1*delta - F2*Laplacian) * Factor;
-
-            /*
-            if ((std::abs((arr_yhi(i  ,j  ,k,n)-data_arr(i  ,j  ,k  ,n+icomp))/data_arr(i  ,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_yhi(i+1,j  ,k,n)-data_arr(i+1,j  ,k  ,n+icomp))/data_arr(i+1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_yhi(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_yhi(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
-                (std::abs((arr_yhi(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "YHI error: " << Factor << ' ' << bx_yhi << "\n";
-                amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
-                               << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_yhi(i  ,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
-                               << data_arr(i+1,j  ,k  ,n+icomp) << ' ' << arr_yhi(i+1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX xm: " << icomp << ' ' << n << ' ' << amrex::IntVect(i-1,j,k) << ' '
-                               << data_arr(i-1,j  ,k  ,n+icomp) << ' ' << arr_yhi(i-1,j  ,k,n) << "\n";
-                amrex::Print() << "RELAX yp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j+1,k) << ' '
-                               << data_arr(i  ,j+1,k  ,n+icomp) << ' ' << arr_yhi(i  ,j+1,k,n) << "\n";
-                amrex::Print() << "RELAX ym: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j-1,k) << ' '
-                               << data_arr(i  ,j-1,k  ,n+icomp) << ' ' << arr_yhi(i  ,j-1,k,n) << "\n";
-                amrex::Print() << "\n";
-                //exit(0);
-            }
-            */
+            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     });
 }
