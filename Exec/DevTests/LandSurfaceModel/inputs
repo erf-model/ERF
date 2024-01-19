@@ -23,7 +23,7 @@ erf.most.zref = 120.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt = 0.25
+erf.fixed_dt = 0.01
 erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
@@ -38,7 +38,7 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
 erf.check_int       = 100        # number of timesteps between checkpoints
-
+erf.restart_type    = "native"
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 1          # number of timesteps between plotfiles
@@ -54,8 +54,8 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
-erf.pbl_type        = "MYNN2.5"
-erf.QKE_0           = 0.5
+#erf.pbl_type        = "MYNN2.5"
+#erf.QKE_0           = 0.5
      
 erf.use_terrain = true
 erf.terrain_smoothing = 2

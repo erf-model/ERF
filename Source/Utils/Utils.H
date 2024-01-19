@@ -221,7 +221,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                 (std::abs((arr_xlo(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_xlo(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_xlo(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "XLO error:\n";
+                amrex::Print() << "XLO error: " << Factor << ' ' << bx_xlo << "\n";
                 amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
                                << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_xlo(i  ,j  ,k,n) << "\n";
                 amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
@@ -268,7 +268,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                 (std::abs((arr_xhi(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_xhi(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_xhi(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "XHI error:\n";
+                amrex::Print() << "XHI error: " << Factor << ' ' << bx_xhi << "\n";
                 amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
                                << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_xhi(i  ,j  ,k,n) << "\n";
                 amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
@@ -313,7 +313,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                 (std::abs((arr_ylo(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_ylo(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_ylo(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "YLO error:\n";
+                amrex::Print() << "YLO error: " << Factor << ' ' << bx_ylo << "\n";
                 amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
                                << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_ylo(i  ,j  ,k,n) << "\n";
                 amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '
@@ -357,7 +357,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                 (std::abs((arr_yhi(i-1,j  ,k,n)-data_arr(i-1,j  ,k  ,n+icomp))/data_arr(i-1,j  ,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_yhi(i  ,j+1,k,n)-data_arr(i  ,j+1,k  ,n+icomp))/data_arr(i  ,j+1,k  ,n+icomp)) > 0.5) ||
                 (std::abs((arr_yhi(i  ,j-1,k,n)-data_arr(i  ,j-1,k  ,n+icomp))/data_arr(i  ,j-1,k  ,n+icomp)) > 0.5) ) {
-                amrex::Print() << "YHI error:\n";
+                amrex::Print() << "YHI error: " << Factor << ' ' << bx_yhi << "\n";
                 amrex::Print() << "RELAX x: " << icomp << ' ' << n << ' ' << amrex::IntVect(i,j,k) << ' '
                                << data_arr(i  ,j  ,k  ,n+icomp) << ' ' << arr_yhi(i  ,j  ,k,n) << "\n";
                 amrex::Print() << "RELAX xp: " << icomp << ' ' << n << ' ' << amrex::IntVect(i+1,j,k) << ' '

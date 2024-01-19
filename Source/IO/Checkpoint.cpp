@@ -32,7 +32,7 @@ ERF::WriteCheckpointFile () const
     // checkpoint file name, e.g., chk00010
     const std::string& checkpointname = amrex::Concatenate(check_file,istep[0],5);
 
-    amrex::Print() << "Writing checkpoint " << checkpointname << "\n";
+    amrex::Print() << "Writing native checkpoint " << checkpointname << "\n";
 
     const int nlevels = finest_level+1;
 
@@ -225,7 +225,7 @@ ERF::WriteCheckpointFile () const
 void
 ERF::ReadCheckpointFile ()
 {
-    amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
+    amrex::Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
     // Header
     std::string File(restart_chkfile + "/Header");

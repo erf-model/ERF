@@ -101,16 +101,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
               mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
-
-              if (i==88 && j==40) {
-                  amrex::Print() << "EddyDiff: " << IntVect(i,j,k) << ' '
-                                 << mu_turb(i, j, k, EddyDiff::Mom_h) << ' '
-                                 << Cs << ' '
-                                 << DeltaMsf << ' '
-                                 << CsDeltaSqrMsf << ' '
-                                 << cell_data(i, j, k, Rho_comp) << ' '
-                                 << std::sqrt(2.0*SmnSmn) << "\n";
-              }
           });
       }
     }

@@ -42,7 +42,7 @@ ComputeSmnSmn (int& i, int& j, int& k,
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
     amrex::Real s13bar;
     if (use_most && k==klo) {
-        s13bar = 0.5  * ( tau13(i  , j  , k  ) + tau13(i+1, j  , k  ) );
+        s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
     } else {
         s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
                         + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
