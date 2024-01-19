@@ -360,6 +360,11 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
+    // NOTE: We must guarantee one halo cell in the bdy file.
+    //       Otherwise, we make the total width match the set width.
+    if (metgrid_bdy_width-1 <= metgrid_bdy_set_width) metgrid_bdy_width = metgrid_bdy_set_width;
+    amrex::Print() << "Running with specification width: " << metgrid_bdy_set_width
+                   << " and relaxation width: " << metgrid_bdy_width - metgrid_bdy_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
     bdy_data_xlo.resize(ntimes);
