@@ -1,33 +1,33 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: /home/almgren/GitCode/ERF/build/Tests/test_files/DensityCurrent/DensityCurrent.i
+inputs file: DensityCurrent.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.000977724
+CPU time used since start of simulation (CPU-hours): 0.000521876
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Wed Jan  3 15:08:01 2024
-output dir:         /home/almgren/GitCode/ERF/build/Tests/test_files/DensityCurrent
+output data / time: Sat Jan 20 11:00:06 2024
+output dir:         /lustre/eaglefs/projects/erf/equon/ERF/Tests/test_files/DensityCurrent
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Jan  3 2024 15:07:47
-build machine: Linux manda 5.15.0-76-generic #83~20.04.1-Ubuntu SMP Wed Jun 21 20:23:31 UTC 2023 x86_64
-build dir:     /home/almgren/GitCode/ERF/build/Exec
-AMReX dir:     /home/almgren/GitCode/ERF/Submodules/AMReX
+build date:    Jan 20 2024 09:49:01
+build machine: Linux ed5 3.10.0-1062.9.1.el7.x86_64 #1 SMP Fri Dec 6 15:49:49 UTC 2019 x86_64
+build dir:     /projects/erf/equon/ERF/MyBuild/Exec
+AMReX dir:     /projects/erf/equon/ERF/Submodules/AMReX
 
 COMP:          GNU
-COMP version:  9.4.0
+COMP version:  8.4.0
 
 
-ERF       git hash: 23.12-30-ga209eb38b6a7-dirty
-AMReX       git hash: 23.11-23-g9b733ec45cd9
+ERF       git hash: 23.11-140-g88ea1f00601e-dirty
+AMReX       git hash: 23.11
 
 
 ===============================================================================
@@ -149,6 +149,10 @@ amrex.async_out_nfiles = 64
 amrex.vector_growth_factor = 1.5
 machine.verbose = 0
 machine.very_verbose = 0
+tiny_profiler.device_synchronize_around_region = 0
+tiny_profiler.verbose = 0
+tiny_profiler.v = 0
+amrex.use_profiler_syncs = 0
 geometry.coord_sys = 0
 amr.grid_eff = 0.69999999999999996
 amr.refine_grid_layout = 1

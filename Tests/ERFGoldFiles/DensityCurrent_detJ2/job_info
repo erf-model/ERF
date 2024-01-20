@@ -5,29 +5,29 @@ inputs file: DensityCurrent_detJ2.i
 
 number of MPI processes: 4
 
-CPU time used since start of simulation (CPU-hours): 0.0179131
+CPU time used since start of simulation (CPU-hours): 0.001256
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Fri Jan  5 14:44:52 2024
-output dir:         /Users/equon/ERF/Tests/test_files/DensityCurrent_detJ2
+output data / time: Sat Jan 20 11:00:35 2024
+output dir:         /lustre/eaglefs/projects/erf/equon/ERF/Tests/test_files/DensityCurrent_detJ2
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    Jan  5 2024 14:41:33
-build machine: macOS equon-38562s 12.7 21G816 arm64
-build dir:     /Users/equon/ERF/MyBuild/Exec
-AMReX dir:     /Users/equon/ERF/Submodules/AMReX
+build date:    Jan 20 2024 09:49:01
+build machine: Linux ed5 3.10.0-1062.9.1.el7.x86_64 #1 SMP Fri Dec 6 15:49:49 UTC 2019 x86_64
+build dir:     /projects/erf/equon/ERF/MyBuild/Exec
+AMReX dir:     /projects/erf/equon/ERF/Submodules/AMReX
 
-COMP:          AppleClang
-COMP version:  14.0.0.14000029
+COMP:          GNU
+COMP version:  8.4.0
 
 
-ERF       git hash: 24.01-7-gefcb2720b399
-AMReX       git hash: 24.01
+ERF       git hash: 23.11-140-g88ea1f00601e-dirty
+AMReX       git hash: 23.11
 
 
 ===============================================================================
@@ -125,7 +125,7 @@ amrex.the_comms_arena_release_threshold = 9223372036854775807
 amrex.the_async_arena_release_threshold = 9223372036854775807
 amrex.the_arena_is_managed = 0
 amrex.abort_on_out_of_gpu_memory = 0
-fab.init_snan = 1
+fab.init_snan = 0
 DistributionMapping.v = 0
 DistributionMapping.verbose = 0
 DistributionMapping.efficiency = 0.90000000000000002
@@ -133,7 +133,7 @@ DistributionMapping.sfc_threshold = 0
 DistributionMapping.node_size = 0
 DistributionMapping.verbose_mapper = 0
 fab.initval = nan
-fab.do_initval = 1
+fab.do_initval = 0
 fabarray.maxcomp = 25
 vismf.v = 0
 vismf.headerversion = 1
@@ -152,6 +152,10 @@ amrex.async_out_nfiles = 64
 amrex.vector_growth_factor = 1.5
 machine.verbose = 0
 machine.very_verbose = 0
+tiny_profiler.device_synchronize_around_region = 0
+tiny_profiler.verbose = 0
+tiny_profiler.v = 0
+amrex.use_profiler_syncs = 0
 geometry.coord_sys = 0
 amr.grid_eff = 0.69999999999999996
 amr.refine_grid_layout = 1
