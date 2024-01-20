@@ -360,6 +360,11 @@ ERF::init_from_metgrid (int lev)
         }
     }
 
+    // NOTE: We must guarantee one halo cell in the bdy file.
+    //       Otherwise, we make the total width match the set width.
+    if (metgrid_bdy_width-1 <= metgrid_bdy_set_width) metgrid_bdy_width = metgrid_bdy_set_width;
+    amrex::Print() << "Running with specification width: " << metgrid_bdy_set_width
+                   << " and relaxation width: " << metgrid_bdy_width - metgrid_bdy_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
     bdy_data_xlo.resize(ntimes);
@@ -928,7 +933,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                 p_hse_arr(i,j,k) =   Pd_vec[k];
                 if (mask_c_arr(i,j,k)) {
                     r_hse_arr(i,j,k) = Rhod_vec[k];
-                    Q_arr(i,j,k)     = (use_moisture) ? Rhod_vec[k]*Q_vec[k] : 0.0;
+                    if (use_moisture) Q_arr(i,j,k) = Rhod_vec[k]*Q_vec[k];
                     Theta_arr(i,j,k) = Rhod_vec[k]*Thetad_vec[k];
                   }
             } // k

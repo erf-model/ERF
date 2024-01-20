@@ -168,7 +168,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                 // First Length Scale
                 AMREX_ASSERT(l_obukhov != 0);
                 int lk = amrex::max(k,0);
-                const Real zval = gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
+                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,lk,z_nd_arr) : gdata.ProbLo(2) + (lk + 0.5)*gdata.CellSize(2);
                 const Real zeta = zval/l_obukhov;
                 Real l_S;
                 if (zeta >= 1.0) {

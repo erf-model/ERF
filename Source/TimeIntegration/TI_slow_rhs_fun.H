@@ -210,7 +210,7 @@
                     set_width = metgrid_bdy_set_width;
                 }
                 wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                  width-1, set_width, fine_geom,
+                                                  width, set_width, fine_geom,
                                                   S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
                                                   bdy_data_ylo, bdy_data_yhi);
             }
