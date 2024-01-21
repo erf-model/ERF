@@ -41,15 +41,17 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // optimized with if statements below instead of creating a new FAB,
     // but this is implementation is cleaner.
     FArrayBox temp;
-    temp.resize(bxcc,1);
+    Box gbx = bxcc; // Note: bxcc have been grown in x/y only.
+    gbx.grow(IntVect(0,0,1));
+    temp.resize(gbx,1);
     Array4<Real> rhoAlpha = temp.array();
     if (cell_data) {
-        ParallelFor(bxcc,
+        ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
     } else {
-        ParallelFor(bxcc,
+        ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
         });
@@ -315,15 +317,17 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // optimized with if statements below instead of creating a new FAB,
     // but this is implementation is cleaner.
     FArrayBox temp;
-    temp.resize(bxcc,1); // Note: bxcc should have a halo cell
+    Box gbx = bxcc; // Note: bxcc have been grown in x/y only.
+    gbx.grow(IntVect(0,0,1));
+    temp.resize(gbx,1);
     Array4<Real> rhoAlpha = temp.array();
     if (cell_data) {
-        ParallelFor(bxcc,
+        ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = cell_data(i, j, k, Rho_comp) * mu_eff;
         });
     } else {
-        ParallelFor(bxcc,
+        ParallelFor(gbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             rhoAlpha(i,j,k) = mu_eff;
         });
