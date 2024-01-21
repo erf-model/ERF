@@ -116,7 +116,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau12hi  = 0.5 * ( tau12(i  , j  , k+1) + tau12(i  , j+1, k+1) );
             Real tau12bar = 1.5*tau12lo - 0.5*tau12hi;
 
-            Real mu_tot = rhoAlpha(i,j,k);
+            Real mu_tot = 0.25*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
+                               + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= -mu_tot;
@@ -141,7 +142,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau22hi  = 0.5 * ( tau22(i  , j  , k+1) + tau22(i  , j-1, k+1) );
             Real tau22bar = 1.5*tau22lo - 0.5*tau22hi;
 
-            Real mu_tot   = rhoAlpha(i,j,k);
+            Real mu_tot = 0.25*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
+                               + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= -mu_tot;
@@ -168,7 +170,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau12hi  = 0.5 * ( tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
             Real tau12bar = 1.5*tau12hi - 0.5*tau12lo;
 
-            Real mu_tot   = rhoAlpha(i,j,k);
+            Real mu_tot = 0.25*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
+                               + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= -mu_tot;
@@ -193,7 +196,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
             Real tau22hi  = 0.5 * ( tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
             Real tau22bar = 1.5*tau22hi - 0.5*tau22lo;
 
-            Real mu_tot   = rhoAlpha(i,j,k);
+            Real mu_tot = 0.25*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
+                               + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= -mu_tot;
@@ -218,7 +222,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                + tau11(i  , j  , k-1) + tau11(i-1, j  , k-1) );
         Real tau12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                + tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
-        Real mu_tot   = rhoAlpha(i,j,k);
+        Real mu_tot = 0.25 * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
+                             + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
 
         tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
         tau13(i,j,k) *= -mu_tot;
@@ -236,7 +241,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                + tau21(i  , j  , k-1) + tau21(i+1, j  , k-1) );
         Real tau22bar = 0.25 * ( tau22(i  , j  , k  ) + tau22(i  , j-1, k  )
                                + tau22(i  , j  , k-1) + tau22(i  , j-1, k-1) );
-        Real mu_tot   = rhoAlpha(i,j,k);
+        Real mu_tot = 0.25 * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
+                             + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
 
         tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
         tau23(i,j,k) *= -mu_tot;
@@ -261,7 +267,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real met_h_zeta;
         met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
-        Real mu_tot = rhoAlpha(i,j,k);
+        Real mu_tot = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
+                           + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
 
         tau12(i,j,k) *= -mu_tot*met_h_zeta;
         tau21(i,j,k) *= -mu_tot*met_h_zeta;
@@ -308,7 +315,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // optimized with if statements below instead of creating a new FAB,
     // but this is implementation is cleaner.
     FArrayBox temp;
-    temp.resize(bxcc,1);
+    temp.resize(bxcc,1); // Note: bxcc should have a halo cell
     Array4<Real> rhoAlpha = temp.array();
     if (cell_data) {
         ParallelFor(bxcc,
@@ -386,7 +393,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+            Real rhoAlpha_bar = 0.25*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
+                                     + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
+            Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= -mu_tot;
@@ -413,7 +422,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+            Real rhoAlpha_bar = 0.25*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
+                                     + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
+            Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= -mu_tot;
@@ -442,7 +453,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+            Real rhoAlpha_bar = 0.25*( rhoAlpha(i-1, j, k  ) + rhoAlpha(i, j, k  )
+                                     + rhoAlpha(i-1, j, k-1) + rhoAlpha(i, j, k-1) );
+            Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
             tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
             tau13(i,j,k) *= -mu_tot;
@@ -469,7 +482,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
             Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+            Real rhoAlpha_bar = 0.25*( rhoAlpha(i, j-1, k  ) + rhoAlpha(i, j, k  )
+                                     + rhoAlpha(i, j-1, k-1) + rhoAlpha(i, j, k-1) );
+            Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
             tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
             tau23(i,j,k) *= -mu_tot;
@@ -496,8 +511,10 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                                + tau12(i  , j  , k-1) + tau12(i  , j+1, k-1) );
 
         Real mu_bar = 0.25 * ( mu_turb(i-1, j  , k  , EddyDiff::Mom_v) + mu_turb(i  , j  , k  , EddyDiff::Mom_v)
-                              + mu_turb(i-1, j  , k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
-        Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+                             + mu_turb(i-1, j  , k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
+        Real rhoAlpha_bar = 0.25 * ( rhoAlpha(i-1, j  , k  ) + rhoAlpha(i  , j  , k  )
+                                   + rhoAlpha(i-1, j  , k-1) + rhoAlpha(i  , j  , k-1) );
+        Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau13(i,j,k) -= met_h_xi*tau11bar + met_h_eta*tau12bar;
         tau13(i,j,k) *= -mu_tot;
@@ -518,7 +535,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_bar = 0.25 * ( mu_turb(i  , j-1, k  , EddyDiff::Mom_v) + mu_turb(i  , j  , k  , EddyDiff::Mom_v)
                              + mu_turb(i  , j-1, k-1, EddyDiff::Mom_v) + mu_turb(i  , j  , k-1, EddyDiff::Mom_v) );
-        Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+        Real rhoAlpha_bar = 0.25 * ( rhoAlpha(i  , j-1, k  ) + rhoAlpha(i  , j  , k  )
+                                   + rhoAlpha(i  , j-1, k-1) + rhoAlpha(i  , j  , k-1) );
+        Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau23(i,j,k) -= met_h_xi*tau21bar + met_h_eta*tau22bar;
         tau23(i,j,k) *= -mu_tot;
@@ -546,7 +565,9 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_bar = 0.25*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
-        Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_bar;
+        Real rhoAlpha_bar = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
+                                 + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
+        Real mu_tot = rhoAlpha_bar + 2.0*mu_bar;
 
         tau12(i,j,k) *= -mu_tot*met_h_zeta;
         tau21(i,j,k) *= -mu_tot*met_h_zeta;
