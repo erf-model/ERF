@@ -130,6 +130,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
     const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
@@ -170,6 +171,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
+        // if using constant alpha (mu = rho * alpha), then first divide by the
+        // reference density -- mu_eff will be scaled by the instantaneous
+        // local density later when ComputeStress*Visc_*() is called
+        Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamicViscosity / dc.rho0_trans
+                                         : 2.0 * dc.dynamicViscosity;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -193,6 +200,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             // Eddy viscosity
             const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVar::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -323,9 +331,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * dc.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            cell_data,
                                             s11, s22, s33,
                                             s12, s13,
                                             s21, s23,
@@ -333,6 +341,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                             er_arr, z_nd, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                                           cell_data,
                                            s11, s22, s33,
                                            s12, s13,
                                            s21, s23,
@@ -420,14 +429,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * dc.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            cell_data,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                                           cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr);
@@ -722,6 +732,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_adv_type, l_vert_adv_type, l_use_terrain, domhi_z);
 
         if (l_use_diff) {
+            // Note: tau** were calculated with calls to
+            // ComputeStress[Cons|Var]Visc_[N|T] in which ConsVisc ("constant
+            // viscosity") means that there is no contribution from a
+            // turbulence model. However, whether this field truly is constant
+            // depends on whether MolecDiffType is Constant or ConstantAlpha.
             if (l_use_terrain) {
                 DiffusionSrcForMom_T(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
