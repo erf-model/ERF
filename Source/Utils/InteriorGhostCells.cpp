@@ -164,17 +164,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                           bx_ylo, bx_yhi);
             wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
-
-        {
-            Box tbx = mfi.tilebox(IntVect(0,0,1));
-            Box domain = geom.Domain();
-            domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
-            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi);
-            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
-        }
     } // mfi
 
     if (width > set_width+1) {
