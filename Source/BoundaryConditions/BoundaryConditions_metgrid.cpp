@@ -142,6 +142,7 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
             // Variable not read or computed from met_em files
             //------------------------------------
             } else {
+                width -= 1;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
