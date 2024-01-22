@@ -76,20 +76,6 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
                 int ivar  = ind_map[var_idx][comp_idx];
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
-//                if (ivar == MetGridBdyVars::U) {
-//                    amrex::Print() << "fill_from_metgrid U   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
-//                } else if (ivar == MetGridBdyVars::V) {
-//                    amrex::Print() << "fill_from_metgrid V   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
-//                } else if (ivar == MetGridBdyVars::R) {
-//                    amrex::Print() << "fill_from_metgrid R   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
-//                } else if (ivar == MetGridBdyVars::T) {
-//                    amrex::Print() << "fill_from_metgrid T   var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
-//                } else if (ivar == MetGridBdyVars::QV) {
-//                    amrex::Print() << "fill_from_metgrid QV  var_idx=" << var_idx << "  comp_idx=" << comp_idx << "  ivar=" << ivar << std::endl;
-//                } else {
-//                    amrex::Print() << "fill_from_metgrid UNKNOWN" << std::endl;
-//                }
-
                 // We have data at fixed time intervals we will call dT
                 // Then to interpolate, given time, we can define n = (time/dT)
                 // and alpha = (time - n*dT) / dT, then we define the data at time
@@ -156,7 +142,6 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
             // Variable not read or computed from met_em files
             //------------------------------------
             } else {
-                width = metgrid_bdy_width;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
