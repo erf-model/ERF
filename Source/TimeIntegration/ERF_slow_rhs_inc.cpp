@@ -125,6 +125,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
+    const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
     const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
@@ -162,6 +163,12 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         dflux_y = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)), dm, nvars, 0);
         dflux_z = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)), dm, nvars, 0);
 
+        // if using constant alpha (mu = rho * alpha), then first divide by the
+        // reference density -- mu_eff will be scaled by the instantaneous
+        // local density later when ComputeStress*Visc_*() is called
+        Real mu_eff = (l_use_constAlpha) ? 2.0 * dc.dynamicViscosity / dc.rho0_trans
+                                         : 2.0 * dc.dynamicViscosity;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -185,6 +192,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 
             // Eddy viscosity
             const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVar::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -296,7 +304,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -315,9 +323,9 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            cell_data,
                                             s11, s22, s33,
                                             s12, s13,
                                             s21, s23,
@@ -325,6 +333,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                             er_arr, z_nd, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                                           cell_data,
                                            s11, s22, s33,
                                            s12, s13,
                                            s21, s23,
@@ -393,7 +402,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 
                 // Populate SmnSmn if using Deardorff (used as diff src in post)
                 // and in the first RK stage (TKE tendencies constant for nrk>0, following WRF)
-                if ((nrk==0) && (solverChoice.les_type == LESType::Deardorff)) {
+                if ((nrk==0) && (tc.les_type == LESType::Deardorff)) {
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
@@ -412,14 +421,15 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 tbxxz.grow(IntVect(-1,-1,0));
                 tbxyz.grow(IntVect(-1,-1,0));
 
-                Real mu_eff = 2.0 * solverChoice.dynamicViscosity; // Initialized to 0
                 if (!l_use_turb) {
                     ComputeStressConsVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
+                                            cell_data,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr);
                 } else {
                     ComputeStressVarVisc_N(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
+                                           cell_data,
                                            s11, s22, s33,
                                            s12, s13, s23,
                                            er_arr);
@@ -573,7 +583,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
 
         // Strain magnitude
         Array4<Real> SmnSmn_a;
-        if (solverChoice.les_type == LESType::Deardorff) {
+        if (tc.les_type == LESType::Deardorff) {
             SmnSmn_a = SmnSmn->array(mfi);
         } else {
             SmnSmn_a = Array4<Real>{};

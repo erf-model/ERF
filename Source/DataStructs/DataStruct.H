@@ -224,15 +224,6 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level);
         }
 
-        // If running LES/PBL then molecular diffusion must be "Constant" or "None"
-        for (int lev = 0; lev <= max_level; lev++) {
-            if (turbChoice[lev].les_type != LESType::None) {
-                if ( diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha ) {
-                    amrex::Error("We don't allow LES with MolecDiffType::ConstantAlpha");
-                }
-            }
-        }
-
         // Which type of refinement
         static std::string coupling_type_string = "OneWay";
         pp.query("coupling_type",coupling_type_string);
