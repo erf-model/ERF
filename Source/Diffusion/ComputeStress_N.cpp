@@ -43,13 +43,19 @@ ComputeStressConsVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // Off-diagonal strains
         ParallelFor(tbxxy,tbxxz,tbxyz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            tau12(i,j,k) *= -cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i-1, j  , k, Rho_comp) + cell_data(i, j  , k, Rho_comp)
+                                + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
+            tau12(i,j,k) *= -rho_bar * mu_eff;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            tau13(i,j,k) *= -cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
+                                + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            tau13(i,j,k) *= -rho_bar * mu_eff;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            tau23(i,j,k) *= -cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
+                                + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+            tau23(i,j,k) *= -rho_bar * mu_eff;
         });
     }
     else
@@ -122,24 +128,27 @@ ComputeStressVarVisc_N (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // Off-diagonal strains
         ParallelFor(tbxxy,tbxxz,tbxyz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real rhoAlpha = cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i-1, j  , k, Rho_comp) + cell_data(i, j  , k, Rho_comp)
+                                + cell_data(i-1, j-1, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real mu_bar = 0.25*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                                + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );
-            Real mu_12  = rhoAlpha + 2.0*mu_bar;
+            Real mu_12  = rho_bar*mu_eff + 2.0*mu_bar;
             tau12(i,j,k) *= -mu_12;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real rhoAlpha = cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i-1, j, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
+                                + cell_data(i-1, j, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real mu_bar = 0.25*( mu_turb(i-1, j, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i-1, j, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_13  = rhoAlpha + 2.0*mu_bar;
+            Real mu_13  = rho_bar*mu_eff + 2.0*mu_bar;
             tau13(i,j,k) *= -mu_13;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real rhoAlpha = cell_data(i, j, k, Rho_comp) * mu_eff;
+            Real rho_bar = 0.25*( cell_data(i, j-1, k  , Rho_comp) + cell_data(i, j, k  , Rho_comp)
+                                + cell_data(i, j-1, k-1, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real mu_bar = 0.25*( mu_turb(i, j-1, k  , EddyDiff::Mom_v) + mu_turb(i, j, k  , EddyDiff::Mom_v)
                                + mu_turb(i, j-1, k-1, EddyDiff::Mom_v) + mu_turb(i, j, k-1, EddyDiff::Mom_v) );
-            Real mu_23  = rhoAlpha + 2.0*mu_bar;
+            Real mu_23  = rho_bar*mu_eff + 2.0*mu_bar;
             tau23(i,j,k) *= -mu_23;
         });
     }
