@@ -117,6 +117,13 @@ struct TurbChoice {
 
             pp.query("theta_ref", theta_ref);
 
+            // Validate inputs
+            if (les_type == LESType::Smagorinsky) {
+                if (Cs == 0) {
+                    amrex::Error("Need to specify Cs for Smagorsinky LES");
+                }
+            }
+
         // Here we cover the case where either one is > 1 and the other is 0, or they both are the same and > 1
         } else {
 
