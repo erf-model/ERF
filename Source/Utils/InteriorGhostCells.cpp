@@ -164,17 +164,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                           bx_ylo, bx_yhi);
             wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
-
-        {
-            Box tbx = mfi.tilebox(IntVect(0,0,1));
-            Box domain = geom.Domain();
-            domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
-            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi);
-            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
-        }
     } // mfi
 
     if (width>set_width+1) {
@@ -273,92 +262,92 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         // Populate FABs from boundary interpolation
         //==========================================================
         for (int ivar(ivarU); ivar < BdyEnd; ivar++)
+        {
+            int var_idx = var_map[ivar];
+            Box domain  = geom.Domain();
+            domain.convert(S_data[var_idx].boxArray().ixType());
+            const auto& dom_lo = lbound(domain);
+            const auto& dom_hi = ubound(domain);
+
+            // Grown domain to get the 4 halo boxes w/ ghost cells
+            // NOTE: 2 ghost cells needed for U -> rho*U
+            IntVect ng_vect{2,2,0};
+            Box gdom(domain); gdom.grow(ng_vect);
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi,
+                                          ng_vect, true);
+
+            Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+            Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
+            if (ivar  == ivarU) {
+              arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
+              arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
+            } else if (ivar  == ivarV) {
+              arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
+              arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
+            } else if (ivar  == ivarR) {
+              arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
+              arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
+            } else if (ivar  == ivarT){
+              arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
+              arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
+            } else {
+              continue;
+            }
+
+            // Boundary data at fixed time intervals
+            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
+            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
+            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
+            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
+            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
+            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
+            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
+            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
+
+            // Populate with interpolation (protect from ghost cells)
+            ParallelFor(bx_xlo, bx_xhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int var_idx = var_map[ivar];
-                Box domain  = geom.Domain();
-                domain.convert(S_data[var_idx].boxArray().ixType());
-                const auto& dom_lo = lbound(domain);
-                const auto& dom_hi = ubound(domain);
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_lo.x+width);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+                arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
+                               + alpha * bdatxlo_np1(ii,jj,k,0);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_hi.x-width);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+                arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
+                               + alpha * bdatxhi_np1(ii,jj,k,0);
+            });
 
-                // Grown domain to get the 4 halo boxes w/ ghost cells
-                // NOTE: 2 ghost cells needed for U -> rho*U
-                IntVect ng_vect{2,2,0};
-                Box gdom(domain); gdom.grow(ng_vect);
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi,
-                                              ng_vect, true);
-
-                Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
-                Array4<Real> arr_ylo;  Array4<Real> arr_yhi;
-                if (ivar  == ivarU) {
-                    arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
-                    arr_ylo = U_ylo.array(); arr_yhi = U_yhi.array();
-                } else if (ivar  == ivarV) {
-                    arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
-                    arr_ylo = V_ylo.array(); arr_yhi = V_yhi.array();
-                } else if (ivar  == ivarR) {
-                    arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
-                    arr_ylo = R_ylo.array(); arr_yhi = R_yhi.array();
-                } else if (ivar  == ivarT){
-                    arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
-                    arr_ylo = T_ylo.array(); arr_yhi = T_yhi.array();
-                } else {
-                    continue;
-                }
-
-                // Boundary data at fixed time intervals
-                const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
-                const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
-                const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][ivar].const_array();
-                const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][ivar].const_array();
-                const auto& bdatylo_n   = bdy_data_ylo[n_time  ][ivar].const_array();
-                const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][ivar].const_array();
-                const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][ivar].const_array();
-                const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][ivar].const_array();
-
-                // Populate with interpolation (protect from ghost cells)
-                ParallelFor(bx_xlo, bx_xhi,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int ii = std::max(i , dom_lo.x);
-                        ii = std::min(ii, dom_lo.x+width);
-                    int jj = std::max(j , dom_lo.y);
-                        jj = std::min(jj, dom_hi.y);
-                    arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
-                                   + alpha * bdatxlo_np1(ii,jj,k,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int ii = std::max(i , dom_hi.x-width);
-                        ii = std::min(ii, dom_hi.x);
-                    int jj = std::max(j , dom_lo.y);
-                        jj = std::min(jj, dom_hi.y);
-                    arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
-                                   + alpha * bdatxhi_np1(ii,jj,k,0);
-                });
-
-                ParallelFor(bx_ylo, bx_yhi,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int ii = std::max(i , dom_lo.x);
-                        ii = std::min(ii, dom_hi.x);
-                    int jj = std::max(j , dom_lo.y);
-                        jj = std::min(jj, dom_lo.y+width);
-                    arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
-                                   + alpha * bdatylo_np1(ii,jj,k,0);
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    int ii = std::max(i , dom_lo.x);
-                        ii = std::min(ii, dom_hi.x);
-                    int jj = std::max(j , dom_hi.y-width);
-                        jj = std::min(jj, dom_hi.y);
-                    arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
-                                   + alpha * bdatyhi_np1(ii,jj,k,0);
-                });
-            } // ivar
+            ParallelFor(bx_ylo, bx_yhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_lo.y+width);
+                arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
+                               + alpha * bdatylo_np1(ii,jj,k,0);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_hi.y-width);
+                    jj = std::min(jj, dom_hi.y);
+                arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
+                               + alpha * bdatyhi_np1(ii,jj,k,0);
+            });
+        } // ivar
 
         // Velocity to momentum
         //==========================================================
