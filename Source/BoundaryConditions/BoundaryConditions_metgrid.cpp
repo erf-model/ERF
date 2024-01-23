@@ -15,7 +15,7 @@ void
 ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
                         const Real time,
                         bool cons_only,
-                        int /*icomp_cons*/,
+                        int icomp_cons,
                         int ncomp_cons)
 {
     int lev = 0;
@@ -64,8 +64,11 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
         const auto& dom_lo = amrex::lbound(domain);
         const auto& dom_hi = amrex::ubound(domain);
 
+        // Offset only applys to cons (we may fill a subset of these vars)
+        int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
+
         // Loop over each component
-        for (int comp_idx(0); comp_idx < comp_var[var_idx]; ++comp_idx)
+        for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
             int width = metgrid_bdy_set_width;
 
@@ -142,7 +145,6 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
             // Variable not read or computed from met_em files
             //------------------------------------
             } else {
-                width = std::max(width-1,0);
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
@@ -164,13 +166,13 @@ ERF::fill_from_metgrid (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y);
                             jj = std::min(jj, dom_hi.y);
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)

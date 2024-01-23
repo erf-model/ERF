@@ -164,9 +164,20 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                           bx_ylo, bx_yhi);
             wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
         }
+
+        {
+            Box tbx = mfi.tilebox(IntVect(0,0,1));
+            Box domain = geom.Domain();
+            domain.convert(S_rhs[IntVar::zmom].boxArray().ixType());
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_zmom);
+        }
     } // mfi
 
-    if (width > set_width+1) {
+    if (width>set_width+1) {
         // Last cell is a ghost cell
         width -= 1;
 
@@ -309,44 +320,44 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
 
                 // Populate with interpolation (protect from ghost cells)
                 ParallelFor(bx_xlo, bx_xhi,
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                            {
-                                int ii = std::max(i , dom_lo.x);
-                                ii = std::min(ii, dom_lo.x+width);
-                                int jj = std::max(j , dom_lo.y);
-                                jj = std::min(jj, dom_hi.y);
-                                arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
-                                    + alpha * bdatxlo_np1(ii,jj,k,0);
-                            },
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                            {
-                                int ii = std::max(i , dom_hi.x-width);
-                                ii = std::min(ii, dom_hi.x);
-                                int jj = std::max(j , dom_lo.y);
-                                jj = std::min(jj, dom_hi.y);
-                                arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
-                                    + alpha * bdatxhi_np1(ii,jj,k,0);
-                            });
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int ii = std::max(i , dom_lo.x);
+                        ii = std::min(ii, dom_lo.x+width);
+                    int jj = std::max(j , dom_lo.y);
+                        jj = std::min(jj, dom_hi.y);
+                    arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
+                                   + alpha * bdatxlo_np1(ii,jj,k,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int ii = std::max(i , dom_hi.x-width);
+                        ii = std::min(ii, dom_hi.x);
+                    int jj = std::max(j , dom_lo.y);
+                        jj = std::min(jj, dom_hi.y);
+                    arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k,0)
+                                   + alpha * bdatxhi_np1(ii,jj,k,0);
+                });
 
                 ParallelFor(bx_ylo, bx_yhi,
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                            {
-                                int ii = std::max(i , dom_lo.x);
-                                ii = std::min(ii, dom_hi.x);
-                                int jj = std::max(j , dom_lo.y);
-                                jj = std::min(jj, dom_lo.y+width);
-                                arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
-                                    + alpha * bdatylo_np1(ii,jj,k,0);
-                            },
-                            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                            {
-                                int ii = std::max(i , dom_lo.x);
-                                ii = std::min(ii, dom_hi.x);
-                                int jj = std::max(j , dom_hi.y-width);
-                                jj = std::min(jj, dom_hi.y);
-                                arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
-                                    + alpha * bdatyhi_np1(ii,jj,k,0);
-                            });
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int ii = std::max(i , dom_lo.x);
+                        ii = std::min(ii, dom_hi.x);
+                    int jj = std::max(j , dom_lo.y);
+                        jj = std::min(jj, dom_lo.y+width);
+                    arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
+                                   + alpha * bdatylo_np1(ii,jj,k,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    int ii = std::max(i , dom_lo.x);
+                        ii = std::min(ii, dom_hi.x);
+                    int jj = std::max(j , dom_hi.y-width);
+                        jj = std::min(jj, dom_hi.y);
+                    arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
+                                   + alpha * bdatyhi_np1(ii,jj,k,0);
+                });
             } // ivar
 
         // Velocity to momentum

@@ -200,7 +200,7 @@
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs) {
-            if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
+            if (((init_type == "real") || (init_type == "metgrid")) && (level==0)) {
                 int width, set_width;
                 if (init_type == "real") {
                     width = wrfbdy_width;
