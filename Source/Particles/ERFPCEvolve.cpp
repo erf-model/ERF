@@ -124,7 +124,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                     IntVect iv(
                         AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                                      int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                                     p.idata(0)));
+                                     p.idata(ERFParticlesIntIdx::k)));
                     iv[0] += domain.smallEnd()[0];
                     iv[1] += domain.smallEnd()[1];
                     ParticleReal zlo, zhi;
@@ -144,9 +144,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         zhi = (iv[2]+1) * dx[2];
                     }
                     if (p.pos(2) > zhi) { // need to be careful here
-                        p.idata(0) += 1;
+                        p.idata(ERFParticlesIntIdx::k) += 1;
                     } else if (p.pos(2) <= zlo) {
-                        p.idata(0) -= 1;
+                        p.idata(ERFParticlesIntIdx::k) -= 1;
                     }
                 }
             });
@@ -226,7 +226,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             IntVect iv(
                 AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                              int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                             p.idata(0)));
+                             p.idata(ERFParticlesIntIdx::k)));
             iv[0] += domain.smallEnd()[0];
             iv[1] += domain.smallEnd()[1];
             ParticleReal zlo, zhi;
@@ -246,9 +246,9 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
                 zhi = (iv[2]+1) * dx[2];
             }
             if (p.pos(2) > zhi) { // need to be careful here
-                p.idata(0) += 1;
+                p.idata(ERFParticlesIntIdx::k) += 1;
             } else if (p.pos(2) <= zlo) {
-                p.idata(0) -= 1;
+                p.idata(ERFParticlesIntIdx::k) -= 1;
             }
         });
     }
