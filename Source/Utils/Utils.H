@@ -71,11 +71,9 @@ void wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                         const amrex::Real& bdy_time_interval,
                                         const amrex::Real& start_bdy_time,
                                         const amrex::Real& time,
-                                        const amrex::Real& delta_t,
                                         int width,
                                         int set_width,
                                         const amrex::Geometry& geom,
-                                        amrex::Vector<amrex::MultiFab>& S_rhs,
                                         amrex::Vector<amrex::MultiFab>& S_data,
                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
@@ -166,8 +164,7 @@ wrfbdy_zero_rhs_in_set_region (const int& icomp,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
-                                     const int& icomp,
+wrfbdy_compute_laplacian_relaxation (const int& icomp,
                                      const int& num_var,
                                      const int& width,
                                      const int& set_width,
@@ -183,15 +180,14 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                                      const amrex::Array4<const amrex::Real>& arr_xhi,
                                      const amrex::Array4<const amrex::Real>& arr_ylo,
                                      const amrex::Array4<const amrex::Real>& arr_yhi,
-                                     const amrex::Array4<const amrex::Real>& data_arr,
-                                     const amrex::Array4<amrex::Real>& rhs_arr)
+                                     const amrex::Array4<amrex::Real>& data_arr)
 {
     // RHS computation
     int Spec_z  = set_width;
     int Relax_z = width - Spec_z + 1;
     amrex::Real num     = amrex::Real(Spec_z + Relax_z);
     amrex::Real denom   = amrex::Real(Relax_z - 1);
-    amrex::Real SpecExp = 0.5;
+    amrex::Real SpecExp = 1.0;
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -199,23 +195,17 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(i-dom_lo.x,jj) + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
-        } else {
-            amrex::Real Factor   =  (num - amrex::Real(n_ind))/denom
-                                  *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
-            amrex::Real delta    = arr_xlo(i  ,j  ,k,n) - d;
-            amrex::Real delta_xp = arr_xlo(i+1,j  ,k,n) - d_ip1;
-            amrex::Real delta_xm = arr_xlo(i-1,j  ,k,n) - d_im1;
-            amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
-            amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
+        if (n_ind > Spec_z) {
+            amrex::Real Factor    =  (num - amrex::Real(n_ind))/denom
+                                   *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real delta     = arr_xlo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real delta_xp  = arr_xlo(i+1,j  ,k,n) - data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real delta_xm  = arr_xlo(i-1,j  ,k,n) - data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real delta_yp  = arr_xlo(i  ,j+1,k,n) - data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real delta_ym  = arr_xlo(i  ,j-1,k,n) - data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            amrex::Real RHS_nudge = (F1*delta - F2*Laplacian) * Factor;
+            data_arr(i,j,k,n+icomp) += RHS_nudge;
         }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -225,23 +215,17 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int j_hi  = std::min(dom_hi.y-j,width-1);
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(dom_hi.x-i,jj) + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
-        } else {
-            amrex::Real Factor   =  (num - amrex::Real(n_ind))/denom
-                                  *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
-            amrex::Real delta    = arr_xhi(i  ,j  ,k,n) - d;
-            amrex::Real delta_xp = arr_xhi(i+1,j  ,k,n) - d_ip1;
-            amrex::Real delta_xm = arr_xhi(i-1,j  ,k,n) - d_im1;
-            amrex::Real delta_yp = arr_xhi(i  ,j+1,k,n) - d_jp1;
-            amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
+        if (n_ind > Spec_z) {
+            amrex::Real Factor    =  (num - amrex::Real(n_ind))/denom
+                                   *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real delta     = arr_xhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real delta_xp  = arr_xhi(i+1,j  ,k,n) - data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real delta_xm  = arr_xhi(i-1,j  ,k,n) - data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real delta_yp  = arr_xhi(i  ,j+1,k,n) - data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real delta_ym  = arr_xhi(i  ,j-1,k,n) - data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            amrex::Real RHS_nudge = (F1*delta - F2*Laplacian) * Factor;
+            data_arr(i,j,k,n+icomp) += RHS_nudge;
         }
     });
 
@@ -249,46 +233,34 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
     {
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
-        } else {
-            amrex::Real Factor   =  (num - amrex::Real(n_ind))/denom
-                                  *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
-            amrex::Real delta    = arr_ylo(i  ,j  ,k,n) - d;
-            amrex::Real delta_xp = arr_ylo(i+1,j  ,k,n) - d_ip1;
-            amrex::Real delta_xm = arr_ylo(i-1,j  ,k,n) - d_im1;
-            amrex::Real delta_yp = arr_ylo(i  ,j+1,k,n) - d_jp1;
-            amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
+        if (n_ind > Spec_z) {
+            amrex::Real Factor    =  (num - amrex::Real(n_ind))/denom
+                                   *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real delta     = arr_ylo(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real delta_xp  = arr_ylo(i+1,j  ,k,n) - data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real delta_xm  = arr_ylo(i-1,j  ,k,n) - data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real delta_yp  = arr_ylo(i  ,j+1,k,n) - data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real delta_ym  = arr_ylo(i  ,j-1,k,n) - data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            amrex::Real RHS_nudge = (F1*delta - F2*Laplacian) * Factor;
+            data_arr(i,j,k,n+icomp) += RHS_nudge;
         }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
-        if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
-        } else {
-            amrex::Real Factor   =  (num - amrex::Real(n_ind))/denom
-                                  *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
-            amrex::Real delta    = arr_yhi(i  ,j  ,k,n) - d;
-            amrex::Real delta_xp = arr_yhi(i+1,j  ,k,n) - d_ip1;
-            amrex::Real delta_xm = arr_yhi(i-1,j  ,k,n) - d_im1;
-            amrex::Real delta_yp = arr_yhi(i  ,j+1,k,n) - d_jp1;
-            amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
+        if (n_ind > Spec_z) {
+            amrex::Real Factor    =  (num - amrex::Real(n_ind))/denom
+                                   *  std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real delta     = arr_yhi(i  ,j  ,k,n) - data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real delta_xp  = arr_yhi(i+1,j  ,k,n) - data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real delta_xm  = arr_yhi(i-1,j  ,k,n) - data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real delta_yp  = arr_yhi(i  ,j+1,k,n) - data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real delta_ym  = arr_yhi(i  ,j-1,k,n) - data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            amrex::Real RHS_nudge = (F1*delta - F2*Laplacian) * Factor;
+            data_arr(i,j,k,n+icomp) += RHS_nudge;
         }
     });
 }

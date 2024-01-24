@@ -198,21 +198,55 @@
         }
 
 #ifdef ERF_USE_NETCDF
-        // Populate RHS for relaxation zones if using real bcs
+        // Populate RHS for set zones if using real bcs
         if (use_real_bcs) {
             if (((init_type == "real") || (init_type == "metgrid")) && (level==0)) {
-                int width, set_width;
+                int set_width;
                 if (init_type == "real") {
-                    width = wrfbdy_width;
                     set_width = wrfbdy_set_width;
                 } else if (init_type == "metgrid") {
-                    width = metgrid_bdy_width;
                     set_width = metgrid_bdy_set_width;
                 }
-                wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                  width, set_width, fine_geom,
-                                                  S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                                  bdy_data_ylo, bdy_data_yhi);
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Array4<Real> rhs_cons = S_rhs[IntVar::cons].array(mfi);
+                    const Array4<Real> rhs_xmom = S_rhs[IntVar::xmom].array(mfi);
+                    const Array4<Real> rhs_ymom = S_rhs[IntVar::ymom].array(mfi);
+                    const Array4<Real> rhs_zmom = S_rhs[IntVar::zmom].array(mfi);
+                    {
+                        Box tbx = mfi.tilebox();
+                        Box domain = geom[level].Domain();
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
+                    }
+
+                    {
+                        Box tbx = mfi.tilebox(IntVect(1,0,0));
+                        Box domain = geom[level].Domain();
+                        domain.convert(S_rhs[IntVar::xmom].boxArray().ixType());
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
+                    }
+
+                    {
+                        Box tbx = mfi.tilebox(IntVect(0,1,0));
+                        Box domain = geom[level].Domain();
+                        domain.convert(S_rhs[IntVar::ymom].boxArray().ixType());
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
+                    }
+                } // mfi
             }
         }
 #endif
@@ -332,6 +366,29 @@
                               fr_as_crse, fr_as_fine
                               );
         }
+
+#ifdef ERF_USE_NETCDF
+        // Populate RHS for relaxation zones if using real bcs
+        if (use_real_bcs) {
+            if (((init_type == "real") || (init_type == "metgrid")) && (level==0)) {
+                int width, set_width;
+                if (init_type == "real") {
+                    width = wrfbdy_width;
+                    set_width = wrfbdy_set_width;
+                } else if (init_type == "metgrid") {
+                    width = metgrid_bdy_width;
+                    set_width = metgrid_bdy_set_width;
+                }
+                if (width > set_width + 1)
+                    wrfbdy_compute_interior_ghost_rhs(init_type,
+                                                      bdy_time_interval, start_bdy_time, new_stage_time,
+                                                      width, set_width, fine_geom, S_new,
+                                                      bdy_data_xlo, bdy_data_xhi,
+                                                      bdy_data_ylo, bdy_data_yhi);
+            }
+        }
+#endif
+
     }; // end slow_rhs_fun_post
 
 #ifdef ERF_USE_POISSON_SOLVE
@@ -368,20 +425,56 @@
                          dptr_rayleigh_thetabar);
 
 #ifdef ERF_USE_NETCDF
-        // Populate RHS for relaxation zones
-        if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
-            int width, set_width;
-            if (init_type == "real") {
-                width = wrfbdy_width;
-                set_width = wrfbdy_set_width;
-            } else if (init_type == "metgrid") {
-                width = metgrid_bdy_width;
-                set_width = metgrid_bdy_set_width;
+        // Populate RHS for set zones if using real bcs
+        if (use_real_bcs) {
+            if (((init_type == "real") || (init_type == "metgrid")) && (level==0)) {
+                int set_width;
+                if (init_type == "real") {
+                    set_width = wrfbdy_set_width;
+                } else if (init_type == "metgrid") {
+                    set_width = metgrid_bdy_set_width;
+                }
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(S_rhs[IntVar::cons],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Array4<Real> rhs_cons = S_rhs[IntVar::cons].array(mfi);
+                    const Array4<Real> rhs_xmom = S_rhs[IntVar::xmom].array(mfi);
+                    const Array4<Real> rhs_ymom = S_rhs[IntVar::ymom].array(mfi);
+                    const Array4<Real> rhs_zmom = S_rhs[IntVar::zmom].array(mfi);
+                    {
+                        Box tbx = mfi.tilebox();
+                        Box domain = geom[level].Domain();
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(Rho_comp, 2, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_cons);
+                    }
+
+                    {
+                        Box tbx = mfi.tilebox(IntVect(1,0,0));
+                        Box domain = geom[level].Domain();
+                        domain.convert(S_rhs[IntVar::xmom].boxArray().ixType());
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_xmom);
+                    }
+
+                    {
+                        Box tbx = mfi.tilebox(IntVect(0,1,0));
+                        Box domain = geom[level].Domain();
+                        domain.convert(S_rhs[IntVar::ymom].boxArray().ixType());
+                        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+                        compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                                      bx_xlo, bx_xhi,
+                                                      bx_ylo, bx_yhi);
+                        wrfbdy_zero_rhs_in_set_region(0, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, rhs_ymom);
+                    }
+                } // mfi
             }
-            wrfbdy_compute_interior_ghost_rhs(init_type, bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                              width-1, set_width, fine_geom,
-                                              S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                              bdy_data_ylo, bdy_data_yhi);
         }
 #endif
 
