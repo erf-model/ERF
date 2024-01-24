@@ -50,7 +50,6 @@ struct ERFParticlesAssignor
                                  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
                                  const amrex::Box& domain ) const noexcept
     {
-        /* TODO: What is this about? */
         amrex::IntVect iv(
             AMREX_D_DECL(   int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                             int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
@@ -118,6 +117,17 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             return {AMREX_D_DECL("xvel","yvel","zvel"),"mass"};
         }
 
+        /*! Uses midpoint method to advance particles using flow velocity. */
+        virtual void AdvectWithFlow (  amrex::MultiFab*,
+                                       int,
+                                       amrex::Real,
+                                       const std::unique_ptr<amrex::MultiFab>& );
+
+        /*! Uses midpoint method to advance particles falling under gravity. */
+        virtual void AdvectWithGravity ( int,
+                                         amrex::Real,
+                                         const std::unique_ptr<amrex::MultiFab>& );
+
         /*! Specify if particles should advect with flow */
         inline void setAdvectWithFlow (bool a_flag)
         {
@@ -130,17 +140,6 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             BL_PROFILE("ERFPCPC::setAdvectWithGravity()");
             m_advect_w_gravity = a_flag;
         }
-
-        /*! Uses midpoint method to advance particles using flow velocity. */
-        void AdvectWithFlow (    amrex::MultiFab*,
-                                 int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
-
-        /*! Uses midpoint method to advance particles falling under gravity. */
-        void AdvectWithGravity ( int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
 
     protected:
 
