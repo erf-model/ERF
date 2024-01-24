@@ -14,22 +14,10 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
+#include "MicrophysicsVariables.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
-
-namespace MicVar_FE {
-   enum {
-      // independent variables
-      qv = 0,
-      qc,
-      qt,
-      rho,   // density
-      theta, // liquid/ice water potential temperature
-      tabs,  // temperature
-      pres,  // pressure
-      NumVars
-  };
-}
+#include "NullMoist.H"
 
 //
 // use MultiFab for 3D data, but table for 1D data

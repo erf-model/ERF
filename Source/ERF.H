@@ -44,7 +44,8 @@
 #include "ParticleData.H"
 #endif
 
-#include "Microphysics.H"
+#include "EulerianMicrophysics.H"
+#include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
 
 #ifdef ERF_USE_RRTMGP
@@ -360,6 +361,8 @@ private:
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
+    void initializeMicrophysics (const int&);
+
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
     // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
@@ -530,7 +533,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    Microphysics micro;
+    std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 6 components: qv, qc, qi, qr, qs, qg
 
 //#if defined(ERF_USE_WINDFARM)

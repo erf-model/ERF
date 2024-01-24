@@ -20,32 +20,10 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
+#include "MicrophysicsVariables.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
-
-namespace MicVar_Kess {
-   enum {
-      // independent variables
-      qt = 0,
-      qp,
-      theta, // liquid/ice water potential temperature
-      tabs,  // temperature
-      rho,   // density
-      pres,  // pressure
-      // derived variables
-      qr,   // rain water
-      qv,   // water vapor
-      qn,   // cloud condensate (liquid+ice), initial to zero
-      qci,  // cloud ice
-      qcl,  // cloud water
-      qpl,  // precip rain
-      qpi,  // precip ice
-      qg,   // graupel
-      // temporary variable
-      omega,
-      NumVars
-  };
-}
+#include "NullMoist.H"
 
 //
 // use MultiFab for 3D data, but table for 1D data

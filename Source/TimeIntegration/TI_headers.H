@@ -219,6 +219,7 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
+                    const int&,
                     const amrex::MultiFab* r0);
 #endif
 

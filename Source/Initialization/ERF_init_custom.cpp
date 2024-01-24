@@ -27,7 +27,7 @@ ERF::init_custom (int lev)
 {
     auto& lev_new = vars_new[lev];
 
-    int n_qstate   = micro.Get_Qstate_Size();
+    int n_qstate   = micro->Get_Qstate_Size();
 
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -97,9 +97,9 @@ ERF::init_custom (int lev)
     }
 
     if (solverChoice.moisture_type != MoistureType::None) {
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ1_comp,    RhoQ1_comp,    1, cons_pert.nGrow());
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ2_comp,    RhoQ2_comp,    1, cons_pert.nGrow());
-        if (n_qstate >= 3) MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ3_comp,    RhoQ3_comp,    1, cons_pert.nGrow());
+        if (n_qstate > 0) MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ1_comp,    RhoQ1_comp,    1, cons_pert.nGrow());
+        if (n_qstate > 1) MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ2_comp,    RhoQ2_comp,    1, cons_pert.nGrow());
+        if (n_qstate > 2) MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ3_comp,    RhoQ3_comp,    1, cons_pert.nGrow());
     }
 
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());

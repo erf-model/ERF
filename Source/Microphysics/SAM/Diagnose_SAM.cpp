@@ -1,4 +1,5 @@
-#include "Microphysics.H"
+#include "MicrophysicsVariables.H"
+#include "SAM.H"
 #include "EOS.H"
 
 /**

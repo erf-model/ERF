@@ -297,13 +297,17 @@ init_state_from_wrfinput (int lev,
 
         if (moisture_type != MoistureType::None)
         {
-            state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
-            state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
+            if (n_qstate >= 1) {
+              state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
+              state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
+            }
 
-            state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
-            state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
+            if (RhoQ2_comp < state_fab.nComp()) {
+              state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
+              state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
+            }
 
-            if (n_qstate >= 3) {
+            if (RhoQ3_comp < state_fab.nComp()) {
                 state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ3_comp, 1);
                 state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ3_comp, 1);
             }
