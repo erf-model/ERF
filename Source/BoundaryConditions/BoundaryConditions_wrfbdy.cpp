@@ -142,6 +142,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
             // Variable not read from wrf bdy
             //------------------------------------
             } else {
+                width = 0;
                 IntVect ng_vect = mf.nGrowVect(); ng_vect[2] = 0;
 
 #ifdef AMREX_USE_OMP
