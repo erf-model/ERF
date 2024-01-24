@@ -1732,6 +1732,9 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
         if (cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
+/*  I don't think we need these for the multiblock Evolve
+**  Results in extraneous plot/checkpoint files
+
     if (plot_int_1 > 0 && istep[0] > last_plot_file_step_1) {
         WritePlotFile(1,plot_var_names_1);
     }
@@ -1749,6 +1752,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
            WriteCheckpointFile();
         }
     }
+*/
 
 }
 #endif
