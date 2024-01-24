@@ -94,7 +94,11 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             z_t_rk[level], Omega, source, buoyancy,
+#if defined(ERF_USE_RRTMGP)
+                             qheating_rates[level],
+#endif
+                             Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
@@ -185,7 +189,11 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             z_t_rk[level], Omega, source, buoyancy,
+#if defined(ERF_USE_RRTMGP)
+                             qheating_rates[level],
+#endif
+                             Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
