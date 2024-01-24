@@ -128,6 +128,11 @@ if(ERF_ENABLE_MPI)
   find_package(MPI REQUIRED)
 endif()
 
+configure_file(
+  ${CMAKE_SOURCE_DIR}/Source/ERF_Config.H.in
+  ${CMAKE_BINARY_DIR}/ERF_Config.H
+)
+
 # General information about machine, compiler, and build type
 message(STATUS "ERF Information:")
 message(STATUS "CMAKE_SYSTEM_NAME = ${CMAKE_SYSTEM_NAME}")
