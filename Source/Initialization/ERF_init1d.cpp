@@ -44,7 +44,8 @@ ERF::initRayleigh ()
         d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
         prob->erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
-                          h_rayleigh_wbar[lev], h_rayleigh_thetabar[lev], geom[lev]);
+                                h_rayleigh_wbar[lev], h_rayleigh_thetabar[lev], geom[lev],
+                                z_phys_cc[lev]);
 
         // Copy from host version to device version
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[lev].begin(), h_rayleigh_tau[lev].end(),
