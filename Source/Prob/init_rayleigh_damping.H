@@ -12,12 +12,12 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc) override
 {
     const int khi = geom.Domain().bigEnd()[2];
-    amrex::Vector<amrex::Real> zcc(khi);
+    amrex::Vector<amrex::Real> zcc(khi+1);
 
     if (z_phys_cc) {
         // use_terrain=1
         // calculate the damping strength based on the max height at each k
-        amrex::MultiArray4<const amrex::Real> const& ma_z_phys  = z_phys_cc->const_arrays();
+        amrex::MultiArray4<const amrex::Real> const& ma_z_phys = z_phys_cc->const_arrays();
         for (int k = 0; k <= khi; k++) {
             zcc[k] = amrex::ParReduce(amrex::TypeList<amrex::ReduceOpMax>{},
                                       amrex::TypeList<amrex::Real>{},
@@ -29,6 +29,8 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                 return { ma_z_phys[box_no](i,j,k) };
             });
         }
+        amrex::ParallelDescriptor::ReduceRealMax(zcc.data(), zcc.size());
+
     } else {
         const amrex::Real* prob_lo = geom.ProbLo();
         const auto dx              = geom.CellSize();
@@ -38,7 +40,7 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
         }
     }
 
-    const auto ztop = zcc[khi-1];
+    const auto ztop = zcc[khi];
     amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<" s^-1)"
         << " between " << ztop-parms.zdamp << " and " << ztop << " m"
         << std::endl;
