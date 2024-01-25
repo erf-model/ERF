@@ -26,6 +26,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
                       const amrex::MultiFab& buoyancy,
+#if defined(ERF_USE_RRTMGP)
+                      const amrex::MultiFab& qheating_rates,
+#endif
                             amrex::MultiFab* Tau11,
                             amrex::MultiFab* Tau22,
                             amrex::MultiFab* Tau33,
