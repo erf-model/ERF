@@ -118,6 +118,9 @@ ERF::ERF ()
     // NOTE: size micro before readparams (chooses the model at all levels)
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
+#if defined(ERF_USE_RRTMGP)
+    qheating_rates.resize(nlevs_max);
+#endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);
@@ -1510,6 +1513,9 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     // NOTE: size micro before readparams (chooses the model at all levels)
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
+#if defined(ERF_USE_RRTMGP)
+    qheating_rates.resize(nlevs_max);
+#endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)
     lsm.ReSize(nlevs_max);

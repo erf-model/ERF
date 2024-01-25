@@ -539,6 +539,7 @@ private:
 
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
+    amrex::Vector<amrex::MultiFab> qheating_rates;  // radiation heating rate source terms
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries
