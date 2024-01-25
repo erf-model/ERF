@@ -84,6 +84,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab& Omega,
                        const MultiFab& source,
                        const MultiFab& buoyancy,
+#ifdef ERF_USE_RRTMGP
+                       const MultiFab& qheating_rates,
+#endif
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -701,6 +704,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
                 });
             }
+
+#ifdef ERF_USE_RRTMGP
+            auto const& qheating_arr = qheating_rates.const_array(mfi);
+            if (l_use_terrain && l_moving_terrain) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += (qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1)) / detJ_arr(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
+                });
+            }
+#endif
         }
 
         // Add Rayleigh damping

@@ -9,6 +9,10 @@
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real U_0 = 0.0;
+  amrex::Real V_0 = 0.0;
+  amrex::Real W_0 = 0.0;
+  amrex::Real dampcoef = 0.003;
+  amrex::Real zdamp = 1.0;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -17,6 +21,7 @@ public:
     Problem();
 
 #include "Prob/init_density_hse_dry_terrain.H"
+#include "Prob/init_rayleigh_damping.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,

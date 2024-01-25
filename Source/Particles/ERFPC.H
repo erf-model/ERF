@@ -50,7 +50,6 @@ struct ERFParticlesAssignor
                                  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
                                  const amrex::Box& domain ) const noexcept
     {
-        /* TODO: What is this about? */
         amrex::IntVect iv(
             AMREX_D_DECL(   int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                             int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
@@ -60,6 +59,38 @@ struct ERFParticlesAssignor
         return iv;
     }
 };
+
+template <typename P>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void update_location_idata (P& p,
+                            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& plo,
+                            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
+                            const amrex::Array4<amrex::Real const>&  height_arr)
+{
+    amrex::IntVect iv( int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
+                       int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
+                       p.idata(ERFParticlesIntIdx::k) );
+
+    p.idata(ERFParticlesIntIdx::i) = iv[0];
+    p.idata(ERFParticlesIntIdx::j) = iv[1];
+
+    amrex::Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(iv[0]);
+    amrex::Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(iv[1]);
+    auto zlo = height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
+               height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
+               height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+               height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
+    auto zhi = height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
+               height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
+               height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+               height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
+
+    if (p.pos(2) > zhi) {
+        p.idata(ERFParticlesIntIdx::k) += 1;
+    } else if (p.pos(2) <= zlo) {
+        p.idata(ERFParticlesIntIdx::k) -= 1;
+    }
+}
 
 class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
                                                 ERFParticlesIntIdx::ncomps,
@@ -118,6 +149,17 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             return {AMREX_D_DECL("xvel","yvel","zvel"),"mass"};
         }
 
+        /*! Uses midpoint method to advance particles using flow velocity. */
+        virtual void AdvectWithFlow (  amrex::MultiFab*,
+                                       int,
+                                       amrex::Real,
+                                       const std::unique_ptr<amrex::MultiFab>& );
+
+        /*! Uses midpoint method to advance particles falling under gravity. */
+        virtual void AdvectWithGravity ( int,
+                                         amrex::Real,
+                                         const std::unique_ptr<amrex::MultiFab>& );
+
         /*! Specify if particles should advect with flow */
         inline void setAdvectWithFlow (bool a_flag)
         {
@@ -130,17 +172,6 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             BL_PROFILE("ERFPCPC::setAdvectWithGravity()");
             m_advect_w_gravity = a_flag;
         }
-
-        /*! Uses midpoint method to advance particles using flow velocity. */
-        void AdvectWithFlow (    amrex::MultiFab*,
-                                 int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
-
-        /*! Uses midpoint method to advance particles falling under gravity. */
-        void AdvectWithGravity ( int,
-                                 amrex::Real,
-                                 const std::unique_ptr<amrex::MultiFab>& );
 
     protected:
 
