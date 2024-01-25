@@ -86,11 +86,13 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
             // We only set the values on the domain faces themselves if EXT_DIR
             bx_xlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
-              if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+                if (bc_ptr[n].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
-              } else if (bc_ptr[n].lo(0) == ERFBCType::neumann_int) {
+                } else if (bc_ptr[n].lo(0) == ERFBCType::neumann_int) {
                     dest_arr(i,j,k) = (4.0*dest_arr(dom_lo.x+1,jj,k) - dest_arr(dom_lo.x+2,jj,k))/3.0;
-              }
+                }
             }
         );
         ParallelFor(
