@@ -8,7 +8,8 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
                    amrex::Vector<amrex::Real>& vbar,
                    amrex::Vector<amrex::Real>& wbar,
                    amrex::Vector<amrex::Real>& thetabar,
-                   amrex::Geometry      const& geom) override
+                   amrex::Geometry      const& geom,
+                   std::unique_ptr<amrex::MultiFab>& z_phys_cc) override
 {
     const auto ztop = geom.ProbHi()[2];
     amrex::Print() << "Rayleigh damping (coef="<<parms.dampcoef<<" s^-1)"
