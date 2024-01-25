@@ -103,7 +103,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
                 ParticleReal v[AMREX_SPACEDIM];
-                mac_interpolate(p, plo, dxi, umacarr, v);
+                mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
                 if (ipass == 0)
                 {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
@@ -111,6 +111,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         p.rdata(dim) = p.pos(dim);
                         p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*v[dim]);
                     }
+                    // Update z-coordinate carried by the particle
+                    update_location_idata(p,plo,dxi,zheight);
                 }
                 else
                 {
@@ -119,35 +121,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                         p.pos(dim) = p.rdata(dim) + static_cast<ParticleReal>(a_dt*v[dim]);
                         p.rdata(dim) = v[dim];
                     }
-
                     // Update z-coordinate carried by the particle
-                    IntVect iv(
-                        AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
-                                     int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                                     p.idata(ERFParticlesIntIdx::k)));
-                    iv[0] += domain.smallEnd()[0];
-                    iv[1] += domain.smallEnd()[1];
-                    ParticleReal zlo, zhi;
-                    if (use_terrain) {
-                        Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<Real>(iv[0]-domain.smallEnd()[0]);
-                        Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<Real>(iv[1]-domain.smallEnd()[1]);
-                        zlo =  zheight(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                               zheight(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                               zheight(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-                               zheight(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-                        zhi =  zheight(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                               zheight(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                               zheight(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-                               zheight(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
-                    } else {
-                        zlo =  iv[2]    * dx[2];
-                        zhi = (iv[2]+1) * dx[2];
-                    }
-                    if (p.pos(2) > zhi) { // need to be careful here
-                        p.idata(ERFParticlesIntIdx::k) += 1;
-                    } else if (p.pos(2) <= zlo) {
-                        p.idata(ERFParticlesIntIdx::k) -= 1;
-                    }
+                    update_location_idata(p,plo,dxi,zheight);
                 }
             });
         }
@@ -223,33 +198,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             p.rdata(ERFParticlesRealIdx::vz) -= (grav - drag) * half_dt;
 
             // also update z-coordinate here
-            IntVect iv(
-                AMREX_D_DECL(int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
-                             int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                             p.idata(ERFParticlesIntIdx::k)));
-            iv[0] += domain.smallEnd()[0];
-            iv[1] += domain.smallEnd()[1];
-            ParticleReal zlo, zhi;
-            if (use_terrain) {
-                Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<Real>(iv[0]-domain.smallEnd()[0]);
-                Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<Real>(iv[1]-domain.smallEnd()[1]);
-                zlo =  zheight(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                       zheight(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                       zheight(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-                       zheight(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-                zhi =  zheight(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                       zheight(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                       zheight(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-                       zheight(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
-            } else {
-                zlo =  iv[2]    * dx[2];
-                zhi = (iv[2]+1) * dx[2];
-            }
-            if (p.pos(2) > zhi) { // need to be careful here
-                p.idata(ERFParticlesIntIdx::k) += 1;
-            } else if (p.pos(2) <= zlo) {
-                p.idata(ERFParticlesIntIdx::k) -= 1;
-            }
+            update_location_idata(p,plo,dxi,zheight);
         });
     }
 
