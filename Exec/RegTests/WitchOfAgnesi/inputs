@@ -41,13 +41,12 @@ erf.check_int       = -57600  # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 1       # number of timesteps between plotfiles
+erf.plot_int_1      = 10      # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y
 
 # SOLVER CHOICE
 erf.use_gravity = true
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 erf.les_type = "None"
 
 # TERRRAIN GRID TYPE
@@ -62,5 +61,9 @@ erf.alpha_T = 0.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0   = 300.0
-prob.U_0   = 0.0
+prob.U_0   = 1.0
 prob.rho_0 = 1.16
+
+erf.use_rayleigh_damping = true
+prob.dampcoef = 2000. # ==> time scale = 0.0005 s (for testing)
+prob.zdamp = 1.0
