@@ -59,8 +59,12 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
     {
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+2);
-        Box bx_xlo_face(bx); bx_xlo_face.setSmall(0,dom_lo.x  ); bx_xlo_face.setBig(0,dom_lo.x  );
-        Box bx_xhi_face(bx); bx_xhi_face.setSmall(0,dom_hi.x+1); bx_xhi_face.setBig(0,dom_hi.x+1);
+        Box bx_xlo_face(bx); bx_xlo_face.setSmall(0,dom_lo.x  );
+        Box bx_xhi_face(bx); bx_xhi_face.setSmall(0,dom_hi.x+1);
+        bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
+        bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
+        bx_xlo_face.setSmall(2,dom_lo.z); bx_xlo_face.setBig(2,dom_hi.z);
+        bx_xhi_face.setSmall(2,dom_lo.z); bx_xhi_face.setBig(2,dom_hi.z);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
             {
@@ -120,6 +124,8 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
         // Populate ghost cells on lo-y and hi-y domain boundaries
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+        bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
+        bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;

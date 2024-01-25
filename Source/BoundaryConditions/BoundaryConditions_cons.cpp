@@ -62,6 +62,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     {
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
+        bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
+        bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].lo(0) == ERFBCType::ext_dir) {
@@ -80,6 +82,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     {
         Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
         Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+        bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
+        bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 if (bc_ptr[icomp+n].lo(1) == ERFBCType::ext_dir) {
@@ -99,8 +103,10 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1); bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
-        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
+        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
+        bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
+        bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = dom_lo.x - 1 - i;
@@ -128,8 +134,10 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_y)
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1); bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
+        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
+        bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
+        bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;
