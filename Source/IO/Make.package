@@ -12,7 +12,6 @@ CEXE_sources += ERF_Write1DProfiles.cpp
 CEXE_sources += ERF_WriteScalarProfiles.cpp
 
 CEXE_sources += console_io.cpp
-CEXE_headers += console_io.H
 
 ifeq ($(USE_NETCDF), TRUE)
   CEXE_sources += ReadFromWRFBdy.cpp

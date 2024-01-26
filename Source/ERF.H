@@ -990,11 +990,11 @@ public:
     void writeJobInfo (const std::string& dir) const;
     static void writeBuildInfo (std::ostream& os);
 
-    void print_banner(MPI_Comm /*comm*/, std::ostream& /*out*/);
-    void print_usage(MPI_Comm /*comm*/, std::ostream& /*out*/);
-    void print_error(MPI_Comm /*comm*/, const std::string& msg);
-    void print_summary(std::ostream&);
-    void print_tpls(std::ostream& /*out*/);
+    static void print_banner(MPI_Comm /*comm*/, std::ostream& /*out*/);
+    static void print_usage(MPI_Comm /*comm*/, std::ostream& /*out*/);
+    static void print_error(MPI_Comm /*comm*/, const std::string& msg);
+    static void print_summary(std::ostream&);
+    static void print_tpls(std::ostream& /*out*/);
 };
 
 #endif

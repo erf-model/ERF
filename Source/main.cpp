@@ -60,8 +60,8 @@ int main (int argc, char* argv[])
 
     if (argc < 2) {
         // Print usage and exit with error code if no input file was provided.
-        print_usage(MPI_COMM_WORLD, std::cout);
-        print_error(
+        ERF::print_usage(MPI_COMM_WORLD, std::cout);
+        ERF::print_error(
             MPI_COMM_WORLD, "No input file provided. Exiting!!");
         return 1;
     }
@@ -70,16 +70,16 @@ int main (int argc, char* argv[])
     for (auto i = 1; i < argc; i++) {
         const std::string param(argv[i]);
         if ((param == "--help") || (param == "-h") || (param == "--usage")) {
-            print_banner(MPI_COMM_WORLD, std::cout);
-            print_usage(MPI_COMM_WORLD, std::cout);
+            ERF::print_banner(MPI_COMM_WORLD, std::cout);
+            ERF::print_usage(MPI_COMM_WORLD, std::cout);
             return 0;
         }
     }
 
     if (!amrex::FileSystem::Exists(std::string(argv[1]))) {
         // Print usage and exit with error code if we cannot find the input file
-        print_usage(MPI_COMM_WORLD, std::cout);
-        print_error(
+        ERF::print_usage(MPI_COMM_WORLD, std::cout);
+        ERF::print_error(
             MPI_COMM_WORLD, "Input file does not exist = " +
                                 std::string(argv[1]) + ". Exiting!!");
         return 1;
