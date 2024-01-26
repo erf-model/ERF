@@ -3,7 +3,10 @@
 #include "ERF.H"
 #include "AMReX.H"
 #include "AMReX_Vector.H"
+
+#ifdef ERF_USE_NETCDF
 #include "NCInterface.H"
+#endif
 
 namespace amrex {
 const char* buildInfoGetBuildDate();
