@@ -86,7 +86,7 @@ void ERF::print_banner(MPI_Comm comm, std::ostream& out)
     const std::string tstamp(time_buf);
 #else
     char* time_buf = new char[64];
-    ctime_s(&time_buf, 64, etimet);
+    ctime_s(time_buf, 64, &etimet);
     const std::string tstamp(time_buf);
 #endif
 
