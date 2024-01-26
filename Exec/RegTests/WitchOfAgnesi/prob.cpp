@@ -16,6 +16,10 @@ Problem::Problem()
   // Parse params
   amrex::ParmParse pp("prob");
   pp.query("U_0", parms.U_0);
+  pp.query("V_0", parms.V_0);
+  pp.query("W_0", parms.W_0);
+  pp.query("dampcoef", parms.dampcoef);
+  pp.query("zdamp", parms.zdamp);
 
   init_base_parms(parms.rho_0, parms.T_0);
 }

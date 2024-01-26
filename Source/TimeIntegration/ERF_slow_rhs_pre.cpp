@@ -84,6 +84,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab& Omega,
                        const MultiFab& source,
                        const MultiFab& buoyancy,
+#ifdef ERF_USE_RRTMGP
+                       const MultiFab& qheating_rates,
+#endif
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -137,12 +140,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.pbl_type == PBLType::YSU );
 
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const bool use_most     = (most != nullptr);
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
 
     const Box& domain = geom.Domain();
-    const int domhi_z = domain.bigEnd()[2];
+    const int domhi_z = domain.bigEnd(2);
+    const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -316,7 +321,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
 
@@ -414,7 +419,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
 
@@ -699,6 +704,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
                 });
             }
+
+#ifdef ERF_USE_RRTMGP
+            auto const& qheating_arr = qheating_rates.const_array(mfi);
+            if (l_use_terrain && l_moving_terrain) {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += (qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1)) / detJ_arr(i,j,k);
+                });
+            } else {
+                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
+                });
+            }
+#endif
         }
 
         // Add Rayleigh damping

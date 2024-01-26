@@ -62,13 +62,17 @@ void Rrtmgp::run_longwave_rrtmgp (
     // Populate optical property objects
     OpticalProps1scl combined_optics;
     combined_optics.alloc_1scl(ncol, nlay, k_dist_lw);
-    bool* top_at_1;
+    bool1d top_at_1_g("top_at_1_g",1);
+    boolHost1d top_at_1_h("top_at_1_h",1);
+    bool top_at_1;
     real1d t_sfc("t_sfc", ncol);
     parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol) {
         t_sfc(icol) = tint(icol,nlay+1);
-        *top_at_1 = pmid(1, 1) < pmid (1, 2);
+        top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
     });
-    k_dist_lw.gas_optics(ncol, nlay, *top_at_1, pmid, pint, tmid, t_sfc, gas_concs, combined_optics, lw_sources, real2d(), tint);
+    top_at_1_g.deep_copy_to(top_at_1_h);
+    top_at_1 = top_at_1_h(1);
+    k_dist_lw.gas_optics(ncol, nlay, top_at_1, pmid, pint, tmid, t_sfc, gas_concs, combined_optics, lw_sources, real2d(), tint);
 
     // Add in aerosol; we can define this by bands or gpoints. If we define by
     // bands, then internally when increment() is called it will map these to

@@ -94,7 +94,11 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             z_t_rk[level], Omega, source, buoyancy,
+#if defined(ERF_USE_RRTMGP)
+                             qheating_rates[level],
+#endif
+                             Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
@@ -185,7 +189,11 @@
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
+                             z_t_rk[level], Omega, source, buoyancy,
+#if defined(ERF_USE_RRTMGP)
+                             qheating_rates[level],
+#endif
+                             Tau11, Tau22, Tau33, Tau12,
                              Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
                              Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
@@ -274,12 +282,21 @@
         Real slow_dt = new_stage_time - old_step_time;
 
 #if defined(ERF_USE_NETCDF)
+        int width, set_width;
         bool moist_zero = false;
         if ( use_real_bcs && (solverChoice.moisture_type != MoistureType::None) && (level==0) )
         {
             // Flag for moisture relaxation zone
-            if (init_type=="real"    &&      wrfbdy_set_width > 0) moist_zero = true;
-            if (init_type=="metgrid" && metgrid_bdy_set_width > 0) moist_zero = true;
+            if (init_type=="real") {
+                width = wrfbdy_width;
+                set_width = wrfbdy_set_width;
+                if (wrfbdy_set_width > 0) moist_zero = true;
+            }
+            if (init_type=="metgrid") {
+                width = metgrid_bdy_width;
+                set_width = metgrid_bdy_set_width;
+                if (metgrid_bdy_set_width > 0) moist_zero = true;
+            }
         }
 #endif
 
@@ -310,7 +327,7 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
-                              wrfbdy_width-1, wrfbdy_set_width,
+                              width, set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               fr_as_crse, fr_as_fine
@@ -326,7 +343,7 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_zero, bdy_time_interval, start_bdy_time, new_stage_time,
-                              wrfbdy_width-1, wrfbdy_set_width,
+                              width, set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               fr_as_crse, fr_as_fine
