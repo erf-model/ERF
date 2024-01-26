@@ -5,7 +5,6 @@
 #include <AMReX_ParallelDescriptor.H>
 
 //#include "IO.H"
-#include "console_io.H"
 #include "ERF.H"
 
 #ifdef ERF_USE_MULTIBLOCK
