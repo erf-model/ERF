@@ -21,12 +21,12 @@ class AerRadProps {
    ~AerRadProps() = default;
 
    // initialization
-   void initialize(int ngas_, int nmodes_, int num_aeros_,
+   void initialize(int num_gas, int num_modes, int naeroes,
                    int nswbands_, int nlwbands_,
-                   int ncol_, int nlev_, int nrh_, int top_lev_,
-                   const std::vector<std::string>& aero_names_,
-                   const real2d& zi_, const real2d& pmid_, const real2d& temp_,
-                   const real2d& qi_, const real2d& geom_radius);
+                   int ncoloum, int nlevel, int num_rh, int top_levels,
+                   const std::vector<std::string>& aerosol_names,
+                   const real2d& zint, const real2d& pmiddle, const real2d& temperature,
+                   const real2d& qtotal, const real2d& geom_rad);
 
    void aer_rad_props_sw(const int& list_idx,
                          const real& dt,

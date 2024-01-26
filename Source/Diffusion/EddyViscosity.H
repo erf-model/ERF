@@ -31,17 +31,33 @@ ComputeSmnSmn (int& i, int& j, int& k,
                const amrex::Array4<amrex::Real const>& tau33,
                const amrex::Array4<amrex::Real const>& tau12,
                const amrex::Array4<amrex::Real const>& tau13,
-               const amrex::Array4<amrex::Real const>& tau23)
+               const amrex::Array4<amrex::Real const>& tau23,
+               const int& klo,
+               const bool& use_most)
 {
     amrex::Real s11bar = tau11(i,j,k);
     amrex::Real s22bar = tau22(i,j,k);
     amrex::Real s33bar = tau33(i,j,k);
     amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
-    amrex::Real s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
-                                + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
-    amrex::Real s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
-                                + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+
+    // NOTE: We cannot use the strains lying on the bottom boundary with MOST.
+    //       These values are corrupted with the reflect odd BC used to fill
+    //       the ghost cells. We use one-sided for this case.
+    amrex::Real s13bar;
+    if (use_most && k==klo) {
+        s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
+    } else {
+        s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
+                        + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
+    }
+    amrex::Real s23bar;
+    if (use_most && k==klo) {
+        s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
+    } else {
+        s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
+                        + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
+    }
     amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                        + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
 

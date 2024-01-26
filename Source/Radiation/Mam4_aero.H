@@ -53,12 +53,13 @@ class Mam4_aer {
   public:
    // initialization
    inline
-   void initialize(int ncol_, int nlev_, int top_lev_, int nswbands_, int nlwbands_) {
-      ncol = ncol_;
-      nlev = nlev_;
-      top_lev = top_lev_;
-      nswbands = nswbands_;
-      nlwbands = nlwbands_;
+   void initialize(int ncols, int nlevs, int top_levs, int nsw_bands, int nlw_bands)
+   {
+      ncol = ncols;
+      nlev = nlevs;
+      top_lev = top_levs;
+      nswbands = nsw_bands;
+      nlwbands = nlw_bands;
       clim_modal_aero = true;
 
       const real rmmin = 0.01e-6;
@@ -81,8 +82,7 @@ class Mam4_aer {
       water_refindex_file = erf_rad_data_dir+"water_refindex_rrtmg_c080910.nc";
       read_water_refindex(water_refindex_file);
 
-      // Allocate dry and wet size variables in an OMP PARRALLEL region as these
-      // arrays are private for each thread and needs to be allocated for each OMP thread
+      // Allocate dry and wet size variables
       dgnumdry_m = real3d("dgnumdry", ncol, nlev, nmodes);
       dgnumwet_m = real3d("dgnumwet", ncol, nlev, nmodes);
       qaerwat_m  = real3d("qaerwat" , ncol, nlev, nmodes);
@@ -239,22 +239,13 @@ class Mam4_aer {
      real2d specmmr("specmmr",ncol,nlev);   // specie mmr
      real2d dryvol_a("dryvol_a",ncol,nlev);   // interstital aerosol dry volume (cm^3/mol_air)
 
-     real dgnum, dgnumhi, dgnumlo;
-     real dgnyy, dgnxx;           // dgnumlo/hi of current mode
-     real drv_a;                  // dry volume (cm3/mol_air)
-     real dumfac, dummwdens;      // work variables
-     real num_a0;                 // initial number (#/mol_air)
-     real num_a;                  // final number (#/mol_air)
-     real voltonumbhi, voltonumblo;
-     real v2nmax, v2nmin;           // voltonumblo/hi of current mode
-     real sigmag, alnsg;
-
      for (auto n = 1; n <= nmodes; ++n) {
         parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k) {
           dgncur_a(i,k) = dgnum_m(i,k,n);
         });
 
         // get mode properties
+        real dgnum, dgnumhi, dgnumlo, sigmag;
         mam_consti.get_mode_props(list_idx, n-1, dgnum, dgnumhi, dgnumlo, sigmag=sigmag);
 
         // get mode number mixing ratio
@@ -272,7 +263,7 @@ class Mam4_aer {
            mam_consti.get_mam_props(list_idx, n-1, l1, specdens);
 
            // need qmass*dummwdens = (kg/kg-air) * [1/(kg/m3)] = m3/kg-air
-           dummwdens = 1.0 / specdens;
+           real dummwdens = 1.0 / specdens;
            top_lev = 1;
 
            for (auto k=top_lev; k <= nlev; ++k) {
@@ -282,21 +273,21 @@ class Mam4_aer {
            }
         }
 
-        alnsg       = std::log(sigmag);
-        dumfac      = std::exp(4.5*std::pow(alnsg, 2))*PI/6.0;
-        voltonumblo = 1./((PI/6.)*(std::pow(dgnumlo, 3))*std::exp(4.5*std::pow(alnsg, 2)));
-        voltonumbhi = 1./((PI/6.)*(std::pow(dgnumhi, 3))*std::exp(4.5*std::pow(alnsg, 2)));
-        v2nmin      = voltonumbhi;
-        v2nmax      = voltonumblo;
-        dgnxx       = dgnumhi;
-        dgnyy       = dgnumlo;
+        auto alnsg       = std::log(sigmag);
+        auto dumfac      = std::exp(4.5*std::pow(alnsg, 2))*PI/6.0;
+        auto voltonumblo = 1./((PI/6.)*(std::pow(dgnumlo, 3))*std::exp(4.5*std::pow(alnsg, 2)));
+        auto voltonumbhi = 1./((PI/6.)*(std::pow(dgnumhi, 3))*std::exp(4.5*std::pow(alnsg, 2)));
+        auto v2nmin      = voltonumbhi;
+        auto v2nmax      = voltonumblo;
+        auto dgnxx       = dgnumhi;
+        auto dgnyy       = dgnumlo;
 
         top_lev = 1;
         for (auto k = top_lev; k <= nlev; ++k) {
            for (auto i = 1; i <= ncol; ++i) {
-              drv_a = dryvol_a(i,k);
-              num_a0 = mode_num(i,k);
-              num_a = std::max(0.0, num_a0);
+              auto drv_a = dryvol_a(i,k);
+              auto num_a0 = mode_num(i,k);
+              auto num_a = std::max(0.0, num_a0);
 
               if (drv_a > 0.0) {
                  if (num_a <= drv_a*v2nmin)
@@ -371,9 +362,6 @@ class Mam4_aer {
      real1d pasm("pasm",ncol);     // parameterized asymmetry factor
      real1d palb("palb",ncol);     // parameterized single scattering albedo
 
-     // error code
-     int nerr_dopaer;
-
      // initialize output variables
      yakl::memset(tauxar, 0.);
      yakl::memset(wa, 0.);
@@ -381,11 +369,11 @@ class Mam4_aer {
      yakl::memset(fa, 0.);
 
      // zero'th layer does not contain aerosol
-     parallel_for(SimpleBounds<2>(ncol, nswbands), YAKL_LAMBDA (int i, int ibnd) {
-        wa(i,1,ibnd) = 0.925;
-        ga(i,1,ibnd) = 0.850;
-        fa(i,1,ibnd) = 0.7225;
-     });
+//     parallel_for(SimpleBounds<2>(ncol, nswbands), YAKL_LAMBDA (int i, int ibnd) {
+//        wa(i,1,ibnd) = 0.925;
+//        ga(i,1,ibnd) = 0.850;
+//        fa(i,1,ibnd) = 0.7225;
+//     });
 
      parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k) {
         mass(i,k)        = pdeldry(i,k)*rgas;
@@ -464,7 +452,6 @@ class Mam4_aer {
                  refr(i)        = crefin_real(i);
                  refi(i)        = std::abs(crefin_im(i));
               }
-
               // interpolate coefficients linear in refractive index
               // first call calcs itab,jtab,ttab,utab
               real3d extpswr("extpswr", ncoef, prefr, prefi);
@@ -533,9 +520,8 @@ class Mam4_aer {
                        mam_consti.get_mam_props_sw(list_idx, m-1, l, specdens, specrefindex_real, specrefindex_im);
                        volf = specmmr(i,k)/specdens;
                     }
-                    nerr_dopaer = nerr_dopaer + 1;
                     if (dopaer(i) < -1.e-10) {
-                       amrex::Print() << "*** halting after nerr_dopaer\n";
+                       amrex::Print() << "*** halting with error!\n";
                        exit(0);
                     }
                }
@@ -637,7 +623,7 @@ class Mam4_aer {
       top_lev = 1;
       for(auto k = top_lev; k > nlev; ++k) {
          for(auto i = 1; i <= ncol; ++i) {
-            alnsg_amode = std::log( sigma_logr_aer );
+            alnsg_amode = std::log(sigma_logr_aer);
             // convert from number diameter to surface area
             xrad(i) = std::log(0.5*dgnumwet(i,k)) + 2.0*alnsg_amode*alnsg_amode;
             // normalize size parameter
