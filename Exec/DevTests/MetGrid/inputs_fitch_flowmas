@@ -34,12 +34,12 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 1          # number of timesteps between checkpoints
+erf.check_int       = 10          # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 1          # number of timesteps between plotfiles
-erf.plot_vars_1     = qv Rhoqv density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres KE QKE
+erf.plot_int_1      = 10          # number of timesteps between plotfiles
+erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres
 
 # SOLVER CHOICE
 erf.alpha_T = 1.0
@@ -50,7 +50,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.moisture_model = "Kessler"
+erf.moisture_model = "NullMoist"
 
 # INITIALIZATION WITH ATM DATA
 erf.metgrid_bdy_width = 5

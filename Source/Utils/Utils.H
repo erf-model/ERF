@@ -189,8 +189,9 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
     // RHS computation
     int Spec_z  = set_width;
     int Relax_z = width - Spec_z + 1;
-    amrex::Real num    = amrex::Real(Spec_z + Relax_z);
-    amrex::Real denom  = amrex::Real(Relax_z - 1);
+    amrex::Real num     = amrex::Real(Spec_z + Relax_z);
+    amrex::Real denom   = amrex::Real(Relax_z - 1);
+    amrex::Real SpecExp = 1.0;
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -199,14 +200,15 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(i-dom_lo.x,jj) + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / delta_t;
         } else {
-            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
+            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
+                                  * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real delta    = arr_xlo(i  ,j  ,k,n) - d;
             amrex::Real delta_xp = arr_xlo(i+1,j  ,k,n) - d_ip1;
             amrex::Real delta_xm = arr_xlo(i-1,j  ,k,n) - d_im1;
@@ -224,14 +226,15 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         int jj    = std::min(j_lo,j_hi);
         int n_ind = std::min(dom_hi.x-i,jj) + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = ( arr_xhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / delta_t;
         } else {
-            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
+            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
+                                  * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real delta    = arr_xhi(i  ,j  ,k,n) - d;
             amrex::Real delta_xp = arr_xhi(i+1,j  ,k,n) - d_ip1;
             amrex::Real delta_xm = arr_xhi(i-1,j  ,k,n) - d_im1;
@@ -247,14 +250,15 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         // No corners for y boxes
         int n_ind = j - dom_lo.y + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = ( arr_ylo(i,j,k) - data_arr(i,j,k,n+icomp) ) / delta_t;
         } else {
-            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
+            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
+                                  * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real delta    = arr_ylo(i  ,j  ,k,n) - d;
             amrex::Real delta_xp = arr_ylo(i+1,j  ,k,n) - d_ip1;
             amrex::Real delta_xm = arr_ylo(i-1,j  ,k,n) - d_im1;
@@ -269,14 +273,15 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         // No corners for y boxes
         int n_ind = dom_hi.y - j + 1;
         if (n_ind <= Spec_z) {
-            rhs_arr(i,j,k,n+icomp) = 0.0;
+            rhs_arr(i,j,k,n+icomp) = ( arr_yhi(i,j,k) - data_arr(i,j,k,n+icomp) ) / delta_t;
         } else {
-            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom;
-            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp) + delta_t*rhs_arr(i  , j  , k  ,n+icomp);
-            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i+1, j  , k  ,n+icomp);
-            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp) + delta_t*rhs_arr(i-1, j  , k  ,n+icomp);
-            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp) + delta_t*rhs_arr(i  , j+1, k  ,n+icomp);
-            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp) + delta_t*rhs_arr(i  , j-1, k  ,n+icomp);
+            amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
+                                  * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+            amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
+            amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
+            amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
+            amrex::Real d_jp1    = data_arr(i  ,j+1,k  ,n+icomp);
+            amrex::Real d_jm1    = data_arr(i  ,j-1,k  ,n+icomp);
             amrex::Real delta    = arr_yhi(i  ,j  ,k,n) - d;
             amrex::Real delta_xp = arr_yhi(i+1,j  ,k,n) - d_ip1;
             amrex::Real delta_xm = arr_yhi(i-1,j  ,k,n) - d_im1;

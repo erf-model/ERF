@@ -29,20 +29,22 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
             std::vector<int> attr;
             ncf.get_attr("FLAG_PSFC", attr);     flag_psfc  = attr[0];
 
-            /* UNCOMMENT FOR FLOWMAS
+            /* UNCOMMENT FOR FLOWMAS */
             flag_msfu  = 0; //ncf.get_attr("FLAG_MAPFAC_U", attr); flag_msfu  = attr[0];
             flag_msfv  = 0; //ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv  = attr[0];
             flag_msfm = 0; //ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm  = attr[0];
             flag_hgt = 1; //ncf.get_attr("FLAG_HGT_M", attr);    flag_hgt   = attr[0];
             flag_sst = 0; //ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
             flag_lmask = 0; //ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
-            */
+
+            /*
             ncf.get_attr("FLAG_MAPFAC_U", attr); flag_msfu  = attr[0];
             ncf.get_attr("FLAG_MAPFAC_V", attr); flag_msfv  = attr[0];
             ncf.get_attr("FLAG_MAPFAC_M", attr); flag_msfm  = attr[0];
             ncf.get_attr("FLAG_HGT_M", attr);    flag_hgt   = attr[0];
             ncf.get_attr("FLAG_SST", attr);      flag_sst   = attr[0];
             ncf.get_attr("FLAG_LANDMASK", attr); flag_lmask = attr[0];
+            */
 
             ncf.get_attr("WEST-EAST_GRID_DIMENSION", attr);   NC_nx = attr[0];
             ncf.get_attr("SOUTH-NORTH_GRID_DIMENSION", attr); NC_ny = attr[0];

@@ -75,7 +75,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
 #if defined(ERF_USE_NETCDF)
-                        const bool& moist_zero,
+                        const bool& moist_set_rhs,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
@@ -392,18 +392,59 @@ void erf_slow_rhs_post (int level, int finest_level,
             }
         }
 #if defined(ERF_USE_NETCDF)
-        if (solverChoice.moisture_type != MoistureType::None)
+        if (moist_set_rhs)
         {
-            // Zero moist RHS in set region
-            if (moist_zero) {
-                Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
-                                              bx_xlo, bx_xhi,
-                                              bx_ylo, bx_yhi);
-                int icomp = RhoQ1_comp;
-                wrfbdy_zero_rhs_in_set_region(icomp, 1, bx_xlo, bx_xhi, bx_ylo, bx_yhi, cell_rhs);
-            } // moist_zero
-        } // moisture_type
+            amrex::Print() << "THIS HAPPENS\n";
+            // Time interpolation
+            Real dT = bdy_time_interval;
+            Real time_since_start = new_stage_time - start_bdy_time;
+            int n_time = static_cast<int>( time_since_start /  dT);
+            amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+            AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
+            amrex::Real oma   = 1.0 - alpha;
+
+            // Boundary data at fixed time intervals
+            const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
+            const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
+            const auto& bdatxhi_n   = bdy_data_xhi[n_time  ][WRFBdyVars::QV].const_array();
+            const auto& bdatxhi_np1 = bdy_data_xhi[n_time+1][WRFBdyVars::QV].const_array();
+            const auto& bdatylo_n   = bdy_data_ylo[n_time  ][WRFBdyVars::QV].const_array();
+            const auto& bdatylo_np1 = bdy_data_ylo[n_time+1][WRFBdyVars::QV].const_array();
+            const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][WRFBdyVars::QV].const_array();
+            const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][WRFBdyVars::QV].const_array();
+
+            // Get Boxes
+            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+
+            ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real Interp_val = oma   * bdatxlo_n  (i,j,k)
+                                + alpha * bdatxlo_np1(i,j,k);
+                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real Interp_val = oma   * bdatxhi_n  (i,j,k)
+                                + alpha * bdatxhi_np1(i,j,k);
+                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
+            });
+
+            ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real Interp_val = oma   * bdatylo_n  (i,j,k)
+                                + alpha * bdatylo_np1(i,j,k);
+                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real Interp_val = oma   * bdatyhi_n  (i,j,k)
+                                + alpha * bdatyhi_np1(i,j,k);
+                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
+            });
+        } // moist_zero
 #endif
 
         // NOTE: Computing the RHS is done over bx (union w/ grids to evolve).
