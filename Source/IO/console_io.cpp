@@ -80,13 +80,15 @@ void ERF::print_banner(MPI_Comm comm, std::ostream& out)
 
     auto etime = std::chrono::system_clock::now();
     auto etimet = std::chrono::system_clock::to_time_t(etime);
-    char time_buf[64];
 #ifndef _WIN32
+    char time_buf[64];
     ctime_r(&etimet, time_buf);
-#else
-    ctime_s(&time_buf, 64, etimet);
-#endif
     const std::string tstamp(time_buf);
+#else
+    char* time_buf = new char[64];
+    ctime_s(&time_buf, 64, etimet);
+    const std::string tstamp(time_buf);
+#endif
 
     const char* githash1 = amrex::buildInfoGetGitHash(1);
     const char* githash2 = amrex::buildInfoGetGitHash(2);
