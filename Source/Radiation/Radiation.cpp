@@ -45,7 +45,7 @@ namespace internal {
     fluxes.bnd_flux_dn_dir = real3d("flux_dn_dir", nz, nlay+1, nbands);
   }
 
-  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes,
+  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes, 
                          const int1d& day_indices) {
       auto ncol  = size(daytime_fluxes.bnd_flux_up, 1);
       auto nlev  = size(daytime_fluxes.bnd_flux_up, 2);
@@ -56,14 +56,15 @@ namespace internal {
       yakl::memset(nday_1d, 0);
       parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol) {
          if (day_indices(icol) > 0) nday_1d(1)++;
+printf("daynight indices(check): %d, %d, %d\n",icol,day_indices(icol),nday_1d(1));
       });
 
       nday_1d.deep_copy_to(nday_host);
       auto nday = nday_host(1);
       parallel_for(SimpleBounds<3>(nday, nlev, nbnds), YAKL_LAMBDA (int iday, int ilev, int ibnd) {
         // Map daytime index to proper column index
-         auto icol = day_indices(iday);
-
+        // auto icol = day_indices(iday);
+         auto icol = iday; 
          // Expand broadband fluxes
          expanded_fluxes.flux_up(icol,ilev) = daytime_fluxes.flux_up(iday,ilev);
          expanded_fluxes.flux_dn(icol,ilev) = daytime_fluxes.flux_dn(iday,ilev);
@@ -88,7 +89,7 @@ namespace internal {
 }
 
 // init
-void Radiation::initialize(const MultiFab& cons_in,
+void Radiation::initialize(const MultiFab& cons_in, 
                            const MultiFab& qmoist,
                            const BoxArray& grids,
                            const Geometry& geom,
@@ -145,6 +146,7 @@ void Radiation::initialize(const MultiFab& cons_in,
 
    tmid = real2d("tmid", ncol, nlev);
    pmid = real2d("pmid", ncol, nlev);
+   pdel = real2d("pdel", ncol, nlev);
 
    pint = real2d("pint", ncol, nlev+1);
    tint = real2d("tint", ncol, nlev+1);
@@ -155,10 +157,6 @@ void Radiation::initialize(const MultiFab& cons_in,
    qn   = real2d("qn", ncol, nlev);
    zi   = real2d("zi", ncol, nlev);
 
-  //amrex::MultiFab qv(qmoist, amrex::make_alias, 0, 1);
-  //amrex::MultiFab qc(qmoist, amrex::make_alias, 1, 1);
-  //amrex::MultiFab qi(qmoist, amrex::make_alias, 2, 1);
-
    // Get the temperature, density, theta, qt and qp from input
    for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
      auto states_array = cons_in.array(mfi);
@@ -168,7 +166,7 @@ void Radiation::initialize(const MultiFab& cons_in,
      auto nx = box3d.length(0);
      auto ny = box3d.length(1);
      // Get pressure, theta, temperature, density, and qt, qp
-     ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+     amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
        auto icol = j*nx+i+1;
        auto ilev = k+1;
        qt(icol,ilev)   = states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
@@ -176,7 +174,7 @@ void Radiation::initialize(const MultiFab& cons_in,
        qi(icol,ilev)   = qmoist_array(i,j,k,2);
        qn(icol,ilev)   = qmoist_array(i,j,k,1) + qmoist_array(i,j,k,2);
        tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
-       pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp));
+       pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/1.0e3;
      });
    }
 
@@ -194,7 +192,8 @@ void Radiation::initialize(const MultiFab& cons_in,
    });
 
    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-     zi(icol, ilev) = lowz + (ilev+0.5)*dz;
+     zi(icol, ilev)  = lowz + (ilev+0.5)*dz;
+     pdel(icol,ilev) = pint(icol,ilev+1) - pint(icol,ilev);  
    });
 
    albedo_dir = real2d("albedo_dir", nswbands, ncol);
@@ -251,9 +250,11 @@ void Radiation::run() {
    real3d cld_tau_bnd_sw("cld_tau_bnd_sw", ncol, nlev, nswbands),
           cld_ssa_bnd_sw("cld_ssa_bnd_sw", ncol, nlev, nswbands),
           cld_asm_bnd_sw("cld_asm_bnd_sw", ncol, nlev, nswbands);
+
    real3d aer_tau_bnd_sw("aer_tau_bnd_sw", ncol, nlev, nswbands),
           aer_ssa_bnd_sw("aer_ssa_bnd_sw", ncol, nlev, nswbands),
           aer_asm_bnd_sw("aer_asm_bnd_sw", ncol, nlev, nswbands);
+
    real3d cld_tau_bnd_lw("cld_tau_bnd_lw", ncol, nlev, nlwbands),
           aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
    real3d cld_tau_gpt_lw("cld_tau_gpt_lw", ncol, nlev, nlwgpts);
@@ -269,7 +270,7 @@ void Radiation::run() {
    // Gas volume mixing ratios
    real3d gas_vmr("gas_vmr", ngas, ncol, nlev);
 
-   // Needed for shortwave aerosol; TODO: remove this dependency
+   // Needed for shortwave aerosol;
    int nday, nnight;     // Number of daylight columns
    int1d day_indices("day_indices", ncol), night_indices("night_indices", ncol);   // Indicies of daylight coumns
 
@@ -316,9 +317,10 @@ void Radiation::run() {
        icswp(i,k) = qn(i,k)/std::max(1.0e-4,cldfsnow(i,k))*pmid(i,k)/CONST_GRAV;
      });
 
-     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid,
+     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid, 
                      rel, rei, dei, lambdac, mu, des);
 
+     // calculate the cloud radiation  
      optics.get_cloud_optics_sw(ncol, nlev, nswbands, do_snow_optics, cld,
                                 cldfsnow, iclwp, iciwp, icswp,
                                 lambdac, mu, dei, des, rel, rei,
@@ -375,7 +377,7 @@ void Radiation::run() {
      }
 
      // get aerosol optics
-     do_aerosol_rad = false;
+     do_aerosol_rad = true;
      {
         // Get gas concentrations
         get_gas_vmr(active_gases, gas_vmr);
@@ -444,15 +446,12 @@ void Radiation::run() {
 
   // Do longwave stuff...
   if (do_long_wave_rad) {
-    // Allocate longwave outputs; why is this not part of the
-    // fluxes_t object?
+    // Allocate longwave outputs; why is this not part of the fluxes_t object?
     FluxesByband fluxes_allsky, fluxes_clrsky;
     internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_allsky);
     internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_clrsky);
 
-    // NOTE: fluxes defined at interfaces, so initialize to have vertical
-    // dimension nlev_rad+1
-
+    // NOTE: fluxes defined at interfaces, so initialize to have vertical dimension nlev_rad+1
     yakl::memset(cld_tau_gpt_lw, 0.);
 
     optics.get_cloud_optics_lw(
@@ -467,23 +466,18 @@ void Radiation::run() {
             pmid, cld, cldfsnow,
             cld_tau_bnd_lw, cld_tau_gpt_lw);
 
-    // Loop over diagnostic calls
-    for (auto icall = ngas; /*N_DIAG;*/ icall > 0; --icall) {
-      // if (active_calls(icall)) {
-       // Get gas concentrations
-       get_gas_vmr(active_gases, gas_vmr);
+    // Get gas concentrations
+    get_gas_vmr(active_gases, gas_vmr);
 
-       // Get aerosol optics
-       yakl::memset(aer_tau_bnd_lw, 0.);
-       if (do_aerosol_rad) {
-          yakl::memset(aer_tau_bnd_lw, 0.);
-          aer_rad.aer_rad_props_lw(is_cmip6_volc, icall, dt, zi, aer_tau_bnd_lw, clear_rh);
-       }
-
-       // Call the longwave radiation driver to calculate fluxes and heating rates
-       radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
-                           fluxes_allsky, fluxes_clrsky, qrl, qrlc);
+    // Get aerosol optics
+    yakl::memset(aer_tau_bnd_lw, 0.);
+    if (do_aerosol_rad) {
+       aer_rad.aer_rad_props_lw(is_cmip6_volc, 0, dt, zi, aer_tau_bnd_lw, clear_rh);
     }
+
+    // Call the longwave radiation driver to calculate fluxes and heating rates
+    radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
+                        fluxes_allsky, fluxes_clrsky, qrl, qrlc);
   }
   else {
     // Conserve energy (what does this mean exactly?)
@@ -492,7 +486,6 @@ void Radiation::run() {
          qrl(icol,ilev) = qrl(icol,ilev)/pdel(icol,ilev);
        });
    }
-
  } // dolw
 
  // Compute heating rate for dtheta/dt
@@ -510,12 +503,12 @@ void Radiation::run() {
 }
 
 void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
-           const real2d& pmid, const real2d& pint, const real2d& tmid,
-           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
+           const real2d& pmid, const real2d& pint, const real2d& tmid, 
+           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs, 
            const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
            const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
-           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs,
-           const real2d& qrsc)
+           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs, 
+           const real2d& qrsc) 
 {
    // Incoming solar radiation, scaled for solar zenith angle
    // and earth-sun distance
@@ -555,7 +548,7 @@ void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
 
    if (fixed_total_solar_irradiance<0) {
       // Get orbital eccentricity factor to scale total sky irradiance
- //     tsi_scaling = get_eccentricity_factor();
+      tsi_scaling = 1.0e-3; //get_eccentricity_factor();
    } else {
       // For fixed TSI we divide by the default solar constant of 1360.9
       // At some point we will want to replace this with a method that
@@ -646,8 +639,7 @@ void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
    });
 
    // Do shortwave radiative transfer calculations
-   radiation.run_shortwave_rrtmgp( ngas, num_day(1), nlev,
-      gas_vmr_rad, pmid,
+   radiation.run_shortwave_rrtmgp( ngas, num_day(1), nlev, gas_vmr_rad, pmid, 
       tmid_day, pint_day, coszrs_day, albedo_dir_day, albedo_dif_day,
       cld_tau_gpt_rad, cld_ssa_gpt_rad, cld_asm_gpt_rad, aer_tau_bnd_rad, aer_ssa_bnd_rad, aer_asm_bnd_rad,
       fluxes_allsky_day.flux_up    , fluxes_allsky_day.flux_dn    , fluxes_allsky_day.flux_net    , fluxes_allsky_day.flux_dn_dir    ,
@@ -684,8 +676,6 @@ void Radiation::radiation_driver_lw(int ncol, int nlev,
    // Temporary heating rates on radiation vertical grid
    real2d qrl_rad("qrl_rad", ncol, nlev);
    real2d qrlc_rad("qrlc_rad", ncol, nlev);
-
-   int ngas;
    real3d gas_vmr_rad("gas_vmr_rad", ngas, ncol, nlev);
 
    // Set surface emissivity to 1 here. There is a note in the RRTMG
@@ -779,6 +769,8 @@ void Radiation::get_gas_vmr(const std::vector<std::string>& gas_names, const rea
     // subset for daytime-only indices if needed.
     for (auto igas = 0; igas < gas_names.size(); ++igas) {
 
+std::cout << "gas_name: " << gas_names[igas] << "; igas: " << igas << std::endl;
+
        if (gas_names[igas] == "CO"){
           // CO not available, use default
           parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
@@ -799,8 +791,28 @@ void Radiation::get_gas_vmr(const std::vector<std::string>& gas_names, const rea
           // first specific humidity (held in the mass_mix_ratio array read
           // from rad_constituents) is converted to an actual mass mixing ratio.
           parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
-              gas_vmr(igas+1,icol,ilev) = 1.0e-4; //mmr(icol,ilev) / (
+              gas_vmr(igas+1,icol,ilev) = qt(icol,ilev); //mmr(icol,ilev) / (
 //                  1. - mmr(icol,ilev))*mol_weight_air / mol_weight_gas[igas];
+          });
+       } else if (gas_names[igas] == "CO2") {
+          parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+              gas_vmr(igas+1,icol,ilev) = 3.8868676125307193E-4;
+          });
+       } else if (gas_names[igas] == "O3") {
+          parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+              gas_vmr(igas+1,icol,ilev) = 1.8868676125307193E-7;
+          });
+       } else if (gas_names[igas] == "N2O") {
+          parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+              gas_vmr(igas+1,icol,ilev) = 3.8868676125307193E-7;
+          });
+       } else if (gas_names[igas] == "CH4") {
+          parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+              gas_vmr(igas+1,icol,ilev) = 1.8868676125307193E-6;
+          });
+       } else if (gas_names[igas] == "O2") {
+          parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
+              gas_vmr(igas+1,icol,ilev) = 0.2095;
           });
        } else {
           // Get mass mixing ratio from the rad_constituents interface

@@ -516,7 +516,7 @@ class MamConstituents {
  }
 
  const
- int rad_cnst_get_spec_idx(int list_idx, int mode_idx,
+ int rad_cnst_get_spec_idx(int list_idx, int mode_idx, 
                            const std::string& spec_type)
   {
     // if specie type not found return -1
@@ -823,7 +823,7 @@ class MamConstituents {
  }
 
  const
- void get_mode_props(int list_idx, int mode_idx, real& sigmag,
+ void get_mode_props(int list_idx, int mode_idx, real& sigmag, 
                      real2d& refrtablw, real2d& refitablw, real4d& absplw)
  {
     modelist_t mlist;
@@ -942,7 +942,7 @@ class MamConstituents {
 
  const inline
  void get_mam_props_sw(int list_idx, int mode_idx, int spec_idx,
-                       real& density_aer, real1d& refindex_real_aer_sw,
+                       real& density_aer, real1d& refindex_real_aer_sw, 
                        real1d& refindex_im_aer_sw)
  {
    modelist_t mlist;
@@ -973,8 +973,8 @@ class MamConstituents {
 
  const inline
  void get_mam_props_lw(int list_idx, int mode_idx, int spec_idx,
-                       real& density_aer,
-                       real1d& refindex_real_aer_lw,
+                       real& density_aer, 
+                       real1d& refindex_real_aer_lw, 
                        real1d& refindex_im_aer_lw)
  {
    modelist_t mlist;
@@ -1090,8 +1090,8 @@ class MamConstituents {
  }
 
  const inline
- void get_aer_refindex_aer_sw(int list_idx, int aer_idx,
-                              real1d& refindex_real_aer_sw,
+ void get_aer_refindex_aer_sw(int list_idx, int aer_idx, 
+                              real1d& refindex_real_aer_sw, 
                               real1d& refindex_im_aer_sw)
  {
    auto aerlist = aerosollist[list_idx];
@@ -1102,8 +1102,8 @@ class MamConstituents {
  }
 
  const inline
- void get_aer_refindex_aer_lw(int list_idx, int aer_idx,
-                              real1d& refindex_real_aer_lw,
+ void get_aer_refindex_aer_lw(int list_idx, int aer_idx, 
+                              real1d& refindex_real_aer_lw, 
                               real1d& refindex_im_aer_lw)
  {
    auto aerlist = aerosollist[list_idx];
