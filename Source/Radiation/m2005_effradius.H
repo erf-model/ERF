@@ -28,28 +28,6 @@ void m2005_effradius(const real2d& ql, const real2d& nl, const real2d& qi,
                      const real2d& effl, const real2d& effi,
                      const real2d& deffi, const real2d& lamcrad,
                      const real2d& pgamrad, const real2d& des) {
-#if 0
-   ! input arguments
-   real(r8), intent(in)    :: ql          ! Mean LWC of pixels [ kg/kg ]
-   real(r8), intent(in)    :: nl          ! Grid-mean number concentration of cloud liquid droplet [#/kg]
-   real(r8), intent(in)    :: qi          ! Mean IWC of pixels [ kg/kg ]
-   real(r8), intent(in)    :: ni          ! Grid-mean number concentration of cloud ice    droplet [#/kg]
-   real(r8), intent(in)    :: qs          ! mean snow water content [kg/kg]
-   real(r8), intent(in)    :: ns          ! Mean snow crystal number concnetration [#/kg]
-   real(r8), intent(in)    :: cld         ! Physical stratus fraction
-   real(r8), intent(in)    :: pres        ! Air pressure [Pa]
-   real(r8), intent(in)    :: tk          ! air temperature [K]
-
-   ! output arguments
-   real(r8), intent(out)   :: effl        ! Effective radius of cloud liquid droplet [micro-meter]
-   real(r8), intent(out)   :: effi        ! Effective radius of cloud ice    droplet [micro-meter]
-   real(r8), intent(out)   :: effl_fn     ! effl for fixed number concentration of nlic = 1.e8
-   real(r8), intent(out)   :: deffi       ! ice effective diameter for optics (radiation)
-   real(r8), intent(out)   :: pgamrad     ! gamma parameter for optics (radiation)
-   real(r8), intent(out)   :: lamcrad     ! slope of droplet distribution for optics (radiation)
-   real(r8), intent(out)   :: des         ! snow effective diameter for optics (radiation) [micro-meter]
-#endif
-
    // Main computation
    const real pi = 3.1415926535897932384626434;
    const real qsmall = 1.0e-14; // in the SAM source code (module_mp_graupel)
