@@ -40,6 +40,10 @@ ComputeSmnSmn (int& i, int& j, int& k,
     amrex::Real s33bar = tau33(i,j,k);
     amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
+
+    // NOTE: We cannot use the strains lying on the bottom boundary with MOST.
+    //       These values are corrupted with the reflect odd BC used to fill
+    //       the ghost cells. We use one-sided for this case.
     amrex::Real s13bar;
     if (use_most && k==klo) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
