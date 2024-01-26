@@ -1,0 +1,15 @@
+
+#ifndef ERF_CONFIG_H_
+#define ERF_CONFIG_H_
+
+// define the radiation data directory
+#define RADIATION_DATA_DIR @ERF_RADIATION_DATA_DIR@
+
+// functions to get the radiation data directory
+inline
+std::string getRadiationDataDir()
+{
+   return "@ERF_RADIATION_DATA_DIR@";
+}
+
+#endif // ERF_CONFIG_H
