@@ -43,6 +43,8 @@ public:
              || (a_moisture_type == MoistureType::FastEddy)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
+        } else if ( (a_moisture_type == MoistureType::SuperDroplets) ) {
+            return MoistureModelType::Lagrangian;
         } else {
             amrex::Abort("Dont know this moisture_type!") ;
             return MoistureModelType::Undefined;

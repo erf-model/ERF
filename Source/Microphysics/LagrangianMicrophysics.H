@@ -6,7 +6,7 @@
 #include <utility>
 #include <string>
 
-#include <NullMoist.H>
+#include <SuperDropletsMoist.H>
 #include <Microphysics.H>
 
 /* forward declaration */
@@ -24,7 +24,12 @@ public:
                               const MoistureType& a_model_type )
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Lagrangian );
-        amrex::Abort("No Lagrangian moisture model implemented yet!") ;
+        if (a_model_type == MoistureType::SuperDroplets) {
+            SetModel<SuperDropletsMoist>();
+            amrex::Print() << "Super-Droplets moisture model!\n";
+        } else {
+            amrex::Abort("Unknown Lagrangian moisture model!") ;
+        }
     }
 
     void
