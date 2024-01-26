@@ -118,12 +118,10 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                    Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                    Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                    Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                   Vector<Vector<FArrayBox>>& bdy_data_yhi)
+                                   Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                                   const bool& add_relax)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
-
-    // Last relaxation cell is a ghost cell
-    if (width > set_width+1) width -= 1;
 
     // Relaxation constants
     Real F1 = 1./(10.*delta_t);
@@ -177,7 +175,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -227,7 +225,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         IntVect ng_vect{2,2,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -265,7 +263,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             int ii = std::max(i , dom_lo.x);
-                ii = std::min(ii, dom_lo.x+width);
+                ii = std::min(ii, dom_lo.x+width-1);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
             arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
@@ -273,7 +271,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            int ii = std::max(i , dom_hi.x-width);
+            int ii = std::max(i , dom_hi.x-width+1);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
                 jj = std::min(jj, dom_hi.y);
@@ -287,7 +285,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
             int jj = std::max(j , dom_lo.y);
-                jj = std::min(jj, dom_lo.y+width);
+                jj = std::min(jj, dom_lo.y+width-1);
             arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k,0)
                            + alpha * bdatylo_np1(ii,jj,k,0);
         },
@@ -295,7 +293,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         {
             int ii = std::max(i , dom_lo.x);
                 ii = std::min(ii, dom_hi.x);
-            int jj = std::max(j , dom_hi.y-width);
+            int jj = std::max(j , dom_hi.y-width+1);
                 jj = std::min(jj, dom_hi.y);
             arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k,0)
                            + alpha * bdatyhi_np1(ii,jj,k,0);
@@ -314,7 +312,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         IntVect ng_vect{1,1,0};
         Box gdom(domain); gdom.grow(ng_vect);
         Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-        compute_interior_ghost_bxs_xy(gdom, domain, width, set_width,
+        compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
                                       bx_xlo, bx_xhi,
                                       bx_ylo, bx_yhi,
                                       ng_vect, true);
@@ -381,6 +379,8 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         }
     } // ivar
 
+    // Last relaxation cell is a ghost cell
+    if (width > set_width+1) width -= 1;
 
     // Compute RHS in relaxation region
     //==========================================================
@@ -437,7 +437,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                                 width, set_width, dom_lo, dom_hi, F1, F2,
                                                 tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                 arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                                data_arr, rhs_arr);
+                                                data_arr, rhs_arr, add_relax);
         } // mfi
     } // ivar
 }

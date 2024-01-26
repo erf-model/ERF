@@ -79,8 +79,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Real& bdy_time_interval,
                         const Real& start_bdy_time,
                         const Real& new_stage_time,
-                        const int&  width,
-                        const int&  set_width,
+                        int  width,
+                        int  set_width,
                         Vector<Vector<FArrayBox>>& bdy_data_xlo,
                         Vector<Vector<FArrayBox>>& bdy_data_xhi,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -394,7 +394,18 @@ void erf_slow_rhs_post (int level, int finest_level,
 #if defined(ERF_USE_NETCDF)
         if (moist_set_rhs)
         {
-            amrex::Print() << "THIS HAPPENS\n";
+            // Relaxation constants
+            Real F1 = 1./(10.*dt);
+            Real F2 = 1./(50.*dt);
+
+            // Add relaxation on first rk stage
+            bool add_relax = false;
+            if (nrk==0) add_relax = true;
+
+            // Domain bounds
+            const auto& dom_hi = ubound(domain);
+            const auto& dom_lo = lbound(domain);
+
             // Time interpolation
             Real dT = bdy_time_interval;
             Real time_since_start = new_stage_time - start_bdy_time;
@@ -413,43 +424,81 @@ void erf_slow_rhs_post (int level, int finest_level,
             const auto& bdatyhi_n   = bdy_data_yhi[n_time  ][WRFBdyVars::QV].const_array();
             const auto& bdatyhi_np1 = bdy_data_yhi[n_time+1][WRFBdyVars::QV].const_array();
 
-            // Get Boxes
+            // Get Boxes for interpolation (full width plus a ghost cell)
+            IntVect ng_vect{2,2,0};
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi,
+                                          ng_vect, true);
+
+            // Temporary FABs for storage (owned/filled on all ranks)
+            FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
+            QV_xlo.resize(bx_xlo,1); QV_xhi.resize(bx_xhi,1);
+            QV_ylo.resize(bx_ylo,1); QV_yhi.resize(bx_yhi,1);
+            Elixir QV_xlo_eli = QV_xlo.elixir(); Elixir QV_xhi_eli = QV_xhi.elixir();
+            Elixir QV_ylo_eli = QV_ylo.elixir(); Elixir QV_yhi_eli = QV_yhi.elixir();
+
+            // Get Array4 of interpolated values
+            Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
+            Array4<Real> arr_ylo = QV_ylo.array();  Array4<Real> arr_yhi = QV_yhi.array();
+
+            // Populate with interpolation (protect from ghost cells)
+            ParallelFor(bx_xlo, bx_xhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_lo.x+width-1);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+                arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k)
+                               + alpha * bdatxlo_np1(ii,jj,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_hi.x-width+1);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_hi.y);
+                arr_xhi(i,j,k) = oma   * bdatxhi_n  (ii,jj,k)
+                               + alpha * bdatxhi_np1(ii,jj,k);
+            });
+
+            ParallelFor(bx_ylo, bx_yhi,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_lo.y);
+                    jj = std::min(jj, dom_lo.y+width-1);
+                arr_ylo(i,j,k) = oma   * bdatylo_n  (ii,jj,k)
+                               + alpha * bdatylo_np1(ii,jj,k);
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                int ii = std::max(i , dom_lo.x);
+                    ii = std::min(ii, dom_hi.x);
+                int jj = std::max(j , dom_hi.y-width+1);
+                    jj = std::min(jj, dom_hi.y);
+                arr_yhi(i,j,k) = oma   * bdatyhi_n  (ii,jj,k)
+                               + alpha * bdatyhi_np1(ii,jj,k);
+            });
+
+            // Last relaxation cell is a ghost cell
+            if (width > set_width+1) width -= 1;
+
+            // Get boxes to augment RHS (modified width; ghost cell)
+            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi);
 
-            ParallelFor(bx_xlo, bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real Interp_val = oma   * bdatxlo_n  (i,j,k)
-                                + alpha * bdatxlo_np1(i,j,k);
-                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real Interp_val = oma   * bdatxhi_n  (i,j,k)
-                                + alpha * bdatxhi_np1(i,j,k);
-                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
-            });
-
-            ParallelFor(bx_ylo, bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real Interp_val = oma   * bdatylo_n  (i,j,k)
-                                + alpha * bdatylo_np1(i,j,k);
-                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real Interp_val = oma   * bdatyhi_n  (i,j,k)
-                                + alpha * bdatyhi_np1(i,j,k);
-                cell_rhs(i,j,k,RhoQ1_comp) = ( Interp_val - cur_cons(i,j,k,RhoQ1_comp) ) / dt;
-            });
-        } // moist_zero
+            wrfbdy_compute_laplacian_relaxation(dt, RhoQ1_comp, 1,
+                                                width, set_width, dom_lo, dom_hi, F1, F2,
+                                                bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+                                                arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+                                                cur_cons, cell_rhs, add_relax);
+        } // moist_set_rhs
 #endif
-
-        // NOTE: Computing the RHS is done over bx (union w/ grids to evolve).
-        //       However, the update is over tbx (no union). The interior ghost
-        //       cells have their RHS populated already.
 
         // This updates just the "slow" conserved variables
         {

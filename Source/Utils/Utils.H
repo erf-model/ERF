@@ -80,7 +80,8 @@ void wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
+                                        const bool& add_relax);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
@@ -184,7 +185,8 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
                                      const amrex::Array4<const amrex::Real>& arr_ylo,
                                      const amrex::Array4<const amrex::Real>& arr_yhi,
                                      const amrex::Array4<const amrex::Real>& data_arr,
-                                     const amrex::Array4<amrex::Real>& rhs_arr)
+                                     const amrex::Array4<amrex::Real>& rhs_arr,
+                                     const bool& add_relax=false)
 {
     // RHS computation
     int Spec_z  = set_width;
@@ -215,7 +217,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            if (add_relax) rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -241,7 +243,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_xhi(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            if (add_relax) rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     });
 
@@ -265,7 +267,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_ylo(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            if (add_relax) rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -288,7 +290,7 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
             amrex::Real delta_yp = arr_yhi(i  ,j+1,k,n) - d_jp1;
             amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
             amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-            rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+            if (add_relax) rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
         }
     });
 }

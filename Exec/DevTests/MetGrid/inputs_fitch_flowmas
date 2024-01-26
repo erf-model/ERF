@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 100
+max_step = 1000
 
 amrex.fpe_trap_invalid = 1
 amrex.fpe_trap_zero = 1
@@ -34,11 +34,11 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 10          # number of timesteps between checkpoints
+erf.check_int       = 25          # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
-erf.plot_int_1      = 10          # number of timesteps between plotfiles
+erf.plot_int_1      = 25          # number of timesteps between plotfiles
 erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres
 
 # SOLVER CHOICE

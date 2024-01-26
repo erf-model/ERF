@@ -210,6 +210,7 @@
         if (use_real_bcs) {
             if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
                 int width, set_width;
+                bool add_relax = false;
                 if (init_type == "real") {
                     width = wrfbdy_width;
                     set_width = wrfbdy_set_width;
@@ -217,13 +218,15 @@
                     width = metgrid_bdy_width;
                     set_width = metgrid_bdy_set_width;
                 }
+                if (nrk==0) add_relax=true;
 
                 if (width>0)
                     wrfbdy_compute_interior_ghost_rhs(init_type,
                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                       width, set_width, fine_geom,
-                                                      S_rhs, S_data, bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+                                                      S_rhs, S_data,
+                                                      bdy_data_xlo, bdy_data_xhi,
+                                                      bdy_data_ylo, bdy_data_yhi, add_relax);
             }
         }
 #endif
