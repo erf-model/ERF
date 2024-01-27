@@ -47,3 +47,4 @@ erf.molec_diff_type = "None"
 erf.les_type = "None"
 
 erf.add_custom_rhotheta_forcing = true
+erf.custom_forcing_uses_primitive_vars = true
