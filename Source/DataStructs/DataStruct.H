@@ -186,6 +186,8 @@ struct SolverChoice {
             build_coriolis_forcings();
         }
 
+        pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
+
         pp.query("Ave_Plane", ave_plane);
 
         pp.query("mp_clouds", do_cloud);
@@ -353,6 +355,9 @@ struct SolverChoice {
     amrex::Real coriolis_factor = 0.0;
     amrex::Real cosphi          = 0.0 ;
     amrex::Real sinphi          = 0.0;
+
+    // User-specified forcings in problem definition
+    bool custom_rhotheta_forcing = false;
 
     // Numerical diffusion
     bool use_NumDiff{false};

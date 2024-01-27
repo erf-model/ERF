@@ -225,6 +225,16 @@ void ERF::advance_dycore(int level,
     }
 
     // ***********************************************************************************************
+    // Update user-defined source terms
+    // ***********************************************************************************************
+    if (solverChoice.custom_rhotheta_forcing) {
+        prob->update_rhotheta_sources(old_time,
+                                      h_rhotheta_src[level],
+                                      fine_geom,
+                                      z_phys_cc[level]);
+    }
+
+    // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
     {
