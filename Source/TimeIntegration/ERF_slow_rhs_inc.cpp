@@ -648,7 +648,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             const int n = RhoTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_rhs(i, j, k, n) -= dptr_rhotheta_src[k];
+                cell_rhs(i, j, k, n) += dptr_rhotheta_src[k];
             });
         }
 

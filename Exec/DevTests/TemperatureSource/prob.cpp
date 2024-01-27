@@ -187,8 +187,7 @@ Problem::update_rhotheta_sources (
         {
             const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
             if ((time > 1.0) && (z_cc < 100.)) {
-                // +1 K/hr
-                src[k] = 0.0002777777777777778;
+                src[k] = 1.0; // 1 K/s
             } else {
                 src[k] = 0.0;
             }
