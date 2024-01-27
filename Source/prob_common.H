@@ -115,11 +115,13 @@ public:
     */
     virtual void
     update_rhotheta_sources (const amrex::Real& /*time*/,
-                             amrex::Vector<amrex::Real>& rhotheta_source,
+                             amrex::Vector<amrex::Real>& src,
+                             amrex::Gpu::DeviceVector<amrex::Real>& d_src,
                              const amrex::Geometry& geom,
                              std::unique_ptr<amrex::MultiFab>& z_phys_cc)
     {
-        if (rhotheta_source.empty()) return;
+        if (src.empty()) return;
+
         if (z_phys_cc) {
             // use_terrain=1
             amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
@@ -131,9 +133,12 @@ public:
             {
                 const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
-                rhotheta_source[k] = 0.0;
+                src[k] = 0.0;
             }
         }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
     }
 
     /**

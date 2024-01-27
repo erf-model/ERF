@@ -642,9 +642,8 @@ ERF::InitData ()
             h_rhotheta_src[lev].resize(domlen, 0.0_rt);
             d_rhotheta_src[lev].resize(domlen, 0.0_rt);
             prob->update_rhotheta_sources(t_new[0],
-                                          h_rhotheta_src[lev],
-                                          geom[lev],
-                                          z_phys_cc[lev]);
+                                          h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          geom[lev], z_phys_cc[lev]);
         }
     }
 

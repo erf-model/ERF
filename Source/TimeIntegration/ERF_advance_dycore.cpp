@@ -229,9 +229,8 @@ void ERF::advance_dycore(int level,
     // ***********************************************************************************************
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
-                                      h_rhotheta_src[level],
-                                      fine_geom,
-                                      z_phys_cc[level]);
+                                      h_rhotheta_src[level], d_rhotheta_src[level],
+                                      fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************
