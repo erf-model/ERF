@@ -72,6 +72,8 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
+    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+
     Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
     Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
     Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;

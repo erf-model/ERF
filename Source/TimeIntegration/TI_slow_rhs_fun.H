@@ -105,6 +105,7 @@
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
+                             dptr_rhotheta_src,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
@@ -200,6 +201,7 @@
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
+                             dptr_rhotheta_src,
                              dptr_rayleigh_tau, dptr_rayleigh_ubar,
                              dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                              dptr_rayleigh_thetabar);
@@ -380,6 +382,7 @@
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                         dptr_rhotheta_src,
                          dptr_rayleigh_tau, dptr_rayleigh_ubar,
                          dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                          dptr_rayleigh_thetabar);

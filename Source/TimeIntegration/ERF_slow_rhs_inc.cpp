@@ -61,6 +61,7 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rayleigh_tau  strength of Rayleigh damping
  * @param[in] dptr_rayleigh_ubar reference value for x-velocity used to define Rayleigh damping
  * @param[in] dptr_rayleigh_vbar reference value for y-velocity used to define Rayleigh damping
@@ -99,6 +100,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
+                       const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                        const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_wbar,
                        const amrex::Real* dptr_rayleigh_thetabar)
