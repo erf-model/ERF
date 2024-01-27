@@ -68,6 +68,13 @@ public:
         amrex::Array4<amrex::Real const> const& mf_v,
         const SolverChoice& sc) override;
 
+    void update_rhotheta_sources (
+        const amrex::Real& time,
+        amrex::Vector<amrex::Real>& src,
+        amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+        const amrex::Geometry& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+
 protected:
     std::string name() override { return "ABL"; }
 

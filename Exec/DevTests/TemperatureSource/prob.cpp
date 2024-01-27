@@ -164,3 +164,37 @@ Problem::init_custom_pert(
     }
   });
 }
+
+void
+Problem::update_rhotheta_sources (
+    const amrex::Real& time,
+    amrex::Vector<amrex::Real>& src,
+    amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+    const amrex::Geometry& geom,
+    std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+{
+    if (src.empty()) return;
+
+    if (z_phys_cc) {
+        // use_terrain=1 -- see Prob/init_rayleigh_damping.H for example of how
+        // to reduce the 3D z array to a single height per k
+        amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
+    } else {
+        const int khi              = geom.Domain().bigEnd()[2];
+        const amrex::Real* prob_lo = geom.ProbLo();
+        const auto dx              = geom.CellSize();
+        for (int k = 0; k <= khi; k++)
+        {
+            const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+            if ((time > 1.0) && (z_cc < 100.)) {
+                // +1 K/hr
+                src[k] = 0.0002777777777777778;
+            } else {
+                src[k] = 0.0;
+            }
+        }
+    }
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
+}
