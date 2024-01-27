@@ -723,6 +723,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
         }
 
+        // Add custom source terms
+        if (solverChoice.custom_rhotheta_forcing) {
+            const int n = RhoTheta_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                cell_rhs(i, j, k, n) -= dptr_rhotheta_src[k];
+            });
+        }
+
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
