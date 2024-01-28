@@ -85,6 +85,8 @@ or if using tcsh,
    +--------------------+------------------------------+------------------+-------------+
    | USE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
+   | USE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
+   +--------------------+------------------------------+------------------+-------------+
    | USE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +--------------------+------------------------------+------------------+-------------+
    | USE_MULTIBLOCK     | Whether to enable multiblock | TRUE / FALSE     | FALSE       |
@@ -173,6 +175,8 @@ Analogous to GNU Make, the list of cmake directives is as follows:
    | ERF_ENABLE_NETCDF         | Whether to enable NETCDF     | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_HDF5           | Whether to enable HDF5       | TRUE / FALSE     | FALSE       |
+   +---------------------------+------------------------------+------------------+-------------+
+   | ERF_ENABLE_PARTICLES      | Whether to enable particles  | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+
    | ERF_ENABLE_WARM_NO_PRECIP | Whether to use warm moisture | TRUE / FALSE     | FALSE       |
    +---------------------------+------------------------------+------------------+-------------+

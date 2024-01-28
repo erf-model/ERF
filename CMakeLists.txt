@@ -14,6 +14,7 @@ option(ERF_ENABLE_ALL_WARNINGS "Enable all compiler warnings" OFF)
 option(ERF_ENABLE_TESTS "Enable regression and unit tests" OFF)
 option(ERF_ENABLE_NETCDF "Enable NetCDF IO" OFF)
 option(ERF_ENABLE_HDF5 "Enable HDF5 IO" ${ERF_ENABLE_NETCDF})
+option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
