@@ -142,9 +142,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
 
-    // DEBUG
-    //oma = 1.0; alpha = 0.0;
-
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
@@ -172,6 +169,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         ivarR  = MetGridBdyVars::R;
         ivarT  = MetGridBdyVars::T;
     }
+
 
     // Size the FABs
     //==========================================================
@@ -221,7 +219,8 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
     Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
 
-    // Populate FABs from boundary interpolation
+
+    // Populate FABs from bdy interpolation
     //==========================================================
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
         int var_idx = var_map[ivar];
@@ -318,6 +317,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                            + alpha * bdatyhi_np1(ii,jj,k,0);
         });
     } // ivar
+
 
     // Velocity to momentum
     //==========================================================
@@ -459,6 +459,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
         } // ivar
     } // set_width
 
+
     // Compute RHS in relaxation region
     //==========================================================
     if (width > set_width) {
@@ -470,11 +471,6 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             domain.convert(S_data[ivar_idx].boxArray().ixType());
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
-
-            // NOTE: Not needed if we don't do forward prediction
-
-            // For Laplacian stencil
-            //S_rhs[ivar_idx].FillBoundary(geom.periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -513,91 +509,11 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                     continue;
                 }
 
-                wrfbdy_compute_laplacian_relaxation(delta_t, icomp, 1,
+                wrfbdy_compute_laplacian_relaxation(icomp, 1,
                                                     width, set_width, dom_lo, dom_hi, F1, F2,
                                                     tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     data_arr, rhs_arr);
-
-                /*
-                // DEBUG SET
-                amrex::Print() << "IVAR: " << ivar << "\n";
-                amrex::Print() << "=========================================\n";
-            int num_var =1;
-            Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, set_width, 0,
-                                          bx_xlo, bx_xhi,
-                                          bx_ylo, bx_yhi);
-            amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Set error xlo: " << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            },
-            bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Set error xhi: " << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-
-            });
-
-            amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Set error ylo: " << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            },
-            bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Set error yhi: " << IntVect(i,j,k) << "\n";
-                    exit(0);
-                }
-            });
-
-            // DEBUG RELAX
-            compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
-                                          tbx_xlo, tbx_xhi,
-                                          tbx_ylo, tbx_yhi);
-            amrex::ParallelFor(tbx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Relax error xlo: " << IntVect(i,j,k) << ' '
-                                   << rhs_arr(i,j,k,n+icomp) << "\n";
-                    exit(0);
-                }
-            },
-            tbx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Relax error xhi: " << IntVect(i,j,k) << ' '
-                                   << rhs_arr(i,j,k,n+icomp) << "\n";
-                    exit(0);
-                }
-            });
-
-            amrex::ParallelFor(tbx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Relax error ylo: " << IntVect(i,j,k) << ' '
-                                   << rhs_arr(i,j,k,n+icomp) << "\n";
-                    exit(0);
-                }
-            },
-            tbx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (rhs_arr(i,j,k,n+icomp) != 0.0) {
-                    amrex::Print() << "Relax error yhi: " << IntVect(i,j,k) << ' '
-                                   << rhs_arr(i,j,k,n+icomp) << "\n";
-                    exit(0);
-                }
-            });
-                */
-
             } // mfi
         } // ivar
     } // width

@@ -203,8 +203,7 @@ wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
 AMREX_GPU_HOST
 AMREX_FORCE_INLINE
 void
-wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
-                                     const int& icomp,
+wrfbdy_compute_laplacian_relaxation (const int& icomp,
                                      const int& num_var,
                                      const int& width,
                                      const int& set_width,
@@ -251,7 +250,6 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
         rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
-        //rhs_arr(i,j,k,n+icomp) = (F1*delta - F2*Laplacian) * Factor;
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -275,7 +273,6 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
         rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
-        //rhs_arr(i,j,k,n+icomp) = (F1*delta - F2*Laplacian) * Factor;
     });
 
     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -297,7 +294,6 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
         rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
-        //rhs_arr(i,j,k,n+icomp) = (F1*delta - F2*Laplacian) * Factor;
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -318,7 +314,6 @@ wrfbdy_compute_laplacian_relaxation (const amrex::Real& delta_t,
         amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
         rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
-        //rhs_arr(i,j,k,n+icomp) = (F1*delta - F2*Laplacian) * Factor;
     });
 }
 #endif

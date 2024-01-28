@@ -19,7 +19,7 @@ zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 1.0  # fixed time step depending on grid resolution
+erf.fixed_dt = 1.0  # fixed time step depending on grid resolution
 
 erf.use_terrain = true
 erf.terrain_smoothing = 2
@@ -53,7 +53,7 @@ erf.Cs              = 0.1
 erf.moisture_model = "NullMoist"
 
 # INITIALIZATION WITH ATM DATA
-erf.metgrid_bdy_width = 5
+erf.metgrid_bdy_width = 7
 erf.metgrid_bdy_set_width = 1
 erf.init_type      = "metgrid"
 erf.nc_init_file_0 = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"

@@ -175,7 +175,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
       for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& tbx = mfi.tilebox();
+        const Box& tbx  = mfi.tilebox();
 
         // *************************************************************************
         // Define flux arrays for use in advection
@@ -430,8 +430,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             // Get Boxes for interpolation (one halo cell)
             IntVect ng_vect{1,1,0};
+            Box gdom(domain); gdom.grow(ng_vect);
             Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
-            compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+            compute_interior_ghost_bxs_xy(gdom, domain, width, 0,
                                           bx_xlo, bx_xhi,
                                           bx_ylo, bx_yhi,
                                           ng_vect, true);
@@ -495,7 +496,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                + alpha * bdatyhi_np1(ii,jj,k);
             });
 
-
+            // NOTE: We pass 'new_cons' here since it has its ghost cells
+            //       populated and we are only operating on RhoQv; thus,
+            //       we do not need the updated fast quantities.
 
             // Compute RHS in specified region
             //==========================================================
@@ -507,8 +510,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                               width, set_width, dom_lo, dom_hi,
                                               bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                              cur_cons, cell_rhs);
+                                              new_cons, cell_rhs);
             }
+
 
             // Compute RHS in relaxation region
             //==========================================================
@@ -516,11 +520,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                 compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
-                wrfbdy_compute_laplacian_relaxation(dt, RhoQ1_comp, 1,
+                wrfbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
                                                     width, set_width, dom_lo, dom_hi, F1, F2,
                                                     bx_xlo, bx_xhi, bx_ylo, bx_yhi,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                                    cur_cons, cell_rhs);
+                                                    new_cons, cell_rhs);
             }
         } // moist_set_rhs
 #endif
