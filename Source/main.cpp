@@ -229,4 +229,7 @@ int main (int argc, char* argv[])
     BL_PROFILE_VAR_STOP(pmain);
 
     amrex::Finalize();
+#ifdef AMREX_USE_MPI
+    MPI_Finalize();
+#endif
 }
