@@ -995,6 +995,7 @@ public:
     static void print_usage(MPI_Comm /*comm*/, std::ostream& /*out*/);
     static void print_error(MPI_Comm /*comm*/, const std::string& msg);
     static void print_summary(std::ostream&);
+    static void print_tpls(std::ostream& /*out*/);
 };
 
 #endif
