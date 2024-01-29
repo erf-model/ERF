@@ -132,36 +132,11 @@ void ERF::print_banner(MPI_Comm comm, std::ostream& out)
 #endif
         << std::endl;
 
-    print_tpls(out);
-
     out << "           This software is released under the BSD 3-clause license.           "
         << std::endl
         << " See https://github.com/erf-model/ERF/blob/development/LICENSE for details. "
         << dash_line << std::endl;
     // clang-format on
-}
-
-void ERF::print_tpls(std::ostream& out)
-{
-    amrex::Vector<std::string> tpls;
-
-#ifdef ERF_USE_NETCDF
-    tpls.push_back(std::string("NetCDF    ") + NC_VERSION);
-#endif
-#ifdef AMREX_USE_SUNDIALS
-    tpls.push_back(std::string("SUNDIALS     ") + SUNDIALS_VERSION);
-#endif
-
-    if (!tpls.empty()) {
-        out << "  Enabled third-party libraries: ";
-        for (const auto& val : tpls) {
-            out << "\n    " << val;
-        }
-        out << std::endl << std::endl;
-    } else {
-        out << "  No additional third-party libraries enabled" << std::endl
-            << std::endl;
-    }
 }
 
 //} // namespace ERF::io
