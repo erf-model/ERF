@@ -6,6 +6,7 @@
 
 #ifdef ERF_USE_NETCDF
 #include "NCInterface.H"
+#include "netcdf_meta.h"
 #endif
 
 namespace amrex {
