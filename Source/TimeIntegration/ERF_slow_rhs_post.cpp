@@ -496,9 +496,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                + alpha * bdatyhi_np1(ii,jj,k);
             });
 
-            // NOTE: We pass 'new_cons' here since it has its ghost cells
-            //       populated and we are only operating on RhoQv; thus,
-            //       we do not need the updated fast quantities.
+            // NOTE: We pass 'old_cons' here since the tendencies are with
+            //       respect to the start of the RK integration.
 
             // Compute RHS in specified region
             //==========================================================
@@ -510,9 +509,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                                               width, set_width, dom_lo, dom_hi,
                                               bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
-                                              new_cons, cell_rhs);
+                                              old_cons, cell_rhs);
             }
 
+
+            // NOTE: We pass 'new_cons' here since it has its ghost cells
+            //       populated and we are only operating on RhoQv; thus,
+            //       we do not need the updated fast quantities.
 
             // Compute RHS in relaxation region
             //==========================================================

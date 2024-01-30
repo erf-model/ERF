@@ -114,7 +114,8 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                    int  set_width,
                                    const Geometry& geom,
                                    Vector<MultiFab>& S_rhs,
-                                   Vector<MultiFab>& S_data,
+                                   Vector<MultiFab>& S_old_data,
+                                   Vector<MultiFab>& S_cur_data,
                                    Vector<Vector<FArrayBox>>& bdy_data_xlo,
                                    Vector<Vector<FArrayBox>>& bdy_data_xhi,
                                    Vector<Vector<FArrayBox>>& bdy_data_ylo,
@@ -176,7 +177,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
-        domain.convert(S_data[var_idx].boxArray().ixType());
+        domain.convert(S_cur_data[var_idx].boxArray().ixType());
 
         // Grown domain to get the 4 halo boxes w/ ghost cells
         // NOTE: 2 ghost cells needed for U -> rho*U
@@ -225,7 +226,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     for (int ivar(ivarU); ivar < BdyEnd; ivar++) {
         int var_idx = var_map[ivar];
         Box domain  = geom.Domain();
-        domain.convert(S_data[var_idx].boxArray().ixType());
+        domain.convert(S_cur_data[var_idx].boxArray().ixType());
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
@@ -324,7 +325,7 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     for (int ivar(ivarU); ivar <= ivarV; ivar++) {
         int ivar_idx = ivar_map[ivar];
         Box domain   = geom.Domain();
-        domain.convert(S_data[ivar_idx].boxArray().ixType());
+        domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
 
         // NOTE: 1 ghost cell needed here. This first
         //       ghost cell is to access the Laplacian
@@ -409,14 +410,14 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             int icomp    = comp_map[ivar];
 
             Box domain = geom.Domain();
-            domain.convert(S_data[ivar_idx].boxArray().ixType());
+            domain.convert(S_old_data[ivar_idx].boxArray().ixType());
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(S_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for ( MFIter mfi(S_old_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box tbx = mfi.tilebox();
                 Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
                 compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
@@ -430,22 +431,22 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                     rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
-                    data_arr = S_data[IntVar::xmom].array(mfi);
+                    data_arr = S_old_data[IntVar::xmom].array(mfi);
                 } else if (ivar  == ivarV) {
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
-                    data_arr = S_data[IntVar::ymom].array(mfi);
+                    data_arr = S_old_data[IntVar::ymom].array(mfi);
                 } else if (ivar  == ivarR) {
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                     rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_data[IntVar::cons].array(mfi);
+                    data_arr = S_old_data[IntVar::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                     rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_data[IntVar::cons].array(mfi);
+                    data_arr = S_old_data[IntVar::cons].array(mfi);
                 } else {
                     continue;
                 }
@@ -468,14 +469,14 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
             int icomp    = comp_map[ivar];
 
             Box domain = geom.Domain();
-            domain.convert(S_data[ivar_idx].boxArray().ixType());
+            domain.convert(S_cur_data[ivar_idx].boxArray().ixType());
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-            for ( MFIter mfi(S_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            for ( MFIter mfi(S_cur_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box tbx = mfi.tilebox();
                 Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
                 compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
@@ -489,22 +490,22 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
                     rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
-                    data_arr = S_data[IntVar::xmom].array(mfi);
+                    data_arr = S_cur_data[IntVar::xmom].array(mfi);
                 } else if (ivar  == ivarV) {
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
                     rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
-                    data_arr = S_data[IntVar::ymom].array(mfi);
+                    data_arr = S_cur_data[IntVar::ymom].array(mfi);
                 } else if (ivar  == ivarR) {
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
                     rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_data[IntVar::cons].array(mfi);
+                    data_arr = S_cur_data[IntVar::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
                     rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_data[IntVar::cons].array(mfi);
+                    data_arr = S_cur_data[IntVar::cons].array(mfi);
                 } else {
                     continue;
                 }

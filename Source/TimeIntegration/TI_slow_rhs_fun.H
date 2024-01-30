@@ -4,6 +4,7 @@
  *  Wrapper for calling the routine that creates the slow RHS
  */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+                                Vector<MultiFab>& S_old,
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,
                                 const Real old_step_time,
@@ -222,7 +223,7 @@
                     wrfbdy_compute_interior_ghost_rhs(init_type,
                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                       width, set_width, fine_geom,
-                                                      S_rhs, S_data,
+                                                      S_rhs, S_old, S_data,
                                                       bdy_data_xlo, bdy_data_xhi,
                                                       bdy_data_ylo, bdy_data_yhi);
             }
@@ -387,6 +388,7 @@
                          dptr_rayleigh_vbar, dptr_rayleigh_wbar,
                          dptr_rayleigh_thetabar);
 
+
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs) {
@@ -404,7 +406,7 @@
                     wrfbdy_compute_interior_ghost_rhs(init_type,
                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
                                                       width, set_width, fine_geom,
-                                                      S_rhs, S_data,
+                                                      S_rhs, S_old, S_data,
                                                       bdy_data_xlo, bdy_data_xhi,
                                                       bdy_data_ylo, bdy_data_yhi);
             }
