@@ -246,8 +246,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // NOTE: This routine needs to be aware of what FillIntermediatePatch is operating on
     //       --- i.e., cons_only and which cons indices (icomp_cons & ncomp_cons)
     if (use_real_bcs) {
-        if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs,time, cons_only, icomp_cons, ncomp_cons);
-        if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs,time, cons_only, icomp_cons, ncomp_cons);
+        if (init_type == "real" && lev==0) fill_from_wrfbdy(mfs, time, cons_only, icomp_cons, ncomp_cons);
+        if (init_type == "metgrid" && lev==0) fill_from_metgrid(mfs, time, cons_only, icomp_cons, ncomp_cons);
     }
 #endif
 

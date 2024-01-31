@@ -573,6 +573,10 @@ ERF::InitData ()
 
         restart();
 
+
+        // TODO: Check if this is needed. I don't think it is since we now
+        //       advect all the scalars...
+
         // Need to fill ghost cells here since we will use this qmoist in advance
         if (solverChoice.moisture_type != MoistureType::None)
         {
