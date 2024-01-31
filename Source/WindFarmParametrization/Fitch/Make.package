@@ -1,0 +1,2 @@
+CEXE_sources += AdvanceFitch.cpp
+CEXE_headers += Fitch.H

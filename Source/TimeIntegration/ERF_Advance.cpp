@@ -1,6 +1,9 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <Utils.H>
+#ifdef ERF_USE_FITCH
+#include <Fitch.H>
+#endif
 
 using namespace amrex;
 
@@ -59,6 +62,13 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         // TODO: This is only qv
         FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
+
+    #if defined(ERF_USE_FITCH)
+    // Update with the Fitch source terms
+        fitch_advance(lev, Geom(lev), dt_lev, S_old,
+                        U_old, V_old, W_old,
+                      vars_fitch[lev]);
+    #endif
 
     MultiFab* S_crse;
     MultiFab rU_crse, rV_crse, rW_crse;

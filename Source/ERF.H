@@ -527,6 +527,11 @@ private:
     Microphysics micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 6 components: qv, qc, qi, qr, qs, qg
 
+#if defined(ERF_USE_FITCH)
+    amrex::Vector<amrex::MultiFab> Nturb;
+    amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
+#endif
+
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
     amrex::Vector<amrex::MultiFab> qheating_rates;  // radiation heating rate source terms
