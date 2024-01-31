@@ -345,6 +345,10 @@ ERF::init_from_metgrid (int lev)
                                      fabs_for_bcs, mask_c_arr);
     } // mf
 
+    // FillBoundary to populate the internal halo cells
+     r_hse.FillBoundary(geom[lev].periodicity());
+     p_hse.FillBoundary(geom[lev].periodicity());
+    pi_hse.FillBoundary(geom[lev].periodicity());
 
     // NOTE: fabs_for_bcs is defined over the whole domain on each rank.
     //       However, the operations needed to define the data on the ERF
@@ -828,6 +832,22 @@ init_base_state_from_metgrid (const bool use_moisture,
     int RhoQ_comp = RhoQ1_comp;
     int kmax = amrex::ubound(valid_bx).z;
 
+    // NOTE: FOEXTRAP is utilized on the validbox but
+    //       the FillBoundary call will populate the
+    //       internal ghost cells and we are left with
+    //       zero gradient at the domain boundaries.
+
+    // Create halo boxes to populate the ghost cells of hse quantities
+    Box gvbx_xlo(valid_bx); Box gvbx_xhi(valid_bx);
+    Box gvbx_ylo(valid_bx); Box gvbx_yhi(valid_bx);
+    Box gvbx_zlo(valid_bx); Box gvbx_zhi(valid_bx);
+    gvbx_xlo.grow(IntVect(1,1,0)); gvbx_xhi.grow(IntVect(1,1,0));
+    gvbx_ylo.grow(IntVect(1,1,0)); gvbx_yhi.grow(IntVect(1,1,0));
+    gvbx_zlo.grow(1); gvbx_zhi.grow(1);
+    gvbx_xlo.makeSlab(0,gvbx_xlo.smallEnd(0)); gvbx_xhi.makeSlab(0,gvbx_xhi.bigEnd(0));
+    gvbx_ylo.makeSlab(1,gvbx_ylo.smallEnd(1)); gvbx_yhi.makeSlab(1,gvbx_yhi.bigEnd(1));
+    gvbx_zlo.makeSlab(2,gvbx_zlo.smallEnd(2)); gvbx_zhi.makeSlab(2,gvbx_zhi.bigEnd(2));
+
     // Device vectors for columnwise operations
     Gpu::DeviceVector<Real>      z_vec_d(kmax+2,0); Real* z_vec      =      z_vec_d.data();
     Gpu::DeviceVector<Real> Thetad_vec_d(kmax+1,0); Real* Thetad_vec = Thetad_vec_d.data();
@@ -890,6 +910,51 @@ init_base_state_from_metgrid (const bool use_moisture,
             }
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
             //pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
+        });
+
+        // FOEXTRAP hse arrays
+        ParallelFor(gvbx_xlo, gvbx_xhi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            int jj = amrex::max(j ,valid_bx.smallEnd(1));
+                jj = amrex::min(jj,valid_bx.bigEnd(1));
+            r_hse_arr(i,j,k) =  r_hse_arr(i+1,jj,k);
+            p_hse_arr(i,j,k) =  p_hse_arr(i+1,jj,k);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i+1,jj,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            int jj = amrex::max(j ,valid_bx.smallEnd(1));
+                jj = amrex::min(jj,valid_bx.bigEnd(1));
+             r_hse_arr(i,j,k) =  r_hse_arr(i-1,jj,k);
+             p_hse_arr(i,j,k) =  p_hse_arr(i-1,jj,k);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i-1,jj,k);
+        });
+        ParallelFor(gvbx_ylo, gvbx_yhi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_hse_arr(i,j,k) =  r_hse_arr(i,j+1,k);
+            p_hse_arr(i,j,k) =  p_hse_arr(i,j+1,k);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i,j+1,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_hse_arr(i,j,k) =  r_hse_arr(i,j-1,k);
+            p_hse_arr(i,j,k) =  p_hse_arr(i,j-1,k);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i,j-1,k);
+        });
+        ParallelFor(gvbx_zlo, gvbx_zhi,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_hse_arr(i,j,k) =  r_hse_arr(i,j,k+1);
+            p_hse_arr(i,j,k) =  p_hse_arr(i,j,k+1);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i,j,k+1);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_hse_arr(i,j,k) =  r_hse_arr(i,j,k-1);
+            p_hse_arr(i,j,k) =  p_hse_arr(i,j,k-1);
+            pi_hse_arr(i,j,k) = pi_hse_arr(i,j,k-1);
         });
     }
 

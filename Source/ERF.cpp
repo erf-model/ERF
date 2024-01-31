@@ -573,6 +573,10 @@ ERF::InitData ()
 
         restart();
 
+
+        // TODO: Check if this is needed. I don't think it is since we now
+        //       advect all the scalars...
+
         // Need to fill ghost cells here since we will use this qmoist in advance
         if (solverChoice.moisture_type != MoistureType::None)
         {
@@ -629,6 +633,21 @@ ERF::InitData ()
             MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
             m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
             m_most->update_fluxes(lev, t_new[lev]);
+        }
+    }
+
+    if (solverChoice.custom_rhotheta_forcing)
+    {
+        h_rhotheta_src.resize(max_level+1, amrex::Vector<Real>(0));
+        d_rhotheta_src.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++)
+        {
+            const int domlen = geom[lev].Domain().length(2);
+            h_rhotheta_src[lev].resize(domlen, 0.0_rt);
+            d_rhotheta_src[lev].resize(domlen, 0.0_rt);
+            prob->update_rhotheta_sources(t_new[0],
+                                          h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          geom[lev], z_phys_cc[lev]);
         }
     }
 

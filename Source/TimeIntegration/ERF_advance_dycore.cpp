@@ -72,6 +72,8 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
+    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+
     Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
     Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
     Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
@@ -222,6 +224,15 @@ void ERF::advance_dycore(int level,
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level],
                                   tc, solverChoice.gravity, m_most, bc_ptr_d);
+    }
+
+    // ***********************************************************************************************
+    // Update user-defined source terms
+    // ***********************************************************************************************
+    if (solverChoice.custom_rhotheta_forcing) {
+        prob->update_rhotheta_sources(old_time,
+                                      h_rhotheta_src[level], d_rhotheta_src[level],
+                                      fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************

@@ -69,7 +69,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width = wrfbdy_set_width;;
+            int width = wrfbdy_set_width;
 
             // Variable can be read from wrf bdy
             //------------------------------------
