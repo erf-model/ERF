@@ -33,15 +33,19 @@ void Rrtmgp::run_shortwave_rrtmgp (
     // TODO: should we avoid allocating here?
     OpticalProps2str combined_optics;
     combined_optics.alloc_2str(ncol, nlay, k_dist_sw);
-    bool* top_at_1;
+    bool1d top_at_1_g("top_at_1_g",1);
+    boolHost1d top_at_1_h("top_at_1_h",1);
+    bool top_at_1;
     real2d toa_flux("toa_flux", ncol, nswgpts);
-    k_dist_sw.gas_optics(ncol, nlay, top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
+    k_dist_sw.gas_optics(ncol, nlay, &top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
 
     // Apply TOA flux scaling
     parallel_for(SimpleBounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {
-        toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol, igpt);
-        *top_at_1 = pmid(1, 1) < pmid (1, 2);
+       toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol,igpt);
+       top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
     });
+    top_at_1_g.deep_copy_to(top_at_1_h);
+    top_at_1 = top_at_1_h(1);
 
     // Add in aerosol
     // TODO: should we avoid allocating here?

@@ -4,7 +4,8 @@
 #include <AMReX_BLProfiler.H>
 #include <AMReX_ParallelDescriptor.H>
 
-#include <ERF.H>
+//#include "IO.H"
+#include "ERF.H"
 
 #ifdef ERF_USE_MULTIBLOCK
 #include <MultiBlockContainer.H>
@@ -53,6 +54,38 @@ void add_par () {
 */
 int main (int argc, char* argv[])
 {
+#ifdef AMREX_USE_MPI
+    MPI_Init(&argc, &argv);
+#endif
+
+    if (argc < 2) {
+        // Print usage and exit with error code if no input file was provided.
+        ERF::print_usage(MPI_COMM_WORLD, std::cout);
+        ERF::print_error(
+            MPI_COMM_WORLD, "No input file provided. Exiting!!");
+        return 1;
+    }
+
+    // Look for "-h" or "--help" flag and print usage
+    for (auto i = 1; i < argc; i++) {
+        const std::string param(argv[i]);
+        if ((param == "--help") || (param == "-h") || (param == "--usage")) {
+            ERF::print_banner(MPI_COMM_WORLD, std::cout);
+            ERF::print_usage(MPI_COMM_WORLD, std::cout);
+            return 0;
+        }
+    }
+
+    if (!amrex::FileSystem::Exists(std::string(argv[1]))) {
+        // Print usage and exit with error code if we cannot find the input file
+        ERF::print_usage(MPI_COMM_WORLD, std::cout);
+        ERF::print_error(
+            MPI_COMM_WORLD, "Input file does not exist = " +
+                                std::string(argv[1]) + ". Exiting!!");
+        return 1;
+    }
+
+  //  print_banner(MPI_COMM_WORLD, std::cout);
     // Check to see if the command line contains --describe
     if (argc >= 2) {
         for (auto i = 1; i < argc; i++) {
@@ -196,4 +229,7 @@ int main (int argc, char* argv[])
     BL_PROFILE_VAR_STOP(pmain);
 
     amrex::Finalize();
+#ifdef AMREX_USE_MPI
+    MPI_Finalize();
+#endif
 }

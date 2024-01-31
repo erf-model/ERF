@@ -499,7 +499,7 @@ ERF::init_from_metgrid (int lev)
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } else if (ivar == MetGridBdyVars::QV) {
-                multiply_rho = true;
+                multiply_rho = false;
                 xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
                 ylo_plane = ylo_plane_no_stag; yhi_plane = yhi_plane_no_stag;
             } // MetGridBdyVars::QV

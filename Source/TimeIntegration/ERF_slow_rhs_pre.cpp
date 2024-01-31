@@ -140,12 +140,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.pbl_type == PBLType::YSU );
 
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const bool use_most     = (most != nullptr);
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
 
     const Box& domain = geom.Domain();
-    const int domhi_z = domain.bigEnd()[2];
+    const int domhi_z = domain.bigEnd(2);
+    const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -319,7 +321,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
 
@@ -417,7 +419,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
 

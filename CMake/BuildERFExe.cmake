@@ -36,8 +36,9 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_PARTICLES)
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Particles/TracerPC.cpp
-                   ${SRC_DIR}/Particles/HydroPC.cpp)
+                   ${SRC_DIR}/Particles/ERFPCEvolve.cpp
+                   ${SRC_DIR}/Particles/ERFPCInitializations.cpp
+                   ${SRC_DIR}/Particles/ERFTracers.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
@@ -129,6 +130,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
+       ${SRC_DIR}/IO/console_io.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp

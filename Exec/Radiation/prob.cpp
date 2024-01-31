@@ -219,7 +219,8 @@ Problem::erf_init_rayleigh(
     amrex::Vector<amrex::Real>& vbar,
     amrex::Vector<amrex::Real>& wbar,
     amrex::Vector<amrex::Real>& thetabar,
-    amrex::Geometry      const& geom)
+    amrex::Geometry      const& geom,
+    std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
