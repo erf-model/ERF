@@ -103,7 +103,11 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
                 ParticleReal v[AMREX_SPACEDIM];
-                mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                if (use_terrain) {
+                    mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
+                } else {
+                    mac_interpolate(p, plo, dxi, umacarr, v);
+                }
                 if (ipass == 0)
                 {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
