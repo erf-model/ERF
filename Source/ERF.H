@@ -746,6 +746,10 @@ private:
     static int ng_dens_hse;
     static int ng_pres_hse;
 
+    // Custom source terms
+    amrex::Vector<amrex::Vector<amrex::Real> > h_rhotheta_src;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
+
     // Mean quantities and tau for Rayleigh damping
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
     amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
