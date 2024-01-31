@@ -64,11 +64,7 @@ using namespace amrex;
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rhotheta_src  custom temperature source term
- * @param[in] dptr_rayleigh_tau  strength of Rayleigh damping
- * @param[in] dptr_rayleigh_ubar reference value for x-velocity used to define Rayleigh damping
- * @param[in] dptr_rayleigh_vbar reference value for y-velocity used to define Rayleigh damping
- * @param[in] dptr_rayleigh_wbar reference value for z-velocity used to define Rayleigh damping
- * @param[in] dptr_rayleigh_thetabar reference value for potential temperature used to define Rayleigh damping
+ * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
 void erf_slow_rhs_pre (int level, int finest_level,
@@ -107,9 +103,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const amrex::Real* dptr_rhotheta_src,
-                       const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
-                       const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_wbar,
-                       const amrex::Real* dptr_rayleigh_thetabar)
+                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -748,7 +742,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
-                cell_rhs(i, j, k, n) -= dptr_rayleigh_tau[k] * (theta - dptr_rayleigh_thetabar[k]) * cell_data(i,j,k,nr);
+                cell_rhs(i, j, k, n) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                        (theta - d_rayleigh_ptrs_at_lev[Rayleigh::thetabar][k]) * cell_data(i,j,k,nr);
             });
         }
 
@@ -783,14 +778,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      tau12, tau13,
                                      tau21, tau23,
                                      tau31, tau32,
-                                     cell_data, detJ_arr, dc, dxInv,
+                                     detJ_arr, dxInv,
                                      mf_m, mf_u, mf_v);
             } else {
                 DiffusionSrcForMom_N(tbx, tby, tbz,
                                      rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                      tau11, tau22, tau33,
                                      tau12, tau13, tau23,
-                                     cell_data, dc, dxInv,
+                                     dxInv,
                                      mf_m, mf_u, mf_v);
             }
         }
@@ -823,7 +818,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
 
-            Real rho_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+            Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
             Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
             Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
@@ -853,7 +848,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                  + rho_u_face * abl_geo_forcing[0];
+                                  + rho_on_u_face * abl_geo_forcing[0];
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (use_coriolis)
@@ -866,8 +861,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // Add Rayleigh damping
             if (use_rayleigh_damping && rayleigh_damp_U)
             {
-                Real uu = rho_u(i,j,k) / rho_u_face;
-                rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * rho_u_face;
+                Real uu = rho_u(i,j,k) / rho_on_u_face;
+                rho_u_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                      (uu - d_rayleigh_ptrs_at_lev[Rayleigh::ubar][k]) * rho_on_u_face;
             }
 
             if (l_moving_terrain) {
@@ -884,7 +880,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
 
-              Real rho_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+              Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
               Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
               gpx *= mf_u(i,j,0);
 
@@ -895,7 +891,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               }
 
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                    + rho_u_face * abl_geo_forcing[0];
+                                    + rho_on_u_face * abl_geo_forcing[0];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (use_coriolis)
@@ -909,7 +905,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
               if (use_rayleigh_damping && rayleigh_damp_U)
               {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
-                  rho_u_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (uu - dptr_rayleigh_ubar[k]) * cell_data(i,j,k,Rho_comp);
+                  rho_u_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                        (uu - d_rayleigh_ptrs_at_lev[Rayleigh::ubar][k]) * rho_on_u_face;
               }
           });
         } // no terrain
@@ -926,7 +923,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // y-momentum equation
 
-              Real rho_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
               Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
               Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
 
@@ -956,7 +953,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                    + rho_v_face * abl_geo_forcing[1];
+                                    + rho_on_v_face * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
@@ -967,8 +964,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               // Add Rayleigh damping
               if (use_rayleigh_damping && rayleigh_damp_V)
               {
-                  Real vv = rho_v(i,j,k) / rho_v_face;
-                  rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * rho_v_face;
+                  Real vv = rho_v(i,j,k) / rho_on_v_face;
+                  rho_v_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                        (vv - d_rayleigh_ptrs_at_lev[Rayleigh::vbar][k]) * rho_on_v_face;
               }
 
               if (l_moving_terrain) {
@@ -985,7 +983,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // y-momentum equation
 
-              Real rho_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
               Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
               gpy *= mf_v(i,j,0);
 
@@ -996,7 +994,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               }
 
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                    + rho_v_face * abl_geo_forcing[1];
+                                    + rho_on_v_face * abl_geo_forcing[1];
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (use_coriolis)
@@ -1008,8 +1006,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               // Add Rayleigh damping
               if (use_rayleigh_damping && rayleigh_damp_V)
               {
-                  Real vv = rho_v(i,j,k) / rho_v_face;
-                  rho_v_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (vv - dptr_rayleigh_vbar[k]) * rho_v_face;
+                  Real vv = rho_v(i,j,k) / rho_on_v_face;
+                  rho_v_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                        (vv - d_rayleigh_ptrs_at_lev[Rayleigh::vbar][k]) * rho_on_v_face;
               }
           });
         } // no terrain
@@ -1037,7 +1036,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (l_use_terrain) {
           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
-                Real rho_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
@@ -1047,7 +1046,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
                 }
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
-                                     + rho_w_face * abl_geo_forcing[2];
+                                     + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (use_coriolis)
@@ -1059,8 +1058,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // Add Rayleigh damping
                 if (use_rayleigh_damping && rayleigh_damp_W)
                 {
-                    Real ww = rho_w(i,j,k) / rho_w_face;
-                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * rho_w_face;
+                    Real ww = rho_w(i,j,k) / rho_on_w_face;
+                    rho_w_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                          (ww - d_rayleigh_ptrs_at_lev[Rayleigh::wbar][k]) * rho_on_w_face;
                 }
 
                 if (l_use_terrain && l_moving_terrain) {
@@ -1075,7 +1075,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
 
-                Real rho_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
                 Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
 
                 Real q = 0.0;
@@ -1084,7 +1084,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
                 }
                 rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
-                                     + rho_w_face * abl_geo_forcing[2];
+                                     + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
                 if (use_coriolis)
@@ -1096,8 +1096,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // Add Rayleigh damping
                 if (use_rayleigh_damping && rayleigh_damp_W)
                 {
-                    Real ww = rho_w(i,j,k) / rho_w_face;
-                    rho_w_rhs(i, j, k) -= dptr_rayleigh_tau[k] * (ww - dptr_rayleigh_wbar[k]) * rho_w_face;
+                    Real ww = rho_w(i,j,k) / rho_on_w_face;
+                    rho_w_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
+                                          (ww - d_rayleigh_ptrs_at_lev[Rayleigh::wbar][k]) * rho_on_w_face;
                 }
         });
         } // no terrain
