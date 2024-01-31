@@ -132,34 +132,29 @@ Problem::init_custom_pert(
 
 void
 Problem::erf_init_rayleigh(
-    amrex::Vector<Real>& tau,
-    amrex::Vector<Real>& ubar,
-    amrex::Vector<Real>& vbar,
-    amrex::Vector<Real>& wbar,
-    amrex::Vector<Real>& thetabar,
-    amrex::Geometry const& geom,
+    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
+    amrex::Geometry      const& geom,
     std::unique_ptr<MultiFab>& /*z_phys_cc*/)
 {
-   // amrex::Error("Should never get here for MovingTerrain problem");
-   const int khi = geom.Domain().bigEnd()[2];
+    const int khi = geom.Domain().bigEnd()[2];
 
-   for (int k = 0; k <= khi; k++)
-   {
-       tau[k]  = 0.0;
-       ubar[k] = 0.0;
-       vbar[k] = 0.0;
-       wbar[k] = 0.0;
-       thetabar[k] = 300.0;
-   }
+    for (int k = 0; k <= khi; k++)
+    {
+        rayleigh_ptrs[Rayleigh::tau][k]      =   0.0;
+        rayleigh_ptrs[Rayleigh::ubar][k]     =   0.0;
+        rayleigh_ptrs[Rayleigh::vbar][k]     =   0.0;
+        rayleigh_ptrs[Rayleigh::wbar][k]     =   0.0;
+        rayleigh_ptrs[Rayleigh::thetabar][k] = 300.0;
+    }
 
-   // Damping above k = 60
-   for (int k = 60; k <= khi; k++)
-   {
-       tau[k]  = 10.; // Remember that this gets multiplied by dt
-       ubar[k] = 0.0;
-       vbar[k] = 0.0;
-       wbar[k] = 0.0;
-       thetabar[k] = 300.0;
+    // Damping above k = 60
+    for (int k = 60; k <= khi; k++)
+    {
+        rayleigh_ptrs[Rayleigh::tau][k]      =  10.0;  // Remember that this gets multiplied by dt
+        rayleigh_ptrs[Rayleigh::ubar][k]     =   2.0;
+        rayleigh_ptrs[Rayleigh::vbar][k]     =   1.0;
+        rayleigh_ptrs[Rayleigh::wbar][k]     =   0.0;
+        rayleigh_ptrs[Rayleigh::thetabar][k] = 300.0;
    }
 }
 

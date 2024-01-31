@@ -758,20 +758,14 @@ private:
     static int ng_pres_hse;
 
     // Custom source terms
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rhotheta_src;
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
 
-    // Mean quantities and tau for Rayleigh damping
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_wbar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_wbar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+    // This is a vector over levels of vectors across quantities of Vectors
+    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+
+    // This is a vector over levels of vectors across quantities of DeviceVectors
+    amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;

@@ -40,6 +40,10 @@ enum struct Coord {
     x, y, z
 };
 
+enum Rayleigh {
+    tau, ubar, vbar, wbar, thetabar, nvars
+};
+
 /**
  * Container holding many of the algorithmic options and parameters
  */

@@ -214,23 +214,19 @@ Problem::init_custom_pert(
 
 void
 Problem::erf_init_rayleigh(
-    amrex::Vector<amrex::Real>& tau,
-    amrex::Vector<amrex::Real>& ubar,
-    amrex::Vector<amrex::Real>& vbar,
-    amrex::Vector<amrex::Real>& wbar,
-    amrex::Vector<amrex::Real>& thetabar,
+    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
     amrex::Geometry      const& geom,
-    std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+    std::unique_ptr<MultiFab>& /*z_phys_cc*/)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
   // We just use these values to test the Rayleigh damping
   for (int k = 0; k <= khi; k++)
   {
-      tau[k]  = 1.0;
-      ubar[k] = 2.0;
-      vbar[k] = 1.0;
-      wbar[k] = 0.0;
-      thetabar[k] = parms.T_0;
+      rayleigh_ptrs[Rayleigh::tau][k]      = 1.0;
+      rayleigh_ptrs[Rayleigh::ubar][k]     = 2.0;
+      rayleigh_ptrs[Rayleigh::vbar][k]     = 1.0;
+      rayleigh_ptrs[Rayleigh::wbar][k]     = 0.0;
+      rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
   }
 }
