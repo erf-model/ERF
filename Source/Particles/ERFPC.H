@@ -74,21 +74,23 @@ void update_location_idata (P& p,
     p.idata(ERFParticlesIntIdx::i) = iv[0];
     p.idata(ERFParticlesIntIdx::j) = iv[1];
 
-    amrex::Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(iv[0]);
-    amrex::Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(iv[1]);
-    auto zlo = height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-               height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-               height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-               height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-    auto zhi = height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-               height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-               height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-               height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
+    if (height_arr) {
+        amrex::Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(iv[0]);
+        amrex::Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(iv[1]);
+        auto zlo = height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
+                   height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
+                   height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+                   height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
+        auto zhi = height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
+                   height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
+                   height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+                   height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
 
-    if (p.pos(2) > zhi) {
-        p.idata(ERFParticlesIntIdx::k) += 1;
-    } else if (p.pos(2) <= zlo) {
-        p.idata(ERFParticlesIntIdx::k) -= 1;
+        if (p.pos(2) > zhi) {
+            p.idata(ERFParticlesIntIdx::k) += 1;
+        } else if (p.pos(2) <= zlo) {
+            p.idata(ERFParticlesIntIdx::k) -= 1;
+        }
     }
 }
 
