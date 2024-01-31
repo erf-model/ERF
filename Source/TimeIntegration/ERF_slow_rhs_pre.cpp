@@ -148,6 +148,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
 
+    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
+    Real*     ubar = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
+    Real*     vbar = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
+    Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
+    Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
+
     // *************************************************************************
     // Combine external forcing terms
     // *************************************************************************
@@ -742,8 +748,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 Real theta = cell_prim(i,j,k,np);
-                cell_rhs(i, j, k, n) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                        (theta - d_rayleigh_ptrs_at_lev[Rayleigh::thetabar][k]) * cell_data(i,j,k,nr);
+                cell_rhs(i, j, k, n) -= tau[k] * (theta - thetabar[k]) * cell_data(i,j,k,nr);
             });
         }
 
@@ -862,8 +867,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (use_rayleigh_damping && rayleigh_damp_U)
             {
                 Real uu = rho_u(i,j,k) / rho_on_u_face;
-                rho_u_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                      (uu - d_rayleigh_ptrs_at_lev[Rayleigh::ubar][k]) * rho_on_u_face;
+                rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
             }
 
             if (l_moving_terrain) {
@@ -905,8 +909,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               if (use_rayleigh_damping && rayleigh_damp_U)
               {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
-                  rho_u_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                        (uu - d_rayleigh_ptrs_at_lev[Rayleigh::ubar][k]) * rho_on_u_face;
+                  rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
               }
           });
         } // no terrain
@@ -965,8 +968,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               if (use_rayleigh_damping && rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
-                  rho_v_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                        (vv - d_rayleigh_ptrs_at_lev[Rayleigh::vbar][k]) * rho_on_v_face;
+                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
 
               if (l_moving_terrain) {
@@ -1007,8 +1009,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               if (use_rayleigh_damping && rayleigh_damp_V)
               {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
-                  rho_v_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                        (vv - d_rayleigh_ptrs_at_lev[Rayleigh::vbar][k]) * rho_on_v_face;
+                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
           });
         } // no terrain
@@ -1059,8 +1060,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (use_rayleigh_damping && rayleigh_damp_W)
                 {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    rho_w_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                          (ww - d_rayleigh_ptrs_at_lev[Rayleigh::wbar][k]) * rho_on_w_face;
+                    rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }
 
                 if (l_use_terrain && l_moving_terrain) {
@@ -1097,8 +1097,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (use_rayleigh_damping && rayleigh_damp_W)
                 {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    rho_w_rhs(i, j, k) -= d_rayleigh_ptrs_at_lev[Rayleigh::tau][k] *
-                                          (ww - d_rayleigh_ptrs_at_lev[Rayleigh::wbar][k]) * rho_on_w_face;
+                    rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }
         });
         } // no terrain
