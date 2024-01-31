@@ -15,7 +15,7 @@ private:
     * \brief rhs is the right-hand-side function the integrator will use.
     */
     std::function<void(T&, const T&,     const amrex::Real, const amrex::Real     )> rhs;
-    std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
+    std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_pre;
     std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> slow_rhs_inc;
     std::function<void(T&, T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int )> slow_rhs_post;
     std::function<void(int, int, int, T&, const T&, T&, T&, T&, const amrex::Real, const amrex::Real,
@@ -130,7 +130,7 @@ public:
         force_stage1_single_substep = _force_stage1_single_substep;
     }
 
-    void set_slow_rhs_pre (std::function<void(T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
+    void set_slow_rhs_pre (std::function<void(T&, T&, T&, T&, const amrex::Real, const amrex::Real, const amrex::Real, const int)> F)
     {
         slow_rhs_pre = F;
     }
@@ -272,7 +272,7 @@ public:
             //    the momenta used in the first call to the slow_rhs, then update
             //    inside fast_rhs, then use these values in the later call to slow_rhs
 
-            slow_rhs_pre(*F_slow, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
+            slow_rhs_pre(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
 
             amrex::Real inv_fac = 1.0 / static_cast<amrex::Real>(nsubsteps);
 

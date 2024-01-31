@@ -63,6 +63,7 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
+ * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rayleigh_tau  strength of Rayleigh damping
  * @param[in] dptr_rayleigh_ubar reference value for x-velocity used to define Rayleigh damping
  * @param[in] dptr_rayleigh_vbar reference value for y-velocity used to define Rayleigh damping
@@ -105,6 +106,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
+                       const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rayleigh_tau, const amrex::Real* dptr_rayleigh_ubar,
                        const amrex::Real* dptr_rayleigh_vbar, const amrex::Real* dptr_rayleigh_wbar,
                        const amrex::Real* dptr_rayleigh_thetabar)
@@ -719,6 +721,23 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 });
             }
 #endif
+        }
+
+        // Add custom source terms
+        if (solverChoice.custom_rhotheta_forcing) {
+            const int n = RhoTheta_comp;
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhotheta_src[k];
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i, j, k, n) += dptr_rhotheta_src[k];
+                });
+            }
         }
 
         // Add Rayleigh damping

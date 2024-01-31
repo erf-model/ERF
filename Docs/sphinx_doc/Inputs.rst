@@ -771,6 +771,30 @@ List of Parameters
 |                                  | Rayleigh damping  |                   |             |
 +----------------------------------+-------------------+-------------------+-------------+
 
+In addition, custom forcings or tendencies may be defined on a problem-specific
+basis. This affords additional flexibility in defining the RHS source term as
+a function of time and/or height. Implementation entails modifying problem
+source code inside the Exec directory and overriding the ``update_*_sources()``
+function(s).
+
++--------------------------------------------+-------------------+-------------------+-------------+
+| Parameter                                  | Definition        | Acceptable        | Default     |
+|                                            |                   | Values            |             |
++============================================+===================+===================+=============+
+| **erf.custom_forcing_uses_primitive_vars** | User-defined      | true or false     | false       |
+|                                            | source terms set  |                   |             |
+|                                            | the tendency of   |                   |             |
+|                                            | primitive         |                   |             |
+|                                            | variables instead |                   |             |
+|                                            | of conserved      |                   |             |
+|                                            | quantities        |                   |             |
+|                                            | (rho*prim_var)    |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
+| **erf.add_custom_rhotheta_forcing**        | Apply the         | true or false     | false       |
+|                                            | user-defined      |                   |             |
+|                                            | temperature source|                   |             |
+|                                            | term              |                   |             |
++--------------------------------------------+-------------------+-------------------+-------------+
 
 Initialization
 ==============
