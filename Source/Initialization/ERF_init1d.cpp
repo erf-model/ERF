@@ -18,46 +18,31 @@ ERF::initRayleigh ()
 {
     AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
 
-    h_rayleigh_tau.resize(max_level+1, amrex::Vector<Real>(0));
-    h_rayleigh_ubar.resize(max_level+1, amrex::Vector<Real>(0));
-    h_rayleigh_vbar.resize(max_level+1, amrex::Vector<Real>(0));
-    h_rayleigh_wbar.resize(max_level+1, amrex::Vector<Real>(0));
-    h_rayleigh_thetabar.resize(max_level+1, amrex::Vector<Real>(0));
-    d_rayleigh_tau.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_rayleigh_ubar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_rayleigh_vbar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_rayleigh_wbar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
-    d_rayleigh_thetabar.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+    h_rayleigh_ptrs.resize(max_level+1);
+    d_rayleigh_ptrs.resize(max_level+1);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
+        // These have 5 components: tau, ubar, vbar, wbar, thetabar
+        h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
+        d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
+
         const int zlen_rayleigh = geom[lev].Domain().length(2);
-        h_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
-        d_rayleigh_tau[lev].resize(zlen_rayleigh, 0.0_rt);
-        h_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
-        d_rayleigh_ubar[lev].resize(zlen_rayleigh, 0.0_rt);
-        h_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
-        d_rayleigh_vbar[lev].resize(zlen_rayleigh, 0.0_rt);
-        h_rayleigh_wbar[lev].resize(zlen_rayleigh, 0.0_rt);
-        d_rayleigh_wbar[lev].resize(zlen_rayleigh, 0.0_rt);
-        h_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
-        d_rayleigh_thetabar[lev].resize(zlen_rayleigh, 0.0_rt);
 
-        prob->erf_init_rayleigh(h_rayleigh_tau[lev], h_rayleigh_ubar[lev], h_rayleigh_vbar[lev],
-                                h_rayleigh_wbar[lev], h_rayleigh_thetabar[lev], geom[lev],
-                                z_phys_cc[lev]);
+        // Allocate space for these 1D vectors
+        for (int n = 0; n < Rayleigh::nvars; n++) {
+            h_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
+            d_rayleigh_ptrs[lev][n].resize(zlen_rayleigh, 0.0_rt);
+        }
 
-        // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_tau[lev].begin(), h_rayleigh_tau[lev].end(),
-                         d_rayleigh_tau[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ubar[lev].begin(), h_rayleigh_ubar[lev].end(),
-                         d_rayleigh_ubar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_vbar[lev].begin(), h_rayleigh_vbar[lev].end(),
-                         d_rayleigh_vbar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_wbar[lev].begin(), h_rayleigh_wbar[lev].end(),
-                         d_rayleigh_wbar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_thetabar[lev].begin(), h_rayleigh_thetabar[lev].end(),
-                         d_rayleigh_thetabar[lev].begin());
+        // Init the host vectors
+        prob->erf_init_rayleigh(h_rayleigh_ptrs[lev], geom[lev], z_phys_cc[lev]);
+
+        // Copy from host vectors to device vectors
+        for (int n = 0; n < Rayleigh::nvars; n++) {
+            amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
+                             d_rayleigh_ptrs[lev][n].begin());
+        }
     }
 }
 
@@ -93,29 +78,29 @@ ERF::setRayleighRefFromSounding (bool restarting)
         for (int k = 0; k <= khi; k++)
         {
             const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-            h_rayleigh_ubar[lev][k]     = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
-            h_rayleigh_vbar[lev][k]     = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
-            h_rayleigh_wbar[lev][k]     = 0.0;
-            h_rayleigh_thetabar[lev][k] = interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
-            if (h_rayleigh_tau[lev][k] > 0) {
-                amrex::Print() << z << ":" << " tau=" << h_rayleigh_tau[lev][k];
-                if (solverChoice.rayleigh_damp_U) amrex::Print() << " ubar=" << h_rayleigh_ubar[lev][k];
-                if (solverChoice.rayleigh_damp_V) amrex::Print() << " vbar=" << h_rayleigh_vbar[lev][k];
-                if (solverChoice.rayleigh_damp_W) amrex::Print() << " wbar=" << h_rayleigh_wbar[lev][k];
-                if (solverChoice.rayleigh_damp_T) amrex::Print() << " thetabar=" << h_rayleigh_thetabar[lev][k];
+            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]          = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]          = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]          = Real(0.0);
+            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+            if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
+                                                  amrex::Print() << z << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
+                if (solverChoice.rayleigh_damp_U) amrex::Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
+                if (solverChoice.rayleigh_damp_V) amrex::Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
+                if (solverChoice.rayleigh_damp_W) amrex::Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
+                if (solverChoice.rayleigh_damp_T) amrex::Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
                 amrex::Print() << std::endl;
             }
         }
 
         // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ubar[lev].begin(), h_rayleigh_ubar[lev].end(),
-                         d_rayleigh_ubar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_vbar[lev].begin(), h_rayleigh_vbar[lev].end(),
-                         d_rayleigh_vbar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_wbar[lev].begin(), h_rayleigh_wbar[lev].end(),
-                         d_rayleigh_wbar[lev].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_thetabar[lev].begin(), h_rayleigh_thetabar[lev].end(),
-                         d_rayleigh_thetabar[lev].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
+                         d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
+                         d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
+                         d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
+                         d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
     }
 }
 

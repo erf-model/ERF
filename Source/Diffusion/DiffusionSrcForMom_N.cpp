@@ -19,8 +19,6 @@ using namespace amrex;
  * @param[in]  tau12 12 stress
  * @param[in]  tau13 13 stress
  * @param[in]  tau23 23 stress
- * @param[in]  cons conserved cell center quantities
- * @param[in]  diffChoice container with diffusion parameters
  * @param[in]  dxInv inverse cell size array
  * @param[in]  mf_m map factor at cell center
  */
@@ -32,7 +30,6 @@ DiffusionSrcForMom_N (const Box& bxx, const Box& bxy , const Box& bxz,
                       const Array4<const Real>& tau11, const Array4<const Real>& tau22,
                       const Array4<const Real>& tau33, const Array4<const Real>& tau12,
                       const Array4<const Real>& tau13, const Array4<const Real>& tau23,
-                      const Array4<const Real>& cons , const DiffChoice& diffChoice,
                       const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                       const Array4<const Real>& mf_m,
                       const Array4<const Real>& /*mf_u*/,

@@ -127,11 +127,11 @@ public:
             amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
         } else {
             const int khi              = geom.Domain().bigEnd()[2];
-            const amrex::Real* prob_lo = geom.ProbLo();
-            const auto dx              = geom.CellSize();
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
             for (int k = 0; k <= khi; k++)
             {
-                const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
                 src[k] = 0.0;
             }
@@ -187,20 +187,12 @@ public:
     /**
      * Function to define the quantities needed to impose Rayleigh damping
      *
-     * @param[out] tau  strength of Rayleigh damping
-     * @param[out] ubar reference value for x-velocity used to define Rayleigh damping
-     * @param[out] vbar reference value for y-velocity used to define Rayleigh damping
-     * @param[out] wbar reference value for z-velocity used to define Rayleigh damping
-     * @param[out] thetabar reference value for potential temperature used to define Rayleigh damping
+     * @param[out] rayleigh_ptrs = {strength of Rayleigh damping, reference values for xvel/yvel/zvel/theta used to define Rayleigh damping}
      * @param[in] geom container for geometric information
      * @param[in] z_phys_cc height coordinate at cell centers
     */
     virtual void
-    erf_init_rayleigh (amrex::Vector<amrex::Real>& /*tau*/,
-                       amrex::Vector<amrex::Real>& /*ubar*/,
-                       amrex::Vector<amrex::Real>& /*vbar*/,
-                       amrex::Vector<amrex::Real>& /*wbar*/,
-                       amrex::Vector<amrex::Real>& /*thetabar*/,
+    erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& /*rayleigh_ptrs*/,
                        amrex::Geometry      const& /*geom*/,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {

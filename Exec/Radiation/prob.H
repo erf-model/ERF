@@ -47,11 +47,7 @@ public:
         const SolverChoice& sc) override;
 
     void erf_init_rayleigh (
-        amrex::Vector<amrex::Real>& tau,
-        amrex::Vector<amrex::Real>& ubar,
-        amrex::Vector<amrex::Real>& vbar,
-        amrex::Vector<amrex::Real>& wbar,
-        amrex::Vector<amrex::Real>& thetabar,
+        amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
         amrex::Geometry      const& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
