@@ -3,11 +3,7 @@
  * on Durran and Klemp 1983
 */
 void
-erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
-                   amrex::Vector<amrex::Real>& ubar,
-                   amrex::Vector<amrex::Real>& vbar,
-                   amrex::Vector<amrex::Real>& wbar,
-                   amrex::Vector<amrex::Real>& thetabar,
+erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
                    amrex::Geometry      const& geom,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc) override
 {
@@ -51,20 +47,20 @@ erf_init_rayleigh (amrex::Vector<amrex::Real>& tau,
         if (zfrac >= 0)
         {
             const amrex::Real sinefac = std::sin(PIoTwo*zfrac);
-            tau[k]      = parms.dampcoef * sinefac * sinefac;
-            ubar[k]     = parms.U_0;
-            vbar[k]     = parms.V_0;
-            wbar[k]     = parms.W_0;
-            thetabar[k] = parms.T_0;
+            rayleigh_ptrs[Rayleigh::tau][k]      = parms.dampcoef * sinefac * sinefac;
+            rayleigh_ptrs[Rayleigh::ubar][k]     = parms.U_0;
+            rayleigh_ptrs[Rayleigh::vbar][k]     = parms.V_0;
+            rayleigh_ptrs[Rayleigh::wbar][k]     = parms.W_0;
+            rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
             amrex::Print() << "  " << zcc[k] << " " << sinefac*sinefac << std::endl;
         }
         else
         {
-            tau[k]      = 0.0;
-            ubar[k]     = 0.0;
-            vbar[k]     = 0.0;
-            wbar[k]     = 0.0;
-            thetabar[k] = 0.0;
+            rayleigh_ptrs[Rayleigh::tau][k]      = amrex::Real(0.0);
+            rayleigh_ptrs[Rayleigh::ubar][k]     = amrex::Real(0.0);
+            rayleigh_ptrs[Rayleigh::vbar][k]     = amrex::Real(0.0);
+            rayleigh_ptrs[Rayleigh::wbar][k]     = amrex::Real(0.0);
+            rayleigh_ptrs[Rayleigh::thetabar][k] = amrex::Real(0.0);
         }
     }
 }
