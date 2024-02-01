@@ -91,13 +91,7 @@ struct SolverChoice {
             moisture_type = MoistureType::None;
         }
 
-        // Which expression (1,2 or 3) to use for buoyancy
-        pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
-        }
-
-
+        // TODO: should we set default for dry??
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
             if (moisture_type == MoistureType::FastEddy) {
@@ -105,6 +99,12 @@ struct SolverChoice {
             } else {
                 buoyancy_type = 2; // uses Tprime
             }
+        }
+
+        // Which expression (1,2 or 3) to use for buoyancy
+        pp.query("buoyancy_type", buoyancy_type);
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
         // What type of land surface model to use
