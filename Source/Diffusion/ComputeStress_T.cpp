@@ -43,7 +43,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     FArrayBox temp;
     Box gbx = bxcc; // Note: bxcc have been grown in x/y only.
     gbx.grow(IntVect(0,0,1));
-    temp.resize(gbx,1);
+    temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
     if (cell_data) {
         ParallelFor(gbx,
@@ -319,7 +319,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     FArrayBox temp;
     Box gbx = bxcc; // Note: bxcc have been grown in x/y only.
     gbx.grow(IntVect(0,0,1));
-    temp.resize(gbx,1);
+    temp.resize(gbx,1, The_Async_Arena());
     Array4<Real> rhoAlpha = temp.array();
     if (cell_data) {
         ParallelFor(gbx,

@@ -33,10 +33,8 @@ NumericalDiffusion (const Box& bx,
 
     // Average map factors to correct locations
     Box planebx(bx); planebx.setSmall(2,0); planebx.setBig(2,0);
-    FArrayBox mf_x_bar; mf_x_bar.resize(planebx,1);
-    FArrayBox mf_y_bar; mf_y_bar.resize(planebx,1);
-    Elixir mfx_eli = mf_x_bar.elixir();
-    Elixir mfy_eli = mf_y_bar.elixir();
+    FArrayBox mf_x_bar; mf_x_bar.resize(planebx,1,The_Async_Arena());
+    FArrayBox mf_y_bar; mf_y_bar.resize(planebx,1,The_Async_Arena());
     const Array4<Real>& mfx_arr  = mf_x_bar.array();
     const Array4<Real>& mfy_arr  = mf_y_bar.array();
     ParallelFor(planebx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

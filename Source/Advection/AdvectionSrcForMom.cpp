@@ -63,9 +63,8 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
     // compute mapfactor inverses
     Box box2d_u(bxx);   box2d_u.setRange(2,0);   box2d_u.grow({3,3,0});
     Box box2d_v(bxy);   box2d_v.setRange(2,0);   box2d_v.grow({3,3,0});
-    FArrayBox mf_u_invFAB(box2d_u); FArrayBox mf_v_invFAB(box2d_v);
-    Elixir mf_u_inv_eli = mf_u_invFAB.elixir();
-    Elixir mf_v_inv_eli = mf_v_invFAB.elixir();
+    FArrayBox mf_u_invFAB(box2d_u,1,The_Async_Arena());
+    FArrayBox mf_v_invFAB(box2d_v,1,The_Async_Arena());
     const Array4<Real>& mf_u_inv = mf_u_invFAB.array();
     const Array4<Real>& mf_v_inv = mf_v_invFAB.array();
 

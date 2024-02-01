@@ -1327,8 +1327,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 
         auto      fab_arr = S[mfi].array();
 
-        FArrayBox fab_reduce(box, 1);
-        Elixir elx_reduce = fab_reduce.elixir();
+        FArrayBox fab_reduce(box, 1, The_Async_Arena());
         auto arr_reduce   = fab_reduce.array();
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {

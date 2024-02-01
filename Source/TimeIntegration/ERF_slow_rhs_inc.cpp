@@ -233,10 +233,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             // Temporary storage for tiling/OMP
             FArrayBox S11,S22,S33;
             FArrayBox S12,S13,S23;
-            S11.resize(bxcc,1);  S22.resize(bxcc,1);  S33.resize(bxcc,1);
-            S12.resize(tbxxy,1); S13.resize(tbxxz,1); S23.resize(tbxyz,1);
-            Elixir S11_eli   = S11.elixir(); Elixir S22_eli   = S22.elixir(); Elixir S33_eli   = S33.elixir();
-            Elixir S12_eli   = S12.elixir(); Elixir S13_eli   = S13.elixir(); Elixir S23_eli   = S23.elixir();
+            S11.resize( bxcc,1,The_Async_Arena()); S22.resize( bxcc,1,The_Async_Arena()); S33.resize( bxcc,1,The_Async_Arena());
+            S12.resize(tbxxy,1,The_Async_Arena()); S13.resize(tbxxz,1,The_Async_Arena()); S23.resize(tbxyz,1,The_Async_Arena());
             Array4<Real> s11 = S11.array();  Array4<Real> s22 = S22.array();  Array4<Real> s33 = S33.array();
             Array4<Real> s12 = S12.array();  Array4<Real> s13 = S13.array();  Array4<Real> s23 = S23.array();
 
@@ -250,8 +248,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             if (l_use_terrain) {
                 // Terrain non-symmetric terms
                 FArrayBox S21,S31,S32;
-                S21.resize(tbxxy,1); S31.resize(tbxxz,1); S32.resize(tbxyz,1);
-                Elixir S21_eli     = S21.elixir();      Elixir S31_eli     = S31.elixir();      Elixir S32_eli     = S32.elixir();
+                S21.resize(tbxxy,1,The_Async_Arena()); S31.resize(tbxxz,1,The_Async_Arena()); S32.resize(tbxyz,1,The_Async_Arena());
                 Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
                 Array4<Real> tau21 = Tau21->array(mfi); Array4<Real> tau31 = Tau31->array(mfi); Array4<Real> tau32 = Tau32->array(mfi);
 
