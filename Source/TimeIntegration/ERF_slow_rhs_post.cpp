@@ -439,10 +439,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             // Temporary FABs for storage (owned/filled on all ranks)
             FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
-            QV_xlo.resize(bx_xlo,1); QV_xhi.resize(bx_xhi,1);
-            QV_ylo.resize(bx_ylo,1); QV_yhi.resize(bx_yhi,1);
-            Elixir QV_xlo_eli = QV_xlo.elixir(); Elixir QV_xhi_eli = QV_xhi.elixir();
-            Elixir QV_ylo_eli = QV_ylo.elixir(); Elixir QV_yhi_eli = QV_yhi.elixir();
+            QV_xlo.resize(bx_xlo,1,The_Async_Arena()); QV_xhi.resize(bx_xhi,1,The_Async_Arena());
+            QV_ylo.resize(bx_ylo,1,The_Async_Arena()); QV_yhi.resize(bx_yhi,1,The_Async_Arena());
 
             // Get Array4 of interpolated values
             Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();

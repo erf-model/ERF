@@ -82,8 +82,7 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
         const Array4<const Real>& pi0_ca      = pi0->const_array(mfi); const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
-        FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1);
-        Elixir gEli = gam_fab.elixir();
+        FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
 
         auto const& coeffA_a  = coeff_A_mf.array(mfi);
         auto const& coeffB_a  = coeff_B_mf.array(mfi);

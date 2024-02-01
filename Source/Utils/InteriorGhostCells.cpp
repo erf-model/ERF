@@ -191,35 +191,21 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
 
         // Size the FABs
         if (ivar  == ivarU) {
-            U_xlo.resize(bx_xlo,1); U_xhi.resize(bx_xhi,1);
-            U_ylo.resize(bx_ylo,1); U_yhi.resize(bx_yhi,1);
+            U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
+            U_ylo.resize(bx_ylo,1,The_Async_Arena()); U_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarV) {
-            V_xlo.resize(bx_xlo,1); V_xhi.resize(bx_xhi,1);
-            V_ylo.resize(bx_ylo,1); V_yhi.resize(bx_yhi,1);
+            V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
+            V_ylo.resize(bx_ylo,1,The_Async_Arena()); V_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarR) {
-            R_xlo.resize(bx_xlo,1); R_xhi.resize(bx_xhi,1);
-            R_ylo.resize(bx_ylo,1); R_yhi.resize(bx_yhi,1);
+            R_xlo.resize(bx_xlo,1,The_Async_Arena()); R_xhi.resize(bx_xhi,1,The_Async_Arena());
+            R_ylo.resize(bx_ylo,1,The_Async_Arena()); R_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else if (ivar  == ivarT){
-            T_xlo.resize(bx_xlo,1); T_xhi.resize(bx_xhi,1);
-            T_ylo.resize(bx_ylo,1); T_yhi.resize(bx_yhi,1);
+            T_xlo.resize(bx_xlo,1,The_Async_Arena()); T_xhi.resize(bx_xhi,1,The_Async_Arena());
+            T_ylo.resize(bx_ylo,1,The_Async_Arena()); T_yhi.resize(bx_yhi,1,The_Async_Arena());
         } else {
             continue;
         }
     } // ivar
-
-    // Elixir to avoid destruction before kernel end
-    Elixir U_xlo_eli = U_xlo.elixir(); Elixir U_xhi_eli = U_xhi.elixir();
-    Elixir U_ylo_eli = U_ylo.elixir(); Elixir U_yhi_eli = U_yhi.elixir();
-
-    Elixir V_xlo_eli = V_xlo.elixir(); Elixir V_xhi_eli = V_xhi.elixir();
-    Elixir V_ylo_eli = V_ylo.elixir(); Elixir V_yhi_eli = V_yhi.elixir();
-
-    Elixir R_xlo_eli = R_xlo.elixir(); Elixir R_xhi_eli = R_xhi.elixir();
-    Elixir R_ylo_eli = R_ylo.elixir(); Elixir R_yhi_eli = R_yhi.elixir();
-
-    Elixir T_xlo_eli = T_xlo.elixir(); Elixir T_xhi_eli = T_xhi.elixir();
-    Elixir T_ylo_eli = T_ylo.elixir(); Elixir T_yhi_eli = T_yhi.elixir();
-
 
     // Populate FABs from bdy interpolation
     //==========================================================

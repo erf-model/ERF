@@ -301,18 +301,15 @@ void erf_fast_rhs_N (int step, int nrk,
         const Array4<const Real>& mf_v = mapfac_v->const_array(mfi);
 
         FArrayBox RHS_fab;
-        RHS_fab.resize(tbz,1);
+        RHS_fab.resize(tbz,1, The_Async_Arena());
 
         FArrayBox soln_fab;
-        soln_fab.resize(tbz,1);
+        soln_fab.resize(tbz,1, The_Async_Arena());
 
         auto const& RHS_a  = RHS_fab.array();
         auto const& soln_a = soln_fab.array();
 
         auto const& temp_rhs_arr = temp_rhs.array(mfi);
-
-        Elixir rCeli       = RHS_fab.elixir();
-        Elixir sCeli       = soln_fab.elixir();
 
         auto const&     coeffA_a =     coeff_A_mf.array(mfi);
         auto const& inv_coeffB_a = inv_coeff_B_mf.array(mfi);

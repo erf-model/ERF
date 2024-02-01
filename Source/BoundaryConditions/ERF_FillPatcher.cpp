@@ -249,16 +249,13 @@ void ERFFillPatcher::InterpCell (MultiFab& fine,
           }
       }
 
-      FArrayBox ccfab(cslope_bx, ncomp*AMREX_SPACEDIM);
+      FArrayBox ccfab(cslope_bx, ncomp*AMREX_SPACEDIM, The_Async_Arena());
       Array4<Real> const& tmp = ccfab.array();
       Array4<Real const> const& ctmp = ccfab.const_array();
 
 #ifdef AMREX_USE_GPU
       AsyncArray<BCRec> async_bcr(bcr.data(), (run_on_gpu) ? ncomp : 0);
       BCRec const* bcrp = (run_on_gpu) ? async_bcr.data() : bcr.data();
-
-      Elixir cceli;
-      if (run_on_gpu) { cceli = ccfab.elixir(); }
 #else
       BCRec const* bcrp = bcr.data();
 #endif
