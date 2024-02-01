@@ -16,6 +16,14 @@ namespace MicVar_SD {
     };
 }
 
+/*! \brief List of super-droplet moisture model initializations */
+namespace SuperDropletsMoistInitializations
+{
+    /*! Create super-droplets based on given condensate mass density */
+    const std::string init_rhoc = "condensate_density";
+
+}
+
 using namespace amrex;
 
 class SuperDropletsMoist : public NullMoistLagrangian {
@@ -39,16 +47,30 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                             const Geometry&,
                             const Real& );
 
+        /* This is here just to avoid CUDA compiler warnings about virtual
+           function override. Don't ever call this! */
+        using NullMoist::Advance;
+
         /*! \brief Advance for one timestep */
         virtual void Advance (const Real&,
                               Vector<Vector<MultiFab>>&,
                               const Vector<std::unique_ptr<MultiFab>>& );
 
-        /*! \brief TODO */
-        virtual void Update_Micro_Vars (MultiFab&) { }
+        /*! \brief Update microphysics variables */
+        inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars)
+        {
+            Copy_State_to_Micro(a_cons_vars);
 
-        /*! \brief TODO */
-        virtual void Update_State_Vars (MultiFab&) { }
+            static bool first_call(true);
+            if (first_call) { FinishInit(); }
+            first_call = false;
+        }
+
+        /*! \brief state variables from microphysics variables */
+        inline virtual void Update_State_Vars (MultiFab& a_cons_vars)
+        {
+            Copy_Micro_to_State(a_cons_vars);
+        }
 
         /*! \brief TODO */
         virtual void Diagnose () { }
@@ -85,6 +107,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     protected:
 
+        /*! initialization type */
+        std::string m_init_type;
+
         /*! name of model and its particle container */
         const std::string m_name = "super_droplets_moisture";
         /*! particle container for super-droplets */
@@ -100,6 +125,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! moisture model variables */
         Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
+
+        /*! \brief read inputs */
+        virtual void readInputs();
+
+        /*! \brief finish initializations */
+        void FinishInit();
 
     private:
 
