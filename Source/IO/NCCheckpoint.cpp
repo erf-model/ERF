@@ -125,7 +125,7 @@ ERF::WriteNCCheckpointFile () const
 void
 ERF::ReadNCCheckpointFile ()
 {
-    amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
+    amrex::Print() << "Restart from NetCDF checkpoint " << restart_chkfile << "\n";
 
     // Header
     std::string HeaderFileName(restart_chkfile + "/Header.nc");

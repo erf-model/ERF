@@ -32,6 +32,10 @@ enum struct MoistureType {
     Kessler, SAM, FastEddy, None
 };
 
+enum struct LandSurfaceType {
+    SLM, MM5, None
+};
+
 enum struct Coord {
     x, y, z
 };
@@ -93,7 +97,7 @@ struct SolverChoice {
             amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
         }
 
-        /*
+
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
             if (moisture_type == MoistureType::FastEddy) {
@@ -102,7 +106,17 @@ struct SolverChoice {
                 buoyancy_type = 2; // uses Tprime
             }
         }
-        */
+
+        // What type of land surface model to use
+        static std::string lsm_model_string = "None";
+        pp.query("land_surface_model", lsm_model_string);
+        if (lsm_model_string == "SLM") {
+            lsm_type = LandSurfaceType::SLM;
+        } else if (lsm_model_string == "MM5") {
+            lsm_type = LandSurfaceType::MM5;
+        } else {
+            lsm_type = LandSurfaceType::None;
+        }
 
         // Is the terrain static or moving?
         static std::string terrain_type_string = "Static";
@@ -372,6 +386,7 @@ struct SolverChoice {
     CouplingType coupling_type;
     TerrainType  terrain_type;
     MoistureType moisture_type;
+    LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

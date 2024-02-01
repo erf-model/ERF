@@ -1,0 +1,2 @@
+CEXE_sources += MM5.cpp
+CEXE_headers += MM5.H

@@ -45,6 +45,7 @@
 #endif
 
 #include "Microphysics.H"
+#include "LandSurface.H"
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -213,8 +214,13 @@ public:
                          amrex::Real dt, amrex::Real time,
                          amrex::InterpFaceRegister* ifr);
 
-    void advance_microphysics (int lev, amrex::MultiFab& cons_in,
+    void advance_microphysics (int lev,
+                               amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
+
+    void advance_lsm (int lev,
+                      amrex::MultiFab& /*cons_in*/,
+                      const amrex::Real& dt_advance);
 
 #if defined(ERF_USE_RRTMGP)
     void advance_radiation (int lev,
@@ -527,6 +533,10 @@ private:
     Microphysics micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 6 components: qv, qc, qi, qr, qs, qg
 
+    LandSurface lsm;
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
+
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
     amrex::Vector<amrex::MultiFab> qheating_rates;  // radiation heating rate source terms
@@ -634,6 +644,7 @@ private:
     std::string plot_file_2 {"plt_2_"};
     int plot_int_1 = -1;
     int plot_int_2 = -1;
+    bool plot_lsm = false;
 
     // other sampling output control
     int profile_int = -1;
