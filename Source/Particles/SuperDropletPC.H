@@ -6,36 +6,20 @@
 #include "ERFPC.H"
 
 /*! \brief Real-type array-of-struct attributes of a super-droplet */
-struct SuperDropletsRealIdxAoS
-{
-    enum {
-        vx = 0, /*!< x-velocity */
-        vy,     /*!< y-velocity */
-        vz,     /*!< z-velocity */
-        mass,   /*!< Solute mass */
-        ncomps
-    };
-};
+using SuperDropletsRealIdxAoS = ERFParticlesRealIdx;
 
 /*! \brief Real-type struct-of-array attributes of a super-droplet */
 struct SuperDropletsRealIdxSoA
 {
     enum {
         radius = 0, /*!< Droplet radius */
+        sol_mass,   /*!< Solute mass */
         ncomps
     };
 };
 
 /*! \brief Int-type array-of-struct attributes of a super-droplet */
-struct SuperDropletsIntIdxAoS
-{
-    enum {
-        i = 0,        /*!< i-index of grid cell containing the super-droplet */
-        j,            /*!< j-index of grid cell containing the super-droplet */
-        k,            /*!< k-index of grid cell containing the super-droplet */
-        ncomps
-    };
-};
+using SuperDropletsIntIdxAoS = ERFParticlesIntIdx;
 
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 struct SuperDropletsIntIdxSoA
@@ -84,11 +68,21 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","radius"};
+            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","radius","aerosol_mass"};
         }
 
-        /*! \brief Initialize particles in domain */
-        virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        /*! \brief Initialize super-droplets in domain */
+        inline virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr)
+        {
+            InitializeParticles( m_initialization_type, a_ptr );
+        }
+
+        /*! \brief Initialize super-droplets in domain */
+        virtual void InitializeParticles (  const std::string&,
+                                            const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+
+        /*! \brief Set super-droplets attributes from a given condensate mass density */
+        virtual void SetAttributes (  amrex::MultiFab& );
 
         /*! \brief Evolve particles for one time step */
         virtual void EvolveParticles (   int,
@@ -96,7 +90,29 @@ class SuperDropletPC : public ERFPC
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
+        /*! \brief Return the number of super-droplets
+            This returns the number of AMReX particles being used in the simulation. */
+        inline virtual amrex::Long NumSuperDroplets ()
+        {
+            return ERFPC::TotalNumberOfParticles();
+        }
+
+        /*! \brief Return the total number of particles */
+        virtual amrex::Long TotalNumberOfParticles ();
+
+        /*! \brief Compute the particle number density on a mesh */
+        virtual void numberDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
+
+        /*! \brief Compute the particle mass density on a mesh */
+        virtual void massDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
+
     protected:
+
+        const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
+
+        int m_max_multiplicity;      /*!< Maximum multiplicity */
+        amrex::Real m_numdens_init;  /*!< Initial number density of particles */
+        amrex::Real m_radius_init;   /*!< Initial radius */
 
         /*! \brief read inputs from file */
         virtual void readInputs ();

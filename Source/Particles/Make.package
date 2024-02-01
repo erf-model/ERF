@@ -1,8 +1,9 @@
 CEXE_sources += ERFTracers.cpp
 CEXE_sources += ERFPCInitializations.cpp
 CEXE_sources += ERFPCEvolve.cpp
-CEXE_sources += SuperDropletPCInitializations.cpp
 CEXE_sources += SuperDropletPCEvolve.cpp
+CEXE_sources += SuperDropletPCInitializations.cpp
+CEXE_sources += SuperDropletPCUtils.cpp
 
 CEXE_headers += ParticleData.H
 CEXE_headers += ERFPC.H

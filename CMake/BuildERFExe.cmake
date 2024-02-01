@@ -40,7 +40,8 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERFTracers.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCEvolve.cpp
-                   ${SRC_DIR}/Particles/SuperDropletPCInitializations.cpp)
+                   ${SRC_DIR}/Particles/SuperDropletPCInitializations.cpp
+                   ${SRC_DIR}/Particles/SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
