@@ -824,6 +824,15 @@ List of Parameters
 |                                  |                   | "real",            |              |
 |                                  |                   |"input_sounding"    |              |
 +----------------------------------+-------------------+--------------------+--------------+
+| **erf.input_sounding_file**      | Path to WRF-style |  String            | "input_sounding" |
+|                                  | input sounding    |                    |              |
+|                                  | file              |                    |              |
++----------------------------------+-------------------+--------------------+--------------+
+| **erf.init_sounding_ideal**      | Perform           |  true or false     | false        |
+|                                  | initialization    |                    |              |
+|                                  | like WRF's        |                    |              |
+|                                  | ideal.exe         |                    |              |
++----------------------------------+-------------------+--------------------+--------------+
 | **erf.use_real_bcs**             | If init_type is   | true or false      | true if      |
 |                                  | real or metgrid,  |                    | if init_type |
 |                                  | do we want to use |                    | is real or   |
@@ -850,6 +859,17 @@ If **erf.init_type = ideal**, the problem is initialized with mesoscale data con
 If **erf.init_type = real**, the problem is initialized with mesoscale data contained in a NetCDF file,
 provided via ``erf.nc_init_file``. The mesoscale data are realistic with variation in all three directions.
 In addition, the lateral boundary conditions must be supplied in a NetCDF files specified by **erf.nc_bdy_file = wrfbdy_d01**
+
+If **erf.init_type = input_sounding**, a WRF-style input sounding is read from
+``erf.input_sounding_file``. This text file includes any set of levels that
+goes at least up to the model top height. The first line includes the surface
+pressure [hPa], potential temperature [K], and water vapor mixing ratio [g/kg].
+Each subsequent line has five input values: height [m above sea level], dry
+potential temperature [K], vapor mixing ratio [g/kg], x-direction wind
+component [m/s], and y-direction wind component [m/s]. Please pay attention to
+the units of pressure and mixing ratio. If **erf.init_sounding_ideal = true**,
+then moist and dry conditions throughout the air column are determined by
+integrating the hydrostatic equation from the surface.
 
 If **erf.init_type = custom** or **erf.init_type = input_sounding**, ``erf.nc_init_file`` and ``erf.nc_bdy_file`` do not need to be set.
 
