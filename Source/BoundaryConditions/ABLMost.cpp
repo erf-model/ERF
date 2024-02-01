@@ -204,7 +204,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                           dest_arr);
 
                     int is_land = (lmask_arr) ? lmask_arr(i,j,zlo) : 1;
-                    if (is_land && vbx.contains(i,j,k)) {
+                    if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
                         lsm_flux_arr(i,j,zlo) = Tflux;
                     }
                 });
