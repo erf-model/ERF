@@ -210,14 +210,9 @@ ERF::init_from_wrfinput (int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width, start_bdy_time);
 
-        if (wrfbdy_width-1 <= wrfbdy_set_width) wrfbdy_set_width = wrfbdy_width;
         amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
         amrex::Print() << "Running with specification width: " << wrfbdy_set_width
                        << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
-
-        // NOTE: Last WRF BDY cell is a ghost cell for Laplacian relaxation.
-        //       Without relaxation zones, we must augment this value by 1.
-        if (wrfbdy_width == wrfbdy_set_width) wrfbdy_width += 1;
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],

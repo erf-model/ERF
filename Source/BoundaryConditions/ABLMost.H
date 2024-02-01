@@ -35,6 +35,8 @@ public:
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
+                      amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data,
+                      amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_start_bdy_time(start_bdy_time),
@@ -113,6 +115,19 @@ public:
             }
         }
 
+        // Get pointers to LSM data and Fluxes
+        m_lsm_data_lev.resize(nlevs);
+        m_lsm_flux_lev.resize(nlevs);
+        for (int lev(0); lev<nlevs; ++lev) {
+            int nvar = lsm_data[lev].size();
+            m_lsm_data_lev[lev].resize(nvar);
+            m_lsm_flux_lev[lev].resize(nvar);
+            for (int n(0); n<nvar; ++n) {
+                m_lsm_data_lev[lev][n] = lsm_data[lev][n];
+                m_lsm_flux_lev[lev][n] = lsm_flux[lev][n];
+            }
+        }
+
         for (int lev = 0; lev < nlevs; lev++) {
             // Attributes for MFs and FABs
             //--------------------------------------------------------
@@ -149,10 +164,12 @@ public:
 
             t_surf[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
 
-            if (m_sst_lev[lev][0]) { // Valid SST data at t==0
+            // TODO: Do we want lsm_data to have theta at 0 index always?
+            //       Do we want an external enum struct for indexing?
+            if (m_sst_lev[lev][0] || m_lsm_data_lev[lev][0]) {
+                // Valid SST or LSM data; t_surf set before computing fluxes (avoids extended lambda capture)
                 theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-                amrex::MultiFab::Copy(*(t_surf[lev]), *(m_sst_lev[lev][0]), 0, 0, 1, ng);
-            } else if (erf_st) {     // Constant temp
+            } else if (erf_st) {
                 t_surf[lev]->setVal(surf_temp);
             } else {
                 t_surf[lev]->setVal(0.0);
@@ -187,8 +204,11 @@ public:
                       const FluxCalc& flux_comp);
 
     void
-    time_interp_tsurf(const int& lev,
-                      const amrex::Real& time);
+    time_interp_sst (const int& lev,
+                     const amrex::Real& time);
+
+    void
+    get_lsm_tsurf (const int& lev);
 
     void
     update_surf_temp (const amrex::Real& time)
@@ -265,6 +285,8 @@ private:
 
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_sst_lev;
     amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
 };
 
 #endif /* ABLMOST_H */

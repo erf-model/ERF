@@ -73,6 +73,22 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
+    //********************************************************************************************
+    // Land Surface Model
+    // *******************************************************************************************
+    int lsm_size  = lsm.Get_Data_Size();
+    lsm_data[lev].resize(lsm_size);
+    lsm_flux[lev].resize(lsm_size);
+    lsm.Define(lev, solverChoice);
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        lsm.Init(lev, vars_new[lev][Vars::cons], Geom(lev), 0.0); // dummy dt value
+    }
+    for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+        lsm_data[lev][mvar] = lsm.Get_Data_Ptr(lev,mvar);
+        lsm_flux[lev][mvar] = lsm.Get_Flux_Ptr(lev,mvar);
+    }
+
     // ********************************************************************************************
     // Build the data structures for calculating diffusive/turbulent terms
     // ********************************************************************************************

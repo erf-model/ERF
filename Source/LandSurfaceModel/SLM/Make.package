@@ -1,0 +1,2 @@
+CEXE_sources += SLM.cpp
+CEXE_headers += SLM.H
