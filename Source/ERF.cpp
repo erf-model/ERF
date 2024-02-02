@@ -28,10 +28,6 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
-#ifdef ERF_USE_PARTICLES
-ParticleData ERF::particleData;
-#endif
-
 // Time step control
 amrex::Real ERF::cfl           =  0.8;
 amrex::Real ERF::fixed_dt      = -1.0;
