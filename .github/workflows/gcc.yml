@@ -36,7 +36,7 @@ jobs:
       run: |
         cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --verbose
 
-  # - name: CMake Tests # see file ERF/Tests/CTestList.cmake
-  #   run: |
-  #     ctest
-  #   working-directory: ${{runner.workspace}}/ERF/build
+    - name: CMake Tests # see file ERF/Tests/CTestList.cmake
+      run: |
+        ctest -L regression -VV
+      working-directory: ${{runner.workspace}}/ERF/build
