@@ -6,7 +6,7 @@ amrex.fpe_trap_zero = 1
 amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  447000 387000 15000
+geometry.prob_extent =  447000 387000 20500
 amr.n_cell           =  149    129    40
 
 geometry.is_periodic = 0 0 0
@@ -39,7 +39,7 @@ erf.check_int       = 25          # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 25          # number of timesteps between plotfiles
-erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse pert_pres
+erf.plot_vars_1     = density dens_hse rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta z_phys mapfac pres_hse dens_hse pert_pres pert_dens rhoQ1 rhoQ2 rhoQ3 qv qc
 
 # SOLVER CHOICE
 erf.alpha_T = 1.0
@@ -50,13 +50,22 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.moisture_model = "NullMoist"
+erf.moisture_model = "Kessler"
+
+erf.use_terrain       = true
+erf.terrain_smoothing = 0
+erf.terrain_z_levels  = 0 53.25373067 116.3299934 190.8583428 278.6665766 381.7196783 502.1312033 642.3454199 \
+                          805.2193582 992.889535  1207.388303 1450.761988 1724.488474 2029.43012  2365.936136 \
+                          2733.669456 3131.532666 3557.60783  4009.253851 4483.532727 4978.420557 5494.911024 \
+                          6034.232547 6597.033978 7183.139415 7792.547066 8425.074263 9080.62066  9761.028885 \
+                          10467.85208 11200.42746 11958.47509 12753.28089 13605.36124 14516.05106 15467.59286 \
+                          16453.44037 17477.73597 18503.25481 19533.31103 20500.0
 
 # INITIALIZATION WITH ATM DATA
-erf.metgrid_bdy_width = 7
+erf.metgrid_bdy_width     = 5
 erf.metgrid_bdy_set_width = 1
-erf.init_type      = "metgrid"
-erf.nc_init_file_0 = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"
+erf.init_type             = "metgrid"
+erf.nc_init_file_0        = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024
