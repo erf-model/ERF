@@ -77,7 +77,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
 
-    #if defined(ERF_USE_FITCH)
+    #if defined(ERF_USE_WINDFARM)
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     #endif
 
@@ -226,7 +226,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
-    #if defined(ERF_USE_FITCH)
+    #if defined(ERF_USE_WINDFARM)
         int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     #endif
@@ -344,7 +344,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
-    #if defined(ERF_USE_FITCH)
+    #if defined(ERF_USE_WINDFARM)
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     #endif
 

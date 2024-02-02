@@ -127,6 +127,16 @@ include $(ERF_MOISTURE_KESSLER_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_KESSLER_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_KESSLER_DIR)
 
+# If using windfarm parametrization, then compile all models and choose 
+# at runtime from the inputs
+ifeq ($(USE_WINDFARM), TRUE)
+	DEFINES += -DERF_USE_WINDFARM
+	ERF_WINDFARM_FITCH_DIR = $(ERF_SOURCE_DIR)/WindFarmParametrization/Fitch
+	include $(ERF_WINDFARM_FITCH_DIR)/Make.package
+	VPATH_LOCATIONS   += $(ERF_WINDFARM_FITCH_DIR)
+	INCLUDE_LOCATIONS += $(ERF_WINDFARM_FITCH_DIR)
+endif
+
 ifeq ($(COMPUTE_ERROR), TRUE)
   DEFINES += -DERF_COMPUTE_ERROR
 endif

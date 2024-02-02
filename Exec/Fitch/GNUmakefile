@@ -24,7 +24,7 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
-USE_FITCH = TRUE
+USE_WINDFARM = TRUE
 
 
 #USE_POISSON_SOLVE = TRUE
@@ -33,5 +33,5 @@ USE_FITCH = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/ABL
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/Fitch
 include $(ERF_HOME)/Exec/Make.ERF

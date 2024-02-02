@@ -66,19 +66,19 @@ void fitch_update (const Real& dt_advance,
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
 
-        ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(tbx, tby, bx,
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
             u_vel(i,j,k) = u_vel(i,j,k) + (fitch_array(i-1,j,k,2) + fitch_array(i,j,k,2))/2.0*dt_advance;
-        });
-
-        ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
             v_vel(i,j,k) = v_vel(i,j,k) + (fitch_array(i,j-1,k,3) + fitch_array(i,j,k,3))/2.0*dt_advance;
-        });
-
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
             cons_array(i,j,k,RhoQKE_comp) = cons_array(i,j,k,RhoQKE_comp) + fitch_array(i,j,k,4)*dt_advance;
         });
-
-
     }
 }
 

@@ -119,7 +119,7 @@ ERF::ERF ()
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
 
-#ifdef ERF_USE_FITCH
+#ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
     vars_fitch.resize(nlevs_max);
 #endif
@@ -1502,7 +1502,7 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
 
-#ifdef ERF_USE_FITCH
+#ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
     vars_fitch.resize(nlevs_max);
 #endif

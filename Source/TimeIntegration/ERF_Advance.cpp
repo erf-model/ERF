@@ -1,7 +1,7 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <Utils.H>
-#ifdef ERF_USE_FITCH
+#ifdef ERF_USE_WINDFARM
 #include <Fitch.H>
 #endif
 
@@ -63,7 +63,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
         FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
-    #if defined(ERF_USE_FITCH)
+    #if defined(ERF_USE_WINDFARM)
     // Update with the Fitch source terms
         fitch_advance(lev, Geom(lev), dt_lev, S_old,
                         U_old, V_old, W_old,
