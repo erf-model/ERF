@@ -50,12 +50,12 @@ class ParticleData
         }
 
         /*! Write checkpoint files */
-        void Checkpoint ( const std::string& a_fname )
+        void Checkpoint ( const std::string& a_fname ) const
         {
             BL_PROFILE("ParticleData::Checkpoint()");
             for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
                 auto name( m_namelist[i] );
-                auto particles( m_particle_species[name] );
+                auto particles( m_particle_species.at(name) );
                 particles->Checkpoint( a_fname, name, true, particles->varNames() );
             }
         }

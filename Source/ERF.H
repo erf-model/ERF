@@ -682,7 +682,7 @@ private:
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species
-    static ParticleData particleData;
+    ParticleData particleData;
 
     // variables and functions for tracers particles
     bool  m_use_tracer_particles; /*!< tracer particles that advect with flow */
