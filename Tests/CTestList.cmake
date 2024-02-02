@@ -73,24 +73,6 @@ function(add_test_0 TEST_NAME TEST_EXE PLTFILE)
     )
 endfunction(add_test_0)
 
-# Standard unit test
-function(add_test_u TEST_NAME)
-    setup_test()
-    add_test(${TEST_NAME} sh -c "${MPI_COMMANDS} ${CMAKE_BINARY_DIR}/${amr_wind_unit_test_exe_name}")
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 500
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "unit"
-    )
-endfunction(add_test_u)
-
-#=============================================================================
-# Unit tests
-#=============================================================================
-# add_test_u(unit_tests)
-
 #=============================================================================
 # Regression tests
 #=============================================================================
