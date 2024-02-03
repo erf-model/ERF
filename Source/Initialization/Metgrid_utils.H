@@ -113,46 +113,50 @@ calc_rho_p (const int& kmax,
     const int maxiter = 10;
 
     // Calculate or use moist pressure at the surface.
+    amrex::Real Psurf;
     if (flag_psfc == 1) {
-        Pm_vec[0] = psfc;
+        Psurf = psfc;
     } else {
         amrex::Real t_0 = 290.0; // WRF's model_config_rec%base_temp
         amrex::Real a   = 50.0; // WRF's model_config_rec%base_lapse
-        Pm_vec[0] = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*CONST_GRAV*z_vec[0]/(a*R_d)), 0.5));
+        Psurf = p_0*exp(-t_0/a+std::pow((std::pow(t_0/a, 2)-2.0*CONST_GRAV*z_vec[0]/(a*R_d)), 0.5));
     }
 
-    // calculate virtual potential temperature at the surface.
+    // Iterations for the first CC point that is 1/2 dz off the surface
     {
-        amrex::Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[0];
+        amrex::Real half_dz = z_vec[0];
+        amrex::Real qvf = 1.0+(R_v/R_d)*Q_vec[0];
         Thetam_vec[0] = Thetad_vec[0]*qvf;
+        for (int it=0; it<maxiter; it++) {
+            Pm_vec[0] = Psurf-half_dz*(Rhom_vec[0])*(1.0+Q_vec[0])*CONST_GRAV;
+            if (Pm_vec[0] < 0.0) Pm_vec[0] = 0.0;
+            Rhom_vec[0] = (p_0/(R_d*Thetam_vec[0]))*std::pow(Pm_vec[0]/p_0, iGamma);
+        } // it
     }
 
-    // calculate moist density at the surface.
-    Rhom_vec[0] = 1.0/(R_d/p_0*Thetam_vec[0]*std::pow(Pm_vec[0]/p_0, -iGamma));
-
-    // integrate from the surface to the top boundary.
+    // Integrate from the first CC point to the top boundary.
     for (int k=1; k<=kmax; k++) {
         amrex::Real dz = z_vec[k]-z_vec[k-1];
-        amrex::Real qvf = 1.0+(R_v/R_d+1.0)*Q_vec[k];
+        amrex::Real qvf = 1.0+(R_v/R_d)*Q_vec[k];
         Thetam_vec[k] = Thetad_vec[k]*qvf;
           Rhom_vec[k] = Rhom_vec[k-1]; // an initial guess.
         for (int it=0; it<maxiter; it++) {
-            Pm_vec[k] = Pm_vec[k-1]-0.5*dz*(Rhom_vec[k]+Rhom_vec[k-1])*CONST_GRAV;
+            Pm_vec[k] = Pm_vec[k-1]-0.5*dz*(Rhom_vec[k]+Rhom_vec[k-1])*(1.0+Q_vec[k])*CONST_GRAV;
             if (Pm_vec[k] < 0.0) Pm_vec[k] = 0.0;
-            Rhom_vec[k] = 1.0/(R_d/p_0*Thetam_vec[k]*std::pow(Pm_vec[k]/p_0, -iGamma));
+            Rhom_vec[k] = (p_0/(R_d*Thetam_vec[k]))*std::pow(Pm_vec[k]/p_0, iGamma);
         } // it
     } // k
 
     // integrate from the top back down to get dry pressure and density.
       Pd_vec[kmax] = Pm_vec[kmax];
-    Rhod_vec[kmax] = 1.0/(R_d/p_0*Thetam_vec[kmax]*std::pow(Pd_vec[kmax]/p_0, -iGamma));
+    Rhod_vec[kmax] = (p_0/(R_d*Thetam_vec[kmax]))*std::pow(Pd_vec[kmax]/p_0, iGamma);
     for (int k=kmax-1; k>=0; k--) {
         amrex::Real dz = z_vec[k+1]-z_vec[k];
         Rhod_vec[k] = Rhod_vec[k+1]; // an initial guess.
         for (int it=0; it < maxiter; it++) {
             Pd_vec[k] = Pd_vec[k+1]+0.5*dz*(Rhod_vec[k]+Rhod_vec[k+1])*CONST_GRAV;
             if (Pd_vec[k] < 0.0) Pd_vec[k] = 0.0;
-            Rhod_vec[k] = 1.0/(R_d/p_0*Thetam_vec[k]*std::pow(Pd_vec[k]/p_0, -iGamma));
+            Rhod_vec[k] = (p_0/(R_d*Thetam_vec[k]))*std::pow(Pd_vec[k]/p_0, iGamma);
         } // it
     } // k
 }

@@ -281,7 +281,7 @@ ERF::init_from_metgrid (int lev)
         FArrayBox &xvel_fab = lev_new[Vars::xvel][mfi];
         FArrayBox &yvel_fab = lev_new[Vars::yvel][mfi];
         FArrayBox &zvel_fab = lev_new[Vars::zvel][mfi];
-        FArrayBox &z_phys_nd_fab = (*z_phys)[mfi];
+        FArrayBox &z_phys_cc_fab = (*z_phys_cc[lev])[mfi];
 
         const Array4<const int>& mask_c_arr = mask_c->const_array(mfi);
         const Array4<const int>& mask_u_arr = mask_u->const_array(mfi);
@@ -296,7 +296,7 @@ ERF::init_from_metgrid (int lev)
         init_state_from_metgrid(use_moisture, l_rdOcp,
                                 tbxc, tbxu, tbxv,
                                 cons_fab, xvel_fab, yvel_fab, zvel_fab,
-                                z_phys_nd_fab,
+                                z_phys_cc_fab,
                                 NC_hgt_fab, NC_ght_fab, NC_xvel_fab,
                                 NC_yvel_fab, NC_temp_fab, NC_rhum_fab,
                                 NC_pres_fab, theta_fab, mxrat_fab,
@@ -823,7 +823,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& r_hse_fab,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
-                              FArrayBox& z_phys_nd_fab,
+                              FArrayBox& z_phys_cc_fab,
                               const Vector<FArrayBox>& NC_ght_fab,
                               const Vector<FArrayBox>& NC_psfc_fab,
                               Vector<Vector<FArrayBox>>& fabs_for_bcs,
@@ -876,7 +876,7 @@ init_base_state_from_metgrid (const bool use_moisture,
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab[0].const_array();
         auto       new_data  = state_fab.array();
-        auto const new_z     = z_phys_nd_fab.const_array();
+        auto const new_z     = z_phys_cc_fab.const_array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
@@ -887,29 +887,32 @@ init_base_state_from_metgrid (const bool use_moisture,
             }
             z_vec[kmax+1] =  new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax,flag_psfc_vec[0],orig_psfc(i,j,0),Thetad_vec,Thetam_vec,
-                       Q_vec,
-                       z_vec,Rhod_vec,Rhom_vec,Pd_vec,Pm_vec);
+            calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
+                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
+                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
 
             for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) =   Pd_vec[k];
-                r_hse_arr(i,j,k) = Rhod_vec[k];
+                p_hse_arr(i,j,k) =   Pm_vec[k];
+                r_hse_arr(i,j,k) = Rhom_vec[k];
             }
         });
 
         ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+             // Multiply by Rho to get conserved vars
+            Real Qv = 0.0;
             new_data(i,j,k,Rho_comp) = r_hse_arr(i,j,k);
-            new_data(i,j,k,RhoScalar_comp) = 0.0;
-            // RhoTheta and RhoQ1 or RhoQv currently hold Theta and Q1 or Qv. Multiply by Rho.
-            Real RhoTheta = r_hse_arr(i,j,k)*new_data(i,j,k,RhoTheta_comp);
-            new_data(i,j,k,RhoTheta_comp) = RhoTheta;
+            new_data(i,j,k,RhoTheta_comp) *= r_hse_arr(i,j,k);
             if (use_moisture){
-                Real RhoQ = r_hse_arr(i,j,k)*new_data(i,j,k,RhoQ_comp);
-                new_data(i,j,k,RhoQ_comp) = RhoQ;
+                Qv = new_data(i,j,k,RhoQ_comp);
+                new_data(i,j,k,RhoQ_comp) *= r_hse_arr(i,j,k);
             }
+            new_data(i,j,k,RhoScalar_comp) = 0.0;
+
+            // r_hse needs to include the moisture (account for that here)
+            r_hse_arr(i,j,k) *= (1.0 + Qv);
+
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            //pi_hse_arr(i,j,k) = getExnergivenRTh(RhoTheta, l_rdOcp);
         });
 
         // FOEXTRAP hse arrays
@@ -975,11 +978,11 @@ init_base_state_from_metgrid (const bool use_moisture,
         Box valid_bx2d = valid_bx;
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab[it].const_array();
-        auto const     new_z = z_phys_nd_fab.const_array();
+        auto const     new_z = z_phys_cc_fab.const_array();
         auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
         auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
-        auto r_hse_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
-        auto p_hse_arr = p_hse_bcs_fab.array();
+        auto           r_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
+        auto       p_hse_arr = p_hse_bcs_fab.array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
@@ -988,18 +991,18 @@ init_base_state_from_metgrid (const bool use_moisture,
                 Thetad_vec[k] = Theta_arr(i,j,k);
                 Q_vec[k] = (use_moisture) ? Q_arr(i,j,k) : 0.0;
             }
-            z_vec[kmax+1] =  new_z(i,j,kmax+1);
+            z_vec[kmax+1] = new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax,flag_psfc_vec[it],orig_psfc(i,j,0),Thetad_vec,Thetam_vec,
-                       Q_vec,
-                       z_vec,Rhod_vec,Rhom_vec,Pd_vec,Pm_vec);
+            calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
+                       Thetad_vec, Thetam_vec, Q_vec, z_vec,
+                       Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
 
             for (int k=0; k<=kmax; k++) {
-                p_hse_arr(i,j,k) =   Pd_vec[k];
+                p_hse_arr(i,j,k) = Pm_vec[k];
                 if (mask_c_arr(i,j,k)) {
-                    r_hse_arr(i,j,k) = Rhod_vec[k];
-                    if (use_moisture) Q_arr(i,j,k) = Rhod_vec[k]*Q_vec[k];
-                    Theta_arr(i,j,k) = Rhod_vec[k]*Thetad_vec[k];
+                    r_arr(i,j,k) = Rhom_vec[k];
+                    if (use_moisture) Q_arr(i,j,k) = Rhom_vec[k]*Q_vec[k];
+                    Theta_arr(i,j,k) = Rhom_vec[k]*Thetad_vec[k];
                   }
             } // k
         });
