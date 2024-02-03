@@ -979,9 +979,9 @@ init_base_state_from_metgrid (const bool use_moisture,
         valid_bx2d.setRange(2,0);
         auto const orig_psfc = NC_psfc_fab[it].const_array();
         auto const     new_z = z_phys_cc_fab.const_array();
+        auto           r_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto       Theta_arr = fabs_for_bcs[it][MetGridBdyVars::T].array();
         auto           Q_arr = (use_moisture ) ? fabs_for_bcs[it][MetGridBdyVars::QV].array() : Array4<Real>{};
-        auto           r_arr = fabs_for_bcs[it][MetGridBdyVars::R].array();
         auto       p_hse_arr = p_hse_bcs_fab.array();
 
         ParallelFor(valid_bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
@@ -993,7 +993,7 @@ init_base_state_from_metgrid (const bool use_moisture,
             }
             z_vec[kmax+1] = new_z(i,j,kmax+1);
 
-            calc_rho_p(kmax, flag_psfc_vec[0], orig_psfc(i,j,0),
+            calc_rho_p(kmax, flag_psfc_vec[it], orig_psfc(i,j,0),
                        Thetad_vec, Thetam_vec, Q_vec, z_vec,
                        Rhod_vec, Rhom_vec, Pd_vec, Pm_vec);
 
