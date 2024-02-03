@@ -189,8 +189,8 @@ interpolate_column_metgrid (const int& i,
     amrex::Real z0, z1;
     int klow   = -1;
     int khi0   = -1;
-    amrex::Real dzlow =  10000.0;
-    amrex::Real dzhi0 = -10000.0;
+    amrex::Real dzlow =  1.0e12;
+    amrex::Real dzhi0 = -1.0e12;
     for (int kk = 0; kk < kmax_orig; kk++) {
         amrex::Real orig_z_stag = 0.0;
         if (stag == 'M') {
@@ -218,6 +218,7 @@ interpolate_column_metgrid (const int& i,
                 orig_z_stag = 0.5*(orig_z(i,j,kk)+orig_z(i,j-1,kk));
             }
         }
+
         amrex::Real dz = z - orig_z_stag;
         if ((dz < 0.0) && (dz > dzhi0)) {
             dzhi0 = dz;
@@ -231,10 +232,10 @@ interpolate_column_metgrid (const int& i,
         }
     } // kk
 
+    // extrapolate below the bottom surface
     if (klow == -1) {
-        // extrapolate
         int khi1   = -1;
-        amrex::Real dzhi1 = -10000.0;
+        amrex::Real dzhi1 = -1.0e12;
         for (int kk = 0; kk < kmax_orig; kk++) {
             amrex::Real orig_z_stag = 0.0;
             if (stag == 'M') {
@@ -272,6 +273,39 @@ interpolate_column_metgrid (const int& i,
         amrex::Real y0 = orig_data(i,j,khi0,src_comp);
         amrex::Real y1 = orig_data(i,j,khi1,src_comp);
         return ( y0-(y1-y0)/(z1-z0)*(z0-z) );
+
+    // Extrapolate above the top surface
+    } else if (khi0 == -1) {
+        khi0 = klow - 1;
+        int khi1 = klow;
+        if (stag == 'M') {
+            z0 = orig_z(i,j,khi0);
+        }
+        else if (stag == 'X') {
+            if (i == 0) {
+                z0 = orig_z(i,j,khi0);
+            }
+            else if (i == imax_orig) {
+                z0 = orig_z(imax_orig-1,j,khi0);
+            }
+            else {
+                z0 = 0.5*(orig_z(i,j,khi0)+orig_z(i-1,j,khi0));
+            }
+        }
+        else if (stag == 'Y') {
+            if (j == 0) {
+                z0 = orig_z(i,j,khi0);
+            }
+            else if (j == jmax_orig) {
+                z0 = orig_z(i,jmax_orig-1,khi0);
+            }
+            else {
+                z0 = 0.5*(orig_z(i,j,khi0)+orig_z(i,j-1,khi0));
+            }
+        }
+        amrex::Real y0 = orig_data(i,j,khi0,src_comp);
+        amrex::Real y1 = orig_data(i,j,khi1,src_comp);
+        return ( y0+(y1-y0)/(z1-z0)*(z-z0) );
     } else {
         // interpolate
         amrex::Real y0 = orig_data(i,j,klow,src_comp);
