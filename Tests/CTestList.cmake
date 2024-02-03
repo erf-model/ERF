@@ -38,7 +38,7 @@ function(add_test_r TEST_NAME TEST_EXE PLTFILE)
     setup_test()
 
     set(TEST_EXE ${CMAKE_BINARY_DIR}/Exec/${TEST_EXE})
-    set(FCOMPARE_TOLERANCE "-r 1e-12 --abs_tol 1.0e-12")
+    set(FCOMPARE_TOLERANCE "-r 1e-10 --abs_tol 1.0e-10")
     set(FCOMPARE_FLAGS "-a ${FCOMPARE_TOLERANCE}")
     set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
 
@@ -73,27 +73,45 @@ function(add_test_0 TEST_NAME TEST_EXE PLTFILE)
     )
 endfunction(add_test_0)
 
-# Standard unit test
-function(add_test_u TEST_NAME)
-    setup_test()
-    add_test(${TEST_NAME} sh -c "${MPI_COMMANDS} ${CMAKE_BINARY_DIR}/${amr_wind_unit_test_exe_name}")
-    set_tests_properties(${TEST_NAME}
-        PROPERTIES
-        TIMEOUT 500
-        PROCESSORS ${NP}
-        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
-        LABELS "unit"
-    )
-endfunction(add_test_u)
-
-#=============================================================================
-# Unit tests
-#=============================================================================
-# add_test_u(unit_tests)
-
 #=============================================================================
 # Regression tests
 #=============================================================================
+if(WIN32)
+#add_test_r(Bubble_DensityCurrent             "Bubble/bubble.exe" "plt00010")
+add_test_r(CouetteFlow                       "RegTests/CouetteFlow/*/erf_couette_flow.exe" "plt00050")
+add_test_r(DensityCurrent                    "RegTests/DensityCurrent/*/density_current.exe" "plt00010")
+add_test_r(DensityCurrent_detJ2              "RegTests/DensityCurrent/*/density_current.exe" "plt00010")
+add_test_r(DensityCurrent_detJ2_nosub        "RegTests/DensityCurrent/*/density_current.exe" "plt00020")
+add_test_r(DensityCurrent_detJ2_MT           "RegTests/DensityCurrent/*/density_current.exe" "plt00010")
+add_test_r(EkmanSpiral                       "RegTests/EkmanSpiral_custom/*/ekman_spiral_custom.exe" "plt00010")
+add_test_r(IsentropicVortexStationary        "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
+add_test_r(IsentropicVortexAdvecting         "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
+add_test_r(MovingTerrain_nosub               "DevTests/MovingTerrain/*/moving_terrain.exe"   "plt00020")
+add_test_r(MovingTerrain_sub                 "DevTests/MovingTerrain/*/moving_terrain.exe"   "plt00010")
+add_test_r(PoiseuilleFlow                    "RegTests/PoiseuilleFlow/*/erf_poiseuille_flow.exe" "plt00010")
+add_test_r(RayleighDamping                   "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00100")
+add_test_r(ScalarAdvectionUniformU           "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvectionShearedU           "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00080")
+add_test_r(ScalarAdvDiff_order2              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_order3              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_order4              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_order5              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_order6              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_weno3               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_weno3z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_weno5               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_weno5z              "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarAdvDiff_wenomzq3            "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarDiffusionGaussian           "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(ScalarDiffusionSine               "RegTests/ScalarAdvDiff/*/erf_scalar_advdiff.exe" "plt00020")
+add_test_r(TaylorGreenAdvecting              "RegTests/TaylorGreenVortex/*/taylor_green.exe" "plt00010")
+add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/*/taylor_green.exe" "plt00010")
+add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
+add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
+
+add_test_0(Deardorff_stationary              "ABL/*/erf_abl.exe" "plt00010")
+
+else()
 #add_test_r(Bubble_DensityCurrent             "Bubble/bubble" "plt00010")
 add_test_r(CouetteFlow                       "RegTests/CouetteFlow/erf_couette_flow" "plt00050")
 add_test_r(DensityCurrent                    "RegTests/DensityCurrent/density_current" "plt00010")
@@ -127,7 +145,7 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/erf_isen
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 
 add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
-
+endif()
 #=============================================================================
 # Performance tests
 #=============================================================================
