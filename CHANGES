@@ -1,3 +1,22 @@
+# 24.02
+    -- AMReX submodule set to 24.02 release hash (52393d3)
+
+    -- WRF init fix for top boundary (#1423)
+
+    -- Fix debug GPU with particles (#1422)
+
+    -- Remove all elixirs with FABs (#1418)
+
+    -- Framework for LSMs (#1389)
+
+    -- Fix lateral boundary forcing (#1408)
+
+    -- ConstantAlpha with turbulence model (#1391)
+
+    -- Outflow boundary bug fix (#1374)
+
+    -- Generalized particle interface (#1366)
+    
 # 24.01
     -- AMReX submodule set to 24.01 release hash (a068330)
     
