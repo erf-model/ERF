@@ -6,7 +6,7 @@ amrex.fpe_trap_zero = 1
 amrex.fpe_trap_overflow = 1
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  447000 387000 20500
+geometry.prob_extent =  447000 387000 18000
 amr.n_cell           =  149    129    40
 
 geometry.is_periodic = 0 0 0
@@ -50,15 +50,14 @@ erf.Cs              = 0.1
 erf.moisture_model = "Kessler"
 
 erf.use_terrain       = true
-erf.terrain_smoothing = 0
+erf.terrain_smoothing = 2
 erf.buoyancy_type     = 1
-    
+
 # INITIALIZATION WITH ATM DATA
-erf.wrfbdy_width     = 5
-erf.wrfbdy_set_width = 1
-erf.init_type        = "real"
-erf.nc_init_file_0   = "wrfinput_d01"
-erf.nc_bdy_file      = "wrfbdy_d01"
+erf.metgrid_bdy_width     = 7
+erf.metgrid_bdy_set_width = 1
+erf.init_type             = "metgrid"
+erf.nc_init_file_0        = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024
