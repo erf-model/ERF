@@ -709,17 +709,21 @@ struct moeng_flux
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
         amrex::Real ustar    = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
 
+        // Note: The surface mean shear stress is decomposed into tau_xz by
+        //       multiplying the modeled shear stress (rho*ustar^2) with
+        //       a factor of umean/wsp_mean for directionality; this factor
+        //       modifies the demoninator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx-umean);
-        amrex::Real stressx = ustar*ustar*(num1+num2)/(wsp_mean*wsp_mean);
+        amrex::Real stressx = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (var_idx == Vars::xmom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - rho*stressx/eta*deltaz;
         } else {
             AMREX_ALWAYS_ASSERT(var_idx == Vars::xvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
         }
     }
 
@@ -773,17 +777,21 @@ struct moeng_flux
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
         amrex::Real ustar     = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
 
+        // Note: The surface mean shear stress is decomposed into tau_yz by
+        //       multiplying the modeled shear stress (rho*ustar^2) with
+        //       a factor of vmean/wsp_mean for directionality; this factor
+        //       modifies the demoninator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely-vmean);
-        amrex::Real stressy = ustar*ustar*(num1+num2)/(wsp_mean*wsp_mean);
+        amrex::Real stressy = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (var_idx == Vars::ymom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - rho*stressy/eta*deltaz;
         } else {
             AMREX_ALWAYS_ASSERT(var_idx == Vars::yvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
         }
     }
 
