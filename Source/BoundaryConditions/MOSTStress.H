@@ -648,8 +648,8 @@ struct moeng_flux
         amrex::Real theta_surf  = t_surf_arr(ic,jc,zlo);
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        amrex::Real num1    = (theta-theta_mean)*wsp_mean;
-        amrex::Real num2    = (theta_mean-theta_surf)*wsp;
+        amrex::Real num1    = wsp * (theta_mean-theta_surf);
+        amrex::Real num2    = wsp_mean * (theta-theta_mean);
         amrex::Real moflux  = (std::abs(tstar) > eps) ?
                               tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
@@ -710,8 +710,8 @@ struct moeng_flux
         amrex::Real ustar    = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        amrex::Real num1    = (velx-umean)*wsp_mean;
-        amrex::Real num2    = umean*wsp;
+        amrex::Real num1    = wsp * umean;
+        amrex::Real num2    = wsp_mean * (velx-umean);
         amrex::Real stressx = ustar*ustar*(num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -774,8 +774,8 @@ struct moeng_flux
         amrex::Real ustar     = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
 
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        amrex::Real num1    = (vely-vmean)*wsp_mean;
-        amrex::Real num2    = vmean*wsp;
+        amrex::Real num1    = wsp * vmean;
+        amrex::Real num2    = wsp_mean * (vely-vmean);
         amrex::Real stressy = ustar*ustar*(num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
