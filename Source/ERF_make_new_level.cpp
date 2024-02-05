@@ -78,7 +78,9 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //*********************************************************
 
     #if defined(ERF_USE_WINDFARM)
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        	vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		}
     #endif
 
     // ********************************************************************************************
@@ -227,8 +229,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
 
     #if defined(ERF_USE_WINDFARM)
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        	int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+        	vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		}
     #endif
 
     init_stuff(lev, ba, dm);
@@ -345,7 +349,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
 
     #if defined(ERF_USE_WINDFARM)
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        	vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+		}
     #endif
 
     init_stuff(lev,ba,dm);

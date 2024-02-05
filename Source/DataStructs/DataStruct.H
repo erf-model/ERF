@@ -232,6 +232,9 @@ struct SolverChoice {
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
+		else {
+			amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
+		}
     }
 
     void display()
