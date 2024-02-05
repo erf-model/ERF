@@ -114,6 +114,14 @@ ERF::ERF ()
     // NOTE: size micro before readparams (chooses the model at all levels)
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
+
+#ifdef ERF_USE_WINDFARM
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        Nturb.resize(nlevs_max);
+        vars_fitch.resize(nlevs_max);
+    }
+#endif
+
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
 #endif
@@ -1527,6 +1535,14 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     // NOTE: size micro before readparams (chooses the model at all levels)
     micro.ReSize(nlevs_max);
     qmoist.resize(nlevs_max);
+
+#ifdef ERF_USE_WINDFARM
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        Nturb.resize(nlevs_max);
+        vars_fitch.resize(nlevs_max);
+    }
+#endif
+
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
 #endif

@@ -73,6 +73,16 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
+    //*********************************************************
+    // Variables for Ftich model for windfarm parametrization
+    //*********************************************************
+
+    #if defined(ERF_USE_WINDFARM)
+        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+        }
+    #endif
+
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -234,6 +244,13 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
+    #if defined(ERF_USE_WINDFARM)
+        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+            int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+        }
+    #endif
+
     init_stuff(lev, ba, dm);
 
     t_new[lev] = time;
@@ -346,6 +363,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
+
+    #if defined(ERF_USE_WINDFARM)
+        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+        }
+    #endif
 
     init_stuff(lev,ba,dm);
 

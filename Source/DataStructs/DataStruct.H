@@ -32,6 +32,10 @@ enum struct MoistureType {
     Kessler, SAM, FastEddy, None
 };
 
+enum struct WindFarmType {
+    Fitch
+};
+
 enum struct LandSurfaceType {
     SLM, MM5, None
 };
@@ -241,6 +245,16 @@ struct SolverChoice {
         } else {
             amrex::Abort("Dont know this coupling_type");
         }
+
+        // Which type of windfarm model
+        static std::string windfarm_type_string = "Fitch";
+        pp.query("windfarm_type", windfarm_type_string);
+        if (windfarm_type_string == "Fitch") {
+            windfarm_type = WindFarmType::Fitch;
+        }
+        else {
+            amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
+        }
     }
 
     void display()
@@ -386,6 +400,7 @@ struct SolverChoice {
     CouplingType coupling_type;
     TerrainType  terrain_type;
     MoistureType moisture_type;
+    WindFarmType windfarm_type;
     LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
