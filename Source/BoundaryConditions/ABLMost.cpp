@@ -15,7 +15,14 @@ ABLMost::update_fluxes (const int& lev,
                         int max_iters)
 {
     // Update SST data if we have a valid pointer
-    if (m_sst_lev[lev][0]) time_interp_tsurf(lev, time);
+    if (m_sst_lev[lev][0]) time_interp_sst(lev, time);
+
+    // TODO: we want 0 index to always be theta?
+    // Update land surface temp if we have a valid pointer
+    if (m_lsm_data_lev[lev][0]) get_lsm_tsurf(lev);
+
+    // Fill interior ghost cells
+    t_surf[lev]->FillBoundary(m_geom[lev].periodicity());
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
@@ -145,6 +152,10 @@ ABLMost::compute_most_bcs (const int& lev,
     const int icomp = 0;
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
+        // TODO: No LSM lateral ghost cells, should this change?
+        // Valid CC box
+        Box vbx = mfi.validbox(); vbx.makeSlab(2,zlo-1);
+
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
@@ -168,6 +179,12 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto t_star_arr = t_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);
 
+        // Get LSM fluxes
+        auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
+                                                       Array4<int> {};
+        auto lsm_flux_arr = (m_lsm_flux_lev[lev][0]) ? m_lsm_flux_lev[lev][0]->array(mfi) :
+                                                       Array4<Real> {};
+
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             const Box& bx = (*mfs[var_idx])[mfi].box();
@@ -181,10 +198,15 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
-                    flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
-                                             cons_arr, velx_arr, vely_arr, eta_arr,
-                                             umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
-                                             dest_arr);
+                    Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
+                                                          cons_arr, velx_arr, vely_arr, eta_arr,
+                                                          umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
+                                                          dest_arr);
+
+                    int is_land = (lmask_arr) ? lmask_arr(i,j,zlo) : 1;
+                    if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
+                        lsm_flux_arr(i,j,zlo) = Tflux;
+                    }
                 });
 
             } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) {
@@ -220,8 +242,8 @@ ABLMost::compute_most_bcs (const int& lev,
 }
 
 void
-ABLMost::time_interp_tsurf(const int& lev,
-                           const Real& time)
+ABLMost::time_interp_sst (const int& lev,
+                          const Real& time)
 {
     // Time interpolation
     Real dT = m_bdy_time_interval;
@@ -240,11 +262,49 @@ ABLMost::time_interp_tsurf(const int& lev,
         auto t_surf_arr = t_surf[lev]->array(mfi);
         const auto sst_hi_arr = m_sst_lev[lev][n_time+1]->const_array(mfi);
         const auto sst_lo_arr = m_sst_lev[lev][n_time  ]->const_array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
-                              + alpha * sst_hi_arr(i,j,k);
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (!is_land) {
+                t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
+                                  + alpha * sst_hi_arr(i,j,k);
+            }
+        });
+    }
+}
+
+void
+ABLMost::get_lsm_tsurf (const int& lev)
+{
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        // TODO: LSM does not carry lateral ghost cells.
+        //       This copies the valid box into the ghost cells.
+        //       Fillboundary is called after this to pick up the
+        //       interior ghost and periodic directions. Is there
+        //       a better approach?
+        Box vbx  = mfi.validbox();
+        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
+        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto lsm_arr = m_lsm_data_lev[lev][0]->const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+            if (is_land) {
+                int li = amrex::min(amrex::max(i, i_lo), i_hi);
+                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+                t_surf_arr(i,j,k) = lsm_arr(li,lj,k);
+            }
         });
     }
 }

@@ -45,6 +45,7 @@
 #endif
 
 #include "Microphysics.H"
+#include "LandSurface.H"
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -213,8 +214,13 @@ public:
                          amrex::Real dt, amrex::Real time,
                          amrex::InterpFaceRegister* ifr);
 
-    void advance_microphysics (int lev, amrex::MultiFab& cons_in,
+    void advance_microphysics (int lev,
+                               amrex::MultiFab& cons_in,
                                const amrex::Real& dt_advance);
+
+    void advance_lsm (int lev,
+                      amrex::MultiFab& /*cons_in*/,
+                      const amrex::Real& dt_advance);
 
 #if defined(ERF_USE_RRTMGP)
     void advance_radiation (int lev,
@@ -531,6 +537,9 @@ private:
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
 //#endif
+    LandSurface lsm;
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
 
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
@@ -639,6 +648,7 @@ private:
     std::string plot_file_2 {"plt_2_"};
     int plot_int_1 = -1;
     int plot_int_2 = -1;
+    bool plot_lsm = false;
 
     // other sampling output control
     int profile_int = -1;
@@ -676,7 +686,7 @@ private:
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species
-    static ParticleData particleData;
+    ParticleData particleData;
 
     // variables and functions for tracers particles
     bool  m_use_tracer_particles; /*!< tracer particles that advect with flow */
@@ -751,17 +761,15 @@ private:
     static int ng_dens_hse;
     static int ng_pres_hse;
 
-    // Mean quantities and tau for Rayleigh damping
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_tau;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_ubar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_vbar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_wbar;
-    amrex::Vector<amrex::Vector<amrex::Real> > h_rayleigh_thetabar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_tau;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_ubar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_vbar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_wbar;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rayleigh_thetabar;
+    // Custom source terms
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
+
+    // This is a vector over levels of vectors across quantities of Vectors
+    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
+
+    // This is a vector over levels of vectors across quantities of DeviceVectors
+    amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;

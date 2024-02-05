@@ -36,9 +36,16 @@ enum struct WindFarmType {
     Fitch
 };
 
+enum struct LandSurfaceType {
+    SLM, MM5, None
+};
 
 enum struct Coord {
     x, y, z
+};
+
+enum Rayleigh {
+    tau, ubar, vbar, wbar, thetabar, nvars
 };
 
 /**
@@ -88,13 +95,7 @@ struct SolverChoice {
             moisture_type = MoistureType::None;
         }
 
-        // Which expression (1,2 or 3) to use for buoyancy
-        pp.query("buoyancy_type", buoyancy_type);
-        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
-            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
-        }
-
-        /*
+        // TODO: should we set default for dry??
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
             if (moisture_type == MoistureType::FastEddy) {
@@ -103,7 +104,23 @@ struct SolverChoice {
                 buoyancy_type = 2; // uses Tprime
             }
         }
-        */
+
+        // Which expression (1,2 or 3) to use for buoyancy
+        pp.query("buoyancy_type", buoyancy_type);
+        if (buoyancy_type != 1 && buoyancy_type != 2 && buoyancy_type != 3 && buoyancy_type != 4) {
+            amrex::Abort("buoyancy_type must be 1, 2, 3 or 4");
+        }
+
+        // What type of land surface model to use
+        static std::string lsm_model_string = "None";
+        pp.query("land_surface_model", lsm_model_string);
+        if (lsm_model_string == "SLM") {
+            lsm_type = LandSurfaceType::SLM;
+        } else if (lsm_model_string == "MM5") {
+            lsm_type = LandSurfaceType::MM5;
+        } else {
+            lsm_type = LandSurfaceType::None;
+        }
 
         // Is the terrain static or moving?
         static std::string terrain_type_string = "Static";
@@ -190,6 +207,9 @@ struct SolverChoice {
         {
             build_coriolis_forcings();
         }
+
+        pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
+        pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
         pp.query("Ave_Plane", ave_plane);
 
@@ -369,6 +389,10 @@ struct SolverChoice {
     amrex::Real cosphi          = 0.0 ;
     amrex::Real sinphi          = 0.0;
 
+    // User-specified forcings in problem definition
+    bool custom_rhotheta_forcing = false;
+    bool custom_forcing_prim_vars = false;
+
     // Numerical diffusion
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
@@ -377,6 +401,7 @@ struct SolverChoice {
     TerrainType  terrain_type;
     MoistureType moisture_type;
     WindFarmType windfarm_type;
+    LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
     amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> abl_pressure_grad;

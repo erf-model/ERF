@@ -221,13 +221,9 @@ void erf_fast_rhs_MT (int step, int nrk,
         } // if step
         } // end profile
 
-        RHS_fab.resize(tbz,1);
-        soln_fab.resize(tbz,1);
-        temp_rhs_fab.resize(tbz,2);
-
-        Elixir rCeli        =      RHS_fab.elixir();
-        Elixir sCeli        =     soln_fab.elixir();
-        Elixir temp_rhs_eli = temp_rhs_fab.elixir();
+        RHS_fab.resize     (tbz,1, The_Async_Arena());
+        soln_fab.resize    (tbz,1, The_Async_Arena());
+        temp_rhs_fab.resize(tbz,2, The_Async_Arena());
 
         auto const& RHS_a        =      RHS_fab.array();
         auto const& soln_a       =     soln_fab.array();

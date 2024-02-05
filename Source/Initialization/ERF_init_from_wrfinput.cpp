@@ -64,7 +64,8 @@ init_state_from_wrfinput (int lev, FArrayBox& state_fab,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
                           const Vector<FArrayBox>& NC_rhotheta_fab,
-                          MoistureType moisture_type);
+                          MoistureType moisture_type,
+                          const int& n_qstate);
 
 void
 init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
@@ -73,7 +74,8 @@ init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
                          const Vector<FArrayBox>& NC_MSFV_fab,
                          const Vector<FArrayBox>& NC_MSFM_fab);
 void
-init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
+init_terrain_from_wrfinput (int lev, const Real& z_top,
+                            const Box& domain, FArrayBox& z_phys,
                             const Vector<FArrayBox>& NC_PH_fab,
                             const Vector<FArrayBox>& NC_PHB_fab);
 
@@ -132,7 +134,7 @@ ERF::init_from_wrfinput (int lev)
     }
 
     auto& lev_new = vars_new[lev];
-
+     int n_qstate = micro.Get_Qstate_Size();
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -149,7 +151,8 @@ ERF::init_from_wrfinput (int lev)
         init_state_from_wrfinput(lev, cons_fab, xvel_fab, yvel_fab, zvel_fab,
                                  NC_QVAPOR_fab, NC_QCLOUD_fab, NC_QRAIN_fab,
                                  NC_xvel_fab, NC_yvel_fab, NC_zvel_fab,
-                                 NC_rho_fab, NC_rhoth_fab, solverChoice.moisture_type);
+                                 NC_rho_fab, NC_rhoth_fab,
+                                 solverChoice.moisture_type, n_qstate);
     } // mf
 
 #ifdef _OPENMP
@@ -168,14 +171,14 @@ ERF::init_from_wrfinput (int lev)
     } // mf
 
     const Box& domain = geom[lev].Domain();
-
+    const Real& z_top  = geom[lev].ProbHi(2);
     if (solverChoice.use_terrain)
     {
         std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-            init_terrain_from_wrfinput(lev, domain, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
+            init_terrain_from_wrfinput(lev, z_top, domain, z_phys_nd_fab, NC_PH_fab, NC_PHB_fab);
         } // mf
 
         make_J  (geom[lev],*z_phys_nd[lev],*  detJ_cc[lev]);
@@ -210,14 +213,9 @@ ERF::init_from_wrfinput (int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              wrfbdy_width, start_bdy_time);
 
-        if (wrfbdy_width-1 <= wrfbdy_set_width) wrfbdy_set_width = wrfbdy_width;
         amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
         amrex::Print() << "Running with specification width: " << wrfbdy_set_width
                        << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
-
-        // NOTE: Last WRF BDY cell is a ghost cell for Laplacian relaxation.
-        //       Without relaxation zones, we must augment this value by 1.
-        if (wrfbdy_width == wrfbdy_set_width) wrfbdy_width += 1;
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
@@ -270,7 +268,8 @@ init_state_from_wrfinput (int lev,
                           const Vector<FArrayBox>& NC_zvel_fab,
                           const Vector<FArrayBox>& NC_rho_fab,
                           const Vector<FArrayBox>& NC_rhotheta_fab,
-                          MoistureType moisture_type)
+                          MoistureType moisture_type,
+                          const int& n_qstate)
 {
     int nboxes = NC_xvel_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
@@ -299,11 +298,15 @@ init_state_from_wrfinput (int lev,
         if (moisture_type != MoistureType::None)
         {
             state_fab.template copy<RunOn::Device>(NC_QVAPOR_fab[idx], 0, RhoQ1_comp, 1);
-            state_fab.template plus<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ1_comp, 1);
             state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
 
-            state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ2_comp, 1);
-            state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ2_comp, 1);
+            state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
+            state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
+
+            if (n_qstate >= 3) {
+                state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ3_comp, 1);
+                state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ3_comp, 1);
+            }
         }
     } // idx
 }
@@ -392,7 +395,8 @@ init_base_state_from_wrfinput (int lev, const Box& valid_bx, const Real l_rdOcp,
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
 void
-init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
+init_terrain_from_wrfinput (int lev, const Real& z_top,
+                            const Box& domain, FArrayBox& z_phys,
                             const Vector<FArrayBox>& NC_PH_fab,
                             const Vector<FArrayBox>& NC_PHB_fab)
 {
@@ -443,27 +447,28 @@ init_terrain_from_wrfinput (int lev, const Box& domain, FArrayBox& z_phys,
                                          nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
                                          nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +
                                          nc_phb_arr(ii,jj-1,khi-1) + nc_phb_arr(ii-1,jj-1,khi-1) ) / CONST_GRAV;
-                z_arr(i, j, k) = 2.0 * z_khi - z_khim1;
-              } else {
+                z_arr(i, j, k) = 2.0 * z_top - z_khim1;
+            } else if (k == khi) {
+                z_arr(i, j, k) = z_top;
+            } else {
                 z_arr(i, j, k) = 0.25 * ( nc_ph_arr (ii,jj  ,k) + nc_ph_arr (ii-1,jj  ,k) +
                                           nc_ph_arr (ii,jj-1,k) + nc_ph_arr (ii-1,jj-1,k) +
                                           nc_phb_arr(ii,jj  ,k) + nc_phb_arr(ii-1,jj  ,k) +
                                           nc_phb_arr(ii,jj-1,k) + nc_phb_arr(ii-1,jj-1,k) ) / CONST_GRAV;
-
-             //
-             // Fill values outside the domain on the fly (we will need these to make detJ in ghost cells)
-             //
-             if (i == domlo.x) z_arr(i-1,j,k) = z_arr(i,j,k);
-             if (i == domhi.x) z_arr(i+1,j,k) = z_arr(i,j,k);
-             if (j == domlo.y) z_arr(i,j-1,k) = z_arr(i,j,k);
-             if (j == domhi.y) z_arr(i,j+1,k) = z_arr(i,j,k);
-
-             if (i == domlo.x && j == domlo.y) z_arr(i-1,j-1,k) = z_arr(i,j,k);
-             if (i == domlo.x && j == domhi.y) z_arr(i-1,j+1,k) = z_arr(i,j,k);
-             if (i == domhi.x && j == domlo.y) z_arr(i+1,j-1,k) = z_arr(i,j,k);
-             if (i == domhi.x && j == domhi.y) z_arr(i+1,j+1,k) = z_arr(i,j,k);
-
             } // k
+
+            //
+            // Fill values outside the domain on the fly (we will need these to make detJ in ghost cells)
+            //
+            if (i == domlo.x) z_arr(i-1,j,k) = z_arr(i,j,k);
+            if (i == domhi.x) z_arr(i+1,j,k) = z_arr(i,j,k);
+            if (j == domlo.y) z_arr(i,j-1,k) = z_arr(i,j,k);
+            if (j == domhi.y) z_arr(i,j+1,k) = z_arr(i,j,k);
+
+            if (i == domlo.x && j == domlo.y) z_arr(i-1,j-1,k) = z_arr(i,j,k);
+            if (i == domlo.x && j == domhi.y) z_arr(i-1,j+1,k) = z_arr(i,j,k);
+            if (i == domhi.x && j == domlo.y) z_arr(i+1,j-1,k) = z_arr(i,j,k);
+            if (i == domhi.x && j == domhi.y) z_arr(i+1,j+1,k) = z_arr(i,j,k);
         });
     } // idx
 }

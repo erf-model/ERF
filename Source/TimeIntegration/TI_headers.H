@@ -55,11 +55,8 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
-                      const amrex::Real* dptr_rayleigh_tau,
-                      const amrex::Real* dptr_rayleigh_ubar,
-                      const amrex::Real* dptr_rayleigh_vbar,
-                      const amrex::Real* dptr_rayleigh_wbar,
-                      const amrex::Real* dptr_rayleigh_thetabar);
+                      const amrex::Real* dptr_rhotheta_src,
+                      const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
@@ -269,11 +266,8 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                       const amrex::Real* dptr_rayleigh_tau,
-                       const amrex::Real* dptr_rayleigh_ubar,
-                       const amrex::Real* dptr_rayleigh_vbar,
-                       const amrex::Real* dptr_rayleigh_wbar,
-                       const amrex::Real* dptr_rayleigh_thetabar);
+                       const amrex::Real* dptr_rhotheta_src,
+                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 #endif
 
 void ApplySpongeZoneBCs (const SpongeChoice& spongeChoice,

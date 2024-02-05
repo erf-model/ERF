@@ -32,7 +32,7 @@ ERF::WriteCheckpointFile () const
     // checkpoint file name, e.g., chk00010
     const std::string& checkpointname = amrex::Concatenate(check_file,istep[0],5);
 
-    amrex::Print() << "Writing checkpoint " << checkpointname << "\n";
+    amrex::Print() << "Writing native checkpoint " << checkpointname << "\n";
 
     const int nlevels = finest_level+1;
 
@@ -128,42 +128,54 @@ ERF::WriteCheckpointFile () const
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
         VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
-       // Note that we write the ghost cells of the base state (unlike above)
-       IntVect ng = base_state[lev].nGrowVect();
-       MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
-       MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ng);
-       VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
+        // Note that we write the ghost cells of the base state (unlike above)
+        IntVect ng = base_state[lev].nGrowVect();
+        MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
+        MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ng);
+        VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
-       if (solverChoice.use_terrain)  {
-           // Note that we also write the ghost cells of z_phys_nd
-           ng = z_phys_nd[lev]->nGrowVect();
-           MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
-           MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ng);
-           VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
-       }
+        if (solverChoice.use_terrain)  {
+            // Note that we also write the ghost cells of z_phys_nd
+            ng = z_phys_nd[lev]->nGrowVect();
+            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
+            MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ng);
+            VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
+        }
 
-       // Note that we also write the ghost cells of the mapfactors (2D)
-       BoxList bl2d = grids[lev].boxList();
-       for (auto& b : bl2d) {
-           b.setRange(2,0);
-       }
-       BoxArray ba2d(std::move(bl2d));
+        if (solverChoice.lsm_type != LandSurfaceType::None) {
+            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+                BoxArray ba = lsm_data[lev][mvar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
+                ng = lsm_data[lev][mvar]->nGrowVect();
+                int nvar = lsm_data[lev][mvar]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                MultiFab::Copy(lsm_vars,*(lsm_data[lev][mvar]),0,0,nvar,ng);
+                VisMF::Write(lsm_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmVars"));
+            }
+        }
 
-       ng = mapfac_m[lev]->nGrowVect();
-       MultiFab mf_m(ba2d,dmap[lev],1,ng);
-       MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
-       VisMF::Write(mf_m, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
+        // Note that we also write the ghost cells of the mapfactors (2D)
+        BoxList bl2d = grids[lev].boxList();
+        for (auto& b : bl2d) {
+            b.setRange(2,0);
+        }
+        BoxArray ba2d(std::move(bl2d));
 
-       ng = mapfac_u[lev]->nGrowVect();
-       MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
-       MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
-       VisMF::Write(mf_u, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+        ng = mapfac_m[lev]->nGrowVect();
+        MultiFab mf_m(ba2d,dmap[lev],1,ng);
+        MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
+        VisMF::Write(mf_m, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
 
-       ng = mapfac_v[lev]->nGrowVect();
-       MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
-       MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
-       VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
-   }
+        ng = mapfac_u[lev]->nGrowVect();
+        MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
+        MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
+        VisMF::Write(mf_u, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+
+        ng = mapfac_v[lev]->nGrowVect();
+        MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
+        MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
+        VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
+    }
 
 #ifdef ERF_USE_PARTICLES
    particleData.Checkpoint(checkpointname);
@@ -213,9 +225,7 @@ ERF::WriteCheckpointFile () const
 void
 ERF::ReadCheckpointFile ()
 {
-    amrex::Print() << "Restart from checkpoint " << restart_chkfile << "\n";
-
-
+    amrex::Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -341,6 +351,18 @@ ERF::ReadCheckpointFile ()
            VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev, t_new[lev]);
+        }
+
+        if (solverChoice.lsm_type != LandSurfaceType::None) {
+            for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
+                BoxArray ba = lsm_data[lev][mvar]->boxArray();
+                DistributionMapping dm = lsm_data[lev][mvar]->DistributionMap();
+                ng = lsm_data[lev][mvar]->nGrowVect();
+                int nvar = lsm_data[lev][mvar]->nComp();
+                MultiFab lsm_vars(ba,dm,nvar,ng);
+                VisMF::Read(lsm_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmVars"));
+                MultiFab::Copy(*(lsm_data[lev][mvar]),lsm_vars,0,0,nvar,ng);
+            }
         }
 
         // Note that we read the ghost cells of the mapfactors

@@ -46,5 +46,6 @@ jobs:
             -DAMReX_CUDA_ERROR_CAPTURE_THIS=ON           \
             -DERF_DIM:STRING=3 \
             -DERF_ENABLE_MPI:BOOL=ON \
-            -DERF_ENABLE_CUDA:BOOL=ON .
+            -DERF_ENABLE_CUDA:BOOL=ON \
+            -DERF_ENABLE_REGRESSION_TESTS_ONLY:BOOL=ON .
           cmake --build build-${{matrix.cuda_pkg}} -- -j $(nproc)

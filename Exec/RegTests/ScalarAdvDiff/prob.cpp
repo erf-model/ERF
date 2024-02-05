@@ -36,24 +36,20 @@ Problem::Problem()
 
 void
 Problem::erf_init_rayleigh(
-    amrex::Vector<Real>& tau,
-    amrex::Vector<Real>& ubar,
-    amrex::Vector<Real>& vbar,
-    amrex::Vector<Real>& wbar,
-    amrex::Vector<Real>& thetabar,
-    amrex::Geometry const& geom,
-    std::unique_ptr<MultiFab>& z_phys_cc)
+    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
+    amrex::Geometry      const& geom,
+    std::unique_ptr<MultiFab>& /*z_phys_cc*/)
 {
   const int khi = geom.Domain().bigEnd()[2];
 
   // We just use these values to test the Rayleigh damping
   for (int k = 0; k <= khi; k++)
   {
-      tau[k]  = 1.0;
-      ubar[k] = 2.0;
-      vbar[k] = 1.0;
-      wbar[k] = 0.0;
-      thetabar[k] = parms.T_0;
+      rayleigh_ptrs[Rayleigh::tau][k]      = 1.0;
+      rayleigh_ptrs[Rayleigh::ubar][k]     = 2.0;
+      rayleigh_ptrs[Rayleigh::vbar][k]     = 1.0;
+      rayleigh_ptrs[Rayleigh::wbar][k]     = 0.0;
+      rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
   }
 }
 

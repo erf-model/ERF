@@ -105,6 +105,43 @@ public:
     }
 
     /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] rhotheta_source  forcing profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_rhotheta_sources (const amrex::Real& /*time*/,
+                             amrex::Vector<amrex::Real>& src,
+                             amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+                             const amrex::Geometry& geom,
+                             std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (src.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                src[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
+    }
+
+    /**
      * Function to perform custom initialization of terrain
      *
      * Note: Terrain functionality can also be used to provide grid stretching.
@@ -150,20 +187,12 @@ public:
     /**
      * Function to define the quantities needed to impose Rayleigh damping
      *
-     * @param[out] tau  strength of Rayleigh damping
-     * @param[out] ubar reference value for x-velocity used to define Rayleigh damping
-     * @param[out] vbar reference value for y-velocity used to define Rayleigh damping
-     * @param[out] wbar reference value for z-velocity used to define Rayleigh damping
-     * @param[out] thetabar reference value for potential temperature used to define Rayleigh damping
+     * @param[out] rayleigh_ptrs = {strength of Rayleigh damping, reference values for xvel/yvel/zvel/theta used to define Rayleigh damping}
      * @param[in] geom container for geometric information
      * @param[in] z_phys_cc height coordinate at cell centers
     */
     virtual void
-    erf_init_rayleigh (amrex::Vector<amrex::Real>& /*tau*/,
-                       amrex::Vector<amrex::Real>& /*ubar*/,
-                       amrex::Vector<amrex::Real>& /*vbar*/,
-                       amrex::Vector<amrex::Real>& /*wbar*/,
-                       amrex::Vector<amrex::Real>& /*thetabar*/,
+    erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& /*rayleigh_ptrs*/,
                        amrex::Geometry      const& /*geom*/,
                        std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
     {

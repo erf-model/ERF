@@ -72,11 +72,15 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
-    Real* dptr_rayleigh_tau      = solverChoice.use_rayleigh_damping ? d_rayleigh_tau[level].data() : nullptr;
-    Real* dptr_rayleigh_ubar     = solverChoice.use_rayleigh_damping ? d_rayleigh_ubar[level].data() : nullptr;
-    Real* dptr_rayleigh_vbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_vbar[level].data() : nullptr;
-    Real* dptr_rayleigh_wbar     = solverChoice.use_rayleigh_damping ? d_rayleigh_wbar[level].data() : nullptr;
-    Real* dptr_rayleigh_thetabar = solverChoice.use_rayleigh_damping ? d_rayleigh_thetabar[level].data() : nullptr;
+    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+
+    Vector<Real*> d_rayleigh_ptrs_at_lev;
+    d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
+    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
@@ -222,6 +226,15 @@ void ERF::advance_dycore(int level,
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level],
                                   tc, solverChoice.gravity, m_most, bc_ptr_d);
+    }
+
+    // ***********************************************************************************************
+    // Update user-defined source terms
+    // ***********************************************************************************************
+    if (solverChoice.custom_rhotheta_forcing) {
+        prob->update_rhotheta_sources(old_time,
+                                      h_rhotheta_src[level], d_rhotheta_src[level],
+                                      fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************
