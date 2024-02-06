@@ -20,8 +20,11 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_QVAPOR_fab,
                     FArrayBox& NC_QCLOUD_fab,
                     FArrayBox& NC_QRAIN_fab,
-                    FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
-                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab,
+                    FArrayBox& NC_PH_fab,
+                    FArrayBox& NC_P_fab,
+                    FArrayBox& NC_PHB_fab,
+                    FArrayBox& NC_ALB_fab,
+                    FArrayBox& NC_PB_fab,
                     MoistureType moisture_type)
 {
     amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
@@ -39,20 +42,21 @@ read_from_wrfinput (int lev,
     NC_fabs.push_back(&NC_PH_fab);        NC_names.push_back("PH");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 6
     NC_fabs.push_back(&NC_PHB_fab);       NC_names.push_back("PHB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 7
     NC_fabs.push_back(&NC_PB_fab);        NC_names.push_back("PB");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 9
-    NC_fabs.push_back(&NC_ALB_fab);       NC_names.push_back("ALB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 0
-    NC_fabs.push_back(&NC_MUB_fab);       NC_names.push_back("MUB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 10
-    NC_fabs.push_back(&NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 11
-    NC_fabs.push_back(&NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 12
-    NC_fabs.push_back(&NC_MSFM_fab);      NC_names.push_back("MAPFAC_MY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 13
-    NC_fabs.push_back(&NC_SST_fab);       NC_names.push_back("SST");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);      // 14
-    NC_fabs.push_back(&NC_C1H_fab);       NC_names.push_back("C1H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 15
-    NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 16
-    NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 17
+    NC_fabs.push_back(&NC_P_fab);         NC_names.push_back("P");    NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 10
+    NC_fabs.push_back(&NC_ALB_fab);       NC_names.push_back("ALB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 11
+    NC_fabs.push_back(&NC_MUB_fab);       NC_names.push_back("MUB");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 12
+    NC_fabs.push_back(&NC_MSFU_fab);      NC_names.push_back("MAPFAC_UY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 13
+    NC_fabs.push_back(&NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 14
+    NC_fabs.push_back(&NC_MSFM_fab);      NC_names.push_back("MAPFAC_MY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); // 15
+    NC_fabs.push_back(&NC_SST_fab);       NC_names.push_back("SST");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);      // 16
+    NC_fabs.push_back(&NC_C1H_fab);       NC_names.push_back("C1H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 17
+    NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 18
+    NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);         // 19
 
     if (moisture_type != MoistureType::None) {
-        NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 18
-        NC_fabs.push_back(&NC_QCLOUD_fab);    NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 19
-        NC_fabs.push_back(&NC_QRAIN_fab);     NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);         // 20
+        NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 20
+        NC_fabs.push_back(&NC_QCLOUD_fab);    NC_names.push_back("QCLOUD"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 21
+        NC_fabs.push_back(&NC_QRAIN_fab);     NC_names.push_back("QRAIN"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE);  // 22
     }
 
     // Read the netcdf file and fill these FABs
