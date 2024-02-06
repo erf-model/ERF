@@ -322,20 +322,23 @@ ERF::ReadCheckpointFile ()
     {
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
-
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
+        vars_new[lev][Vars::cons].setBndry(1.0e34);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         VisMF::Read(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
+        vars_new[lev][Vars::xvel].setBndry(1.0e34);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         VisMF::Read(yvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
+        vars_new[lev][Vars::yvel].setBndry(1.0e34);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
+        vars_new[lev][Vars::zvel].setBndry(1.0e34);
 
         // Note that we read the ghost cells of the base state (unlike above)
         IntVect ng = base_state[lev].nGrowVect();
