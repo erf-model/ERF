@@ -1,3 +1,5 @@
+#include <Utils/ParFunctions.H>
+
 /**
  * Initialize a Rayleigh damping layer with the same structure as in WRF, based
  * on Durran and Klemp 1983
@@ -13,20 +15,7 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
     if (z_phys_cc) {
         // use_terrain=1
         // calculate the damping strength based on the max height at each k
-        amrex::MultiArray4<const amrex::Real> const& ma_z_phys = z_phys_cc->const_arrays();
-        for (int k = 0; k <= khi; k++) {
-            zcc[k] = amrex::ParReduce(amrex::TypeList<amrex::ReduceOpMax>{},
-                                      amrex::TypeList<amrex::Real>{},
-                                      *z_phys_cc,
-                                      amrex::IntVect(0),
-            [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                -> amrex::GpuTuple<amrex::Real>
-            {
-                return { ma_z_phys[box_no](i,j,k) };
-            });
-        }
-        amrex::ParallelDescriptor::ReduceRealMax(zcc.data(), zcc.size());
-
+        reduce_to_max_per_level(zcc, z_phys_cc);
     } else {
         const amrex::Real* prob_lo = geom.ProbLo();
         const auto dx              = geom.CellSize();
