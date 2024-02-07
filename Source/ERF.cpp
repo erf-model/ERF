@@ -506,10 +506,6 @@ ERF::InitData ()
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 amrex::Abort("We do not currently support init_type = ideal with terrain");
-            } else if (init_type == "input_sounding") {
-                amrex::Print() << "Note: use_terrain==true with input_sounding"
-                    << " -- the expected use case is to enable grid stretching"
-                    << std::endl;
             }
         }
 
