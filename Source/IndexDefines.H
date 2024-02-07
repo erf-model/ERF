@@ -53,6 +53,17 @@ namespace BCVars {
     };
 }
 
+namespace RealBdyVars {
+    enum {
+        U  = 0,
+        V  = 1,
+        R  = 2,
+        T  = 3,
+        QV,
+        NumTypes
+    };
+}
+
 namespace WRFBdyVars {
     enum {
         U  = 0,

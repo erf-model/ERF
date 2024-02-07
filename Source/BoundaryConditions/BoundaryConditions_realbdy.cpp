@@ -12,11 +12,11 @@ using namespace amrex;
  */
 
 void
-ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
-                       const Real time,
-                       bool cons_only,
-                       int icomp_cons,
-                       int ncomp_cons)
+ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
+                        const Real time,
+                        bool cons_only,
+                        int icomp_cons,
+                        int ncomp_cons)
 {
     int lev = 0;
 
@@ -30,7 +30,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
 
     // Flags for read vars and index mapping
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0, 0, 0};
-    Vector<int> cons_map = {WRFBdyVars::R, WRFBdyVars::T, 0, 0, 0, WRFBdyVars::QV, 0, 0, 0};
+    Vector<int> cons_map = {RealBdyVars::R, RealBdyVars::T, 0, 0, 0, RealBdyVars::QV, 0, 0, 0};
 
     Vector<Vector<int>> is_read;
     is_read.push_back( cons_read );
@@ -40,8 +40,8 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
 
     Vector<Vector<int>> ind_map;
     ind_map.push_back( cons_map );
-    ind_map.push_back( {WRFBdyVars::U} ); // xvel
-    ind_map.push_back( {WRFBdyVars::V} ); // yvel
+    ind_map.push_back( {RealBdyVars::U} ); // xvel
+    ind_map.push_back( {RealBdyVars::V} ); // yvel
     ind_map.push_back( {0} );             // zvel
 
     // Nvars to loop over
@@ -69,7 +69,7 @@ ERF::fill_from_wrfbdy (const Vector<MultiFab*>& mfs,
         // Loop over each component
         for (int comp_idx(offset); comp_idx < (comp_var[var_idx]+offset); ++comp_idx)
         {
-            int width = wrfbdy_set_width;
+            int width = real_set_width;
 
             // Variable can be read from wrf bdy
             //------------------------------------

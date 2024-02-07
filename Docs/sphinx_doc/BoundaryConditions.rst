@@ -145,9 +145,9 @@ Specified Domain BCs
 When we use specified lateral boundary conditions, we read time-dependent Dirichlet data
 from a file.  The user may specify (in the inputs file)
 the total width of the interior Dirichlet and relaxation region with
-``erf.wrfbdy_width = <Int>`` (yellow + blue)
+``erf.real_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
-``erf.wrfbdy_set_width = <Int>`` (yellow).
+``erf.real_set_width = <Int>`` (yellow).
 We note that all dycore variables are set and relaxed, but moisture and other scalars
 are only set in the yellow region if present in the boundary file.
 

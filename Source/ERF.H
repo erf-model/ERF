@@ -306,16 +306,11 @@ public:
                               amrex::Real time);
 
 #ifdef ERF_USE_NETCDF
-    void fill_from_wrfbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time,
-                           bool cons_only,
-                           int icomp_cons,
-                           int ncomp_cons);
-    void fill_from_metgrid (const amrex::Vector<amrex::MultiFab*>& mfs,
-                           amrex::Real time,
-                           bool cons_only,
-                           int icomp_cons,
-                           int ncomp_cons);
+    void fill_from_realbdy (const amrex::Vector<amrex::MultiFab*>& mfs,
+                            amrex::Real time,
+                            bool cons_only,
+                            int icomp_cons,
+                            int ncomp_cons);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -725,14 +720,10 @@ private:
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;
 
-    // NetCDF initialization (wrfbdy) file
+    // NetCDF initialization (wrfbdy/met_em) file
     static std::string nc_bdy_file;
-    int wrfbdy_width{0};
-    int wrfbdy_set_width{0};
-
-    // NetCDF initialization (met_em) file
-    int metgrid_bdy_width{0};
-    int metgrid_bdy_set_width{0};
+    int real_width{0};
+    int real_set_width{0};
 
     // Text input_sounding file
     static std::string input_sounding_file;

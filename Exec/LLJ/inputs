@@ -25,12 +25,6 @@ yhi.type = "Outflow"
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
 
-# RELAXATION WIDTHS
-erf.wrfbdy_width     = 5
-erf.wrfbdy_set_width = 1
-erf.cf_width         = 5
-erf.cf_set_width     = 1
-
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.001  # fixed time step depending on grid resolution
 erf.no_substepping     = 1
@@ -63,17 +57,20 @@ prob.rho_0 = 1.0
 prob.T_0 = 300.0
 
 # MULTILEVEL FLAGS
-#amr.max_level = 0
-amr.max_level = 1
+erf.cf_width       = 5
+erf.cf_set_width   = 1
+amr.max_level      = 1
 amr.ref_ratio_vect = 3 3 1
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
 erf.box1.in_box_lo =   60.  51.
 erf.box1.in_box_hi =  525. 309.
-#erf.coupling_type  = "TwoWay"
+#erf.coupling_type = "TwoWay"
 erf.nc_init_file_1 = "wrfinput_d02"
 
 # INITIALIZATION WITH ATM DATA
+erf.real_width     = 5
+erf.real_set_width = 1
 erf.init_type      = "real"
 erf.nc_init_file_0 = "wrfinput_d01"  
 erf.nc_bdy_file    = "wrfbdy_d01" 

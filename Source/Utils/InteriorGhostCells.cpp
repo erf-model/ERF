@@ -156,20 +156,12 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
 
-    int BdyEnd, ivarU, ivarV, ivarR, ivarT;
-    if (init_type == "real") {
-        BdyEnd = WRFBdyVars::NumTypes-3;
-        ivarU  = WRFBdyVars::U;
-        ivarV  = WRFBdyVars::V;
-        ivarR  = WRFBdyVars::R;
-        ivarT  = WRFBdyVars::T;
-    } else if (init_type == "metgrid") {
-        BdyEnd = MetGridBdyVars::NumTypes-1;
-        ivarU  = MetGridBdyVars::U;
-        ivarV  = MetGridBdyVars::V;
-        ivarR  = MetGridBdyVars::R;
-        ivarT  = MetGridBdyVars::T;
-    }
+    // Indices
+    int BdyEnd = RealBdyVars::NumTypes-1;
+    int  ivarU = RealBdyVars::U;
+    int  ivarV = RealBdyVars::V;
+    int  ivarR = RealBdyVars::R;
+    int  ivarT = RealBdyVars::T;
 
 
     // Size the FABs

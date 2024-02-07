@@ -54,11 +54,11 @@ erf.terrain_smoothing = 0
 erf.buoyancy_type     = 1
     
 # INITIALIZATION WITH ATM DATA
-erf.wrfbdy_width     = 5
-erf.wrfbdy_set_width = 1
-erf.init_type        = "real"
-erf.nc_init_file_0   = "wrfinput_d01"
-erf.nc_bdy_file      = "wrfbdy_d01"
+erf.real_width     = 5
+erf.real_set_width = 1
+erf.init_type      = "real"
+erf.nc_init_file_0 = "wrfinput_d01"
+erf.nc_bdy_file    = "wrfbdy_d01"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024
