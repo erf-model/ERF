@@ -52,7 +52,6 @@ erf_init_rayleigh (amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
             rayleigh_ptrs[Rayleigh::vbar][k]     = parms.V_0;
             rayleigh_ptrs[Rayleigh::wbar][k]     = parms.W_0;
             rayleigh_ptrs[Rayleigh::thetabar][k] = parms.T_0;
-            amrex::Print() << "  " << zcc[k] << " " << sinefac*sinefac << std::endl;
         }
         else
         {
