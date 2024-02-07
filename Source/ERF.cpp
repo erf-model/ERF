@@ -506,10 +506,6 @@ ERF::InitData ()
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 amrex::Abort("We do not currently support init_type = ideal with terrain");
-            } else if (init_type == "input_sounding") {
-                amrex::Print() << "Note: use_terrain==true with input_sounding"
-                    << " -- the expected use case is to enable grid stretching"
-                    << std::endl;
             }
         }
 
@@ -665,7 +661,9 @@ ERF::InitData ()
         initRayleigh();
         if (init_type == "input_sounding")
         {
-            // overwrite Ubar, Tbar, and thetabar with input profiles
+            // Overwrite ubar, vbar, and thetabar with input profiles; wbar is
+            // assumed to be 0. Note: the tau coefficient set by
+            // prob->erf_init_rayleigh() is still used
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }

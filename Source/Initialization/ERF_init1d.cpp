@@ -5,6 +5,7 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
+#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
@@ -72,18 +73,29 @@ ERF::setRayleighRefFromSounding (bool restarting)
     for (int lev = 0; lev <= finest_level; lev++)
     {
         const int khi = geom[lev].Domain().bigEnd()[2];
-        const auto *const prob_lo = geom[lev].ProbLo();
-        const auto *const dx = geom[lev].CellSize();
+        Vector<Real> zcc(khi+1);
+
+        if (z_phys_cc[lev]) {
+            // use_terrain=1
+            // calculate the damping strength based on the max height at each k
+            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+        } else {
+            const auto *const prob_lo = geom[lev].ProbLo();
+            const auto *const dx = geom[lev].CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
+            }
+        }
 
         for (int k = 0; k <= khi; k++)
         {
-            const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]          = interpolate_1d(z_inp_sound, U_inp_sound, z, inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]          = interpolate_1d(z_inp_sound, V_inp_sound, z, inp_sound_size);
-            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]          = Real(0.0);
-            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, z, inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::ubar][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::vbar][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
+            h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
+            h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
             if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  amrex::Print() << z << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
+                                                  amrex::Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
                 if (solverChoice.rayleigh_damp_U) amrex::Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
                 if (solverChoice.rayleigh_damp_V) amrex::Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
                 if (solverChoice.rayleigh_damp_W) amrex::Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
