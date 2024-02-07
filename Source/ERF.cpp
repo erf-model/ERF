@@ -665,7 +665,9 @@ ERF::InitData ()
         initRayleigh();
         if (init_type == "input_sounding")
         {
-            // overwrite Ubar, Tbar, and thetabar with input profiles
+            // Overwrite ubar, vbar, and thetabar with input profiles; wbar is
+            // assumed to be 0. Note: the tau coefficient set by
+            // prob->erf_init_rayleigh() is still used
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
