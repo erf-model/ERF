@@ -5,6 +5,7 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
+#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
@@ -77,20 +78,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            amrex::MultiArray4<const amrex::Real> const& ma_z_phys = z_phys_cc[lev]->const_arrays();
-            for (int k = 0; k <= khi; k++) {
-                zcc[k] = amrex::ParReduce(amrex::TypeList<amrex::ReduceOpMax>{},
-                                          amrex::TypeList<amrex::Real>{},
-                                          *z_phys_cc[lev],
-                                          amrex::IntVect(0),
-                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                    -> amrex::GpuTuple<amrex::Real>
-                {
-                    return { ma_z_phys[box_no](i,j,k) };
-                });
-            }
-            amrex::ParallelDescriptor::ReduceRealMax(zcc.data(), zcc.size());
-
+            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();
