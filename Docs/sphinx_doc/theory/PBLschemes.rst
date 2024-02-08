@@ -128,10 +128,11 @@ More recent advancements that add significant complexity to the MYNN scheme have
 YSU PBL Model
 -------------
 
-The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within the PBL, and a local mixing treatment outside the PBL.
+The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within
+the PBL, and a local mixing treatment outside the PBL.
 
 Turbulent diffusion for prognostic variables (:math:`C, u, v, \theta, q_k`), where :math:`q_k` includes all moisture variables and :math:`C`
-any additional scalars:
+any additional scalars (other terms in the equations omitted for brevity):
 
 .. math::
    \frac{\partial C}{\partial t}
