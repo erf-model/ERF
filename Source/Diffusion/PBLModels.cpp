@@ -245,5 +245,41 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         amrex::Error("YSU Model not implemented yet");
+
+        // FIXME: this should be an argument to function
+        int lev = 0;
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+            // Pull out the box we're working on, make sure it covers full domain in z-direction
+            const amrex::Box &bx = mfi.growntilebox(1);
+            const amrex::Box &dbx = geom.Domain();
+            amrex::Box sbx(bx.smallEnd(), bx.bigEnd());
+            sbx.grow(2,-1);
+            AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
+
+            // Get some data in arrays
+            const auto& cell_data = cons_in.const_array(mfi);
+            const auto& K_turb = eddyViscosity.array(mfi);
+            const auto& uvel = xvel.const_array(mfi);
+            const auto& vvel = yvel.const_array(mfi);
+            const auto& u_star_arr = most->get_u_star(lev)->const_array(mfi);
+            const auto& t_star_arr = most->get_t_star(lev)->const_array(mfi);
+            const auto& l_obuk_arr = most->get_olen(lev)->const_array(mfi);
+
+            // create flattened boxes to store PBL height
+            const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
+            amrex::FArrayBox pbl_height(xybx,1);
+            const auto& pblh_arr = pbl_height.array();
+            // Diagnose PBL height - starting out assuming non-moist
+            amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                pblh_arr(i,j,k) = 0.0;
+            });
+        }
+
     }
 }
