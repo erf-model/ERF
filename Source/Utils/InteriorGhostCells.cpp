@@ -143,6 +143,11 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
     amrex::Real oma   = 1.0 - alpha;
 
+    /*
+    // UNIT TEST DEBUG
+    oma = 1.0; alpha = 0.0;
+    */
+
     // Temporary FABs for storage (owned/filled on all ranks)
     FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
     FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
@@ -493,6 +498,41 @@ wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
                                                     tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     data_arr, rhs_arr);
+
+                /*
+                // UNIT TEST DEBUG
+                compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
+                                              tbx_xlo, tbx_xhi,
+                                              tbx_ylo, tbx_yhi);
+                ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (arr_xlo(i,j,k) != data_arr(i,j,k,icomp)) {
+                        amrex::Print() << "ERROR XLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                        exit(0);
+                    }
+                });
+                ParallelFor(tbx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (arr_xhi(i,j,k) != data_arr(i,j,k,icomp)) {
+                        amrex::Print() << "ERROR XHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                        exit(0);
+                    }
+                });
+                ParallelFor(tbx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (arr_ylo(i,j,k) != data_arr(i,j,k,icomp)) {
+                        amrex::Print() << "ERROR YLO: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                        exit(0);
+                    }
+                });
+                ParallelFor(tbx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (arr_yhi(i,j,k) != data_arr(i,j,k,icomp)) {
+                        amrex::Print() << "ERROR YHI: " << ivar << ' ' << icomp << ' ' << IntVect(i,j,k) << "\n";
+                        exit(0);
+                    }
+                });
+                */
             } // mfi
         } // ivar
     } // width

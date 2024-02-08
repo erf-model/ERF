@@ -163,13 +163,13 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_lo.x+width,jj,k,comp_idx);
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         int jj = std::max(j , dom_lo.y+width);
                             jj = std::min(jj, dom_hi.y-width);
-                            dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
+                        dest_arr(i,j,k,comp_idx) = dest_arr(dom_hi.x-width,jj,k,comp_idx);
                     });
 
                     // y-faces (does not include x ghost cells)
