@@ -199,7 +199,7 @@ Refs:
 
 Skamarock, W. C., Klemp, J. B., Dudhia, J., Gill, D. O., Liu, Z., Berner, J., ... Huang, X. -yu. (2019). A Description of the Advanced Research WRF Model Version 4 (No. NCAR/TN-556+STR). `doi:10.5065/1dfh-6p97 <http://dx.doi.org/10.5065/1dfh-6p97>`_
 
-Sauer, J. A., & Muñoz-Esparza, D. (2020). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Model formulation, dynamical-core validation and performance benchmarks. Journal of Advances in Modeling Earth Systems, 12, e2020MS002100. `doi:10.1029/2020MS002100 <https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2020MS002100>`_
+Sauer, J. A., & Muñoz-Esparza, D. (2020). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Model formulation, dynamical-core validation and performance benchmarks. Journal of Advances in Modeling Earth Systems, 12, e2020MS002100. `doi:10.1029/2020MS002100 <http://dx.doi.org/10.1029/2020MS002100>`_
 
 
 WENO Methods
