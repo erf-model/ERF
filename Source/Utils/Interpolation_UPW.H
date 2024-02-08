@@ -114,6 +114,9 @@ struct UPWIND3
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
+        // Add blending
+        upw_lo *= upw_frac;
+
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
     }
@@ -138,6 +141,9 @@ struct UPWIND3
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
+        // Add blending
+        upw_lo *= upw_frac;
+
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
     }
@@ -161,6 +167,9 @@ struct UPWIND3
 
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+        // Add blending
+        upw_lo *= upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp1,s,sm1,sm2,upw_lo);
@@ -315,6 +324,9 @@ struct UPWIND5
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
+        // Add blending
+        upw_lo *= upw_frac;
+
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
     }
@@ -341,6 +353,9 @@ struct UPWIND5
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
 
+        // Add blending
+        upw_lo *= upw_frac;
+
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
     }
@@ -366,6 +381,9 @@ struct UPWIND5
 
         // Upwinding flags
         if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+        // Add blending
+        upw_lo *= upw_frac;
 
         // Interpolate lo
         val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo);
@@ -538,6 +556,9 @@ struct UPWINDALL
 
             // Upwinding flags
             if (upw_lo != 0.) upw_lo = (upw_lo > 0) ? 1. : -1.;
+
+            // Add blending
+            upw_lo *= upw_frac;
 
             // Interpolate lo
             val_lo = Evaluate(sp2,sp1,s,sm1,sm2,sm3,upw_lo,adv_type);
