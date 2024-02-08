@@ -284,6 +284,8 @@ struct AdvChoice {
     AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
 
     // Blending between upwind and the next-highest order central scheme
+    // Note: This is used by both Upwind_* and Blended_* schemes -- the default
+    //       is a pure upwind scheme
     amrex::Real dycore_horiz_upw_frac    = 1.0;
     amrex::Real dycore_vert_upw_frac     = 1.0;
     amrex::Real dryscal_horiz_upw_frac   = 1.0;

@@ -19,7 +19,8 @@ struct CENTERED2
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -37,7 +38,8 @@ struct CENTERED2
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -51,11 +53,12 @@ struct CENTERED2
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real /*upw_lo*/) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real s   = m_phi(i  , j  , k  , qty_index);
@@ -99,7 +102,8 @@ struct UPWIND3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -122,7 +126,8 @@ struct UPWIND3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -141,11 +146,12 @@ struct UPWIND3
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real upw_lo) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -202,7 +208,8 @@ struct CENTERED4
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -222,7 +229,8 @@ struct CENTERED4
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -238,11 +246,12 @@ struct CENTERED4
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real /*upw_lo*/) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -292,7 +301,8 @@ struct UPWIND5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -317,7 +327,8 @@ struct UPWIND5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -338,11 +349,12 @@ struct UPWIND5
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real upw_lo) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -405,7 +417,8 @@ struct CENTERED6
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -427,7 +440,8 @@ struct CENTERED6
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real /*upw_lo*/) const
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -445,11 +459,12 @@ struct CENTERED6
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real /*upw_lo*/) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real /*upw_lo*/,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);
@@ -501,12 +516,13 @@ struct UPWINDALL
     AMREX_FORCE_INLINE
     void
     InterpolateInZ (const int& i,
-                       const int& j,
-                       const int& k,
-                       const int& qty_index,
-                       amrex::Real& val_lo,
-                       amrex::Real upw_lo,
-                       const AdvType adv_type) const
+                    const int& j,
+                    const int& k,
+                    const int& qty_index,
+                    amrex::Real& val_lo,
+                    amrex::Real upw_lo,
+                    const amrex::Real upw_frac,
+                    const AdvType adv_type) const
     {
         if (adv_type == AdvType::Centered_2nd) {
             val_lo = 0.5 * ( m_phi(i,j,k,qty_index) + m_phi(i,j,k-1,qty_index) );

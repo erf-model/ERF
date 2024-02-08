@@ -265,8 +265,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        AdvType horiz_adv_type = ac.dryscal_horiz_adv_type;
-        AdvType  vert_adv_type = ac.dryscal_vert_adv_type;
+        AdvType    horiz_adv_type = ac.dryscal_horiz_adv_type;
+        AdvType     vert_adv_type = ac.dryscal_vert_adv_type;
+        const Real horiz_upw_frac = ac.dryscal_horiz_upw_frac;
+        const Real  vert_upw_frac = ac.dryscal_vert_upw_frac;
 
         if (ac.use_efficient_advection){
              horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
@@ -278,14 +280,18 @@ void erf_slow_rhs_post (int level, int finest_level,
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                                   horiz_adv_type, vert_adv_type,
+                                   horiz_upw_frac, vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                                   horiz_adv_type, vert_adv_type,
+                                   horiz_upw_frac, vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
 
         // This is simply an advected scalar for convenience
@@ -293,23 +299,30 @@ void erf_slow_rhs_post (int level, int finest_level,
         num_comp = 1;
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                               horiz_adv_type, vert_adv_type,
+                               horiz_upw_frac, vert_upw_frac,
+                               l_use_terrain, flx_arr);
 
         if (solverChoice.moisture_type != MoistureType::None)
         {
             start_comp = RhoQ1_comp;
               num_comp = nvars - start_comp;
 
-            AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
-            AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
+            AdvType    moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
+            AdvType     moist_vert_adv_type = ac.moistscal_vert_adv_type;
+            const Real moist_horiz_upw_frac = ac.moistscal_horiz_upw_frac;
+            const Real  moist_vert_upw_frac = ac.moistscal_vert_upw_frac;
 
             if (ac.use_efficient_advection){
                  moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
                  moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
             }
+
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
+                                   moist_horiz_adv_type, moist_vert_adv_type,
+                                   moist_horiz_upw_frac, moist_vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
 
         if (l_use_diff) {
