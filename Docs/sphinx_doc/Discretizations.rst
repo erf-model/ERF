@@ -186,14 +186,21 @@ The midpoint values given above :math:`q_{m - \frac{1}{2}}`, where :math:`q` may
    \left. q_{m - \frac{1}{2}} \right|^{4th} = \frac{7}{12}\left( q_{m} + q_{m - 1} \right)  & \hspace{-5pt} - \frac{1}{12}\left( q_{m + 1} + q_{m - 2} \right)                                                          & \\
    \left. q_{m - \frac{1}{2}} \right|^{6th} = \frac{37}{60}\left( q_{m} + q_{m - 1} \right) & \hspace{-5pt} - \frac{2}{15}\left( q_{m + 1} + q_{m - 2} \right)                                                          & \hspace{-5pt} + \frac{1}{60}\left( q_{m + 2} + q_{m - 3} \right) \\
     & & \\
-   \left. q_{m - \frac{1}{2}} \right|^{3rd} = \left. q_{m - \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 1} - q_{m - 2} \right) \right.\  & \hspace{-5pt} - 3\left. \ \left( q_{m} - q_{m - 1} \right) \right\rbrack \\
+   \left. q_{m - \frac{1}{2}} \right|^{3rd} = \left. q_{m - \frac{1}{2}} \right|^{4th}      & \hspace{-5pt} + \beta_{\text{up}}\frac{U_{d}}{\left| U_{d} \right|}\frac{1}{12}\left\lbrack \left( q_{m + 1} - q_{m - 2} \right) \right.\  & \hspace{-5pt} - 3\left. \ \left( q_{m} - q_{m - 1} \right) \right\rbrack \\
     & & \\
-   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} - q_{m - 1} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} - q_{m - 2} \right) + 10\left. \left( q_{m} - q_{m - 1} \right) \right\rbrack
+   \left. q_{m - \frac{1}{2}} \right|^{5th} = \left. q_{m - \frac{1}{2}} \right|^{6th}      & \hspace{-5pt} - \beta_{\text{up}}\frac{U_{d}}{\left| U_{d} \right|}\frac{1}{60}\left\lbrack \left( q_{m + 2} - q_{m - 1} \right) \right.\  & \hspace{-5pt} - 5\left( q_{m + 1} - q_{m - 2} \right) + 10\left. \left( q_{m} - q_{m - 1} \right) \right\rbrack
    \end{array}
 
+An extra blending factor (:math:`\beta_{\text{up}}`) has been added to allow control
+over the amount of upwinding added to the scheme. This hybrid scheme has been
+demonstrated by Sauer and Muñoz-Esparza (2020, JAMES).
 
-Ref: Skamarock, W. C., Klemp, J. B., Dudhia, J., Gill, D. O., Liu, Z., Berner, J., ... Huang, X. -yu. (2019). A Description of the Advanced Research WRF Model Version 4 (No. NCAR/TN-556+STR). doi:10.5065/1dfh-6p97
-`doi:10.5065/1dfh-6p97 <http://dx.doi.org/10.5065/1dfh-6p97>`_
+Refs:
+
+Skamarock, W. C., Klemp, J. B., Dudhia, J., Gill, D. O., Liu, Z., Berner, J., ... Huang, X. -yu. (2019). A Description of the Advanced Research WRF Model Version 4 (No. NCAR/TN-556+STR). `doi:10.5065/1dfh-6p97 <http://dx.doi.org/10.5065/1dfh-6p97>`_
+
+Sauer, J. A., & Muñoz-Esparza, D. (2020). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Model formulation, dynamical-core validation and performance benchmarks. Journal of Advances in Modeling Earth Systems, 12, e2020MS002100. doi:10.1029/2020MS002100
+
 
 WENO Methods
 ------------
