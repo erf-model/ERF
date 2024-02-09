@@ -212,8 +212,8 @@ AdvectionSrcForZMom_T (int i, int j, int k,
                        const amrex::Array4<const amrex::Real>& w,
                        const amrex::Array4<const amrex::Real>& z_nd,
                        const amrex::Array4<const amrex::Real>& detJ,
-                       InterpType_H interp_omega_h,
-                       InterpType_V interp_omega_v,
+                       InterpType_H   interp_omega_h,
+                       InterpType_V   interp_omega_v,
                        WallInterpType interp_omega_wall,
                        const amrex::Real upw_frac_h,
                        const amrex::Real upw_frac_v,
@@ -271,16 +271,17 @@ AdvectionSrcForZMom_T (int i, int j, int k,
     if (k == domhi_z+1) {
         centFluxZZNext *=  w(i,j,k);
     } else {
-        if (k == domhi_z) {
-            interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,0,Omega_avg_hi,AdvType::Centered_2nd);
+        if (k == domhi_z)
+        {
+            interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,0,AdvType::Centered_2nd);
         } else if (k == domhi_z-1 || k == 1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
-                interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,0,Omega_avg_hi,AdvType::Centered_4th);
+                interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,0,AdvType::Centered_4th);
             } else {
-                interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,upw_frac_v,Omega_avg_hi,vert_adv_type);
+                interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,upw_frac_v,vert_adv_type);
             }
         } else {
-            interp_omega_v.InterpolateInZ(i,j,k+1,0,interp_hi,upw_frac_v,Omega_avg_hi);
+            interp_omega_v.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,upw_frac_v);
         }
         centFluxZZNext *=  interp_hi;
     }
