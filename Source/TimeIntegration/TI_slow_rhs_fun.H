@@ -206,12 +206,12 @@
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      real_width, real_set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif
@@ -370,12 +370,12 @@
         // Populate RHS for relaxation zones if using real bcs
         if (use_real_bcs && (level == 0)) {
             if (real_width>0) {
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      real_width, real_set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif

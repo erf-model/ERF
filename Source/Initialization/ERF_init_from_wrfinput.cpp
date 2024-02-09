@@ -87,7 +87,8 @@ init_terrain_from_wrfinput (int lev, const Real& z_top,
 
 void
 init_base_state_from_wrfinput (int lev,
-                               const Box& bx,
+                               const Box& gtbx,
+                               const Box& domain,
                                Real l_rdOcp,
                                MoistureType moisture_type,
                                const int& n_qstate,
@@ -205,6 +206,7 @@ ERF::init_from_wrfinput (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+    IntVect ng = p_hse.nGrowVect();
     const Real l_rdOcp = solverChoice.rdOcp;
 
     if (init_type == "real") {
@@ -215,11 +217,16 @@ ERF::init_from_wrfinput (int lev)
             FArrayBox& pi_hse_fab = pi_hse[mfi];
             FArrayBox&  r_hse_fab = r_hse[mfi];
 
-            const Box valid_bx = mfi.validbox();
-            init_base_state_from_wrfinput(lev, valid_bx, l_rdOcp, solverChoice.moisture_type, n_qstate,
+            const Box gtbx = mfi.tilebox(IntVect(0), ng);
+            init_base_state_from_wrfinput(lev, gtbx, domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
                                           cons_fab, p_hse_fab, pi_hse_fab, r_hse_fab,
                                           NC_ALB_fab, NC_PB_fab, NC_P_fab);
         }
+
+        // FillBoundary to populate the internal halo cells
+         r_hse.FillBoundary(geom[lev].periodicity());
+         p_hse.FillBoundary(geom[lev].periodicity());
+        pi_hse.FillBoundary(geom[lev].periodicity());
     }
 
     if (init_type == "real" && (lev == 0)) {
@@ -377,7 +384,8 @@ init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
  */
 void
 init_base_state_from_wrfinput (int lev,
-                               const Box& valid_bx,
+                               const Box& gtbx,
+                               const Box& domain,
                                const Real l_rdOcp,
                                MoistureType moisture_type,
                                const int& n_qstate,
@@ -389,6 +397,9 @@ init_base_state_from_wrfinput (int lev,
                                const Vector<FArrayBox>& NC_PB_fab,
                                const Vector<FArrayBox>& NC_P_fab)
 {
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
+
     int nboxes = NC_ALB_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
     {
@@ -404,22 +415,30 @@ init_base_state_from_wrfinput (int lev,
         const Array4<Real const>&  nc_pb_arr = NC_PB_fab[idx].const_array();
         const Array4<Real const>&   nc_p_arr = NC_P_fab[idx].const_array();
 
-        ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            // Base state needs ghost cells filled, protect FAB access
+            int ii = std::max(i , dom_lo.x);
+                ii = std::min(ii, dom_hi.x);
+            int jj = std::max(j , dom_lo.y);
+                jj = std::min(jj, dom_hi.y);
+            int kk = std::max(k , dom_lo.z);
+                kk = std::min(kk, dom_hi.z);
+
             // Base plus perturbational pressure
-            Real Ptot = nc_pb_arr(i,j,k) + nc_p_arr(i,j,k);
+            Real Ptot = nc_pb_arr(ii,jj,kk) + nc_p_arr(ii,jj,kk);
 
             // Compute pressure from EOS
             Real Qv    = (moisture_type != MoistureType::None) ?
-                         cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp) : 0.0;
-            Real RT    = cons_arr(i,j,k,RhoTheta_comp);
+                         cons_arr(ii,jj,kk,RhoQ1_comp) / cons_arr(ii,jj,kk,Rho_comp) : 0.0;
+            Real RT    = cons_arr(ii,jj,kk,RhoTheta_comp);
             Real P_eos = getPgivenRTh(RT, Qv);
             Real DelP  = std::fabs(Ptot - P_eos);
             AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0), "Initial state is inconsistent with EOS!");
 
             // Compute rhse
-            Real Rhse_Sum = cons_arr(i,j,k,Rho_comp);
-            for (int q_offset(0); q_offset<n_qstate; ++q_offset) Rhse_Sum += cons_arr(i,j,k,RhoQ1_comp+q_offset);
+            Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
+            for (int q_offset(0); q_offset<n_qstate; ++q_offset) Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
 
             p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);

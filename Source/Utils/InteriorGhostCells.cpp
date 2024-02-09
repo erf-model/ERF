@@ -105,21 +105,21 @@ compute_interior_ghost_bxs_xy (const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
-                                   const Real& bdy_time_interval,
-                                   const Real& start_bdy_time,
-                                   const Real& time,
-                                   const Real& delta_t,
-                                   int  width,
-                                   int  set_width,
-                                   const Geometry& geom,
-                                   Vector<MultiFab>& S_rhs,
-                                   Vector<MultiFab>& S_old_data,
-                                   Vector<MultiFab>& S_cur_data,
-                                   Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                                   Vector<Vector<FArrayBox>>& bdy_data_yhi)
+realbdy_compute_interior_ghost_rhs (const std::string& init_type,
+                                    const Real& bdy_time_interval,
+                                    const Real& start_bdy_time,
+                                    const Real& time,
+                                    const Real& delta_t,
+                                    int  width,
+                                    int  set_width,
+                                    const Geometry& geom,
+                                    Vector<MultiFab>& S_rhs,
+                                    Vector<MultiFab>& S_old_data,
+                                    Vector<MultiFab>& S_cur_data,
+                                    Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                                    Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                                    Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                                    Vector<Vector<FArrayBox>>& bdy_data_yhi)
 {
     BL_PROFILE_REGION("wrfbdy_compute_interior_ghost_RHS()");
 
