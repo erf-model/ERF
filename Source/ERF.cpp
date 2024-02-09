@@ -494,15 +494,17 @@ ERF::InitData ()
 
         const Real time = start_time;
         InitFromScratch(time);
-/*
+
 #ifdef ERF_USE_MULTIBLOCK
+#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
         // Multiblock: hook to set BL & comms once ba/dm are known
         if(domain_p[0].bigEnd(0) < 500 ) {
             m_mbc->SetBoxLists();
             m_mbc->SetBlockCommMetaData();
         }
 #endif
-*/
+#endif
+
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 amrex::Abort("We do not currently support init_type = ideal with terrain");
@@ -1684,14 +1686,14 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
-/*
+#ifndef ERF_MB_EXTERN
         // DEBUG
         // Multiblock: hook for erf2 to fill from erf1
         if(domain_p[0].bigEnd(0) < 500) {
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
                 m_mbc->FillPatchBlocks(var_idx,var_idx);
         }
-*/
+#endif
 
         cur_time  += dt[0];
 
