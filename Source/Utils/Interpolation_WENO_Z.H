@@ -19,7 +19,8 @@ struct WENO_Z3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -44,7 +45,8 @@ struct WENO_Z3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -69,7 +71,8 @@ struct WENO_Z3
                        const int& k,
                        const int& qty_index,
                        amrex::Real& val_lo,
-                       amrex::Real upw_lo) const
+                       amrex::Real upw_lo,
+                       const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -137,7 +140,8 @@ struct WENO_MZQ3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i+1, j  , k  , qty_index);
@@ -162,7 +166,8 @@ struct WENO_MZQ3
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j+1, k  , qty_index);
@@ -187,7 +192,8 @@ struct WENO_MZQ3
                        const int& k,
                        const int& qty_index,
                        amrex::Real& val_lo,
-                       amrex::Real upw_lo) const
+                       amrex::Real upw_lo,
+                       const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp1 = m_phi(i  , j  , k+1, qty_index);
@@ -260,7 +266,8 @@ struct WENO_Z5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i+2, j  , k  , qty_index);
@@ -287,7 +294,8 @@ struct WENO_Z5
                     const int& k,
                     const int& qty_index,
                     amrex::Real& val_lo,
-                    amrex::Real upw_lo) const
+                    amrex::Real upw_lo,
+                    const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j+2, k  , qty_index);
@@ -314,7 +322,8 @@ struct WENO_Z5
                        const int& k,
                        const int& qty_index,
                        amrex::Real& val_lo,
-                       amrex::Real upw_lo) const
+                       amrex::Real upw_lo,
+                       const amrex::Real /*upw_frac*/) const
     {
         // Data to interpolate on
         amrex::Real sp2 = m_phi(i  , j  , k+2, qty_index);

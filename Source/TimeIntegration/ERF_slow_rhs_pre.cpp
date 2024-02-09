@@ -119,6 +119,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
+    const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
+    const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
     const bool    l_use_terrain    = solverChoice.use_terrain;
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
@@ -649,7 +651,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         AdvectionSrcForScalars(bx, icomp, ncomp,
                                avg_xmom, avg_ymom, avg_zmom,
                                cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
+                               l_horiz_adv_type, l_vert_adv_type,
+                               l_horiz_upw_frac, l_vert_upw_frac,
+                               l_use_terrain, flx_arr);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -764,7 +768,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                           l_horiz_adv_type, l_vert_adv_type, l_use_terrain, domhi_z);
+                           l_horiz_adv_type, l_vert_adv_type,
+                           l_horiz_upw_frac, l_vert_upw_frac,
+                           l_use_terrain, domhi_z);
 
         if (l_use_diff) {
             // Note: tau** were calculated with calls to

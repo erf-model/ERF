@@ -40,6 +40,7 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                             const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const bool use_terrain,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
 
@@ -57,6 +58,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
+                         const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                          const bool use_terrain, const int domhi_z);
 
 AMREX_GPU_HOST_DEVICE
