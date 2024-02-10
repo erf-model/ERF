@@ -111,9 +111,12 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
-    const int l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
-    const int l_vert_adv_type  = solverChoice.dycore_vert_adv_type;
-    const bool l_use_terrain    = solverChoice.use_terrain;
+    const int  l_horiz_adv_type = solverChoice.dycore_horiz_adv_type;
+    const int   l_vert_adv_type = solverChoice.dycore_vert_adv_type;
+    const Real l_horiz_upw_frac = solverChoice.dycore_horiz_upw_frac;
+    const Real  l_vert_upw_frac = solverChoice.dycore_vert_upw_frac;
+
+    const bool l_use_terrain = solverChoice.use_terrain;
 
     AMREX_ALWAYS_ASSERT (!l_use_terrain);
 
@@ -596,13 +599,17 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            cell_prim, z_nd, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
-                           l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
+                           //l_horiz_adv_type, l_vert_adv_type,
+                           //l_horiz_upw_frac, l_vert_upw_frac,
+                           l_use_terrain, flx_arr);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
                                avg_xmom, avg_ymom, avg_zmom,
                                cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               l_horiz_adv_type, l_vert_adv_type, l_use_terrain, flx_arr);
+                               l_horiz_adv_type, l_vert_adv_type,
+                               l_horiz_upw_frac, l_vert_upw_frac,
+                               l_use_terrain, flx_arr);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -689,7 +696,9 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                           horiz_adv_type, vert_adv_type, l_use_terrain, domhi_z);
+                           l_horiz_adv_type, l_vert_adv_type,
+                           l_horiz_upw_frac, l_vert_upw_frac,
+                           l_use_terrain, domhi_z);
 
         if (l_use_diff) {
             DiffusionSrcForMom_N(tbx, tby, tbz,
