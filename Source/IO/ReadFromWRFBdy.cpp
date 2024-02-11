@@ -175,6 +175,11 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
         Box y_line_no_stag(IntVect(lo[0], 0, 0), IntVect(hi[0], 0, 0));
 
+        Arena* Arena_Used = The_Arena();
+#ifdef AMREX_USE_GPU
+        Arena_Used = The_Pinned_Arena();
+#endif
+
         if (bdyType == WRFBdyTypes::x_lo) {
 
                 // *******************************************************************************
@@ -192,28 +197,28 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1)); // U
+                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
                     }
                 } else if (bdyVarType == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1)); // V
+                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
                     }
                 } else if (bdyVarType == WRFBdyVars::R) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // R
+                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // R
                     }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // T
+                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
                     }
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1)); // QV
+                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
                     }
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_line, 1));
+                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_line, 1, Arena_Used));
                     }
                 }
 
@@ -238,28 +243,28 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_x_stag, 1)); // U
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_x_stag, 1, Arena_Used)); // U
                     }
                 } else if (bdyVarType == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1)); // V
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_y_stag , 1, Arena_Used)); // V
                     }
                 } else if (bdyVarType == WRFBdyVars::R) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // R
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // R
                     }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // T
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // T
                     }
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1)); // QV
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_plane_no_stag, 1, Arena_Used)); // QV
                     }
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_xhi[nt].push_back(FArrayBox(xhi_line, 1)); // MU
+                      bdy_data_xhi[nt].push_back(FArrayBox(xhi_line, 1, Arena_Used)); // MU
                     }
                 }
 
@@ -280,28 +285,28 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_x_stag , 1)); // U
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_x_stag , 1, Arena_Used)); // U
                     }
                 } else if (bdyVarType == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1)); // V
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_y_stag, 1, Arena_Used)); // V
                     }
                 } else if (bdyVarType == WRFBdyVars::R) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // R
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // R
                     }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // T
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // T
                     }
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1)); // QV
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_plane_no_stag, 1, Arena_Used)); // QV
                     }
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_ylo[nt].push_back(FArrayBox(ylo_line, 1)); // PC
+                      bdy_data_ylo[nt].push_back(FArrayBox(ylo_line, 1, Arena_Used)); // PC
                     }
                 }
 
@@ -326,28 +331,28 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 
                 if        (bdyVarType == WRFBdyVars::U) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_x_stag , 1)); // U
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_x_stag , 1, Arena_Used)); // U
                     }
                 } else if (bdyVarType == WRFBdyVars::V) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1)); // V
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_y_stag, 1, Arena_Used)); // V
                     }
                 } else if (bdyVarType == WRFBdyVars::R) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // R
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // R
                     }
                 } else if (bdyVarType == WRFBdyVars::T) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // T
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // T
                     }
                 } else if (bdyVarType == WRFBdyVars::QV) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1)); // QV
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_plane_no_stag, 1, Arena_Used)); // QV
                     }
                 } else if (bdyVarType == WRFBdyVars::MU ||
                            bdyVarType == WRFBdyVars::PC) {
                     for (int nt(0); nt < ntimes; ++nt) {
-                        bdy_data_yhi[nt].push_back(FArrayBox(yhi_line, 1)); // PC
+                      bdy_data_yhi[nt].push_back(FArrayBox(yhi_line, 1, Arena_Used)); // PC
                     }
                 }
         }
@@ -530,7 +535,8 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
                      const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,
                      const FArrayBox& NC_RDNW_fab,
                      const FArrayBox& NC_xvel_fab, const FArrayBox& NC_yvel_fab,
-                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab)
+                     const FArrayBox& NC_rho_fab, const FArrayBox& NC_rhotheta_fab,
+                     const FArrayBox& NC_QVAPOR_fab)
 {
     // These were filled from wrfinput
     Array4<Real const> c1h_arr  = NC_C1H_fab.const_array();
@@ -556,147 +562,90 @@ convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bd
         int jlo  = domain.smallEnd()[1];
         int jhi  = domain.bigEnd()[1];
 
-        const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
-        ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real xmu;
-            if (i == ilo) {
-                xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-            } else if (i > ihi) {
-                xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
-            } else {
-                xmu = ( mu_arr(i,j,0) +  mu_arr(i-1,j,0)
-                      +mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
-            }
-            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-            Real new_bdy = bdy_u_arr(i,j,k) / xmu_mult;
-            bdy_u_arr(i,j,k) = new_bdy;
-        });
+        if (nt==0) {
+            bdy_data[0][WRFBdyVars::U].template copy<RunOn::Device>(NC_xvel_fab);
+            bdy_data[0][WRFBdyVars::V].template copy<RunOn::Device>(NC_yvel_fab);
+            bdy_data[0][WRFBdyVars::R].template copy<RunOn::Device>(NC_rho_fab);
+            bdy_data[0][WRFBdyVars::T].template copy<RunOn::Device>(NC_rhotheta_fab);
+            bdy_data[0][WRFBdyVars::QV].template copy<RunOn::Device>(NC_QVAPOR_fab);
+            bdy_data[0][WRFBdyVars::QV].template mult<RunOn::Device>(NC_rho_fab);
+        } else {
+            // Define u velocity
+            const auto & bx_u  = bdy_data[0][WRFBdyVars::U].box();
+            ParallelFor(bx_u, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real xmu;
+                if (i == ilo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (i > ihi) {
+                    xmu  = mu_arr(i-1,j,0) + mub_arr(i-1,j,0);
+                } else {
+                    xmu = ( mu_arr(i,j,0) +  mu_arr(i-1,j,0)
+                           +mub_arr(i,j,0) + mub_arr(i-1,j,0)) * 0.5;
+                }
+                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy = bdy_u_arr(i,j,k) / xmu_mult;
+                bdy_u_arr(i,j,k) = new_bdy;
+            });
 
-#ifndef AMREX_USE_GPU
-        if (nt == 0) {
-            FArrayBox diff(bx_u,1);
-            diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::U]);
-            diff.template minus<RunOn::Device>(NC_xvel_fab);
-            if (which == 0)
-                amrex::Print() << "Max norm of diff between initial U and bdy U on lo x face: " << diff.norm(0) << std::endl;
-            if (which == 1)
-                amrex::Print() << "Max norm of diff between initial U and bdy U on hi x face: " << diff.norm(0) << std::endl;
-            if (which == 2)
-                amrex::Print() << "Max norm of diff between initial U and bdy U on lo y face: " << diff.norm(0) << std::endl;
-            if (which == 3)
-                amrex::Print() << "Max norm of diff between initial U and bdy U on hi y face: " << diff.norm(0) << std::endl;
-        }
-#endif
+            // Define v velocity
+            const auto & bx_v  = bdy_data[0][WRFBdyVars::V].box();
+            ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real xmu;
+                if (j == jlo) {
+                    xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
+                } else if (j > jhi) {
+                    xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
+                } else {
+                    xmu =  ( mu_arr(i,j,0) +  mu_arr(i,j-1,0)
+                            +mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
+                }
+                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy = bdy_v_arr(i,j,k) / xmu_mult;
+                bdy_v_arr(i,j,k) = new_bdy;
+            });
 
-        const auto & bx_v  = bdy_data[0][WRFBdyVars::V].box();
-        ParallelFor(bx_v, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            Real xmu;
-            if (j == jlo) {
-                xmu  = mu_arr(i,j,0) + mub_arr(i,j,0);
-            } else if (j > jhi) {
-                xmu  = mu_arr(i,j-1,0) + mub_arr(i,j-1,0);
-            } else {
-                xmu =  ( mu_arr(i,j,0) +  mu_arr(i,j-1,0)
-                       +mub_arr(i,j,0) + mub_arr(i,j-1,0) ) * 0.5;
-            }
-            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-            Real new_bdy = bdy_v_arr(i,j,k) / xmu_mult;
-            bdy_v_arr(i,j,k) = new_bdy;
-        });
+            // Define density
+            const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
+            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real xmu  = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
+                Real dpht = (ph_arr(i,j,k+1) + phb_arr(i,j,k+1)) - (ph_arr(i,j,k) + phb_arr(i,j,k));
+                bdy_r_arr(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
+                //if (nt == 0 and std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) > 0.) {
+                //    amrex::Print() << "INIT VS BDY DEN " << IntVect(i,j,k) << " " << r_arr(i,j,k) << " " << bdy_r_arr(i,j,k) <<
+                //                    " " << std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) << std::endl;
+                //}
+            });
 
-#ifndef AMREX_USE_GPU
-        if (nt == 0) {
-            FArrayBox diff(bx_v,1);
-            diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::V]);
-            diff.template minus<RunOn::Device>(NC_yvel_fab);
-            if (which == 0)
-                amrex::Print() << "Max norm of diff between initial V and bdy V on lo x face: " << diff.norm(0) << std::endl;
-            if (which == 1)
-                amrex::Print() << "Max norm of diff between initial V and bdy V on hi x face: " << diff.norm(0) << std::endl;
-            if (which == 2)
-                amrex::Print() << "Max norm of diff between initial V and bdy V on lo y face: " << diff.norm(0) << std::endl;
-            if (which == 3)
-                amrex::Print() << "Max norm of diff between initial V and bdy V on hi y face: " << diff.norm(0) << std::endl;
-        }
-#endif
+            // Define theta
+            amrex::Real theta_ref = 300.;
+            ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
+                Real qv_fac = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
+                new_bdy_Th /= qv_fac;
+                bdy_t_arr(i,j,k) = new_bdy_Th * bdy_r_arr(i,j,k);
+                //if (nt == 0 and std::abs(rth_arr(i,j,k) - bdy_t_arr(i,j,k)) > 0.) {
+                //    amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << rth_arr(i,j,k) << " " << bdy_t_arr(i,j,k) <<
+                //                    " " << std::abs(th_arr(i,j,k) - bdy_t_arr(i,j,k)) << std::endl;
+                //}
+            });
 
-        const auto & bx_t = bdy_data[0][WRFBdyVars::T].box(); // Note this is currently "THM" aka the perturbational moist pot. temp.
+            // Define Qv
+            const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
+            ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
+                Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
+                Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
+                bdy_qv_arr(i,j,k) = new_bdy_QV * bdy_r_arr(i,j,k);
+            });
 
-        // Define density
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-
-            Real xmu = c1h_arr(0,0,k) * (mu_arr(i,j,0) + mub_arr(i,j,0)) + c2h_arr(0,0,k);
-
-            Real dpht =  (ph_arr(i,j,k+1) + phb_arr(i,j,k+1)) - (ph_arr(i,j,k) + phb_arr(i,j,k));
-
-            bdy_r_arr(i,j,k) = -xmu / ( dpht * rdnw_arr(0,0,k) );
-
-            //if (nt == 0 and std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) > 0.) {
-            //    amrex::Print() << "INIT VS BDY DEN " << IntVect(i,j,k) << " " << r_arr(i,j,k) << " " << bdy_r_arr(i,j,k) <<
-            //                    " " << std::abs(r_arr(i,j,k) - bdy_r_arr(i,j,k)) << std::endl;
-            //}
-        });
-
-        // Define theta
-        amrex::Real theta_ref = 300.;
-        ParallelFor(bx_t, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-
-            Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
-            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-
-            Real new_bdy_Th = bdy_t_arr(i,j,k) / xmu_mult + theta_ref;
-
-            Real qv_fac = (1. + bdy_qv_arr(i,j,k) / 0.622 / xmu_mult);
-
-            new_bdy_Th /= qv_fac;
-
-            bdy_t_arr(i,j,k) = new_bdy_Th * bdy_r_arr(i,j,k);
-
-            //if (nt == 0 and std::abs(rth_arr(i,j,k) - bdy_t_arr(i,j,k)) > 0.) {
-            //    amrex::Print() << "INIT VS BDY TH " << IntVect(i,j,k) << " " << rth_arr(i,j,k) << " " << bdy_t_arr(i,j,k) <<
-            //                    " " << std::abs(th_arr(i,j,k) - bdy_t_arr(i,j,k)) << std::endl;
-            //}
-        });
-
-#ifndef AMREX_USE_GPU
-        if (nt == 0) {
-            FArrayBox diff(bx_t,1);
-            diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::R]);
-            //diff.template mult<RunOn::Device>(NC_rho_fab);
-            diff.template minus<RunOn::Device>(NC_rho_fab);
-            if (which == 0)
-                amrex::Print() << "Max norm of diff between initial r and bdy r on lo x face: " << diff.norm(0) << std::endl;
-            if (which == 1)
-                amrex::Print() << "Max norm of diff between initial r and bdy r on hi x face: " << diff.norm(0) << std::endl;
-            if (which == 2)
-                amrex::Print() << "Max norm of diff between initial r and bdy r on lo y face: " << diff.norm(0) << std::endl;
-            if (which == 3)
-                amrex::Print() << "Max norm of diff between initial r and bdy r on hi y face: " << diff.norm(0) << std::endl;
-
-            diff.template copy<RunOn::Device>(bdy_data[0][WRFBdyVars::T]);
-            diff.template minus<RunOn::Device>(NC_rhotheta_fab);
-            if (which == 0)
-                amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on lo x face: " << diff.norm(0) << std::endl;
-            if (which == 1)
-                amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on hi x face: " << diff.norm(0) << std::endl;
-            if (which == 2)
-                amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on lo y face: " << diff.norm(0) << std::endl;
-            if (which == 3)
-                amrex::Print() << "Max norm of diff between initial rTh and bdy rTh on hi y face: " << diff.norm(0) << std::endl;
-        }
-#endif
-
-        // Define Qv
-        const auto & bx_qv = bdy_data[0][WRFBdyVars::QV].box();
-        ParallelFor(bx_qv, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-
-            Real xmu  = (mu_arr(i,j,0) + mub_arr(i,j,0));
-            Real xmu_mult = c1h_arr(0,0,k) * xmu + c2h_arr(0,0,k);
-
-            Real new_bdy_QV = bdy_qv_arr(i,j,k) / xmu_mult;
-
-            bdy_qv_arr(i,j,k) = new_bdy_QV * bdy_r_arr(i,j,k);
-        });
+        } // nt ==0
     } // ntimes
 }
 #endif // ERF_USE_NETCDF

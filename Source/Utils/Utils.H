@@ -67,21 +67,21 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
-                                        const amrex::Real& bdy_time_interval,
-                                        const amrex::Real& start_bdy_time,
-                                        const amrex::Real& time,
-                                        const amrex::Real& delta_t,
-                                        int width,
-                                        int set_width,
-                                        const amrex::Geometry& geom,
-                                        amrex::Vector<amrex::MultiFab>& S_rhs,
-                                        amrex::Vector<amrex::MultiFab>& S_old_data,
-                                        amrex::Vector<amrex::MultiFab>& S_cur_data,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+void realbdy_compute_interior_ghost_rhs (const std::string& init_type,
+                                         const amrex::Real& bdy_time_interval,
+                                         const amrex::Real& start_bdy_time,
+                                         const amrex::Real& time,
+                                         const amrex::Real& delta_t,
+                                         int width,
+                                         int set_width,
+                                         const amrex::Geometry& geom,
+                                         amrex::Vector<amrex::MultiFab>& S_rhs,
+                                         amrex::Vector<amrex::MultiFab>& S_old_data,
+                                         amrex::Vector<amrex::MultiFab>& S_cur_data,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 /*
  * Compute relaxation region RHS at fine-crse interface

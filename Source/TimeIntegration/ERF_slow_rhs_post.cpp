@@ -431,6 +431,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
             amrex::Real oma   = 1.0 - alpha;
 
+            /*
+            // UNIT TEST DEBUG
+            oma = 1.0; alpha = 0.0;
+            */
+
             // Boundary data at fixed time intervals
             const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
             const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
@@ -540,6 +545,41 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     new_cons, cell_rhs);
             }
+
+            /*
+            // UNIT TEST DEBUG
+            compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            */
         } // moist_set_rhs
 #endif
 

@@ -204,24 +204,14 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs) {
-            if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
-                int width, set_width;
-                if (init_type == "real") {
-                    width = wrfbdy_width;
-                    set_width = wrfbdy_set_width;
-                } else if (init_type == "metgrid") {
-                    width = metgrid_bdy_width;
-                    set_width = metgrid_bdy_set_width;
-                }
-
-                if (width>0)
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      width, set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+        if (use_real_bcs && (level == 0)) {
+            if (real_width>0) {
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif
@@ -283,20 +273,13 @@
         Real slow_dt = new_stage_time - old_step_time;
 
 #if defined(ERF_USE_NETCDF)
-        int width, set_width;
         bool moist_set_rhs = false;
-        if ( use_real_bcs && (solverChoice.moisture_type != MoistureType::None) && (level==0) )
+        if ( use_real_bcs &&
+             (level==0)   &&
+             (real_set_width > 0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
         {
-            if (init_type=="real") {
-                width = wrfbdy_width;
-                set_width = wrfbdy_set_width;
-                if (wrfbdy_set_width > 0) moist_set_rhs = true;
-            }
-            if (init_type=="metgrid") {
-                width = metgrid_bdy_width;
-                set_width = metgrid_bdy_set_width;
-                if (metgrid_bdy_set_width > 0) moist_set_rhs = true;
-            }
+            moist_set_rhs = true;
         }
 #endif
 
@@ -327,7 +310,7 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              width, set_width,
+                              real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               fr_as_crse, fr_as_fine
@@ -343,7 +326,7 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              width, set_width,
+                              real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
                               fr_as_crse, fr_as_fine
@@ -385,24 +368,14 @@
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs) {
-            if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
-                int width, set_width;
-                if (init_type == "real") {
-                    width = wrfbdy_width;
-                    set_width = wrfbdy_set_width;
-                } else if (init_type == "metgrid") {
-                    width = metgrid_bdy_width;
-                    set_width = metgrid_bdy_set_width;
-                }
-
-                if (width>0)
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      width, set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+        if (use_real_bcs && (level == 0)) {
+            if (real_width>0) {
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif

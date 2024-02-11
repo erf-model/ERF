@@ -70,10 +70,14 @@ ERF::init_from_metgrid (int lev)
     Vector<Real> NC_dx;              NC_dx.resize(       ntimes);
     Vector<Real> NC_dy;              NC_dy.resize(       ntimes);
 
-    for (int it = 0; it < ntimes; it++) {
-#ifndef AMREX_USE_GPU
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": nc_init_file[" << lev << "][" << it << "]\t" << nc_init_file[lev][it] << std::endl;
+    // Define the arena to be used for data allocation
+    Arena* Arena_Used = The_Arena();
+#ifdef AMREX_USE_GPU
+    // Make sure this lives on CPU and GPU
+    Arena_Used = The_Pinned_Arena();
 #endif
+
+    for (int it = 0; it < ntimes; it++) {
         read_from_metgrid(lev, boxes_at_level[lev][0], nc_init_file[lev][it],
                           NC_dateTime[it], NC_epochTime[it],
                           flag_psfc[it],   flag_msfu[it],   flag_msfv[it],  flag_msfm[it],
@@ -84,20 +88,6 @@ ERF::init_from_metgrid (int lev)
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
                           NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
                           NC_sst_fab[it],  NC_lmask_iab[it]);
-#ifndef AMREX_USE_GPU
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_psfc   \t" << flag_psfc[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfu   \t" << flag_msfu[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfv   \t" << flag_msfv[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_msfm   \t" << flag_msfm[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": flag_hgt    \t" << flag_hgt[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_nx       \t" << NC_nx[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_ny       \t" << NC_ny[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_dx       \t" << NC_dx[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_dy       \t" << NC_dy[it] << std::endl;
-        amrex::AllPrint() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << " it-" << it << ": NC_epochTime\t" << NC_epochTime[it] << std::endl;
-        // NC_dateTime is only on the IOProcessor.
-        amrex::Print() << " DJW init_from_metgrid proc-" << ParallelDescriptor::MyProc() << ": NC_dateTime \t" << NC_dateTime[it] << std::endl;
-#endif
     } // it
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -114,9 +104,6 @@ ERF::init_from_metgrid (int lev)
     // Verify that met_em files have even spacing in time.
     for (int it = 1; it < ntimes; it++) {
         Real NC_dt = NC_epochTime[it]-NC_epochTime[it-1];
-#ifndef AMREX_USE_GPU
-        amrex::Print() << " " << nc_init_file[lev][it-1] << " / " << nc_init_file[lev][it] << " are " << NC_dt << " seconds apart" << std::endl;
-#endif
         if (NC_dt != bdy_time_interval) amrex::Error("Time interval between consecutive met_em files must be consistent.");
     }
 
@@ -127,13 +114,8 @@ ERF::init_from_metgrid (int lev)
     Vector<FArrayBox> theta_fab; theta_fab.resize(ntimes);
     for (int it = 0; it < ntimes; it++) {
         Box NC_box_unstag = NC_rhum_fab[it].box();
-#ifdef AMREX_USE_GPU
-        mxrat_fab[it].resize(NC_box_unstag, 1, The_Pinned_Arena());
-        theta_fab[it].resize(NC_box_unstag, 1, The_Pinned_Arena());
-#else
-        mxrat_fab[it].resize(NC_box_unstag, 1);
-        theta_fab[it].resize(NC_box_unstag, 1);
-#endif
+        mxrat_fab[it].resize(NC_box_unstag, 1, Arena_Used);
+        theta_fab[it].resize(NC_box_unstag, 1, Arena_Used);
     }
 
     auto& lev_new = vars_new[lev];
@@ -254,11 +236,7 @@ ERF::init_from_metgrid (int lev)
                 auto ng = lev_new[Vars::cons].nGrowVect();
                 gdomain = amrex::grow(ldomain,ng);
             }
-#ifdef AMREX_USE_GPU
-            fabs_for_bcs[it][nvar].resize(gdomain, 1, The_Pinned_Arena());
-#else
-            fabs_for_bcs[it][nvar].resize(gdomain, 1);
-#endif
+            fabs_for_bcs[it][nvar].resize(gdomain, 1, Arena_Used);
             fabs_for_bcs[it][nvar].template setVal<RunOn::Device>(0.0);
         }
     }
@@ -366,9 +344,9 @@ ERF::init_from_metgrid (int lev)
 
     // NOTE: We must guarantee one halo cell in the bdy file.
     //       Otherwise, we make the total width match the set width.
-    if (metgrid_bdy_width-1 <= metgrid_bdy_set_width) metgrid_bdy_width = metgrid_bdy_set_width;
-    amrex::Print() << "Running with specification width: " << metgrid_bdy_set_width
-                   << " and relaxation width: " << metgrid_bdy_width - metgrid_bdy_set_width << std::endl;
+    if (real_width-1 <= real_set_width) real_width = real_set_width;
+    amrex::Print() << "Running with specification width: " << real_set_width
+                   << " and relaxation width: " << real_width - real_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
     bdy_data_xlo.resize(ntimes);
@@ -382,13 +360,13 @@ ERF::init_from_metgrid (int lev)
     amrex::IntVect phi(hi);
 
     plo[0] = lo[0];                     plo[1] = lo[1]; plo[2] = lo[2];
-    phi[0] = lo[0]+metgrid_bdy_width-1; phi[1] = hi[1]; phi[2] = hi[2];
+    phi[0] = lo[0]+real_width-1; phi[1] = hi[1]; phi[2] = hi[2];
     const Box pbx_xlo(plo, phi);
     Box xlo_plane_no_stag(pbx_xlo);
     Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
     Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
 
-    plo[0] = hi[0]-metgrid_bdy_width+1; plo[1] = lo[1]; plo[2] = lo[2];
+    plo[0] = hi[0]-real_width+1; plo[1] = lo[1]; plo[2] = lo[2];
     phi[0] = hi[0];                     phi[1] = hi[1]; phi[2] = hi[2];
     const Box pbx_xhi(plo, phi);
     Box xhi_plane_no_stag(pbx_xhi);
@@ -396,41 +374,18 @@ ERF::init_from_metgrid (int lev)
     Box xhi_plane_y_stag = convert(pbx_xhi, {0, 1, 0});
 
     plo[1] = lo[1];                     plo[0] = lo[0]; plo[2] = lo[2];
-    phi[1] = lo[1]+metgrid_bdy_width-1; phi[0] = hi[0]; phi[2] = hi[2];
+    phi[1] = lo[1]+real_width-1; phi[0] = hi[0]; phi[2] = hi[2];
     const Box pbx_ylo(plo, phi);
     Box ylo_plane_no_stag(pbx_ylo);
     Box ylo_plane_x_stag = convert(pbx_ylo, {1, 0, 0});
     Box ylo_plane_y_stag = pbx_ylo; ylo_plane_y_stag.shiftHalf(1,-1);
 
-    plo[1] = hi[1]-metgrid_bdy_width+1; plo[0] = lo[0]; plo[2] = lo[2];
+    plo[1] = hi[1]-real_width+1; plo[0] = lo[0]; plo[2] = lo[2];
     phi[1] = hi[1];                     phi[0] = hi[0]; phi[2] = hi[2];
     const Box pbx_yhi(plo, phi);
     Box yhi_plane_no_stag(pbx_yhi);
     Box yhi_plane_x_stag = convert(pbx_yhi, {1, 0, 0});
     Box yhi_plane_y_stag = pbx_yhi; yhi_plane_y_stag.shiftHalf(1,1);
-
-#ifndef AMREX_USE_GPU
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_no_stag \t" << xlo_plane_no_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_x_stag  \t" << xlo_plane_x_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txlo_plane_y_stag  \t" << xlo_plane_y_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_no_stag \t" << xhi_plane_no_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_x_stag  \t" << xhi_plane_x_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \txhi_plane_y_stag  \t" << xhi_plane_y_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_no_stag \t" << ylo_plane_no_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_x_stag  \t" << ylo_plane_x_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tylo_plane_y_stag  \t" << ylo_plane_y_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tplo               \t" << plo << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tphi               \t" << phi << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_no_stag \t" << yhi_plane_no_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_x_stag  \t" << yhi_plane_x_stag << std::endl;
-    amrex::AllPrint() << " proc-" << ParallelDescriptor::MyProc() << " \tyhi_plane_y_stag  \t" << yhi_plane_y_stag << std::endl;
-#endif
 
     for (int ivar(MetGridBdyVars::U); ivar < MetGridBdyEnd; ivar++) {
         for (int it(0); it < ntimes; it++) {
@@ -550,11 +505,6 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
    int ntimes = 1; // Use terrain from the first met_em file.
 
    for (int it = 0; it < ntimes; it++) {
-#ifndef AMREX_USE_GPU
-        amrex::Print() << " SIZE OF HGT FAB " << NC_hgt_fab[it].box() << std::endl;
-        amrex::Print() << " SIZE OF ZP FAB "  << z_phys_nd_fab.box() << std::endl;
-#endif
-
         // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&      z_arr = z_phys_nd_fab.array();
         const Array4<Real const>& nc_hgt_arr = NC_hgt_fab[it].const_array();
@@ -573,11 +523,6 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
         Box bx = z_phys_box & from_box;
         Box bxu = bx; bxu.growHi(0,1);
         Box bxv = bx; bxv.growHi(1,1);
-
-#ifndef AMREX_USE_GPU
-        amrex::Print() << "FROM BOX " << from_box << std::endl;
-        amrex::Print() << "BX " << bx << std::endl;
-#endif
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -863,6 +808,13 @@ init_base_state_from_metgrid (const bool use_moisture,
     Gpu::copy(Gpu::hostToDevice, flag_psfc.begin(), flag_psfc.end(), flag_psfc_d.begin());
     int* flag_psfc_vec = flag_psfc_d.data();
 
+    // Define the arena to be used for data allocation
+    Arena* Arena_Used = The_Arena();
+#ifdef AMREX_USE_GPU
+    // Make sure this lives on CPU and GPU
+    Arena_Used = The_Pinned_Arena();
+#endif
+
     { // set pressure and density at initialization.
         const Array4<Real>& r_hse_arr  = r_hse_fab.array();
         const Array4<Real>& p_hse_arr  = p_hse_fab.array();
@@ -965,11 +917,7 @@ init_base_state_from_metgrid (const bool use_moisture,
     for (int it=0; it<ntimes; it++) {
         FArrayBox p_hse_bcs_fab;
         FArrayBox pi_hse_bcs_fab;
-#ifdef AMREX_USE_GPU
-        p_hse_bcs_fab.resize(state_fab.box(), 1, The_Pinned_Arena());
-#else
-        p_hse_bcs_fab.resize(state_fab.box(), 1);
-#endif
+        p_hse_bcs_fab.resize(state_fab.box(), 1, Arena_Used);
 
         // ********************************************************
         // calculate dry density and dry pressure

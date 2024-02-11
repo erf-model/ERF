@@ -258,12 +258,12 @@ fill_fab_from_arrays (int iv,
         var_name == "MAPFAC_V" || var_name == "MAPFAC_VY") my_box.setType(amrex::IndexType(amrex::IntVect(0,1,0)));
     if (var_name == "W" || var_name == "WW") my_box.setType(amrex::IndexType(amrex::IntVect(0,0,1)));
 
+    amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
     // Make sure temp lives on CPU since nc_arrays lives on CPU only
-    temp.resize(my_box,1,amrex::The_Pinned_Arena());
-#else
-    temp.resize(my_box,1);
+    Arena_Used = amrex::The_Pinned_Arena();
 #endif
+    temp.resize(my_box,1, Arena_Used);
     amrex::Array4<DType> fab_arr = temp.array();
 
     int ioff = temp.box().smallEnd()[0];
