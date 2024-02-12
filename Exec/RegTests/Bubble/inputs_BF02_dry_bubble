@@ -7,8 +7,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 20000.0 312.5  10000.0
-amr.n_cell           = 256     4      128
+geometry.prob_extent = 20000.0 400.0  10000.0
+amr.n_cell           = 200     4      100
 geometry.is_periodic = 0 1 0
 xlo.type = "SlipWall"
 xhi.type = "SlipWall"    
@@ -57,9 +57,9 @@ erf.use_moist_background = false
 
 erf.molec_diff_type  = "ConstantAlpha"
 erf.rho0_trans       = 1.0 # [kg/m^3], used to convert input diffusivities
-erf.dynamicViscosity = 1.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
-erf.alpha_T          = 1.0 # [m^2/s]
-erf.alpha_C          = 1.0
+erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T          = 0.0 # [m^2/s]
+erf.alpha_C          = 0.0
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input
