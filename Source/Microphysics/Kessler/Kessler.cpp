@@ -70,6 +70,7 @@ void Kessler::AdvanceKessler ()
         auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array   = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
         auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
         auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
         auto theta_array = theta->array(mfi);
@@ -163,6 +164,8 @@ void Kessler::AdvanceKessler ()
             qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
             qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
+
+            qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
         });
     }
 }
