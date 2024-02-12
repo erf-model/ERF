@@ -103,8 +103,23 @@ Then the acoustic substepping evolves the equations in the form
           - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
 
 where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)` with :math:`\beta_s = 0.1`.
+:math:`\beta_s` is the acoustic step off-centering coefficient and 0.1 is the typical WRF value. This off-centering is intended to provide damping of both horizontally and vertically propagating sound waves by biasing the time average toward the future time step.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
 We then solve a tridiagonal system for :math:`W^{\prime \prime, \tau + \delta \tau}`, and once :math:`W^{\prime \prime, \tau + \delta \tau}`
 is known, we update :math:`\rho^{\prime \prime, \tau + \delta \tau}` and :math:`\Theta^{\prime \prime, \tau + \delta \tau}.`
+
+In addition to the acoustic off-centering, divergence damping is also applied
+to control horizontally propagating sound waves.
+
+.. math::
+
+   p^{\prime\prime,\tau*} = p^{\prime\prime,\tau}
+     + \beta_d \left( p^{\prime\prime,\tau} + p^{\prime\prime,\tau-\delta\tau} \right)
+
+where :math:`\tau*` is the forward projected value used in RHS of the acoustic
+substepping equations for horizontal momentum. According to Skamarock et al,
+This is equivalent to including a horizontal diffusion term in the continuity
+equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
+WRF.
