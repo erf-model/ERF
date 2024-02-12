@@ -248,7 +248,7 @@ However, users may utilize the WENO scheme for dry scalar variables as well.   T
    erf.moistscal_vert_adv_type  =
 
 Ref: Muñoz-Esparza, D., Sauer, J. A., Jensen, A. A., Xue, L., & Grabowski, W. W. (2022). The FastEddy® resident-GPU accelerated large-eddy simulation framework: Moist dynamics extension, validation and sensitivities of modeling non-precipitating shallow cumulus clouds. Journal of Advances in Modeling Earth Systems, 14, e2021MS002904.
-`https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904>`_
+`doi:10.1029/2021MS002904 <https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904>`_
 
 Momentum, Thermal, and Scalar Diffusion Contribution to DNS
 ===========================================================
