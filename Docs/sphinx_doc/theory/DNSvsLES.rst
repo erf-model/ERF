@@ -19,7 +19,7 @@ The transport coefficients correspond to the molecular transport coefficients,
 with one of these assumptions:
 
 * constant transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`, or
- 
+
 * constant :math:`\nu = \mu / \rho`, :math:`\alpha_T` and constant :math:`\alpha_C`,
       each of which is then multiplied by :math:`\rho` in the construction of the diffusive terms.
 
