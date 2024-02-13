@@ -70,13 +70,6 @@ Problem::init_custom_pert(
 
     const bool use_terrain = sc.use_terrain;
 
-    if (state.nComp() > RhoQKE_comp) {
-        amrex::Print() << "Initializing RhoQKE for PBL scheme" << std::endl;
-    }
-    else if (state.nComp() > RhoKE_comp) {
-        amrex::Print() << "Initializing RhoKE for Deardorff" << std::endl;
-    }
-
     if (parms.pert_ref_height > 0) {
         if ((parms.pert_deltaU != 0.0) || (parms.pert_deltaV != 0.0)) {
             if (use_terrain) {
@@ -131,16 +124,23 @@ Problem::init_custom_pert(
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
-    // Set an initial value for QKE
+    // Set an initial value for SGS KE
     if (state.nComp() > RhoKE_comp) {
-        const int KE_idx = (state.nComp() > RhoQKE_comp) ? RhoQKE_comp // PBL scheme
-                                                         : RhoKE_comp; // Deardorff
-        const Real KE_0 = (state.nComp() > RhoQKE_comp) ? parms.QKE_0 // PBL scheme
-                                                        : parms.KE_0; // Deardorff
-        state(i, j, k, KE_idx) = r_hse(i,j,k) * KE_0;
+        // Deardorff
+        state(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms.KE_0;
         if (parms.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
-            state(i, j, k, KE_idx) *= max(
+            state(i, j, k, RhoKE_comp) *= max(
+                std::pow(1 - z/parms.KE_decay_height, parms.KE_decay_order),
+                1e-12);
+        }
+    }
+    if (state.nComp() > RhoQKE_comp) {
+        // PBL
+        state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
+        if (parms.KE_decay_height > 0) {
+            // scale initial SGS kinetic energy with height
+            state(i, j, k, RhoQKE_comp) *= max(
                 std::pow(1 - z/parms.KE_decay_height, parms.KE_decay_order),
                 1e-12);
         }
