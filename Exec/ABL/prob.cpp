@@ -25,6 +25,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
   pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
+  pp.query("pert_rhotheta", parms.pert_rhotheta);
 
   pp.query("pert_deltaU", parms.pert_deltaU);
   pp.query("pert_deltaV", parms.pert_deltaV);
@@ -52,7 +53,7 @@ Problem::init_custom_pert(
     amrex::Array4<amrex::Real      > const& x_vel,
     amrex::Array4<amrex::Real      > const& y_vel,
     amrex::Array4<amrex::Real      > const& z_vel,
-    amrex::Array4<amrex::Real      > const& /*r_hse*/,
+    amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
     amrex::Array4<amrex::Real const> const& /*z_nd*/,
     amrex::Array4<amrex::Real const> const& /*z_cc*/,
@@ -63,6 +64,24 @@ Problem::init_custom_pert(
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
+    const bool use_terrain = sc.use_terrain;
+
+    if (parms.pert_ref_height > 0) {
+        if (parms.U_0_Pert_Mag != 0.0) {
+            amrex::Print() << "Adding random x-velocity perturbations" << std::endl;
+        }
+        if (parms.V_0_Pert_Mag != 0.0) {
+            amrex::Print() << "Adding random y-velocity perturbations" << std::endl;
+        }
+        if (parms.T_0_Pert_Mag != 0.0) {
+            if (parms.pert_rhotheta) {
+                amrex::Print() << "Adding random rho*theta perturbations" << std::endl;
+            } else {
+                amrex::Print() << "Adding random theta perturbations" << std::endl;
+            }
+        }
+    }
 
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
@@ -84,6 +103,10 @@ Problem::init_custom_pert(
     if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         state(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        if (!parms.pert_rhotheta) {
+            // we're perturbing theta, not rho*theta
+            state(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
+        }
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
