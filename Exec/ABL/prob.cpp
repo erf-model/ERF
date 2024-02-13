@@ -70,6 +70,12 @@ Problem::init_custom_pert(
 
     const bool use_terrain = sc.use_terrain;
 
+    if (parms.KE_decay_height > 0) {
+        amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
+                       << ") will extend up to " << parms.KE_decay_height
+                       << std::endl;
+    }
+
     if (parms.pert_ref_height > 0) {
         if ((parms.pert_deltaU != 0.0) || (parms.pert_deltaV != 0.0)) {
             if (use_terrain) {
@@ -131,7 +137,7 @@ Problem::init_custom_pert(
         if (parms.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state(i, j, k, RhoKE_comp) *= max(
-                std::pow(1 - z/parms.KE_decay_height, parms.KE_decay_order),
+                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
                 1e-12);
         }
     }
@@ -141,7 +147,7 @@ Problem::init_custom_pert(
         if (parms.KE_decay_height > 0) {
             // scale initial SGS kinetic energy with height
             state(i, j, k, RhoQKE_comp) *= max(
-                std::pow(1 - z/parms.KE_decay_height, parms.KE_decay_order),
+                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
                 1e-12);
         }
     }
