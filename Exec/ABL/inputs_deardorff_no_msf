@@ -50,6 +50,7 @@ erf.sigma_k  = 1.0
 erf.Ce       = 0.1
 
 erf.init_type = "uniform"
+erf.KE_0 = 0.1 # for Deardorff
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

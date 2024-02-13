@@ -58,6 +58,7 @@ erf.alpha_T         = 0.0 # [m^2/s]
 erf.init_type           = "input_sounding"
 erf.input_sounding_file = "input_sounding_squall2d"
 erf.init_sounding_ideal = 1
+erf.KE_0 = 0.1 # for Deardorff
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input
