@@ -56,7 +56,7 @@ Problem::init_custom_pert(
     amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
     amrex::Array4<amrex::Real const> const& /*z_nd*/,
-    amrex::Array4<amrex::Real const> const& /*z_cc*/,
+    amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
     amrex::Array4<amrex::Real const> const& /*mf_u*/,
@@ -68,6 +68,15 @@ Problem::init_custom_pert(
     const bool use_terrain = sc.use_terrain;
 
     if (parms.pert_ref_height > 0) {
+        if ((parms.pert_deltaU != 0.0) || (parms.pert_deltaV != 0.0)) {
+            if (use_terrain) {
+                amrex::Abort("divergence-free perturbations not supported for terrain");
+            } else {
+                amrex::Print() << "Adding divergence-free perturbations "
+                               << parms.pert_deltaU << " "
+                               << parms.pert_deltaV << std::endl;
+            }
+        }
         if (parms.U_0_Pert_Mag != 0.0) {
             amrex::Print() << "Adding random x-velocity perturbations" << std::endl;
         }
@@ -90,7 +99,7 @@ Problem::init_custom_pert(
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = use_terrain ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
