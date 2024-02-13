@@ -18,6 +18,8 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("A_0", parms.A_0);
   pp.query("KE_0", parms.KE_0);
   pp.query("QKE_0", parms.QKE_0);
+  pp.query("KE_decay_height", parms.KE_decay_height);
+  pp.query("KE_decay_order", parms.KE_decay_order);
 
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
@@ -67,6 +69,13 @@ Problem::init_custom_pert(
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     const bool use_terrain = sc.use_terrain;
+
+    if (state.nComp() > RhoQKE_comp) {
+        amrex::Print() << "Initializing RhoQKE for PBL scheme" << std::endl;
+    }
+    else if (state.nComp() > RhoKE_comp) {
+        amrex::Print() << "Initializing RhoKE for Deardorff" << std::endl;
+    }
 
     if (parms.pert_ref_height > 0) {
         if ((parms.pert_deltaU != 0.0) || (parms.pert_deltaV != 0.0)) {
@@ -128,7 +137,13 @@ Problem::init_custom_pert(
                                                          : RhoKE_comp; // Deardorff
         const Real KE_0 = (state.nComp() > RhoQKE_comp) ? parms.QKE_0 // PBL scheme
                                                         : parms.KE_0; // Deardorff
-        state(i, j, k, KE_idx) = KE_0;
+        state(i, j, k, KE_idx) = r_hse(i,j,k) * KE_0;
+        if (parms.KE_decay_height > 0) {
+            // scale initial SGS kinetic energy with height
+            state(i, j, k, KE_idx) *= max(
+                std::pow(1 - z/parms.KE_decay_height, parms.KE_decay_order),
+                1e-12);
+        }
     }
 
     if (use_moisture) {
