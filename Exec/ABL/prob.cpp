@@ -16,6 +16,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
+  pp.query("KE_0", parms.KE_0);
   pp.query("QKE_0", parms.QKE_0);
 
   pp.query("U_0", parms.U_0);
@@ -122,7 +123,13 @@ Problem::init_custom_pert(
     state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
     // Set an initial value for QKE
-    state(i, j, k, RhoQKE_comp) = parms.QKE_0;
+    if (state.nComp() > RhoKE_comp) {
+        const int KE_idx = (state.nComp() > RhoQKE_comp) ? RhoQKE_comp // PBL scheme
+                                                         : RhoKE_comp; // Deardorff
+        const Real KE_0 = (state.nComp() > RhoQKE_comp) ? parms.QKE_0 // PBL scheme
+                                                        : parms.KE_0; // Deardorff
+        state(i, j, k, KE_idx) = KE_0;
+    }
 
     if (use_moisture) {
         state(i, j, k, RhoQ1_comp) = 0.0;
