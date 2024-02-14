@@ -38,17 +38,21 @@ void SuperDropletPC::readInputs ()
     BL_PROFILE("SuperDropletPC::readInputs");
     ParmParse pp(m_name);
 
+    /* default values */
     m_nucleate_particles = false;
-    pp.query("nucleate_particles", m_nucleate_particles);
-
+    m_max_multiplicity = 1000000;
     m_numdens_init = -1;
+    m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
+    m_mass_condensate_init = 0.0;
+    m_mass_aerosol_init = 0.0;
+
+    /* read these parameters if specified */
+    pp.query("nucleate_particles", m_nucleate_particles);
     pp.query("initial_number_density", m_numdens_init);
-
-    m_radius_init = -1;
-    pp.query("initial_radius", m_radius_init);
-
-    m_max_multiplicity = 100;
+    pp.query("initial_super_droplet_density", m_numdens_sd_init);
     pp.query("maximum_multiplicity", m_max_multiplicity);
+    pp.query("initial_condensate_mass", m_mass_condensate_init);
+    pp.query("initial_aerosol_mass", m_mass_aerosol_init);
 
     return;
 }
@@ -72,9 +76,18 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
     return;
 }
 
-/*! Uniform distribution: the number of super-droplets per grid cell is specified
-    by "initial_particles_per_cell" (default is 1), and they are randomly distributed.
-    The multiplicity is determined from "initial_number_density" (if specified) or 1.*/
+/*! Uniform distribution: initializes super-droplets uniformly throughout the domain.
+
+    + The number of physical particles per cell is computed from the initial number density
+      ("initial_number_density"), if specified (if not specified, it is taken to be 1).
+    + The number of super-droplets per cell is computed from the initial super-droplet number
+      density ("initial_super_droplet_density"), if specified (if not specified, it is set to
+      the initial particles per cell ("inital_particles_per_cell"), whose default value is 1).
+    + The initial particle mass is set to the sum of the condensate mass and aerosol mass, both
+      of whose default values are 0.0.
+    + The initial particle radius is the "equivalent radius" for the condensate material given
+      the initial mass.
+*/
 void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr /*!< terrain */)
 {
     BL_PROFILE("SuperDropletPC::initializeParticlesUniformDistribution");
@@ -85,15 +98,26 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     const Real cell_volume = dx[0]*dx[1]*dx[2];
 
     // number of super-droplets per cell
-    const int num_sd_per_cell = m_ppc_init;
-    // number of particles per cell (not super-droplets)
-    const int num_par_per_cell = (m_numdens_init < 0 ? 1 : (int) (m_numdens_init * cell_volume));
-    if (!num_par_per_cell) {
+    m_num_sd_per_cell = (m_numdens_sd_init >= 0 ? std::ceil(m_numdens_sd_init*cell_volume)
+                                                : m_ppc_init );
+    // number of physical particles per cell
+    m_num_par_per_cell = (m_numdens_init < 0 ? 1 : std::ceil(m_numdens_init * cell_volume));
+    if (!m_num_par_per_cell) {
         return;
     }
 
+    // initial mass of each physical particle
+    const Real par_mass = m_mass_condensate_init + m_mass_aerosol_init;
+
     // initial radius
-    const Real par_radius = (m_radius_init < 0 ? 1.0e-15 : m_radius_init);
+    const Real mat_density = 1.0; /* TODO: material object */
+    const Real par_radius = std::exp( std::log(par_mass / ((4.0/3.0)*PI*mat_density))/3.0 );
+
+    Print() << "SuperDropletPC(" << m_name << "):\n"
+            << "    Number of physical particles per cell: " << m_num_par_per_cell << "\n"
+            << "    Number of super droplets per cell: " << m_num_sd_per_cell << "\n"
+            << "    Initial radius: " << par_radius << "\n"
+            << "    Initial mass: " << par_mass << "\n";
 
     for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi)
     {
@@ -122,10 +146,11 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 
         for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
 
-            int num_to_add = num_par_per_cell;
-            int num_par_per_superdroplet = amrex::max(1,(int)std::ceil(num_par_per_cell/num_sd_per_cell));
+            int num_to_add = m_num_par_per_cell;
+            int n_par_per_supdrop = m_num_par_per_cell/m_num_sd_per_cell
+                                    + m_num_par_per_cell%m_num_sd_per_cell;
 
-            for (int n = 0; n < num_sd_per_cell; n++) {
+            for (int n = 0; n < m_num_sd_per_cell; n++) {
                 Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
                 Real v[3] = {0.0, 0.0, 0.0};
 
@@ -141,7 +166,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 if (!num_to_add) {
                     break;
                 }
-                int multiplicity = std::min( num_to_add, num_par_per_superdroplet );
+                int multiplicity = std::min( num_to_add, n_par_per_supdrop );
                 num_to_add -= multiplicity;
 
                 ParticleType p;
@@ -155,7 +180,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 p.rdata(SuperDropletsRealIdxAoS::vy) = v[1];
                 p.rdata(SuperDropletsRealIdxAoS::vz) = v[2];
 
-                p.rdata(SuperDropletsRealIdxAoS::mass) = 0.0;
+                p.rdata(SuperDropletsRealIdxAoS::mass) = par_mass;
 
                 p.idata(SuperDropletsIntIdxAoS::i) = iv[0];
                 p.idata(SuperDropletsIntIdxAoS::j) = iv[1];
@@ -164,7 +189,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 particle_tile.push_back(p);
 
                 particle_tile.push_back_real(SuperDropletsRealIdxSoA::radius, par_radius);
-                particle_tile.push_back_real(SuperDropletsRealIdxSoA::sol_mass, 0.0);
+                particle_tile.push_back_real(SuperDropletsRealIdxSoA::sol_mass, m_mass_aerosol_init);
                 particle_tile.push_back_int(SuperDropletsIntIdxSoA::multiplicity, multiplicity);
            }
            AMREX_ALWAYS_ASSERT(num_to_add == 0);
@@ -175,7 +200,12 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     return;
 }
 
-/*! Set super-droplets multiplicity and radius in the domain from a given condensate mass density */
+/*! Set super-droplets multiplicity and radius in the domain from a given condensate mass density:
+    Given the condensate mass density, we compute the mass of condensate per super-droplet from
+    the mass per cell and the number of super-droplets per cell. We vary the multiplicity by a
+    random amount for each super-droplet. The mass per physical particle is then computed from the
+    mass per super-droplet and the multiplicity. The equivalent radius is then comptued from the
+    particle mass and the density of condensate. */
 void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density of condensate */)
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
@@ -187,10 +217,6 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
 
     const Real cell_volume = dx[0]*dx[1]*dx[2];
 
-    // number of super-droplets per cell
-    const int num_sd_per_cell = m_ppc_init;
-    // initial radius
-    const Real par_radius = (m_radius_init < 0 ? 1.0e-15 : m_radius_init);
     // condensate density
     const Real mat_density = 1.0; /* TODO: material object */
 
@@ -217,15 +243,16 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
             auto iv = getParticleCell(p, plo, dxi, domain);
 
             const Real mass_cell = mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
-            const Real mass_per_sd = mass_cell / num_sd_per_cell;
+            const Real mass_sd = mass_cell / m_num_sd_per_cell;
 
-            p.rdata(SuperDropletsRealIdxAoS::mass) = mass_per_sd;
+            int mult_rnd = -mult_ptr[i]/3 + Random_int(2*mult_ptr[i]/3, rnd_engine);
+            mult_ptr[i] += mult_rnd;
 
-            int multiplicity = Random_int(max_multiplicity, rnd_engine)+1; // 1-100
-            Real radius_cubed = mass_per_sd / ((4.0/3.0)*PI*multiplicity*mat_density);
+            const Real mass_particle = mass_sd / mult_ptr[i] + m_mass_aerosol_init;
+            p.rdata(SuperDropletsRealIdxAoS::mass) = mass_particle;
+
+            Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);
             Real radius = std::exp( std::log(radius_cubed) / 3.0 );
-
-            mult_ptr[i] = multiplicity;
             radius_ptr[i] = radius;
 
         });

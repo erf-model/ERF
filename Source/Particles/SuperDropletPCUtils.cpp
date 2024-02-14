@@ -1,3 +1,4 @@
+#include <AMReX_ParticleInterpolators.H>
 #include <ERF_Constants.H>
 #include "SuperDropletPC.H"
 
@@ -28,7 +29,7 @@ Long SuperDropletPC::TotalNumberOfParticles ()
 
 /*! Computes the number density of the particles over a mesh */
 void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multifab */
-                                     const int& a_comp /*!< Multifav component to fill with number density */) const
+                                     const int& a_comp /*!< Multifab component to fill with number density */) const
 {
     BL_PROFILE("SuperDropletPC::numberDensity()");
 
@@ -38,26 +39,30 @@ void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multi
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const auto domain = geom.Domain();
 
     const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
-    ParticleToMesh(*this, a_mf, m_lev,
-        [=] AMREX_GPU_DEVICE (  const SuperParticleType& p,
-                                Array4<Real> const& fab_arr )
+    a_mf.setVal(0.0);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
         {
-            auto iv = getParticleCell(p, plo, dxi, domain);
-            int num_par = p.idata(   SuperDropletsIntIdxAoS::ncomps
-                                   + SuperDropletsIntIdxSoA::multiplicity );
-            Real num_dens = num_par * inv_cell_volume;
-            Gpu::Atomic::AddNoRet( &fab_arr(iv, a_comp), num_dens );
-        }, false);
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                {
+                    Real num_par = (Real) ptd.m_runtime_idata[SuperDropletsIntIdxSoA::multiplicity][i];
+                    return num_par*inv_cell_volume;
+                });
+        });
 
     return;
 }
 
-/*! Computes the mass density of the particles over a mesh: this does not
-    include the aerosol mass */
+/*! Computes the mass density of the particles over a mesh: this does
+    include the aerosol mass*/
 void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab */
                                    const int& a_comp /*!< Multifav component to fill with mass density */) const
 {
@@ -69,25 +74,24 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
     const auto& geom = Geom(m_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const auto domain = geom.Domain();
 
     const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
-    const Real mat_density = 1.0; /* TODO: material object */
+    a_mf.setVal(0.0);
 
-    ParticleToMesh(*this, a_mf, m_lev,
-        [=] AMREX_GPU_DEVICE (  const SuperParticleType& p,
-                                Array4<Real> const& fab_arr )
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
         {
-            auto iv = getParticleCell(p, plo, dxi, domain);
-            int num_par = p.idata(   SuperDropletsIntIdxAoS::ncomps
-                                   + SuperDropletsIntIdxSoA::multiplicity );
-            Real radius = p.rdata(   SuperDropletsRealIdxAoS::ncomps
-                                   + SuperDropletsRealIdxSoA::radius );
-            Real par_volume = (4.0/3.0)*PI*(radius*radius*radius);
-            Real mass = mat_density*par_volume*num_par;
-            Real mass_dens = mass * inv_cell_volume;
-            Gpu::Atomic::AddNoRet( &fab_arr(iv, a_comp), mass_dens );
-        }, false);
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                {
+                    int num_par = ptd.m_runtime_idata[SuperDropletsIntIdxSoA::multiplicity][i];
+                    Real par_mass = p.rdata(SuperDropletsRealIdxAoS::mass);
+                    return num_par*par_mass*inv_cell_volume;
+                });
+        });
 
     return;
 }
