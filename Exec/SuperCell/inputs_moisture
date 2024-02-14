@@ -48,6 +48,7 @@ erf.use_rayleigh_damping = false
 erf.moisture_model = "SAM"
 
 erf.les_type = "Deardorff"
+erf.KE_0 = 0.1 # for Deardorff
 #erf.les_type = "None"
 #
 # diffusion coefficient from Straka, K = 75 m^2/s
