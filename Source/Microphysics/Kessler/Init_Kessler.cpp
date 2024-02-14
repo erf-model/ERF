@@ -72,8 +72,8 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
-        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
-        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
