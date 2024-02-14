@@ -494,20 +494,18 @@ ERF::InitData ()
         InitFromScratch(time);
 
 #ifdef ERF_USE_MULTIBLOCK
+#ifndef ERF_MB_EXTERN       // enter only if multiblock does not involve an external class
         // Multiblock: hook to set BL & comms once ba/dm are known
         if(domain_p[0].bigEnd(0) < 500 ) {
             m_mbc->SetBoxLists();
             m_mbc->SetBlockCommMetaData();
         }
 #endif
+#endif
 
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 amrex::Abort("We do not currently support init_type = ideal with terrain");
-            } else if (init_type == "input_sounding") {
-                amrex::Print() << "Note: use_terrain==true with input_sounding"
-                    << " -- the expected use case is to enable grid stretching"
-                    << std::endl;
             }
         }
 
@@ -675,7 +673,9 @@ ERF::InitData ()
         initRayleigh();
         if (init_type == "input_sounding")
         {
-            // overwrite Ubar, Tbar, and thetabar with input profiles
+            // Overwrite ubar, vbar, and thetabar with input profiles; wbar is
+            // assumed to be 0. Note: the tau coefficient set by
+            // prob->erf_init_rayleigh() is still used
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
@@ -1168,18 +1168,11 @@ ERF::ReadParameters ()
         pp.query("input_bndry_planes", input_bndry_planes);
 
         // Query the set and total widths for wrfbdy interior ghost cells
-        pp.query("wrfbdy_width", wrfbdy_width);
-        pp.query("wrfbdy_set_width", wrfbdy_set_width);
-        AMREX_ALWAYS_ASSERT(wrfbdy_width >= 0);
-        AMREX_ALWAYS_ASSERT(wrfbdy_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(wrfbdy_width >= wrfbdy_set_width);
-
-        // Query the set and total widths for metgrid_bdy interior ghost cells
-        pp.query("metgrid_bdy_width", metgrid_bdy_width);
-        pp.query("metgrid_bdy_set_width", metgrid_bdy_set_width);
-        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= 0);
-        AMREX_ALWAYS_ASSERT(metgrid_bdy_set_width >= 0);
-        AMREX_ALWAYS_ASSERT(metgrid_bdy_width >= metgrid_bdy_set_width);
+        pp.query("real_width", real_width);
+        pp.query("real_set_width", real_set_width);
+        AMREX_ALWAYS_ASSERT(real_width >= 0);
+        AMREX_ALWAYS_ASSERT(real_set_width >= 0);
+        AMREX_ALWAYS_ASSERT(real_width >= real_set_width);
 
         // Query the set and total widths for crse-fine interior ghost cells
         pp.query("cf_width", cf_width);
@@ -1707,12 +1700,14 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
         int iteration = 1;
         timeStep(lev, cur_time, iteration);
 
+#ifndef ERF_MB_EXTERN
         // DEBUG
         // Multiblock: hook for erf2 to fill from erf1
         if(domain_p[0].bigEnd(0) < 500) {
             for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
                 m_mbc->FillPatchBlocks(var_idx,var_idx);
         }
+#endif
 
         cur_time  += dt[0];
 
@@ -1751,24 +1746,6 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 #endif
 
         if (cur_time >= stop_time - 1.e-6*dt[0]) break;
-    }
-
-    if (plot_int_1 > 0 && istep[0] > last_plot_file_step_1) {
-        WritePlotFile(1,plot_var_names_1);
-    }
-    if (plot_int_2 > 0 && istep[0] > last_plot_file_step_2) {
-        WritePlotFile(2,plot_var_names_2);
-    }
-
-    if (check_int > 0 && istep[0] > last_check_file_step) {
-#ifdef ERF_USE_NETCDF
-        if (check_type == "netcdf") {
-           WriteNCCheckpointFile();
-        }
-#endif
-        if (check_type == "native") {
-           WriteCheckpointFile();
-        }
     }
 
 }

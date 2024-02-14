@@ -265,8 +265,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
-        AdvType horiz_adv_type = ac.dryscal_horiz_adv_type;
-        AdvType  vert_adv_type = ac.dryscal_vert_adv_type;
+        AdvType    horiz_adv_type = ac.dryscal_horiz_adv_type;
+        AdvType     vert_adv_type = ac.dryscal_vert_adv_type;
+        const Real horiz_upw_frac = ac.dryscal_horiz_upw_frac;
+        const Real  vert_upw_frac = ac.dryscal_vert_upw_frac;
 
         if (ac.use_efficient_advection){
              horiz_adv_type = EfficientAdvType(nrk,ac.dryscal_horiz_adv_type);
@@ -278,14 +280,18 @@ void erf_slow_rhs_post (int level, int finest_level,
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                                   horiz_adv_type, vert_adv_type,
+                                   horiz_upw_frac, vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
         if (l_use_QKE) {
             start_comp = RhoQKE_comp;
               num_comp = 1;
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                                   horiz_adv_type, vert_adv_type,
+                                   horiz_upw_frac, vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
 
         // This is simply an advected scalar for convenience
@@ -293,23 +299,30 @@ void erf_slow_rhs_post (int level, int finest_level,
         num_comp = 1;
         AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                               horiz_adv_type, vert_adv_type, l_use_terrain, flx_arr);
+                               horiz_adv_type, vert_adv_type,
+                               horiz_upw_frac, vert_upw_frac,
+                               l_use_terrain, flx_arr);
 
         if (solverChoice.moisture_type != MoistureType::None)
         {
             start_comp = RhoQ1_comp;
               num_comp = nvars - start_comp;
 
-            AdvType moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
-            AdvType  moist_vert_adv_type = ac.moistscal_vert_adv_type;
+            AdvType    moist_horiz_adv_type = ac.moistscal_horiz_adv_type;
+            AdvType     moist_vert_adv_type = ac.moistscal_vert_adv_type;
+            const Real moist_horiz_upw_frac = ac.moistscal_horiz_upw_frac;
+            const Real  moist_vert_upw_frac = ac.moistscal_vert_upw_frac;
 
             if (ac.use_efficient_advection){
                  moist_horiz_adv_type = EfficientAdvType(nrk,ac.moistscal_horiz_adv_type);
                  moist_vert_adv_type  = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
             }
+
             AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
-                                   moist_horiz_adv_type, moist_vert_adv_type, l_use_terrain, flx_arr);
+                                   moist_horiz_adv_type, moist_vert_adv_type,
+                                   moist_horiz_upw_frac, moist_vert_upw_frac,
+                                   l_use_terrain, flx_arr);
         }
 
         if (l_use_diff) {
@@ -417,6 +430,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             amrex::Real alpha = (time_since_start - n_time * dT) / dT;
             AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
             amrex::Real oma   = 1.0 - alpha;
+
+            /*
+            // UNIT TEST DEBUG
+            oma = 1.0; alpha = 0.0;
+            */
 
             // Boundary data at fixed time intervals
             const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
@@ -527,6 +545,41 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     new_cons, cell_rhs);
             }
+
+            /*
+            // UNIT TEST DEBUG
+            compute_interior_ghost_bxs_xy(tbx, domain, width+1, 0,
+                                          bx_xlo, bx_xhi,
+                                          bx_ylo, bx_yhi);
+            ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+                    amrex::Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    exit(0);
+                }
+            });
+            */
         } // moist_set_rhs
 #endif
 

@@ -3,8 +3,7 @@ CEXE_sources += BoundaryConditions_yvel.cpp
 CEXE_sources += BoundaryConditions_zvel.cpp
 CEXE_sources += BoundaryConditions_cons.cpp
 CEXE_sources += BoundaryConditions_bndryreg.cpp
-CEXE_sources += BoundaryConditions_wrfbdy.cpp
-CEXE_sources += BoundaryConditions_metgrid.cpp
+CEXE_sources += BoundaryConditions_realbdy.cpp
 
 CEXE_headers += ABLMost.H
 CEXE_sources += ABLMost.cpp

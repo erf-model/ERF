@@ -26,8 +26,11 @@ read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
                     FArrayBox& NC_QVAPOR_fab,
                     FArrayBox& NC_QCLOUD_fab,
                     FArrayBox& NC_QRAIN_fab,
-                    FArrayBox& NC_PH_fab  , FArrayBox& NC_PHB_fab,
-                    FArrayBox& NC_ALB_fab , FArrayBox& NC_PB_fab,
+                    FArrayBox& NC_PH_fab,
+                    FArrayBox& NC_P_fab,
+                    FArrayBox& NC_PHB_fab,
+                    FArrayBox& NC_ALB_fab,
+                    FArrayBox& NC_PB_fab,
                     MoistureType moisture_type);
 
 Real
@@ -50,11 +53,14 @@ convert_wrfbdy_data (int which, const Box& domain,
                      const FArrayBox& NC_xvel_fab,
                      const FArrayBox& NC_yvel_fab,
                      const FArrayBox& NC_rho_fab,
-                     const FArrayBox& NC_rhoth_fab);
+                     const FArrayBox& NC_rhoth_fab,
+                     const FArrayBox& NC_QVAPOR_fab);
 
 void
-init_state_from_wrfinput (int lev, FArrayBox& state_fab,
-                          FArrayBox& x_vel_fab, FArrayBox& y_vel_fab,
+init_state_from_wrfinput (int lev,
+                          FArrayBox& cons_fab,
+                          FArrayBox& x_vel_fab,
+                          FArrayBox& y_vel_fab,
                           FArrayBox& z_vel_fab,
                           const Vector<FArrayBox>& NC_QVAPOR_fab,
                           const Vector<FArrayBox>& NC_QCLOUD_fab,
@@ -80,11 +86,19 @@ init_terrain_from_wrfinput (int lev, const Real& z_top,
                             const Vector<FArrayBox>& NC_PHB_fab);
 
 void
-init_base_state_from_wrfinput (int lev, const Box& bx, Real l_rdOcp,
-                               FArrayBox& p_hse, FArrayBox& pi_hse,
+init_base_state_from_wrfinput (int lev,
+                               const Box& gtbx,
+                               const Box& domain,
+                               Real l_rdOcp,
+                               MoistureType moisture_type,
+                               const int& n_qstate,
+                               FArrayBox& cons_fab,
+                               FArrayBox& p_hse,
+                               FArrayBox& pi_hse,
                                FArrayBox& r_hse,
                                const Vector<FArrayBox>& NC_ALB_fab,
-                               const Vector<FArrayBox>& NC_PB_fab);
+                               const Vector<FArrayBox>& NC_PB_fab,
+                               const Vector<FArrayBox>& NC_P_fab);
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -110,6 +124,7 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_RDNW_fab ; NC_RDNW_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_P_fab    ; NC_P_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_ALB_fab  ; NC_ALB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
@@ -124,12 +139,13 @@ ERF::init_from_wrfinput (int lev)
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++)
     {
         read_from_wrfinput(lev, boxes_at_level[lev][idx], nc_init_file[lev][idx],
-                           NC_xvel_fab[idx], NC_yvel_fab[idx],  NC_zvel_fab[idx], NC_rho_fab[idx],
-                           NC_rhop_fab[idx], NC_rhoth_fab[idx], NC_MUB_fab[idx],
-                           NC_MSFU_fab[idx], NC_MSFV_fab[idx],  NC_MSFM_fab[idx],
-                           NC_SST_fab[idx],  NC_C1H_fab[idx],   NC_C2H_fab[idx],  NC_RDNW_fab[idx],
+                           NC_xvel_fab[idx]  , NC_yvel_fab[idx]  , NC_zvel_fab[idx] , NC_rho_fab[idx],
+                           NC_rhop_fab[idx]  , NC_rhoth_fab[idx] , NC_MUB_fab[idx]  ,
+                           NC_MSFU_fab[idx]  , NC_MSFV_fab[idx]  , NC_MSFM_fab[idx] ,
+                           NC_SST_fab[idx]   , NC_C1H_fab[idx]   , NC_C2H_fab[idx]  , NC_RDNW_fab[idx],
                            NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
-                           NC_PH_fab[idx],NC_PHB_fab[idx],NC_ALB_fab[idx],NC_PB_fab[idx],
+                           NC_PH_fab[idx]    , NC_P_fab[idx]     , NC_PHB_fab[idx]  ,
+                           NC_ALB_fab[idx]   , NC_PB_fab[idx]    ,
                            solverChoice.moisture_type);
     }
 
@@ -171,7 +187,7 @@ ERF::init_from_wrfinput (int lev)
     } // mf
 
     const Box& domain = geom[lev].Domain();
-    const Real& z_top  = geom[lev].ProbHi(2);
+    const Real& z_top = geom[lev].ProbHi(2);
     if (solverChoice.use_terrain)
     {
         std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
@@ -190,20 +206,27 @@ ERF::init_from_wrfinput (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+    IntVect ng = p_hse.nGrowVect();
     const Real l_rdOcp = solverChoice.rdOcp;
 
     if (init_type == "real") {
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
+            FArrayBox&   cons_fab = lev_new[Vars::cons][mfi];
             FArrayBox&  p_hse_fab = p_hse[mfi];
             FArrayBox& pi_hse_fab = pi_hse[mfi];
             FArrayBox&  r_hse_fab = r_hse[mfi];
 
-            const Box valid_bx = mfi.validbox();
-            init_base_state_from_wrfinput(lev, valid_bx, l_rdOcp,
-                                          p_hse_fab, pi_hse_fab, r_hse_fab,
-                                          NC_ALB_fab, NC_PB_fab);
+            const Box gtbx = mfi.tilebox(IntVect(0), ng);
+            init_base_state_from_wrfinput(lev, gtbx, domain, l_rdOcp, solverChoice.moisture_type, n_qstate,
+                                          cons_fab, p_hse_fab, pi_hse_fab, r_hse_fab,
+                                          NC_ALB_fab, NC_PB_fab, NC_P_fab);
         }
+
+        // FillBoundary to populate the internal halo cells
+         r_hse.FillBoundary(geom[lev].periodicity());
+         p_hse.FillBoundary(geom[lev].periodicity());
+        pi_hse.FillBoundary(geom[lev].periodicity());
     }
 
     if (init_type == "real" && (lev == 0)) {
@@ -211,28 +234,28 @@ ERF::init_from_wrfinput (int lev)
             amrex::Error("NetCDF boundary file name must be provided via input");
         bdy_time_interval = read_from_wrfbdy(nc_bdy_file,geom[0].Domain(),
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
-                                             wrfbdy_width, start_bdy_time);
+                                             real_width, start_bdy_time);
 
-        amrex::Print() << "Read in boundary data with width "  << wrfbdy_width << std::endl;
-        amrex::Print() << "Running with specification width: " << wrfbdy_set_width
-                       << " and relaxation width: " << wrfbdy_width - wrfbdy_set_width << std::endl;
+        amrex::Print() << "Read in boundary data with width "  << real_width << std::endl;
+        amrex::Print() << "Running with specification width: " << real_set_width
+                       << " and relaxation width: " << real_width - real_set_width << std::endl;
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
-                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
-                            NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
+                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
+                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(1,domain,bdy_data_xhi,
-                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
-                            NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
+                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
+                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(2,domain,bdy_data_ylo,
-                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
-                            NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
+                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
+                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
         convert_wrfbdy_data(3,domain,bdy_data_yhi,
-                            NC_MUB_fab[0], NC_PH_fab[0] , NC_PHB_fab[0],
-                            NC_C1H_fab[0], NC_C2H_fab[0], NC_RDNW_fab[0],
-                            NC_xvel_fab[0],NC_yvel_fab[0],NC_rho_fab[0],NC_rhoth_fab[0]);
+                            NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
+                            NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
+                            NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
     }
 
     // Start at the earliest time (read_from_wrfbdy)
@@ -364,11 +387,23 @@ init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
  */
 void
-init_base_state_from_wrfinput (int lev, const Box& valid_bx, const Real l_rdOcp,
-                               FArrayBox& p_hse, FArrayBox& pi_hse, FArrayBox& r_hse,
+init_base_state_from_wrfinput (int lev,
+                               const Box& gtbx,
+                               const Box& domain,
+                               const Real l_rdOcp,
+                               MoistureType moisture_type,
+                               const int& n_qstate,
+                               FArrayBox& cons_fab,
+                               FArrayBox& p_hse,
+                               FArrayBox& pi_hse,
+                               FArrayBox& r_hse,
                                const Vector<FArrayBox>& NC_ALB_fab,
-                               const Vector<FArrayBox>& NC_PB_fab)
+                               const Vector<FArrayBox>& NC_PB_fab,
+                               const Vector<FArrayBox>& NC_P_fab)
 {
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
+
     int nboxes = NC_ALB_fab.size();
     for (int idx = 0; idx < nboxes; idx++)
     {
@@ -376,16 +411,42 @@ init_base_state_from_wrfinput (int lev, const Box& valid_bx, const Real l_rdOcp,
         // FArrayBox to FArrayBox copy does "copy on intersection"
         // This only works here because we have broadcast the FArrayBox of data from the netcdf file to all ranks
         //
-        const Array4<Real      >&  p_hse_arr =  p_hse.array();
-        const Array4<Real      >& pi_hse_arr = pi_hse.array(); const Array4<Real      >&  r_hse_arr =  r_hse.array();
-        const Array4<Real const>& alpha_arr = NC_ALB_fab[idx].const_array();
-        const Array4<Real const>& nc_pb_arr = NC_PB_fab[idx].const_array();
+        const Array4<Real      >&   cons_arr = cons_fab.array();
+        const Array4<Real      >&  p_hse_arr = p_hse.array();
+        const Array4<Real      >& pi_hse_arr = pi_hse.array();
+        const Array4<Real      >&  r_hse_arr = r_hse.array();
+        const Array4<Real const>&  alpha_arr = NC_ALB_fab[idx].const_array();
+        const Array4<Real const>&  nc_pb_arr = NC_PB_fab[idx].const_array();
+        const Array4<Real const>&   nc_p_arr = NC_P_fab[idx].const_array();
 
-        ParallelFor(valid_bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            p_hse_arr(i,j,k)  = nc_pb_arr(i,j,k);
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            // Base state needs ghost cells filled, protect FAB access
+            int ii = std::max(i , dom_lo.x);
+                ii = std::min(ii, dom_hi.x);
+            int jj = std::max(j , dom_lo.y);
+                jj = std::min(jj, dom_hi.y);
+            int kk = std::max(k , dom_lo.z);
+                kk = std::min(kk, dom_hi.z);
+
+            // Base plus perturbational pressure
+            Real Ptot = nc_pb_arr(ii,jj,kk) + nc_p_arr(ii,jj,kk);
+
+            // Compute pressure from EOS
+            Real Qv    = (moisture_type != MoistureType::None) ?
+                         cons_arr(ii,jj,kk,RhoQ1_comp) / cons_arr(ii,jj,kk,Rho_comp) : 0.0;
+            Real RT    = cons_arr(ii,jj,kk,RhoTheta_comp);
+            Real P_eos = getPgivenRTh(RT, Qv);
+            Real DelP  = std::fabs(Ptot - P_eos);
+            AMREX_ASSERT_WITH_MESSAGE((DelP < 1.0), "Initial state is inconsistent with EOS!");
+
+            // Compute rhse
+            Real Rhse_Sum = cons_arr(ii,jj,kk,Rho_comp);
+            for (int q_offset(0); q_offset<n_qstate; ++q_offset) Rhse_Sum += cons_arr(ii,jj,kk,RhoQ1_comp+q_offset);
+
+            p_hse_arr(i,j,k)  = Ptot;
             pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(i,j,k), l_rdOcp);
-            r_hse_arr(i,j,k)  = 1.0 / alpha_arr(i,j,k);
-
+            r_hse_arr(i,j,k)  = Rhse_Sum;
         });
     } // idx
 }
@@ -443,10 +504,6 @@ init_terrain_from_wrfinput (int lev, const Real& z_top,
                                          nc_phb_arr(ii,jj-1,klo+1) + nc_phb_arr(ii-1,jj-1,klo+1) ) / CONST_GRAV;
                 z_arr(i, j, k) = 2.0 * z_klo - z_klop1;
             } else if (k > khi) {
-                Real z_khi   =  0.25 * ( nc_ph_arr (ii,jj  ,khi  ) + nc_ph_arr (ii-1,jj  ,khi  ) +
-                                         nc_ph_arr (ii,jj-1,khi  ) + nc_ph_arr (ii-1,jj-1,khi) +
-                                         nc_phb_arr(ii,jj  ,khi  ) + nc_phb_arr(ii-1,jj  ,khi  ) +
-                                         nc_phb_arr(ii,jj-1,khi  ) + nc_phb_arr(ii-1,jj-1,khi) ) / CONST_GRAV;
                 Real z_khim1 =  0.25 * ( nc_ph_arr (ii,jj  ,khi-1) + nc_ph_arr (ii-1,jj  ,khi-1) +
                                          nc_ph_arr (ii,jj-1,khi-1) + nc_ph_arr (ii-1,jj-1,khi-1) +
                                          nc_phb_arr(ii,jj  ,khi-1) + nc_phb_arr(ii-1,jj  ,khi-1) +

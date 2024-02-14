@@ -15,8 +15,12 @@ xlo.type = "Outflow"
 xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
-zlo.type = "NoSlipWall"
+#zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
+
+zlo.type      = "Most"
+erf.most.z0   = 0.1
+erf.most.zref = 26.63
 
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0  # fixed time step depending on grid resolution
@@ -31,7 +35,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 25          # number of timesteps between checkpoints
+erf.check_int       = 1000          # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
@@ -60,10 +64,10 @@ erf.terrain_z_levels  = 0 53.25373067 116.3299934 190.8583428 278.6665766 381.71
                           16453.44037 17477.73597 18503.25481 19533.31103 20500.0
 
 # INITIALIZATION WITH ATM DATA
-erf.metgrid_bdy_width     = 5
-erf.metgrid_bdy_set_width = 1
-erf.init_type             = "metgrid"
-erf.nc_init_file_0        = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"
+erf.real_width     = 5
+erf.real_set_width = 1
+erf.init_type      = "metgrid"
+erf.nc_init_file_0 = "met_em.d01.2015-04-01_00_00_00.nc" "met_em.d01.2015-04-01_08_00_00.nc"
 
 #There will be no OpenMP tiling
 fabarray.mfiter_tile_size = 1024 1024 1024

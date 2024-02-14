@@ -20,6 +20,7 @@ void FastEddy::AdvanceFE ()
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qv_array    = mic_fab_vars[MicVar_FE::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_FE::qc]->array(mfi);
+        auto qt_array    = mic_fab_vars[MicVar_FE::qt]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar_FE::tabs]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_FE::theta]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar_FE::pres]->array(mfi);
@@ -68,6 +69,7 @@ void FastEddy::AdvanceFE ()
             qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
             qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
 
+            qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
         });
     }
 }
