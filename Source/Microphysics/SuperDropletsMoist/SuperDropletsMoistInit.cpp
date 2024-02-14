@@ -92,7 +92,6 @@ void SuperDropletsMoist::FinishInit (MultiFab& a_cons_vars /*!< Conserved variab
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         const auto& box = mfi.tilebox();
         auto states_arr = a_cons_vars.array(mfi);
-        auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {

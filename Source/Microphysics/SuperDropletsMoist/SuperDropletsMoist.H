@@ -108,37 +108,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_name;
         }
 
-    protected:
-
-        /*! initialization type */
-        std::string m_init_type;
-
-        /*! name of model and its particle container */
-        const std::string m_name = "super_droplets_moisture";
-        /*! particle container for super-droplets */
-        SuperDropletPC* m_super_droplets;
-
-        /*! vapour and condensed water density */
-        const int m_qmoist_size = 3;
-        /*! vapour and condensed water density */
-        const int m_qstate_size = 2;
-
-        Real m_dt; /*!< timestep */
-        Vector<int> m_mic_var_map; /*!< moisture model variables map */
-
-        /*! moisture model variables */
-        Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
-
-        /*! \brief read inputs */
-        virtual void readInputs();
-
-        /*! \brief finish initializations */
-        void FinishInit(MultiFab&);
-
-        /*! \brief Convert a multifab containing density of something to its mixing ratio */
-        void densityToRatio ( MultiFab&, const int a_comp = 0 );
-        /*! \brief Convert a multifab containing the mixing ratio of something to its density */
-        void ratioToDensity ( MultiFab&, const int a_comp = 0 );
+    //protected: ideally, but can't due to extended lambda capture rules (CUDA)
 
         /*! \brief compute condensate mixing ratio */
         inline virtual void computeQc ()
@@ -162,6 +132,38 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                 });
             }
         }
+
+        /*! \brief finish initializations */
+        void FinishInit(MultiFab&);
+
+        /*! \brief Convert a multifab containing density of something to its mixing ratio */
+        void densityToRatio ( MultiFab&, const int a_comp = 0 );
+        /*! \brief Convert a multifab containing the mixing ratio of something to its density */
+        void ratioToDensity ( MultiFab&, const int a_comp = 0 );
+
+    protected:
+
+        /*! initialization type */
+        std::string m_init_type;
+
+        /*! name of model and its particle container */
+        const std::string m_name = "super_droplets_moisture";
+        /*! particle container for super-droplets */
+        SuperDropletPC* m_super_droplets;
+
+        /*! vapour and condensed water density */
+        const int m_qmoist_size = 3;
+        /*! vapour and condensed water density */
+        const int m_qstate_size = 2;
+
+        Real m_dt; /*!< timestep */
+        Vector<int> m_mic_var_map; /*!< moisture model variables map */
+
+        /*! moisture model variables */
+        Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
+
+        /*! \brief read inputs */
+        virtual void readInputs();
 
     private:
 
