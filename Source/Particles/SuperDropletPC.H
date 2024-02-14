@@ -13,6 +13,8 @@ struct SuperDropletsRealIdxSoA
 {
     enum {
         radius = 0,     /*!< Radius of physical particles */
+        multiplicity,   /*!< Number of droplets that this super-droplet represents
+                             (Real type to handle large values) */
         sol_mass,       /*!< Solute mass */
         ncomps
     };
@@ -20,15 +22,6 @@ struct SuperDropletsRealIdxSoA
 
 /*! \brief Int-type array-of-struct attributes of a super-droplet */
 using SuperDropletsIntIdxAoS = ERFParticlesIntIdx;
-
-/*! \brief Int-type struct-of-array attributes of a super-droplet */
-struct SuperDropletsIntIdxSoA
-{
-    enum {
-        multiplicity = 0, /*!< Number of droplets that this super-droplet represents */
-        ncomps
-    };
-};
 
 /*! \brief List of super-droplet initializations */
 namespace SuperDropletInitializations
@@ -68,7 +61,7 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","radius","aerosol_mass"};
+            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","radius","multiplicity","aerosol_mass"};
         }
 
         /*! \brief Initialize super-droplets in domain */
@@ -110,14 +103,15 @@ class SuperDropletPC : public ERFPC
 
         const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
 
-        int m_max_multiplicity;             /*!< Maximum multiplicity */
+        amrex::Real m_max_multiplicity;     /*!< Maximum multiplicity */
         amrex::Real m_numdens_init;         /*!< Initial number density of physical particles */
         amrex::Real m_numdens_sd_init;      /*!< Initial number density of super-droplets */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
         amrex::Real m_mass_aerosol_init;    /*!< Initial aerosol mass of each physical particle */
 
-        int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
-        int m_num_par_per_cell; /*!< Number of physical particles per cell */
+        long m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
+        amrex::Real m_num_par_per_cell; /*!< Number of physical particles per cell
+                                             (Real type to prevent overflow for large values) */
 
         /*! \brief read inputs from file */
         virtual void readInputs ();

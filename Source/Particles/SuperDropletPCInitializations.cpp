@@ -9,24 +9,12 @@ using namespace amrex;
 void SuperDropletPC::add_superdroplet_attributes()
 {
     const bool communicate_this_comp = true;
-
-    {
-        int count(0);
-        for (int i = 0; i < SuperDropletsRealIdxSoA::ncomps; i++) {
-            AddRealComp(communicate_this_comp);
-            count++;
-        }
-        Print() << "SuperDropletPC: added " << count << " real-type attibute(s).\n";
+    int count(0);
+    for (int i = 0; i < SuperDropletsRealIdxSoA::ncomps; i++) {
+        AddRealComp(communicate_this_comp);
+        count++;
     }
-    {
-        int count(0);
-        for (int i = 0; i < SuperDropletsIntIdxSoA::ncomps; i++) {
-            AddIntComp(communicate_this_comp);
-            count++;
-        }
-        Print() << "SuperDropletPC: added " << count << " int-type attibute(s).\n";
-    }
-
+    Print() << "SuperDropletPC: added " << count << " real-type attibute(s).\n";
     return;
 }
 
@@ -98,12 +86,19 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     const Real cell_volume = dx[0]*dx[1]*dx[2];
 
     // number of super-droplets per cell
-    m_num_sd_per_cell = (m_numdens_sd_init >= 0 ? std::ceil(m_numdens_sd_init*cell_volume)
-                                                : m_ppc_init );
+    if (m_numdens_sd_init >= 0) {
+        m_num_sd_per_cell = static_cast<int>(std::ceil(m_numdens_sd_init*cell_volume));
+    } else {
+        m_num_sd_per_cell = m_ppc_init;
+    }
     // number of physical particles per cell
-    m_num_par_per_cell = (m_numdens_init < 0 ? 1 : std::ceil(m_numdens_init * cell_volume));
-    if (!m_num_par_per_cell) {
-        return;
+    if (m_numdens_init >= 0) {
+        m_num_par_per_cell = std::ceil(m_numdens_init*cell_volume);
+        if (!m_num_par_per_cell) {
+            return;
+        }
+    } else {
+        m_num_par_per_cell = 1;
     }
 
     // initial mass of each physical particle
@@ -146,9 +141,8 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 
         for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
 
-            int num_to_add = m_num_par_per_cell;
-            int n_par_per_supdrop = m_num_par_per_cell/m_num_sd_per_cell
-                                    + m_num_par_per_cell%m_num_sd_per_cell;
+            Real num_to_add = m_num_par_per_cell;
+            Real n_par_per_supdrop = std::ceil(m_num_par_per_cell/m_num_sd_per_cell);
 
             for (int n = 0; n < m_num_sd_per_cell; n++) {
                 Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
@@ -166,7 +160,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 if (!num_to_add) {
                     break;
                 }
-                int multiplicity = std::min( num_to_add, n_par_per_supdrop );
+
+                Real multiplicity = 0;
+                if (num_to_add > n_par_per_supdrop) {
+                    multiplicity = n_par_per_supdrop;
+                } else {
+                    multiplicity = num_to_add;
+                }
                 num_to_add -= multiplicity;
 
                 ParticleType p;
@@ -190,9 +190,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 
                 particle_tile.push_back_real(SuperDropletsRealIdxSoA::radius, par_radius);
                 particle_tile.push_back_real(SuperDropletsRealIdxSoA::sol_mass, m_mass_aerosol_init);
-                particle_tile.push_back_int(SuperDropletsIntIdxSoA::multiplicity, multiplicity);
+                particle_tile.push_back_real(SuperDropletsRealIdxSoA::multiplicity, multiplicity);
            }
-           AMREX_ALWAYS_ASSERT(num_to_add == 0);
+           AMREX_ALWAYS_ASSERT(num_to_add < 1);
         }
 
     }
@@ -230,11 +230,13 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
         auto *p_pbox = aos().data();
         const int n = aos.numParticles();
 
-        auto* mult_ptr = soa.GetIntData(SuperDropletsIntIdxSoA::multiplicity).data();
+        auto* mult_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::multiplicity).data();
         auto* radius_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::radius).data();
 
-        const int max_multiplicity = m_max_multiplicity;
         auto mass_density = a_mass_density[pti.index()].array();
+
+        Real mass_aerosol = m_mass_aerosol_init;
+        int num_sd_per_cell = m_num_sd_per_cell;
 
         ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_engine)
         {
@@ -243,12 +245,12 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
             auto iv = getParticleCell(p, plo, dxi, domain);
 
             const Real mass_cell = mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
-            const Real mass_sd = mass_cell / m_num_sd_per_cell;
+            const Real mass_sd = mass_cell / num_sd_per_cell;
 
-            int mult_rnd = -mult_ptr[i]/3 + Random_int(2*mult_ptr[i]/3, rnd_engine);
+            Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*Random(rnd_engine);
             mult_ptr[i] += mult_rnd;
 
-            const Real mass_particle = mass_sd / mult_ptr[i] + m_mass_aerosol_init;
+            const Real mass_particle = mass_sd / mult_ptr[i] + mass_aerosol;
             p.rdata(SuperDropletsRealIdxAoS::mass) = mass_particle;
 
             Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);

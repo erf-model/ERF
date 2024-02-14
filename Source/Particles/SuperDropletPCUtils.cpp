@@ -11,19 +11,19 @@ Long SuperDropletPC::TotalNumberOfParticles ()
 {
     BL_PROFILE("SuperDropletPC::TotalNumberOfParticles()");
 
-    Long count = 0;
+    Real count = 0;
     for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
         const auto& particle_tile = ParticlesAt(m_lev, pti);
         auto& soa = particle_tile.GetStructOfArrays();
         auto& aos = particle_tile.GetArrayOfStructs();
 
-        auto* mult_ptr = soa.GetIntData(SuperDropletsIntIdxSoA::multiplicity).data();
+        auto* mult_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::multiplicity).data();
         const int n = aos.numParticles();
 
         count += Reduce::Sum(n, mult_ptr);
     }
 
-    ParallelDescriptor::ReduceLongSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
 }
 
@@ -53,7 +53,7 @@ void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multi
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
                 {
-                    Real num_par = (Real) ptd.m_runtime_idata[SuperDropletsIntIdxSoA::multiplicity][i];
+                    auto num_par = (Real) ptd.m_runtime_rdata[SuperDropletsRealIdxSoA::multiplicity][i];
                     return num_par*inv_cell_volume;
                 });
         });
@@ -87,8 +87,8 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
                 {
-                    int num_par = ptd.m_runtime_idata[SuperDropletsIntIdxSoA::multiplicity][i];
-                    Real par_mass = p.rdata(SuperDropletsRealIdxAoS::mass);
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA::multiplicity][i];
+                    auto par_mass = p.rdata(SuperDropletsRealIdxAoS::mass);
                     return num_par*par_mass*inv_cell_volume;
                 });
         });
