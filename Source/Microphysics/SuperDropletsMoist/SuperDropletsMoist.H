@@ -10,8 +10,10 @@
 
 namespace MicVar_SD {
     enum {
-        rho_v, /*!< Water vapour */
-        rho_c, /*!< Cloud condensate */
+        rho = 0, /*!< Density */
+        q_t,     /*!< Total (vapour + cloud) */
+        q_v,     /*!< Water vapour */
+        q_c,     /*!< Cloud condensate */
         NumVars
     };
 }
@@ -62,13 +64,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             Copy_State_to_Micro(a_cons_vars);
 
             static bool first_call(true);
-            if (first_call) { FinishInit(); }
+            if (first_call) { FinishInit(a_cons_vars); }
             first_call = false;
         }
 
         /*! \brief state variables from microphysics variables */
         inline virtual void Update_State_Vars (MultiFab& a_cons_vars)
         {
+            computeQc();
             Copy_Micro_to_State(a_cons_vars);
         }
 
@@ -116,7 +119,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         SuperDropletPC* m_super_droplets;
 
         /*! vapour and condensed water density */
-        const int m_qmoist_size = 2;
+        const int m_qmoist_size = 3;
         /*! vapour and condensed water density */
         const int m_qstate_size = 2;
 
@@ -130,7 +133,35 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void readInputs();
 
         /*! \brief finish initializations */
-        void FinishInit();
+        void FinishInit(MultiFab&);
+
+        /*! \brief Convert a multifab containing density of something to its mixing ratio */
+        void densityToRatio ( MultiFab&, const int a_comp = 0 );
+        /*! \brief Convert a multifab containing the mixing ratio of something to its density */
+        void ratioToDensity ( MultiFab&, const int a_comp = 0 );
+
+        /*! \brief compute condensate mixing ratio */
+        inline virtual void computeQc ()
+        {
+            m_super_droplets->massDensity(*(m_mic_fab_vars[MicVar_SD::q_c]));
+            densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
+            computeQt();
+        }
+
+        /*! \brief compute qt (total) */
+        inline virtual void computeQt ()
+        {
+            for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
+                const auto& box = mfi.tilebox();
+                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
+                auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
+                ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
+                });
+            }
+        }
 
     private:
 
