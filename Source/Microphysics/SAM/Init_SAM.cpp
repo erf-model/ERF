@@ -1,5 +1,5 @@
 #include <AMReX_GpuContainers.H>
-#include "Microphysics.H"
+#include "SAM.H"
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
 #include "EOS.H"
@@ -28,8 +28,8 @@ void SAM::Init (const MultiFab& cons_in,
     m_gtoe = grids;
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar::qt, MicVar::qv, MicVar::qcl, MicVar::qci,
-                 MicVar::qp, MicVar::qpl, MicVar::qpi, MicVar::qg};
+    MicVarMap = {MicVar::qt, MicVar::qv , MicVar::qcl, MicVar::qci,
+                 MicVar::qp, MicVar::qpr, MicVar::qps, MicVar::qpg};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {
@@ -90,14 +90,21 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
-        auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
-        auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
-        auto qi_array    = mic_fab_vars[MicVar_Kess::qci]->array(mfi);
-        auto qn_array    = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-        auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        // Non-precipitating
+        auto qv_array    = mic_fab_vars[MicVar::qv]->array(mfi);
+        auto qc_array    = mic_fab_vars[MicVar::qcl]->array(mfi);
+        auto qi_array    = mic_fab_vars[MicVar::qci]->array(mfi);
+        auto qn_array    = mic_fab_vars[MicVar::qn]->array(mfi);
+        auto qt_array    = mic_fab_vars[MicVar::qt]->array(mfi);
 
-        auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
-        auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+        // Precipitating
+        auto qpr_array   = mic_fab_vars[MicVar::qpr]->array(mfi);
+        auto qps_array   = mic_fab_vars[MicVar::qps]->array(mfi);
+        auto qpg_array   = mic_fab_vars[MicVar::qpg]->array(mfi);
+        auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
+
+        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
@@ -106,10 +113,17 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
         {
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
+
             qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
             qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
-            qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
+            qi_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
             qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
+            qt_array(i,j,k)    = qv_array(i,j,k) + qn_array(i,j,k);
+
+            qpr_array(i,j,k)   = states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp);
+            qps_array(i,j,k)   = states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp);
+            qpg_array(i,j,k)   = states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp);
+            qp_array(i,j,k)    = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
@@ -181,7 +195,7 @@ void SAM::Compute_Coefficients ()
 
     Real* rho_dptr   = rho_d.data();
     Real* theta_dptr = theta_d.data();
-    Real* qv_dptr = qv_d.data();
+    Real* qv_dptr    = qv_d.data();
 
     Real gOcp = m_gOcp;
 

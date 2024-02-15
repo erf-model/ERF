@@ -1,5 +1,3 @@
-/*
- */
 #ifndef FastEddy_H
 #define FastEddy_H
 
@@ -11,22 +9,24 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_TableData.H>
 #include <AMReX_MultiFabUtil.H>
-
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
+#include "NullMoist.H"
 
 namespace MicVar_FE {
    enum {
       // independent variables
-      qv = 0,
-      qc,
-      qt,
-      rho,   // density
+      rho=0, // density
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
       pres,  // pressure
+      // non-precipitating
+      qv,    // water vapor
+      qc,    // cloud water
+      qt,    // total non-precip
+      // temporary variable
       NumVars
   };
 }

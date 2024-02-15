@@ -47,6 +47,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                   const int& qstate_size,
                                    const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
@@ -193,14 +194,19 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
-    // EddyDiff mapping :   Theta_h   Scalar_h  KE_h         QKE_h        Q1_h      Q2_h      Q3_h
-    Vector<Real> Factors = {inv_Pr_t, inv_Sc_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
+    // EddyDiff mapping :   Theta_h     KE_h         QKE_h      Scalar_h
+    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_sigma_k, inv_Sc_t}; // alpha = mu/Pr
+    for (int nq(0); nq<qstate_size; ++ nq) {
+        Factors.push_back(inv_Sc_t); // Qi_h
+    }
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
 
     bool use_KE  = (turbChoice.les_type == LESType::Deardorff);
     bool use_QKE = (turbChoice.use_QKE && turbChoice.diffuse_QKE_3D);
+
+    int EDsize = eddyViscosity.nComp();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -252,8 +258,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         }
 
         // refactor the code to eliminate the need for ifdef's
-        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
+        for (auto n = 1; n < (EDsize-1)/2; ++n) {
+            int offset = (EDsize-1)/2;
             switch (n)
             {
               case EddyDiff::QKE_h:
@@ -313,8 +319,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
         // refactor the code to eliminate the need for ifdef's
-        for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
-            int offset = (EddyDiff::NumDiffs-1)/2;
+        for (auto n = 0; n < (EDsize-1)/2; ++n) {
+            int offset = (EDsize-1)/2;
             switch (n)
             {
               case EddyDiff::QKE_h:
@@ -396,6 +402,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
                                 const amrex::BCRec* bc_ptr,
+                                const int& qstate_size,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -426,7 +433,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
-                                     z_phys_nd,
+                                     z_phys_nd, qstate_size,
                                      turbChoice, const_grav, most);
     }
 

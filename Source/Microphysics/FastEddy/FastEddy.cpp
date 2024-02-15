@@ -1,8 +1,4 @@
-/*
- * this file is modified from precip_proc from samxx
- */
-#include "Microphysics.H"
-
+#include "FastEddy.H"
 #include <EOS.H>
 #include <TileNoZ.H>
 

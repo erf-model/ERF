@@ -76,12 +76,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //*********************************************************
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
-
-    #if defined(ERF_USE_WINDFARM)
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
-            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        }
-    #endif
+#if defined(ERF_USE_WINDFARM)
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+    }
+#endif
 
     //********************************************************************************************
     // Land Surface Model
@@ -244,12 +243,12 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
-    #if defined(ERF_USE_WINDFARM)
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
-            int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        }
-    #endif
+#if defined(ERF_USE_WINDFARM)
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+    }
+#endif
 
     init_stuff(lev, ba, dm);
 
@@ -364,11 +363,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
     }
 
-    #if defined(ERF_USE_WINDFARM)
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
-            vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        }
-    #endif
+#if defined(ERF_USE_WINDFARM)
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+    }
+#endif
 
     init_stuff(lev,ba,dm);
 
@@ -480,25 +479,29 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
     } else {
-      Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
-      Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
-      Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
-      Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
-      SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
-      SFS_diss_lev[lev] = nullptr;
+        Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
+        Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
+        Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
+        Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
+        SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+        SFS_diss_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {
-      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
-      eddyDiffs_lev[lev]->setVal(0.0);
-      if(l_use_ddorf) {
-          SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
-      } else {
-          SmnSmn_lev[lev] = nullptr;
-      }
+        // NOTE: Horiz and vert for mom/theta/ke/qke/scalar/q_i and pbl_lengthscale.
+        //       We have: cc_ncomp - 1 + 1; subtract rho and add mom
+        //       Simplify and add pbl_L: 2 * cc_ncomp + 1
+        int ncomp = 2 * vars_new[lev][Vars::cons].nComp() + 1;
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, ncomp, 1 );
+        eddyDiffs_lev[lev]->setVal(0.0);
+        if(l_use_ddorf) {
+            SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+        } else {
+            SmnSmn_lev[lev] = nullptr;
+        }
     } else {
-      eddyDiffs_lev[lev] = nullptr;
-      SmnSmn_lev[lev]    = nullptr;
+        eddyDiffs_lev[lev] = nullptr;
+        SmnSmn_lev[lev]    = nullptr;
     }
 }
 

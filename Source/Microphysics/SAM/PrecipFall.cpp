@@ -1,5 +1,5 @@
 #include "ERF_Constants.H"
-#include "Microphysics.H"
+#include "SAM.H"
 #include "TileNoZ.H"
 
 using namespace amrex;
@@ -55,12 +55,12 @@ void SAM::PrecipFall(int hydro_type) {
   MultiFab wp;
   MultiFab tmp_qp;
 
-  mx.define(ba,dm, 1, ngrow);
-  mn.define(ba,dm, 1, ngrow);
-  lfac.define(ba, dm, 1, ngrow);
-  www.define(ba, dm, 1, ngrow);
-  fz.define(ba, dm, 1, ngrow);
-  wp.define(ba, dm, 1, ngrow);
+      mx.define(ba,dm, 1, ngrow);
+      mn.define(ba,dm, 1, ngrow);
+    lfac.define(ba, dm, 1, ngrow);
+     www.define(ba, dm, 1, ngrow);
+      fz.define(ba, dm, 1, ngrow);
+      wp.define(ba, dm, 1, ngrow);
   tmp_qp.define(ba, dm, 1, ngrow);
 
   TableData<Real, 1> irho;
@@ -71,10 +71,10 @@ void SAM::PrecipFall(int hydro_type) {
   iwmax.resize({zlo},{zhi});
   rhofac.resize({zlo},{zhi});
 
-  auto irho_t    = irho.table();
-  auto iwmax_t   = iwmax.table();
-  auto rhofac_t  = rhofac.table();
-  auto rho1d_t   = rho1d.table();
+  auto irho_t   = irho.table();
+  auto iwmax_t  = iwmax.table();
+  auto rhofac_t = rhofac.table();
+  auto rho1d_t  = rho1d.table();
 
   auto dz = m_geom.CellSize(2);
 

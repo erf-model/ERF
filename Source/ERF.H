@@ -530,7 +530,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
     Microphysics micro;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 6 components: qv, qc, qi, qr, qs, qg
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
@@ -661,7 +661,8 @@ private:
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
-                                                     "rhoQ1", "rhoQ2", "rhoQ3"};
+                                                     "rhoQ1", "rhoQ2", "rhoQ3",
+                                                     "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
@@ -673,8 +674,9 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl"
-                                                     ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
+                                                    "Lpbl",
+                                                    // moisture vars
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif

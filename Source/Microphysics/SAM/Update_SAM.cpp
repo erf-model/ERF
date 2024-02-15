@@ -1,5 +1,4 @@
-
-#include "Microphysics.H"
+#include "SAM.H"
 #include "IndexDefines.H"
 #include "TileNoZ.H"
 
@@ -18,19 +17,29 @@ void SAM::Copy_Micro_to_State (amrex::MultiFab& cons)
 
         auto states_arr = cons.array(mfi);
 
-        auto rho_arr    = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
-        auto theta_arr  = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
-        auto qv_arr     = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
-        auto qc_arr     = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
-        auto qp_arr     = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto rho_arr    = mic_fab_vars[MicVar::rho]->array(mfi);
+        auto theta_arr  = mic_fab_vars[MicVar::theta]->array(mfi);
+
+        auto qv_arr     = mic_fab_vars[MicVar::qv]->array(mfi);
+        auto qc_arr     = mic_fab_vars[MicVar::qcl]->array(mfi);
+        auto qi_arr     = mic_fab_vars[MicVar::qci]->array(mfi);
+
+        auto qpr_arr     = mic_fab_vars[MicVar::qpr]->array(mfi);
+        auto qps_arr     = mic_fab_vars[MicVar::qps]->array(mfi);
+        auto qpg_arr     = mic_fab_vars[MicVar::qpg]->array(mfi);
 
         // get potential total density, temperature, qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
+
             states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qv_arr(i,j,k);
             states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qc_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp)    = rho_arr(i,j,k)*qp_arr(i,j,k);
+            states_arr(i,j,k,RhoQ3_comp)    = rho_arr(i,j,k)*qi_arr(i,j,k);
+
+            states_arr(i,j,k,RhoQ4_comp)    = rho_arr(i,j,k)*qpr_arr(i,j,k);
+            states_arr(i,j,k,RhoQ5_comp)    = rho_arr(i,j,k)*qps_arr(i,j,k);
+            states_arr(i,j,k,RhoQ6_comp)    = rho_arr(i,j,k)*qpg_arr(i,j,k);
         });
     }
 
