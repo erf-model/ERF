@@ -48,7 +48,6 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real bval;
   amrex::Real ufac;
   amrex::Real vfac;
-  amrex::Vector<amrex::Real> zlevels;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -90,6 +89,7 @@ protected:
 
 private:
     ProbParm parms;
+    amrex::Vector<amrex::Real> zlevels;
 };
 
 #endif

@@ -195,10 +195,10 @@ Problem::update_rhotheta_sources (
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
-    if (z_phys_cc && parms.zlevels.empty()) {
+    if (z_phys_cc && zlevels.empty()) {
         amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
-        parms.zlevels.resize(khi+1);
-        reduce_to_max_per_level(parms.zlevels, z_phys_cc);
+        zlevels.resize(khi+1);
+        reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
     if (time < parms.restart_time) {
@@ -209,7 +209,7 @@ Problem::update_rhotheta_sources (
     } else {
         // Only apply temperature source below nominal inversion height
         for (int k = 0; k <= khi; k++) {
-            const Real z_cc = (z_phys_cc) ? parms.zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+            const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
             if (z_cc < parms.cutoff) {
                 src[k] = parms.advection_heating_rate;
             } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
