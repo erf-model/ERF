@@ -31,13 +31,13 @@ namespace MicVar_Kess {
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
       pres,  // pressure
-      // non-precipitating
-      qv,    // water vapor
+      // non-precipitating vars
+      qt,    // total cloud
+      qv,    // cloud vapor
       qcl,   // cloud water
-      qt,    // total non-precip
-      // precipitating
+      // precipitating vars
       qp,    // total precip
-      // temporary variable
+      // derived vars
       NumVars
   };
 }

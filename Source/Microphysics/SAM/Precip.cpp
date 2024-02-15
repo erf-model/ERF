@@ -1,6 +1,3 @@
-/*
- * this file is modified from precip_proc from samxx
- */
 #include "SAM.H"
 
 using namespace amrex;

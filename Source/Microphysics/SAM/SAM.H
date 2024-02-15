@@ -31,18 +31,18 @@ namespace MicVar {
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
       pres,  // pressure
-      // non-precipitating
-      qv,    // water vapor
-      qci,   // cloud ice
+      // non-precipitating vars
+      qt,    // total cloud
+      qn,    // cloud condesnate (liquid + ice)
+      qv,    // cloud vapor
       qcl,   // cloud water
-      qn,    // cloud condensate (liquid+ice)
-      qt,    // total non-precip
-      // precipitating
-      qpr,   // precip rain
-      qps,   // precip snow
-      qpg,   // precip graupel
+      qci,   // cloud ice
+      // precipitating vars
       qp,    // total precip
-      // temporary variable
+      qpr,   // precip rain
+      qps,   // precip ice
+      qpg,   // graupel
+      // derived vars
       omega,
       NumVars
   };

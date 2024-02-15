@@ -123,7 +123,7 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
             qpr_array(i,j,k)   = states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp);
             qps_array(i,j,k)   = states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp);
             qpg_array(i,j,k)   = states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp);
-            qp_array(i,j,k)    = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+             qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),

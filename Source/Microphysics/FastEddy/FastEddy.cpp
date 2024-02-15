@@ -1,6 +1,6 @@
-#include "FastEddy.H"
 #include <EOS.H>
 #include <TileNoZ.H>
+#include "FastEddy.H"
 
 using namespace amrex;
 

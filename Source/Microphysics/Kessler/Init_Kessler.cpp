@@ -64,10 +64,11 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
+        auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
         auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+
         auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
-        auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
 
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);

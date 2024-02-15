@@ -157,6 +157,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
           }
        }
     }
+
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h,
                               EddyDiff::Q1_h   , EddyDiff::Q2_h, EddyDiff::Q3_h ,
                               EddyDiff::Q4_h   , EddyDiff::Q5_h, EddyDiff::Q6_h };

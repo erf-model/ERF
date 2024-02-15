@@ -22,11 +22,11 @@ namespace MicVar_FE {
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
       pres,  // pressure
-      // non-precipitating
-      qv,    // water vapor
+      // non-precipitating vars
+      qt,    // total cloud
+      qv,    // cloud vapor
       qc,    // cloud water
-      qt,    // total non-precip
-      // temporary variable
+      // derived vars
       NumVars
   };
 }
