@@ -9,7 +9,7 @@ ERF supports models for wind farm parametrization in which the effects of wind t
 Fitch model
 ------------
 
-The Fitch model for wind farms introduced in `Fitch et al. 2012`_  models the effect of wind farms as source terms in the governing equations for the horizontal components of momentum (i.e., :math:`x` and :math:`y` momentum) and the turbulent kinetic energy (TKE). At a given cell :math:`(i,j,k)`, the source terms in the governing equations are
+The Fitch model for wind farms introduced in `Fitch et al. 2012`_  models the effect of wind farms (See Fig. `1`) as source terms in the governing equations for the horizontal components of momentum (i.e., :math:`x` and :math:`y` momentum) and the turbulent kinetic energy (TKE). The wind turbine is discretized only in the vertical (ie. `z` direction). At a given cell :math:`(i,j,k)`, the source terms in the governing equations are
 
 .. _`Fitch et al. 2012`: https://journals.ametsoc.org/view/journals/mwre/140/9/mwr-d-11-00352.1.xml
 
@@ -30,13 +30,13 @@ where `u` and `v` are horizontal components of velocity, `|V|` is the velocity m
 Intersected area :math:`A_{ijk}`
 _________________________________
 
-Consider :math:`A_k^{k+1}` -- the area intersected by the swept area of the wind turbine between :math:`z=z_k` and :math:`z = z_{k+1}`. We have (see Fig. 1 below)
+Consider :math:`A_k^{k+1}` -- the area intersected by the swept area of the wind turbine between :math:`z=z_k` and :math:`z = z_{k+1}`. We have (see Figs. `2` and `3` below)
 
 .. math::
 
     A_k = \frac{\pi R^2}{2} - A_{ks}
 
-where :math:`A_{ks}` is the area of the segment of the circle as shown in Fig. 1. We have from geometry, :math:`d_k = \min(|z_k - z_c|,R)` is the perpendicular distance of the center of the turbine to :math:`z = z_k`, where :math:`z_c` is the height of the center of the turbine from the ground. The area of the segment is
+where :math:`A_{ks}` is the area of the segment of the circle as shown in Fig. `3`. We have from geometry, :math:`d_k = \min(|z_k - z_c|,R)` is the perpendicular distance of the center of the turbine to :math:`z = z_k`, where :math:`z_c` is the height of the center of the turbine from the ground. The area of the segment is
 
 .. math::
 
@@ -54,12 +54,28 @@ Hence, we have the intersected area :math:`A_{ijk}\equiv A_k^{k+1}` as
         |A_k + A_{k+1}| & \text{if } (z_k - z_c)(z_{k+1}-z_c) \le 0 \\
     \end{cases}
 
-.. _fig1:
+An example of the Fitch model is in ``Exec/Fitch``
+
+.. 1:
+
+.. figure:: ../figures/WindFarm_Fitch.png
+   :width: 300
+   :align: center
+
+   Horizontal view of the wind farm in the Fitch model -- shows a wind farm in cell `(i,j)` with 5 wind turbines. The turbines are discretized only in the vertical direction.
+
+.. 2:
+
+.. figure:: ../figures/WindTurbine_Fitch.png
+   :width: 300
+   :align: center
+
+   The vertical discretization of the wind turbine in the Fitch model.
+
+.. 3:
 
 .. figure:: ../figures/FitchModel_A_ijk.png
    :width: 400
    :align: center
 
    The area terminology in the Fitch model. The circle represents the area swept by the turbine blades.
-
-
