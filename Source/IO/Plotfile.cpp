@@ -636,6 +636,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+        // TODO: The size of the q variables can vary with different
+        //       moisture models. Therefore, certain components may
+        //       reside at different indices. For example, Kessler is
+        //       warm but precipitating. This puts qp at index 3.
+        //       However, SAM is cold and precipitating so qp is index 4.
+        //       Need to built an external enum struct or a better pathway.
+
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
             int q_size = qmoist[lev].size();
@@ -661,16 +668,23 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qi") && (q_size >= 4))
+            if (containerHasElement(plot_var_names, "qi") && (q_size > 4))
             {
                 MultiFab qi_mf(*(qmoist[lev][3]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qi_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qp") && (q_size >= 5))
+            if (containerHasElement(plot_var_names, "qp") &&
+               ((q_size >= 5) || (q_size==4)))
             {
-                MultiFab qp_mf(*(qmoist[lev][4]), make_alias, 0, 1);
+                int q_ind;
+                if (q_size >= 5) { // Cold moisture physics (has ice)
+                    q_ind = 4;
+                } else {           // Warm moisture physics (no  ice)
+                    q_ind = 3;
+                }
+                MultiFab qp_mf(*(qmoist[lev][q_ind]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],qp_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }

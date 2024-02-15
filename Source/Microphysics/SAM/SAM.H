@@ -22,25 +22,27 @@
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
+#include "NullMoist.H"
 
 namespace MicVar {
    enum {
       // independent variables
-      qt = 0,
-      qp,
+      rho=0, // density
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
-      rho,   // density
       pres,  // pressure
-      // derived variables
-      qv,   // water vapor
-      qn,   // cloud condensate (liquid+ice), initial to zero
-      qci,  // cloud ice
-      qcl,  // cloud water
-      qpl,  // precip rain
-      qpi,  // precip ice
-      qg,   // graupel
-      // temporary variable
+      // non-precipitating vars
+      qt,    // total cloud
+      qn,    // cloud condesnate (liquid + ice)
+      qv,    // cloud vapor
+      qcl,   // cloud water
+      qci,   // cloud ice
+      // precipitating vars
+      qp,    // total precip
+      qpl,   // precip rain
+      qpi,   // precip ice
+      qg,    // graupel
+      // derived vars
       omega,
       NumVars
   };
