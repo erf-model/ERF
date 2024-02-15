@@ -7,8 +7,8 @@ void ERF::advance_microphysics (int lev,
                                 const Real& dt_advance)
 {
     if (solverChoice.moisture_type != MoistureType::None) {
-        micro.Update_Micro_Vars_Lev(lev, cons);
-        micro.Advance(lev, dt_advance);
-        micro.Update_State_Vars_Lev(lev, cons);
+        micro->Update_Micro_Vars_Lev(lev, cons);
+        micro->Advance(lev, dt_advance, vars_new, z_phys_nd);
+        micro->Update_State_Vars_Lev(lev, cons);
     }
 }

@@ -38,9 +38,11 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                           MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
+                    const int& a_qstate_size,
                     const MultiFab* r0)
 {
     BL_PROFILE_REGION("make_buoyancy()");
+
 
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
@@ -158,16 +160,25 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // TODO: A microphysics model may have more than q1 & q2 components for the
                 //       non-precipitating phase.
 
-                ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=, n_qstate=a_qstate_size] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rhop_lo, rhop_hi;
-                    if(moisture_type == MoistureType::FastEddy){
-                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
-                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
-                    }else{
-                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) + cell_data(i,j,k  ,RhoQ3_comp) - r0_arr(i,j,k  );
-                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) + cell_data(i,j,k-1,RhoQ3_comp) - r0_arr(i,j,k-1);
+                    rhop_hi = cell_data(i,j,k  ,Rho_comp);
+                    rhop_lo = cell_data(i,j,k-1,Rho_comp);
+                    if(n_qstate > 0){
+                        rhop_hi += cell_data(i,j,k  ,RhoQ1_comp);
+                        rhop_lo += cell_data(i,j,k-1,RhoQ1_comp);
                     }
+                    if(n_qstate > 1){
+                        rhop_hi += cell_data(i,j,k  ,RhoQ2_comp);
+                        rhop_lo += cell_data(i,j,k-1,RhoQ2_comp);
+                    }
+                    if(n_qstate > 2){
+                        rhop_hi += cell_data(i,j,k  ,RhoQ3_comp);
+                        rhop_lo += cell_data(i,j,k-1,RhoQ3_comp);
+                    }
+                    rhop_hi -= r0_arr(i,j,k  );
+                    rhop_lo -= r0_arr(i,j,k-1);
                     buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
                 });
             } // mfi

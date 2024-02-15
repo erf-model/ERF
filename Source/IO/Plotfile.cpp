@@ -44,7 +44,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
-    int n_qstate   = micro.Get_Qstate_Size();
+    int n_qstate   = micro->Get_Qstate_Size();
     int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     for (int i = 0; i < ncomp_cons; ++i) {
@@ -126,7 +126,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     for (int lev = 0; lev <= finest_level; ++lev) {
         for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-            qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+            qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
         }
     }
 
@@ -222,10 +222,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
                 const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
                 });
@@ -243,10 +244,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
                 });
@@ -281,9 +283,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real qv = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
-                    Real qc = (use_moisture) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
                     Real T = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv);
                     Real fac = Cp_d + Cp_l*(qv + qc);
