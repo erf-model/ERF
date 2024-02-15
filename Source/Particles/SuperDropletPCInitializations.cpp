@@ -168,6 +168,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* aerosol_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sol_mass).data();
+        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
 
         auto my_proc = ParallelDescriptor::MyProc();
@@ -217,7 +218,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 radius_ptr[n] = par_radius;
                 aerosol_mass_ptr[n] = aerosol_mass;
                 mult_ptr[n] = multiplicity;
-
+                supdrop_mass_ptr[n] = par_mass*multiplicity;
            }
         });
 
@@ -281,6 +282,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
         auto mass_density = a_mass_density[pti.index()].array();
 
@@ -302,7 +304,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
             Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);
             Real radius = std::exp( std::log(radius_cubed) / 3.0 );
             radius_ptr[i] = radius;
-
+            supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
         });
 
     }

@@ -10,20 +10,10 @@ using namespace amrex;
 Real SuperDropletPC::TotalNumberOfParticles ()
 {
     BL_PROFILE("SuperDropletPC::TotalNumberOfParticles()");
-
-    Real count = 0;
-    for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
-        const auto& particle_tile = ParticlesAt(m_lev, pti);
-        auto& soa = particle_tile.GetStructOfArrays();
-        auto& aos = particle_tile.GetArrayOfStructs();
-
-        auto* mult_ptr = soa.GetRealData( SuperDropletsRealIdxSoA::ncomps
-                                          +SuperDropletsRealIdxSoA_RT::multiplicity ).data();
-        const int n = aos.numParticles();
-
-        count += Reduce::Sum(n, mult_ptr);
-    }
-
+    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
+    Real count = ReduceSum(*this,
+                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                           { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; });
     ParallelDescriptor::ReduceRealSum(&count, 1, ParallelDescriptor::IOProcessorNumber());
     return count;
 }
