@@ -4,12 +4,12 @@ Wind farm models
 Introduction
 -------------
 
-ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently only the Fitch model (`Fitch et al. 2012`_) is supported. 
+ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently only the Fitch model (`Fitch et al. 2012`_) is supported.
 
 Fitch model
 ------------
 
-The Fitch model for wind farms introduced in `Fitch et al. 2012`_  models the effect of wind farms as source terms in the governing equations for the horizontal components of momentum (i.e., :math:`x` and :math:`y` momentum) and the turbulent kinetic energy (TKE). At a given cell :math:`(i,j,k)`, the source terms in the governing equations are 
+The Fitch model for wind farms introduced in `Fitch et al. 2012`_  models the effect of wind farms as source terms in the governing equations for the horizontal components of momentum (i.e., :math:`x` and :math:`y` momentum) and the turbulent kinetic energy (TKE). At a given cell :math:`(i,j,k)`, the source terms in the governing equations are
 
 .. _`Fitch et al. 2012`: https://journals.ametsoc.org/view/journals/mwre/140/9/mwr-d-11-00352.1.xml
 
@@ -40,11 +40,11 @@ where :math:`A_{ks}` is the area of the segment of the circle as shown in Fig. 1
 
 .. math::
 
-    A_{ks} = R^2\theta_k - d_k\sqrt{R^2 - d_k^2}   
+    A_{ks} = R^2\theta_k - d_k\sqrt{R^2 - d_k^2}
 
 where :math:`\theta_k = \cos^{-1}\left(\frac{d_k}{R}\right)`.
 
-Hence, we have the intersected area :math:`A_{ijk}\equiv A_k^{k+1}` as 
+Hence, we have the intersected area :math:`A_{ijk}\equiv A_k^{k+1}` as
 
 .. math::
 
