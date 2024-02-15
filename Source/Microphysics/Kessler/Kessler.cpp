@@ -1,11 +1,6 @@
-/*
- * this file is modified from precip_proc from samxx
- */
-#include "MicrophysicsVariables.H"
-#include "Kessler.H"
-
 #include <EOS.H>
 #include <TileNoZ.H>
+#include "Kessler.H"
 
 using namespace amrex;
 
@@ -14,11 +9,11 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler ()
 {
-    auto qv   = mic_fab_vars[MicVar_Kess::qv];
-    auto qc   = mic_fab_vars[MicVar_Kess::qcl];
-    auto qp   = mic_fab_vars[MicVar_Kess::qp];
-    auto tabs = mic_fab_vars[MicVar_Kess::tabs];
-    auto pres = mic_fab_vars[MicVar_Kess::pres];
+    auto qv    = mic_fab_vars[MicVar_Kess::qv];
+    auto qc    = mic_fab_vars[MicVar_Kess::qcl];
+    auto qp    = mic_fab_vars[MicVar_Kess::qp];
+    auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
+    auto pres  = mic_fab_vars[MicVar_Kess::pres];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
 

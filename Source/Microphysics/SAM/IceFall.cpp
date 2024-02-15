@@ -1,5 +1,4 @@
 #include <AMReX_ParReduce.H>
-#include "MicrophysicsVariables.H"
 #include "SAM.H"
 #include "TileNoZ.H"
 

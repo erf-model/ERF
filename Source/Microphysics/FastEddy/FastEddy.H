@@ -1,5 +1,3 @@
-/*
- */
 #ifndef FastEddy_H
 #define FastEddy_H
 
@@ -14,10 +12,25 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
-#include "MicrophysicsVariables.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
 #include "NullMoist.H"
+
+namespace MicVar_FE {
+   enum {
+      // independent variables
+      rho=0, // density
+      theta, // liquid/ice water potential temperature
+      tabs,  // temperature
+      pres,  // pressure
+      // non-precipitating vars
+      qt,    // total cloud
+      qv,    // cloud vapor
+      qc,    // cloud water
+      // derived vars
+      NumVars
+  };
+}
 
 //
 // use MultiFab for 3D data, but table for 1D data

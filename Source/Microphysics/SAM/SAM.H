@@ -20,10 +20,33 @@
 
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
-#include "MicrophysicsVariables.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
 #include "NullMoist.H"
+
+namespace MicVar {
+   enum {
+      // independent variables
+      rho=0, // density
+      theta, // liquid/ice water potential temperature
+      tabs,  // temperature
+      pres,  // pressure
+      // non-precipitating vars
+      qt,    // total cloud
+      qn,    // cloud condesnate (liquid + ice)
+      qv,    // cloud vapor
+      qcl,   // cloud water
+      qci,   // cloud ice
+      // precipitating vars
+      qp,    // total precip
+      qpl,   // precip rain
+      qpi,   // precip ice
+      qg,    // graupel
+      // derived vars
+      omega,
+      NumVars
+  };
+}
 
 //
 // use MultiFab for 3D data, but table for 1D data

@@ -513,24 +513,31 @@ ERF::InitData ()
         // we initialize rho_KE to be nonzero (and positive) so that we end up
         // with reasonable values for the eddy diffusivity and the MOST fluxes
         // (~ 1/diffusivity) do not blow up
-        Real RhoKE_0 = 0.1;
+        Real RhoKE_0;
         ParmParse pp(pp_prefix);
         if (pp.query("RhoKE_0", RhoKE_0)) {
             // Uniform initial rho*e field
             for (int lev = 0; lev <= finest_level; lev++) {
                 if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                    amrex::Print() << "Initializing uniform rhoKE=" << RhoKE_0
+                        << " on level " << lev
+                        << std::endl;
                     vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
                 } else {
                     vars_new[lev][Vars::cons].setVal(0.0,RhoKE_comp,1,0);
                 }
             }
-        } else {
-            // default: uniform initial e field
-            Real KE_0 = 0.1;
-            pp.query("KE_0", KE_0);
+        }
+
+        Real KE_0;
+        if (pp.query("KE_0", KE_0)) {
+            // Uniform initial e field
             for (int lev = 0; lev <= finest_level; lev++) {
                 auto& lev_new = vars_new[lev];
                 if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
+                    amrex::Print() << "Initializing uniform KE=" << KE_0
+                        << " on level " << lev
+                        << std::endl;
                     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                         const Box &bx = mfi.tilebox();
                         const auto &cons_arr = lev_new[Vars::cons].array(mfi);
@@ -549,6 +556,7 @@ ERF::InitData ()
 
         Real QKE_0;
         if (pp.query("QKE_0", QKE_0)) {
+            amrex::Print() << "Initializing uniform QKE=" << QKE_0 << std::endl;
             for (int lev = 0; lev <= finest_level; lev++) {
                 auto& lev_new = vars_new[lev];
                 for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
