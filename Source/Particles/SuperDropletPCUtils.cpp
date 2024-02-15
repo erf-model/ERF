@@ -7,7 +7,7 @@
 using namespace amrex;
 
 /*! This returns the total number of particles that all the super-droplets represent */
-Long SuperDropletPC::TotalNumberOfParticles ()
+Real SuperDropletPC::TotalNumberOfParticles ()
 {
     BL_PROFILE("SuperDropletPC::TotalNumberOfParticles()");
 
@@ -17,7 +17,8 @@ Long SuperDropletPC::TotalNumberOfParticles ()
         auto& soa = particle_tile.GetStructOfArrays();
         auto& aos = particle_tile.GetArrayOfStructs();
 
-        auto* mult_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::multiplicity).data();
+        auto* mult_ptr = soa.GetRealData( SuperDropletsRealIdxSoA::ncomps
+                                          +SuperDropletsRealIdxSoA_RT::multiplicity ).data();
         const int n = aos.numParticles();
 
         count += Reduce::Sum(n, mult_ptr);
@@ -53,7 +54,7 @@ void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multi
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
                 {
-                    auto num_par = (Real) ptd.m_runtime_rdata[SuperDropletsRealIdxSoA::multiplicity][i];
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     return num_par*inv_cell_volume;
                 });
         });
@@ -87,8 +88,8 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
                 [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
                 {
-                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA::multiplicity][i];
-                    auto par_mass = p.rdata(SuperDropletsRealIdxAoS::mass);
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                    auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
                     return num_par*par_mass*inv_cell_volume;
                 });
         });

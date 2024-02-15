@@ -6,10 +6,16 @@
 #include "ERFPC.H"
 
 /*! \brief Real-type array-of-struct attributes of a super-droplet */
-using SuperDropletsRealIdxAoS = ERFParticlesRealIdx;
+using SuperDropletsRealIdxAoS = ERFParticlesRealIdxAoS;
+
+/*! \brief Int-type array-of-struct attributes of a super-droplet */
+using SuperDropletsIntIdxAoS = ERFParticlesIntIdxAoS;
 
 /*! \brief Real-type struct-of-array attributes of a super-droplet */
-struct SuperDropletsRealIdxSoA
+using SuperDropletsRealIdxSoA = ERFParticlesRealIdxSoA;
+
+/*! \brief Real-type struct-of-array attributes added during runtime */
+struct SuperDropletsRealIdxSoA_RT
 {
     enum {
         radius = 0,     /*!< Radius of physical particles */
@@ -20,8 +26,8 @@ struct SuperDropletsRealIdxSoA
     };
 };
 
-/*! \brief Int-type array-of-struct attributes of a super-droplet */
-using SuperDropletsIntIdxAoS = ERFParticlesIntIdx;
+/*! \brief Int-type struct-of-array attributes of a super-droplet */
+using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
 
 /*! \brief List of super-droplet initializations */
 namespace SuperDropletInitializations
@@ -74,6 +80,8 @@ class SuperDropletPC : public ERFPC
         virtual void InitializeParticles (  const std::string&,
                                             const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
+        /*! \brief Particle initialization - uniform distribution */
+        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );
 
@@ -90,8 +98,8 @@ class SuperDropletPC : public ERFPC
             return ERFPC::TotalNumberOfParticles();
         }
 
-        /*! \brief Return the total number of particles */
-        virtual amrex::Long TotalNumberOfParticles ();
+        /*! \brief Return the total number of physical particles */
+        virtual amrex::Real TotalNumberOfParticles ();
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
@@ -109,19 +117,15 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
         amrex::Real m_mass_aerosol_init;    /*!< Initial aerosol mass of each physical particle */
 
-        long m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
-        amrex::Real m_num_par_per_cell; /*!< Number of physical particles per cell
-                                             (Real type to prevent overflow for large values) */
+        int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
+
+        bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
         /*! \brief read inputs from file */
         virtual void readInputs ();
 
         /*! \brief Particle initialization - null (no particles are initialized) */
         void initializeParticlesNull (const std::unique_ptr<amrex::MultiFab>&) { }
-        /*! \brief Particle initialization - uniform distribution */
-        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-
-        bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
     private:
 
