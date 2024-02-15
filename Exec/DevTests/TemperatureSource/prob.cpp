@@ -1,5 +1,6 @@
 #include "prob.H"
 #include "AMReX_Random.H"
+#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
@@ -38,6 +39,14 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 
   pp.query("dampcoef", parms.dampcoef);
   pp.query("zdamp", parms.zdamp);
+
+  //===========================================================================
+  // READ USER-DEFINED INPUTS
+  pp.get("advection_heating_rate", parms.advection_heating_rate);
+  pp.query("restart_time",parms.restart_time);
+  pp.query("source_cutoff", parms.cutoff);
+  pp.query("source_cutoff_transition", parms.cutoff_transition);
+  //===========================================================================
 
   init_base_parms(parms.rho_0, parms.T_0);
 }
@@ -165,6 +174,9 @@ Problem::init_custom_pert(
   });
 }
 
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
 void
 Problem::update_rhotheta_sources (
     const amrex::Real& time,
@@ -175,19 +187,33 @@ Problem::update_rhotheta_sources (
 {
     if (src.empty()) return;
 
-    if (z_phys_cc) {
-        // use_terrain=1 -- see Prob/init_rayleigh_damping.H for example of how
-        // to reduce the 3D z array to a single height per k
-        amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
+    const int khi              = geom.Domain().bigEnd()[2];
+    const amrex::Real* prob_lo = geom.ProbLo();
+    const auto dx              = geom.CellSize();
+
+    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the the height needs to be
+    // calculated at each time step. Here, we assume that only grid
+    // stretching exists.
+    if (z_phys_cc && parms.zlevels.empty()) {
+        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        parms.zlevels.resize(khi+1);
+        reduce_to_max_per_level(parms.zlevels, z_phys_cc);
+    }
+
+    if (time < parms.restart_time) {
+        // Uniform temperature source
+        for (int k = 0; k <= khi; k++) {
+            src[k] = parms.advection_heating_rate;
+        }
     } else {
-        const int khi              = geom.Domain().bigEnd()[2];
-        const amrex::Real* prob_lo = geom.ProbLo();
-        const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
-        {
-            const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            if ((time > 1.0) && (z_cc < 100.)) {
-                src[k] = 1.0; // 1 K/s
+        // Only apply temperature source below nominal inversion height
+        for (int k = 0; k <= khi; k++) {
+            const Real z_cc = (z_phys_cc) ? parms.zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+            if (z_cc < parms.cutoff) {
+                src[k] = parms.advection_heating_rate;
+            } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
+                src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
             } else {
                 src[k] = 0.0;
             }
