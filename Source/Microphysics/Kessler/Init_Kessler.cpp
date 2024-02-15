@@ -68,11 +68,12 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
         auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
         auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
 
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
-        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
-        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -82,6 +83,7 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
             qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
             qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
             qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
+            qt_array(i,j,k)    = qv_array(i,j,k) + qc_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),

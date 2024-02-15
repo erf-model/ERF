@@ -49,6 +49,7 @@ erf.use_NumDiff  = true
 erf.NumDiffCoeff = 0.5
 
 erf.init_type = "uniform"
+erf.KE_0 = 0.1 # for Deardorff
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0

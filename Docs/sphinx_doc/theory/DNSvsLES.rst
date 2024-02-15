@@ -17,9 +17,12 @@ When running in Direct Numerical Simulation (DNS) mode, it is assumed that the m
 Therefore, in DNS mode the :ref:`previously described equations <DryEquations>` are solved directly with no additional models being required.
 The transport coefficients correspond to the molecular transport coefficients,
 with one of these assumptions:
-    - constant transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`, or
-    - constant :math:`\nu = \mu / \rho`, :math:`\alpha_T` and constant :math:`\alpha_C`,
+
+* constant transport coefficients :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T`, or
+
+* constant :math:`\nu = \mu / \rho`, :math:`\alpha_T` and constant :math:`\alpha_C`,
       each of which is then multiplied by :math:`\rho` in the construction of the diffusive terms.
+
 Note that scaling arguments from simple kinetic theory indicate that the quantities :math:`\mu`, :math:`\rho\alpha_C`, and :math:`\rho\alpha_T` are all independent of density and pressure but weakly dependent on temperature (:math:`T^{1/2}` scaling), justifying use of constant parameters over the range of conditions of interest.
 
 LES

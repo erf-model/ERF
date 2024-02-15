@@ -154,7 +154,7 @@ are only set in the yellow region if present in the boundary file.
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
 
-.. _fig:Lateral BCs
+.. _fig:lateral_BCs:
 
 .. table:: Lateral boundaries
 
@@ -196,7 +196,7 @@ ERF provides the capability to apply sponge zones at the boundaries to prevent s
 
    \frac{dQ}{dt} = \mathrm{RHS} - A\xi^n(Q-Q_\mathrm{target})
 
-where RHS are the other right-hand side terms. The parameters to be set by the user are - `A` is the sponge amplitude, `n` is the sponge strength and the `Q_\mathrm{target}` - the target solution in the sponge. `\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder``.
+where RHS are the other right-hand side terms. The parameters to be set by the user are -- `A` is the sponge amplitude, `n` is the sponge strength and the :math:`Q_\mathrm{target}` -- the target solution in the sponge. `\xi` is a linear coordinate that is 0 at the beginning of the sponge and 1 at the end. An example of the sponge inputs can be found in ``Exec/RegTests/Terrain2d_Cylinder``.
 
 ::
 
