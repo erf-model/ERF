@@ -154,7 +154,7 @@ are only set in the yellow region if present in the boundary file.
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
 
-.. _fig:Lateral BCs
+.. _fig:lateral_BCs:
 
 .. table:: Lateral boundaries
 

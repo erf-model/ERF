@@ -80,7 +80,8 @@ void make_fast_coeffs (int /*level*/,
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
-        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi); const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
+        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
+        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
 
@@ -117,20 +118,20 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_lo = pi_stage_ca(i,j,k-1,0);
-                 Real pi_hi = pi_stage_ca(i,j,k  ,0);
-                 Real pi_c =  0.5 * (pi_lo + pi_hi);
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1,0) + pi_stage_ca(i,j,k,0));
 
                  Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
                  Real inv_detJ_on_kface = 1. / detJ_on_kface;
 
-                 Real coeff_P = -Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
-                               +  halfg * R_d * rhobar_hi * pi_hi  /
+                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface
+                               +  halfg * R_d * rhobar_hi /
                                (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 coeff_P *= pi_c;
 
-                 Real coeff_Q =  Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
-                               + halfg * R_d * rhobar_lo * pi_lo  /
+                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface
+                               + halfg * R_d * rhobar_lo /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                 coeff_Q *= pi_c;
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -164,17 +165,17 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_lo = pi_stage_ca(i,j,k-1,0);
-                 Real pi_hi = pi_stage_ca(i,j,k  ,0);
-                 Real pi_c =  0.5 * (pi_lo + pi_hi);
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1,0) + pi_stage_ca(i,j,k,0));
 
-                 Real coeff_P = -Gamma * R_d * pi_c * dzi
-                              +  halfg * R_d * rhobar_hi * pi_hi  /
+                 Real coeff_P = -Gamma * R_d * dzi
+                              +  halfg * R_d * rhobar_hi /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 coeff_P *= pi_c;
 
-                 Real coeff_Q = Gamma * R_d * pi_c * dzi
-                              + halfg * R_d * rhobar_lo * pi_lo  /
+                 Real coeff_Q = Gamma * R_d * dzi
+                              + halfg * R_d * rhobar_lo /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                 coeff_Q *= pi_c;
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
