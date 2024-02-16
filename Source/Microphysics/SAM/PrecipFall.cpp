@@ -1,5 +1,5 @@
 #include "ERF_Constants.H"
-#include "Microphysics.H"
+#include "SAM.H"
 #include "TileNoZ.H"
 
 using namespace amrex;

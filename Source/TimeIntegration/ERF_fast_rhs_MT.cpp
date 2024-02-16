@@ -56,7 +56,7 @@ void erf_fast_rhs_MT (int step, int nrk,
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
                       Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
                       const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVar::cons]
-                      const MultiFab& pi_stg,                        // Exner function evaluated at last RK stg
+                      const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
                       Vector<MultiFab>& S_scratch,                   // S_sum_old at most recent fast timestep for (rho theta)
@@ -173,7 +173,7 @@ void erf_fast_rhs_MT (int step, int nrk,
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
 
-        const Array4<const Real>& pi_stg_ca = pi_stg.const_array(mfi);
+        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         const Array4<Real>& theta_extrap = extrap.array(mfi);
 
@@ -261,7 +261,7 @@ void erf_fast_rhs_MT (int step, int nrk,
                     gpx /= (1.0 + q);
                 }
 
-                Real pi_c =  0.5 * (pi_stg_ca(i-1,j,k,0) + pi_stg_ca(i  ,j,k,0));
+                Real pi_c =  0.5 * (pi_stage_ca(i-1,j,k,0) + pi_stage_ca(i  ,j,k,0));
                 Real fast_rhs_rho_u = -Gamma * R_d * pi_c * gpx;
 
                 // We have already scaled the source terms to have the extra factor of dJ
@@ -288,7 +288,7 @@ void erf_fast_rhs_MT (int step, int nrk,
                     gpy /= (1.0 + q);
                 }
 
-                Real pi_c =  0.5 * (pi_stg_ca(i,j-1,k,0) + pi_stg_ca(i,j  ,k,0));
+                Real pi_c =  0.5 * (pi_stage_ca(i,j-1,k,0) + pi_stage_ca(i,j  ,k,0));
                 Real fast_rhs_rho_v = -Gamma * R_d * pi_c * gpy;
 
                 // We have already scaled the source terms to have the extra factor of dJ

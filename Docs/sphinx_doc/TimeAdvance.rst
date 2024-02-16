@@ -71,40 +71,59 @@ Then the acoustic substepping evolves the equations in the form
 
 .. math::
 
-  U^{\prime \prime, \tau + \delta \tau} - U^{\prime \prime, \tau} &=&  \delta \tau (
-              -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial x} + R^t_U)
+  U^{\prime \prime, \tau + \delta \tau} - U^{\prime \prime, \tau} &= \delta \tau \left(
+              -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial x} + R^t_U
+              \right)
 
-  V^{\prime \prime, \tau + \delta \tau} - V^{\prime \prime, \tau} &=&  \delta \tau (
-              -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial y} + R^t_V)
+  V^{\prime \prime, \tau + \delta \tau} - V^{\prime \prime, \tau} &= \delta \tau \left(
+              -\gamma R_d \pi^t \frac{\partial \Theta^{\prime \prime, \tau}}{\partial y} + R^t_V
+              \right)
 
 .. math::
 
-  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} &=& \delta \tau (
-            -\gamma R_d \pi^t \frac{\partial (\beta_1 \Theta^{\prime \prime, \tau} +
+  W^{\prime \prime, \tau + \delta \tau} - W^{\prime \prime, \tau} = \delta \tau \biggl(
+          &-\gamma R_d \pi^t \frac{\partial (\beta_1 \Theta^{\prime \prime, \tau} +
                                               \beta_2 \Theta^{\prime \prime, \tau  + \delta \tau} ) }{\partial z} \\
-          && - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
-
+          & - g \overline{\rho} \frac{R_d}{c_v} \frac{\pi^t}{\overline{\pi}}
              \frac{ (\beta_1 \Theta^{\prime \prime, \tau}  +
-                     \beta_2 \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t}
-            + g (\beta_1 \rho^{\prime \prime, \tau} + \beta_2 \rho^{\prime \prime, \tau + \delta \tau } ) + R^t_W )
+                     \beta_2 \Theta^{\prime \prime, \tau + \delta \tau} )}{\Theta^t} \\
+          & + g (\beta_1 \rho^{\prime \prime, \tau} + \beta_2 \rho^{\prime \prime, \tau + \delta \tau } ) \\
+          & + R^t_W \biggr)
 
 .. math::
 
-  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} =  \delta \tau (
+  \Theta^{\prime \prime, \tau + \delta \tau} - \Theta^{\prime \prime, \tau} =  \delta \tau \left(
           -\frac{\partial (U^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial x}
           -\frac{\partial (V^{\prime \prime, \tau + \delta \tau} \theta^t)}{\partial y}
-          -\frac{\partial (( \beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau} ) \theta^t)}{\partial z} +  R^t_{\Theta} )
+          -\frac{\partial \left(( \beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau} ) \theta^t\right)}{\partial z} +  R^t_{\Theta}
+          \right)
 
 .. math::
 
-  \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} =  \delta \tau (
+  \rho^{\prime \prime, \tau + \delta \tau} - \rho^{\prime \prime, \tau} =  \delta \tau \left(
           - \frac{\partial U^{\prime \prime, \tau + \delta \tau }}{\partial x}
           - \frac{\partial V^{\prime \prime, \tau + \delta \tau }}{\partial y}
-          - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho} )
+          - \frac{\partial (\beta_1 W^{\prime \prime, \tau} + \beta_2 W^{\prime \prime, \tau + \delta \tau})}{\partial z} +  R^t_{\rho}
+            \right)
 
 where :math:`\beta_1 = 0.5 (1 - \beta_s)` and :math:`\beta_2 = 0.5 (1 + \beta_s)` with :math:`\beta_s = 0.1`.
+:math:`\beta_s` is the acoustic step off-centering coefficient and 0.1 is the typical WRF value. This off-centering is intended to provide damping of both horizontally and vertically propagating sound waves by biasing the time average toward the future time step.
 
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
 We then solve a tridiagonal system for :math:`W^{\prime \prime, \tau + \delta \tau}`, and once :math:`W^{\prime \prime, \tau + \delta \tau}`
 is known, we update :math:`\rho^{\prime \prime, \tau + \delta \tau}` and :math:`\Theta^{\prime \prime, \tau + \delta \tau}.`
+
+In addition to the acoustic off-centering, divergence damping is also applied
+to control horizontally propagating sound waves.
+
+.. math::
+
+   p^{\prime\prime,\tau*} = p^{\prime\prime,\tau}
+     + \beta_d \left( p^{\prime\prime,\tau} + p^{\prime\prime,\tau-\delta\tau} \right)
+
+where :math:`\tau*` is the forward projected value used in RHS of the acoustic
+substepping equations for horizontal momentum. According to Skamarock et al,
+This is equivalent to including a horizontal diffusion term in the continuity
+equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
+WRF.

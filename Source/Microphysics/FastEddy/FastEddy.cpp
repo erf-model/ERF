@@ -1,10 +1,6 @@
-/*
- * this file is modified from precip_proc from samxx
- */
-#include "Microphysics.H"
-
 #include <EOS.H>
 #include <TileNoZ.H>
+#include "FastEddy.H"
 
 using namespace amrex;
 

@@ -673,8 +673,9 @@ private:
                                                     // eddy diffusivity of heat
                                                     "Khv","Khh",
                                                     // mynn pbl lengthscale
-                                                    "Lpbl"
-                                                     ,"qt", "qp", "qv", "qc", "qi", "qrain", "qsnow", "qgraup"
+                                                    "Lpbl",
+                                                    // moisture vars
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif

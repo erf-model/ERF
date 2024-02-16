@@ -1,7 +1,4 @@
-/*
- * this file is modified from precip_proc from samxx
- */
-#include "Microphysics.H"
+#include "SAM.H"
 
 using namespace amrex;
 

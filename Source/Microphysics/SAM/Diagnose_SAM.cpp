@@ -1,4 +1,4 @@
-#include "Microphysics.H"
+#include "SAM.H"
 #include "EOS.H"
 
 /**
@@ -15,7 +15,7 @@ void SAM::Diagnose () {
     auto qci  = mic_fab_vars[MicVar::qci];
     auto qpl  = mic_fab_vars[MicVar::qpl];
     auto qpi  = mic_fab_vars[MicVar::qpi];
-    auto qg  = mic_fab_vars[MicVar::qg];
+    auto qg   = mic_fab_vars[MicVar::qg];
     auto tabs = mic_fab_vars[MicVar::tabs];
 
     for ( amrex::MFIter mfi(*tabs, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
