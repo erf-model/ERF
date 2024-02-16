@@ -16,6 +16,7 @@ void SAM::IceFall () {
     int kmax, kmin;
     auto qcl   = mic_fab_vars[MicVar::qcl];
     auto qci   = mic_fab_vars[MicVar::qci];
+    auto qn    = mic_fab_vars[MicVar::qn];
     auto qt    = mic_fab_vars[MicVar::qt];
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto theta = mic_fab_vars[MicVar::theta];
@@ -24,8 +25,6 @@ void SAM::IceFall () {
     fz.define(qcl->boxArray(),qcl->DistributionMap(), 1, qcl->nGrowVect());
     fz.setVal(0.);
 
-    auto qifall_t = qifall.table();
-    auto tlatqi_t = tlatqi.table();
     auto rho1d_t  = rho1d.table();
 
     kmin = nz;
@@ -52,27 +51,10 @@ void SAM::IceFall () {
         kmin = amrex::get<1>(k_max_min);
     }
 
-//std::cout << "ice_fall: " << kmin << "; " << kmax << std::endl;
-
-    // for (int k=0; k<nzm; k++) {
-    //  for (int icrm=0; icrm<ncrms; icrm++) {
-    ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k)
-    {
-        qifall_t(k) = 0.0;
-        tlatqi_t(k) = 0.0;
-    });
-
-    //if(index_cloud_ice == -1) { return;}
-
-    // for (int k=0; k<nzm; k++) {
-    //   for (int j=0; j<ny; j++) {
-    //     for (int i=0; i<nx; i++) {
-    //       for (int icrm=0; icrm<ncrms; icrm++) {
     for ( amrex::MFIter mfi(*tabs, TileNoZ()); mfi.isValid(); ++mfi) {
-        //auto qcl_array   = qcl->array(mfi);
         auto qci_array   = qci->array(mfi);
+        auto qn_array    = qn->array(mfi);
         auto qt_array    = qt->array(mfi);
-        //auto tabs_array  = tabs->array(mfi);
         auto theta_array = theta->array(mfi);
         auto fz_array    = fz.array(mfi);
 
@@ -86,7 +68,7 @@ void SAM::IceFall () {
                 int kb = std::max(k-1, 0);
 
                 // CFL number based on grid spacing interpolated to interface i,j,k-1/2
-                Real coef = dtn/dz; //dtn/(0.5*(adz(kb)+adz(k))*dz);
+                Real coef = dtn/dz;
 
                 // Compute cloud ice density in this cell and the ones above/below.
                 // Since cloud ice is falling, the above cell is u(icrm,upwind),
@@ -101,7 +83,6 @@ void SAM::IceFall () {
 
                 // Use MC flux limiter in computation of flux correction.
                 // (MC = monotonized centered difference).
-                //         if (qic.eq.qid) then
                 Real tmp_phi;
                 if ( std::abs(qic-qid) < 1.0e-25 ) {  // when qic, and qid is very small, qic_qid can still be zero
                     // even if qic is not equal to qid. so add a fix here +++mhwang
@@ -118,19 +99,6 @@ void SAM::IceFall () {
             }
         });
 
-        // for (int j=0; j<ny; j++) {
-        //  for (int i=0; i<nx; i++) {
-        //    for (int icrm=0; icrm<ncrms; icrm++) {
-        /* by Xingqiu Yuan, need setup boundary condition for fz_t here???
-           ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-           fz_t(nz-1,j,i) = 0.0;
-           });
-        */
-
-        // for (int k=0; k<nzm; k++) {
-        //   for (int j=0; j<ny; j++) {
-        //     for (int i=0; i<nx; i++) {
-        //       for (int icrm=0; icrm<ncrms; icrm++) {
         Real fac_cond = m_fac_cond;
         Real fac_fus  = m_fac_fus;
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -140,9 +108,9 @@ void SAM::IceFall () {
                 // The cloud ice increment is the difference of the fluxes.
                 Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
                 // Add this increment to both non-precipitating and total water.
-                amrex::Gpu::Atomic::Add(&qt_array(i,j,k), dqi);
-                // Include this effect in the total moisture budget.
-                amrex::Gpu::Atomic::Add(&qifall_t(k), dqi);
+                amrex::Gpu::Atomic::Add(&qci_array(i,j,k), dqi);
+                amrex::Gpu::Atomic::Add( &qn_array(i,j,k), dqi);
+                amrex::Gpu::Atomic::Add( &qt_array(i,j,k), dqi);
 
                 // The latent heat flux induced by the falling cloud ice enters
                 // the liquid-ice static energy budget in the same way as the
@@ -151,24 +119,8 @@ void SAM::IceFall () {
 
                 // Add divergence of latent heat flux contribution to liquid-ice static potential temperature.
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
-                // Add divergence to liquid-ice static energy budget.
-                amrex::Gpu::Atomic::Add(&tlatqi_t(k), -lat_heat);
             }
         });
-
-#if 0
-        // for (int j=0; j<ny; j++) {
-        //    for (int i=0; i<nx; i++) {
-        //      for (int icrm=0; icrm<ncrms; icrm++) {
-        //parallel_for( SimpleBounds<3>(ny,nx,ncrms) , YAKL_LAMBDA (int j, int i, int icrm) {
-        ParallelFor(box2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-        {
-            Real coef = dtn/dz;
-            Real dqi = -coef*fz(i,j,0);
-            precsfc (i,j) = precsfc (i,j)+dqi;
-            precssfc(i,j) = precssfc(i,j)+dqi;
-        });
-#endif
     }
 }
 

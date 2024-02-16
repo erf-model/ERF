@@ -69,10 +69,7 @@ public:
     void Precip ();
 
     // precip fall
-    void PrecipFall (int hydro_type);
-
-    // micro interface for precip fall
-    void MicroPrecipFall ();
+    void PrecipFall (int hydro_type=2);
 
     // diagnose
     void Diagnose () override;
@@ -110,7 +107,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        //this->Diagnose();
         this->Compute_Coefficients();
     }
 
@@ -127,12 +123,9 @@ public:
         dt = dt_advance;
 
         this->Cloud();
-        /*
-        this->Diagnose();
         this->IceFall();
         this->Precip();
-        this->MicroPrecipFall();
-        */
+        this->PrecipFall();
     }
 
     amrex::MultiFab*
@@ -213,9 +206,5 @@ private:
 
     amrex::TableData<amrex::Real, 1> gamaz;
     amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
-
-    // data (output)
-    amrex::TableData<amrex::Real, 1> qifall;
-    amrex::TableData<amrex::Real, 1> tlatqi;
 };
 #endif

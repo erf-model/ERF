@@ -38,26 +38,58 @@ void SAM::Precip () {
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
-        auto qn_array   = mic_fab_vars[MicVar::qn]->array(mfi);
-        auto qt_array   = mic_fab_vars[MicVar::qt]->array(mfi);
-        auto qp_array   = mic_fab_vars[MicVar::qp]->array(mfi);
+        auto pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
+
+        // Non-precipitating
+        auto qv_array    = mic_fab_vars[MicVar::qv]->array(mfi);
+        auto qcl_array   = mic_fab_vars[MicVar::qcl]->array(mfi);
+        auto qci_array   = mic_fab_vars[MicVar::qci]->array(mfi);
+        auto qn_array    = mic_fab_vars[MicVar::qn]->array(mfi);
+        auto qt_array    = mic_fab_vars[MicVar::qt]->array(mfi);
+
+        // Precipitating
+        auto qpr_array   = mic_fab_vars[MicVar::qpr]->array(mfi);
+        auto qps_array   = mic_fab_vars[MicVar::qps]->array(mfi);
+        auto qpg_array   = mic_fab_vars[MicVar::qpg]->array(mfi);
+        auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
 
         const auto& box3d = mfi.tilebox();
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             //------- Autoconversion/accretion
-            Real omn, omp, omg, qcc, qii, autor, autos, accrr, qrr, accrcs, accris,
-                qss, accrcg, accrig, tmp, qgg, dq, qsatt, qsat;
+            Real tmp, qsatt;
+            Real omn, omp, omg;
+
+            Real qcc, qii, qpr, qps, qpg;
+            Real dprc, dpsc, dpgc;
+            Real dpri, dpsi, dpgi;
+
+            Real dqc, dqi;
+            Real dqpr, dqps, dqpg;
+
+            Real autor, autos;
+            Real accrr, accrcs, accris, accrcg, accrig;
 
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
+
                 omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
                 if (qn_array(i,j,k) > 0.0) {
-                    qcc = qn_array(i,j,k) * omn;
-                    qii = qn_array(i,j,k) * (1.0-omn);
+                    qcc = qcl_array(i,j,k);
+                    qii = qci_array(i,j,k);
+
+                    qpr = qpr_array(i,j,k);
+                    qps = qps_array(i,j,k);
+                    qpg = qpg_array(i,j,k);
+
+                    accrr  = 0.0;
+                    accrcs = 0.0;
+                    accris = 0.0;
+                    accrcg = 0.0;
+                    accrig = 0.0;
 
                     if (qcc > qcw0) {
                         autor = alphaelq;
@@ -71,74 +103,104 @@ void SAM::Precip () {
                         autos = 0.0;
                     }
 
-                    accrr = 0.0;
                     if (omp > 0.001) {
-                        qrr = qp_array(i,j,k) * omp;
-                        accrr = accrrc_t(k) * std::pow(qrr, powr1);
+                        accrr = accrrc_t(k) * std::pow(qpr, powr1);
                     }
 
-                    accrcs = 0.0;
-                    accris = 0.0;
-
                     if (omp < 0.999 && omg < 0.999) {
-                        qss = qp_array(i,j,k) * (1.0-omp)*(1.0-omg);
-                        tmp = pow(qss, pows1);
+                        tmp = pow(qps, pows1);
                         accrcs = accrsc_t(k) * tmp;
                         accris = accrsi_t(k) * tmp;
                     }
-                    accrcg = 0.0;
-                    accrig = 0.0;
+
                     if (omp < 0.999 && omg > 0.001) {
-                        qgg = qp_array(i,j,k) * (1.0-omp)*omg;
-                        tmp = pow(qgg, powg1);
+                        tmp = pow(qpg, powg1);
                         accrcg = accrgc_t(k) * tmp;
                         accrig = accrgi_t(k) * tmp;
                     }
-                    qcc = (qcc+dtn*autor*qcw0)/(1.0+dtn*(accrr+accrcs+accrcg+autor));
-                    qii = (qii+dtn*autos*qci0)/(1.0+dtn*(accris+accrig+autos));
-                    dq = dtn *(accrr*qcc + autor*(qcc-qcw0)+(accris+accrig)*qii + (accrcs+accrcg)*qcc + autos*(qii-qci0));
-                    dq = std::min(dq,qn_array(i,j,k));
-                    qt_array(i,j,k) = qt_array(i,j,k) - dq;
-                    qp_array(i,j,k) = qp_array(i,j,k) + dq;
-                    qn_array(i,j,k) = qn_array(i,j,k) - dq;
+
+                    // Autoconversion & accretion
+                    dprc = dtn * autor  * (qcc-qcw0);
+                    dpsc = dtn * accrcs * qcc * std::pow(qps,(3.+b_snow)/4.);
+                    dpgc = dtn * accrcg * qcc * std::pow(qpg,(3.+b_grau)/4.);
+
+                    dpri = dtn * autos  * (qii-qci0);
+                    dpsi = dtn * accris * qii * std::pow(qps,(3.+b_snow)/4.);
+                    dpgi = dtn * accrig * qii * std::pow(qpg,(3.+b_grau)/4.);
+
+                    dqpr = dprc + dpri;
+                    dqps = dpsc + dpsi;
+                    dqpg = dpgc + dpgi;
+
+                    dqc  = dprc + dpsc + dpgc;
+                    dqi  = dpri + dpsi + dpgi;
+
+                    // Update the primitive state variables
+                    qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) - dqc);
+                    qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) - dqi);
+                    qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + dqpr);
+                    qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + dqps);
+                    qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + dqpg);
+
+                    // Update the primitive derived vars
+                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
+                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
+                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                    // TODO: Reconcile the gcc operations from original formulation!
 
                 } else if(qp_array(i,j,k) > qp_threshold && qn_array(i,j,k) == 0.0) {
 
-                    qsatt = 0.0;
-                    if(omn > 0.001) {
-                        erf_qsatw(tabs_array(i,j,k),pres1d_t(k),qsat);
-                        qsatt = qsatt + omn*qsat;
-                    }
-                    if(omn < 0.999) {
-                        erf_qsati(tabs_array(i,j,k),pres1d_t(k),qsat);
-                        qsatt = qsatt + (1.-omn)*qsat;
-                    }
-                    dq = 0.0;
+                    erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatt);
+
                     if(omp > 0.001) {
-                        qrr = qp_array(i,j,k) * omp;
-                        dq = dq + evapr1_t(k)*sqrt(qrr) + evapr2_t(k)*pow(qrr,powr2);
+                        qpr  = qpr_array(i,j,k);
+                        dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
                     }
                     if(omp < 0.999 && omg < 0.999) {
-                        qss = qp_array(i,j,k) * (1.0-omp)*(1.0-omg);
-                        dq = dq + evaps1_t(k)*sqrt(qss) + evaps2_t(k)*pow(qss,pows2);
+                        qps  = qps_array(i,j,k);
+                        dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
                     }
                     if(omp < 0.999 && omg > 0.001) {
-                        qgg = qp_array(i,j,k) * (1.0-omp)*omg;
-                        dq = dq + evapg1_t(k)*sqrt(qgg) + evapg2_t(k)*pow(qgg,powg2);
+                        qpg  = qpg_array(i,j,k);
+                        dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
                     }
-                    dq = dq * dtn * (qt_array(i,j,k) / qsatt-1.0);
-                    dq = std::max(-0.5*qp_array(i,j,k),dq);
-                    qt_array(i,j,k) = qt_array(i,j,k) - dq;
-                    qp_array(i,j,k) = qp_array(i,j,k) + dq;
+
+                    // Evaporation
+                    dqpr *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
+                    dqps *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
+                    dqpg *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
+
+                    // Update the primitive state variables
+                    qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) - dqpr);
+                    qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) - dqps - dqpg);
+                    qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + dqpr);
+                    qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + dqps);
+                    qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + dqpg);
+
+                    // Update the primitive derived vars
+                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
+                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
+                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                    // TODO: Latent heat source term for theta?
 
                 } else {
-                    qt_array(i,j,k) = qt_array(i,j,k) + qp_array(i,j,k);
-                    qp_array(i,j,k) = 0.0;
+                    // Update the primitive state variables
+                    qcl_array(i,j,k) += qpr_array(i,j,k);
+                    qci_array(i,j,k) += qps_array(i,j,k) + qpg_array(i,j,k);
+                    qpr_array(i,j,k)  = 0.0;
+                    qps_array(i,j,k)  = 0.0;
+                    qpg_array(i,j,k)  = 0.0;
+
+                    // Update the primitive derived vars
+                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
+                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
+                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                    // TODO: Latent heat source term for theta?
                 }
             }
-            dq = qp_array(i,j,k);
-            qp_array(i,j,k) = max(0.0,qp_array(i,j,k));
-            qt_array(i,j,k) = qt_array(i,j,k) + (dq-qp_array(i,j,k));
         });
     }
 }

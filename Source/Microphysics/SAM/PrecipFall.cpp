@@ -12,20 +12,10 @@ using namespace amrex;
  *
  * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
  */
-void SAM::PrecipFall (int hydro_type) {
-
+void SAM::PrecipFall (int hydro_type)
+{
     Real constexpr eps = 1.e-10;
     bool constexpr nonos = true;
-
-    /*
-      Real gam3  = erf_gammafff(3.0             );
-      Real gamr1 = erf_gammafff(3.0+b_rain      );
-      Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-      Real gams1 = erf_gammafff(3.0+b_snow      );
-      Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
-      Real gamg1 = erf_gammafff(3.0+b_grau      );
-      Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
-    */
 
     Real gamr3 = erf_gammafff(4.0+b_rain      );
     Real gams3 = erf_gammafff(4.0+b_snow      );
@@ -38,6 +28,9 @@ void SAM::PrecipFall (int hydro_type) {
     Real dt_advance = dt;
     int nz = nlev;
 
+    auto qpr   = mic_fab_vars[MicVar::qpr];
+    auto qps   = mic_fab_vars[MicVar::qps];
+    auto qpg   = mic_fab_vars[MicVar::qpg];
     auto qp    = mic_fab_vars[MicVar::qp];
     auto omega = mic_fab_vars[MicVar::omega];
     auto tabs  = mic_fab_vars[MicVar::tabs];
@@ -77,6 +70,19 @@ void SAM::PrecipFall (int hydro_type) {
     auto rho1d_t  = rho1d.table();
 
     auto dz = m_geom.CellSize(2);
+
+    // Precompute omega variable
+    for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto omega_array = mic_fab_vars[MicVar::omega]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
+
+        const auto& box3d = mfi.tilebox();
+
+        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            omega_array(i,j,k) = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+        });
+    }
 
     ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
@@ -164,14 +170,15 @@ void SAM::PrecipFall (int hydro_type) {
         nprec = 1;
     }
 
-//std::cout << "precipfall: nprec= " << nprec << std::endl;
-
 #ifdef ERF_FIXED_SUBCYCLE
     nprec = 4;
 #endif
 
     for(int iprec = 1; iprec<=nprec; iprec++) {
         for ( MFIter mfi(tmp_qp, TileNoZ()); mfi.isValid(); ++mfi) {
+            auto qpr_array    = qpr->array(mfi);
+            auto qps_array    = qps->array(mfi);
+            auto qpg_array    = qpg->array(mfi);
             auto qp_array     = qp->array(mfi);
             auto tabs_array   = tabs->array(mfi);
             auto theta_array  = theta->array(mfi);
@@ -240,8 +247,9 @@ void SAM::PrecipFall (int hydro_type) {
                 {
                     int kb=max(0,k-1);
                     // Add limited flux correction to fz(k).
-                    fz_array(i,j,k) = fz_array(i,j,k) + pp(www_array(i,j,k))*std::min(1.0,std::min(mx_array(i,j,k), mn_array(i,j,kb))) -
-                        pn(www_array(i,j,k))*std::min(1.0,std::min(mx_array(i,j,kb),mn_array(i,j,k))); // Anti-diffusive flux
+                    fz_array(i,j,k) = fz_array(i,j,k)
+                                    + pp(www_array(i,j,k))*std::min(1.0,std::min(mx_array(i,j,k), mn_array(i,j,kb)))
+                                    - pn(www_array(i,j,k))*std::min(1.0,std::min(mx_array(i,j,kb),mn_array(i,j,k))); // Anti-diffusive flux
                 });
             }
 
@@ -254,24 +262,16 @@ void SAM::PrecipFall (int hydro_type) {
                 // Note that fz is the total flux, including both the
                 // upwind flux and the anti-diffusive correction.
                 //      Real flagstat = 1.0;
-                qp_array(i,j,k) = qp_array(i,j,k) - (fz_array(i,j,kc) - fz_array(i,j,k))*irho_t(k);
-                //      Real tmp  = -(fz_array(i,j,kc)-fz_array(i,j,k))*irho_t(k)*flagstat;  // For qp budget
-                //
-                // NOTE qpfall, tlat, and precflux,...are output diagnostic variables, not sure whether we need to calculate these variables here?
-                // Please correct me!!! by xyuan@anl.gov
-                //
-                //      amrex::Gpu::Atomic::Add(&qpfall_t(k), tmp);
-                Real lat_heat = -(lfac_array(i,j,kc)*fz_array(i,j,kc)-lfac_array(i,j,k)*fz_array(i,j,k))*irho_t(k);
+                Real dqp = ( fz_array(i,j,kc) - fz_array(i,j,k) )*irho_t(k);
+                Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+                Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) - dqp*omp);
+                qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) - dqp*(1.0-omp)*(1.0-omg));
+                qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) - dqp*(1.0-omp)*omg);
+                 qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                Real lat_heat   = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) )*irho_t(k);
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
-                //        amrex::Gpu::Atomic::Add(&tlat_t(k), -lat_heat);
-                //      tmp = fz_array(i,j,k)*flagstat;
-                //      amrex::Gpu::Atomic::Add(&precflux_t(k), -tmp);
-                //      yakl::atomicAdd(precflux(k,icrm),-tmp);
-                if (k == 0) {
-                    //        precsfc_t(i,i)  = precsfc_t(i,j)  - fz_array(i,j,0)*flagstat;
-                    //        precssfc_t(i,j) = precssfc_t(i,j) - fz_array(i,j,0)*(1.0-omega_array(i,j,0))*flagstat;
-                    //        prec_xy_t(i,j)  = prec_xy_t(i,j)  - fz_array(i,j,0)*flagstat;
-                }
             });
 
             if (iprec < nprec) {
@@ -289,31 +289,13 @@ void SAM::PrecipFall (int hydro_type) {
                     // increase very much between substeps when using
                     // monotonic advection schemes.
                     if (k == 0) {
-                        fz_array(i,j,nz-1)   = 0.0;
-                        www_array(i,j,nz-1)  = 0.0;
+                          fz_array(i,j,nz-1) = 0.0;
+                         www_array(i,j,nz-1) = 0.0;
                         lfac_array(i,j,nz-1) = 0.0;
                     }
                 });
             }
-        }
+        } // mfi
     } // iprec loop
 }
 
-/**
- * Wrapper for PrecipFall which computes the temporary variable Omega, needed by the precipitation advection scheme.
- */
-void SAM::MicroPrecipFall() {
-
-    for ( MFIter mfi(*(mic_fab_vars[MicVar::omega]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto omega_array = mic_fab_vars[MicVar::omega]->array(mfi);
-        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
-
-        const auto& box3d = mfi.tilebox();
-
-        ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            omega_array(i,j,k) = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-        });
-    }
-    PrecipFall(2);
-}

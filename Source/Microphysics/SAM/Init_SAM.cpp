@@ -69,10 +69,6 @@ void SAM::Init (const MultiFab& cons_in,
         tabs1d.resize({zlo}, {zhi});
         gamaz.resize({zlo}, {zhi});
         zmid.resize({zlo}, {zhi});
-
-        // output
-        qifall.resize({zlo}, {zhi});
-        tlatqi.resize({zlo}, {zhi});
     }
 }
 
@@ -139,18 +135,18 @@ void SAM::Compute_Coefficients ()
     auto dz   = m_geom.CellSize(2);
     auto lowz = m_geom.ProbLo(2);
 
-    auto accrrc_t = accrrc.table();
-    auto accrsi_t = accrsi.table();
-    auto accrsc_t = accrsc.table();
+    auto accrrc_t  = accrrc.table();
+    auto accrsi_t  = accrsi.table();
+    auto accrsc_t  = accrsc.table();
     auto coefice_t = coefice.table();
-    auto evaps1_t = evaps1.table();
-    auto evaps2_t = evaps2.table();
-    auto accrgi_t = accrgi.table();
-    auto accrgc_t = accrgc.table();
-    auto evapg1_t = evapg1.table();
-    auto evapg2_t = evapg2.table();
-    auto evapr1_t = evapr1.table();
-    auto evapr2_t = evapr2.table();
+    auto evaps1_t  = evaps1.table();
+    auto evaps2_t  = evaps2.table();
+    auto accrgi_t  = accrgi.table();
+    auto accrgc_t  = accrgc.table();
+    auto evapg1_t  = evapg1.table();
+    auto evapg2_t  = evapg2.table();
+    auto evapr1_t  = evapr1.table();
+    auto evapr2_t  = evapr2.table();
 
     auto rho1d_t  = rho1d.table();
     auto pres1d_t = pres1d.table();
@@ -162,13 +158,10 @@ void SAM::Compute_Coefficients ()
     Real gam3  = erf_gammafff(3.0             );
     Real gamr1 = erf_gammafff(3.0+b_rain      );
     Real gamr2 = erf_gammafff((5.0+b_rain)/2.0);
-    // Real gamr3 = erf_gammafff(4.0+b_rain      );
     Real gams1 = erf_gammafff(3.0+b_snow      );
     Real gams2 = erf_gammafff((5.0+b_snow)/2.0);
-    // Real gams3 = erf_gammafff(4.0+b_snow      );
     Real gamg1 = erf_gammafff(3.0+b_grau      );
     Real gamg2 = erf_gammafff((5.0+b_grau)/2.0);
-    // Real gamg3 = erf_gammafff(4.0+b_grau      );
 
     // calculate the plane average variables
     PlaneAverage rho_ave(mic_fab_vars[MicVar::rho].get(), m_geom, m_axis);
@@ -219,48 +212,48 @@ void SAM::Compute_Coefficients ()
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
         Real pratio = sqrt(1.29 / rho1d_t(k));
-        Real rrr1=393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
-        Real rrr2=std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
-        Real estw = 100.0*erf_esatw(tabs1d_t(k));
-        Real esti = 100.0*erf_esati(tabs1d_t(k));
+        Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
+        Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
+        Real estw   = 100.0*erf_esatw(tabs1d_t(k));
+        Real esti   = 100.0*erf_esati(tabs1d_t(k));
 
         // accretion by snow:
-        Real coef1 = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
-        Real coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
-        accrsi_t(k) =  coef1 * coef2 * esicoef;
-        accrsc_t(k) =  coef1 * esccoef;
+        Real coef1   = 0.25 * PI * nzeros * a_snow * gams1 * pratio/pow((PI * rhos * nzeros/rho1d_t(k) ) , ((3.0+b_snow)/4.0));
+        Real coef2   = exp(0.025*(tabs1d_t(k) - 273.15));
+        accrsi_t(k)  =  coef1 * coef2 * esicoef;
+        accrsc_t(k)  =  coef1 * esccoef;
         coefice_t(k) =  coef2;
 
         // evaporation of snow:
-        coef1  =(lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2  = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
-        evaps1_t(k)  =  0.65*4.0*nzeros/sqrt(PI*rhos*nzeros)/(coef1+coef2)/sqrt(rho1d_t(k));
-        evaps2_t(k)  =  0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) /
-            (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_snow)/8.0))*sqrt(pratio);
+        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
+        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
+        evaps1_t(k) = 0.65*4.0*nzeros/sqrt(PI*rhos*nzeros)/(coef1+coef2)/sqrt(rho1d_t(k));
+        evaps2_t(k) = 0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) /
+                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_snow)/8.0))*sqrt(pratio);
 
         // accretion by graupel:
         coef1 = 0.25*PI*nzerog*a_grau*gamg1*pratio/pow((PI*rhog*nzerog/rho1d_t(k)) , ((3.0+b_grau)/4.0));
         coef2 = exp(0.025*(tabs1d_t(k) - 273.15));
-        accrgi_t(k) =  coef1 * coef2 * egicoef;
-        accrgc_t(k) =  coef1 * egccoef;
+        accrgi_t(k) = coef1 * coef2 * egicoef;
+        accrgc_t(k) = coef1 * egccoef;
 
         // evaporation of graupel:
-        coef1  =(lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2  = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
-        evapg1_t(k)  = 0.65*4.0*nzerog/sqrt(PI*rhog*nzerog)/(coef1+coef2)/sqrt(rho1d_t(k));
-        evapg2_t(k)  = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) /
-            (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
+        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
+        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
+        evapg1_t(k) = 0.65*4.0*nzerog/sqrt(PI*rhog*nzerog)/(coef1+coef2)/sqrt(rho1d_t(k));
+        evapg2_t(k) = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) /
+                     (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
 
         // accretion by rain:
-        accrrc_t(k)=  0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3+b_rain)/4.))* erccoef;
+        accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3+b_rain)/4.))* erccoef;
 
         // evaporation of rain:
-        coef1  =(lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
-        coef2  = rv*tabs1d_t(k)/(diffelq * rrr2 * estw);
-        evapr1_t(k)  =  0.78 * 2.0 * PI * nzeror /
-            sqrt(PI * rhor * nzeror) / (coef1+coef2) / sqrt(rho1d_t(k));
-        evapr2_t(k)  =  0.31 * 2.0 * PI  * nzeror * gamr2 * 0.89 * sqrt(a_rain/(muelq*rrr1))/
-            pow((PI * rhor * nzeror) , ((5.0+b_rain)/8.0)) /
-            (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_rain)/8.0))*sqrt(pratio);
+        coef1 = (lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
+        coef2 = rv*tabs1d_t(k)/(diffelq * rrr2 * estw);
+        evapr1_t(k) = 0.78 * 2.0 * PI * nzeror /
+                      sqrt(PI * rhor * nzeror) / (coef1+coef2) / sqrt(rho1d_t(k));
+        evapr2_t(k) = 0.31 * 2.0 * PI  * nzeror * gamr2 * 0.89 * sqrt(a_rain/(muelq*rrr1))/
+                      pow((PI * rhor * nzeror) , ((5.0+b_rain)/8.0)) /
+                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_rain)/8.0))*sqrt(pratio);
     });
 }
