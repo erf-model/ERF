@@ -110,7 +110,7 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Diagnose();
+        //this->Diagnose();
         this->Compute_Coefficients();
     }
 
@@ -127,10 +127,12 @@ public:
         dt = dt_advance;
 
         this->Cloud();
+        /*
         this->Diagnose();
         this->IceFall();
         this->Precip();
         this->MicroPrecipFall();
+        */
     }
 
     amrex::MultiFab*

@@ -18,8 +18,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5
 erf.fixed_mri_dt_ratio = 4
-#erf.no_substepping = 1
-#erf.fixed_dt = 0.1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -31,7 +29,7 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 100       # number of timesteps between checkpoints
+erf.check_int       = -100       # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name

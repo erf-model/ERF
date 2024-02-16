@@ -1,4 +1,4 @@
-#include "Microphysics.H"
+#include "SAM.H"
 #include "IndexDefines.H"
 #include "TileNoZ.H"
 #include "EOS.H"
@@ -16,8 +16,6 @@ void SAM::Cloud () {
     constexpr Real bp = tprmin*ap;
     constexpr Real ag = 1.0/(tgrmax-tgrmin);
     constexpr Real bg = tgrmin*ag;
-
-    auto pres1d_t = pres1d.table();
 
     Real fac_cond = m_fac_cond;
     Real fac_sub  = m_fac_sub;
@@ -43,15 +41,15 @@ void SAM::Cloud () {
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto  pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
 
-        const auto& box3d = mfi.tilebox() & m_gtoe[mfi.index()];
+        const auto& box3d = mfi.tilebox();
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             int dbg = 0;
 
             // Initial guess for temperature assuming no cloud water/ice:
-            Real tabs1 = tabs_array(i,j,k);
-            Real pres1 = pres_array(i,j,k);
+            Real tabs = tabs_array(i,j,k);
+            Real pres = pres_array(i,j,k);
 
             // Saturation moisture fractions
             Real omn, omp, omg;
@@ -64,158 +62,159 @@ void SAM::Cloud () {
             Real lstarw, dlstarw;
             Real lstari, dlstari;
             Real lstarp, dlstarp;
+            Real delta_qv, delta_qc, delta_qi;
+
+            // HACK (remove precip from Newton iters)
+            tabs += fac_cond*qp_array(i,j,k);
+
+            /*
+            // Remove precipitation term from Newton iteration if
+            // the temperature is out of range.
+            if(tabs > tbgmax) {
+                tabs += fac_cond*qp_array(i,j,k);
+            }
+            // Ice cloud:
+            else if(tabs <= tbgmin) {
+                tabs += fac_sub*qp_array(i,j,k);
+            }
+            */
 
             //  Newton iteration for latent thermal sources
-            Real delta_qv, delta_qc, delta_qi;
-            //if(qt_array(i,j,k) > qsatt) {
-                niter = 0;
-                dtabs = 1;
-                do {
-                    // Non-precipitating components
-                    if(tabs1 >= tbgmax) {       // Warm cloud (condensation)
-                        omn     = 1.0;
+            niter = 0;
+            dtabs = 1;
+            do {
+                // Hack only do non-precip latent heat
+                lstarw  = fac_cond;
+                dlstarw = 0.0;
+                lstari  = 0.0; //fac_fus;
+                dlstari = 0.0;
 
-                        lstarw  = fac_cond;
-                        dlstarw = 0.0;
-                        lstari  = fac_fus;
-                        dlstari = 0.0;
+                erf_qsatw(tabs, pres, qsattw);
+                erf_qsati(tabs, pres, qsatti);
+                erf_dtqsatw(tabs, pres, dqsatw);
+                erf_dtqsati(tabs, pres, dqsati);
 
-                        erf_qsatw(tabs1, pres1, qsattw);
-                        erf_dtqsatw(tabs1, pres1, dqsatw);
-                        qsatti = 0.0;
-                        dqsati = 0.0;
+                qsatti = qci_array(i,j,k);
+                dqsati = 0.0;
 
-                        dbg = 0;
-                    }
-                    else if(tabs1 <= tbgmin) {  // Ice cloud (sublimation)
-                        omn     = 0.0;
+                /*
+                // Non-precipitating components
+                if(tabs >= tbgmax) {       // Warm cloud (condensation)
+                    omn     = 1.0;
 
-                        lstarw  = fac_cond;
-                        dlstarw = 0.0;
-                        lstari  = fac_sub;
-                        dlstari = 0.0;
+                    lstarw  = fac_cond;
+                    dlstarw = 0.0;
+                    lstari  = fac_fus;
+                    dlstari = 0.0;
 
-                        qsattw = 0.0;
-                        dqsatw = 0.0;
-                        erf_qsati(tabs1, pres1, qsatti);
-                        erf_dtqsati(tabs1, pres1, dqsati);
+                    erf_qsatw(tabs, pres, qsattw);
+                    erf_dtqsatw(tabs, pres, dqsatw);
+                    qsatti = 0.0;
+                    dqsati = 0.0;
 
-                        dbg = 1;
-                    }
-                    else {                      // Mixed-phase cloud (condensation + fusion)
-                        omn     = an*tabs1-bn;
+                    dbg = 0;
+                }
+                else if(tabs <= tbgmin) {  // Ice cloud (sublimation)
+                    omn     = 0.0;
 
-                        lstarw  = fac_cond;
-                        dlstarw = 0.0;
-                        lstari  = fac_fus;
-                        dlstari = 0.0;
+                    lstarw  = fac_cond;
+                    dlstarw = 0.0;
+                    lstari  = fac_fus; //fac_sub;
+                    dlstari = 0.0;
 
-                        erf_qsatw(tabs1, pres1, qsattw);
-                        erf_qsati(tabs1, pres1, qsatti);
-                        erf_dtqsatw(tabs1, pres1, dqsatw);
-                        erf_dtqsati(tabs1, pres1, dqsati);
+                    qsattw = 0.0;
+                    dqsatw = 0.0;
+                    erf_qsati(tabs, pres, qsatti);
+                    erf_dtqsati(tabs, pres, dqsati);
 
-                        dbg = 2;
-                    }
+                    dbg = 1;
+                }
+                else {                      // Mixed-phase cloud (condensation + fusion)
+                    omn     = an*tabs-bn;
 
-                    // Precipitating components
-                    if(tabs1 >= tprmax) {
-                        omp     = 1.0;
-                        lstarp  = fac_cond;
-                        dlstarp = 0.0;
-                    }
-                    else if(tabs1 <= tprmin) {
-                        omp     = 0.0;
-                        lstarp  = fac_sub;
-                        dlstarp = 0.0;
-                    }
-                    else {
-                        omp     = ap*tabs1-bp;
-                        lstarp  = fac_cond+(1.0-omp)*fac_fus;
-                        dlstarp = -ap*fac_fus;
-                    }
+                    lstarw  = fac_cond;
+                    dlstarw = 0.0;
+                    lstari  = fac_fus;
+                    dlstari = 0.0;
 
-                    if (k>50 && k<80 && i==0 && j==0) {
-                        amrex::Print() << "Iter: " << niter << ' '
-                                       << dbg << ' '
-                                       << qv_array(i,j,k) << ' '
-                                       << qsattw << ' '
-                                       << qci_array(i,j,k) << ' '
-                                       << qsatti << ' '
-                                       << dtabs << "\n";
-                    }
+                    erf_qsatw(tabs, pres, qsattw);
+                    erf_qsati(tabs, pres, qsatti);
+                    erf_dtqsatw(tabs, pres, dqsatw);
+                    erf_dtqsati(tabs, pres, dqsati);
 
-                    // Graupel fraction
-                    omg = std::max(0.0, std::min(1.0,(ag*tabs1-bg)));
-
-                    // Function for root finding: T_new = T_old + L_cond/C_p * (qt - qsat) + L_fus/C_p * (qp)
-                    fff   = -tabs1 + tabs_array(i,j,k)
-                            + lstarw*( qv_array(i,j,k)-qsattw)
-                            + lstari*(qci_array(i,j,k)-qsatti)
-                            + lstarp*qp_array(i,j,k);
-
-                    // Derivative of function (T_new iterated on)
-                    dfff  = -1.0
-                            + dlstarw*( qv_array(i,j,k)-qsattw) - lstarw*dqsatw
-                            + dlstari*(qci_array(i,j,k)-qsatti) - lstari*dqsati
-                            + dlstarp*qp_array(i,j,k);
-
-                    // Update the temperature
-                    dtabs = -fff/dfff;
-                    tabs1 = tabs1+dtabs;
-                    niter = niter+1;
-                } while(std::abs(dtabs) > tol && niter < 20);
-
-                // Update qsat from last iteration (dq = dq/dt * dt)
-                qsattw   = qsattw + dqsatw*dtabs;
-                qsatti   = qsatti + dqsati*dtabs;
-                delta_qv = qv_array(i,j,k)-qsattw;
-                delta_qi = qci_array(i,j,k)-qsatti;
-                delta_qc = delta_qv - delta_qi;
-
-                // Partition the change in non-precipitating q
-                 qv_array(i,j,k)  = qsattw;
-                 qci_array(i,j,k) = qsatti;
-                qcl_array(i,j,k) += delta_qc;
-                qn_array(i,j,k)   = qcl_array(i,j,k) + qci_array(i,j,k);
-                 qt_array(i,j,k)  =  qv_array(i,j,k) +  qn_array(i,j,k);
-
-                // Partition the change in precipitating q
-                qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + delta_qi*omp);
-                qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + delta_qi*(1.0-omp)*(1.0-omg));
-                qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + delta_qi*(1.0-omp)*omg);
-                qp_array(i,j,k)  = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                if (k>50 && k<80 && i==0 && j==0) { //dtabs > 0.5 || omn != 1.0) {
-                    amrex::Print() << "WTF: " << IntVect(i,j,k) << ' '
-                                   << dbg << ' '
-                                   << delta_qv << ' '
-                                   << qsattw << ' '
-                                   << delta_qi << ' '
-                                   << qsatti << ' '
-                                   << delta_qc << ' '
-                                   << tabs1 - tabs_array(i,j,k) << "\n";
-                    amrex::Print() << "CHECK: "
-                                   << qv_array(i,j,k) << ' '
-                                   << qcl_array(i,j,k) << ' '
-                                   << qci_array(i,j,k) << ' '
-                                   << theta_array(i,j,k) << ' '
-                                   << getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k)*100, rdOcp) << ' '
-                                   << getThgivenPandT(tabs1, pres_array(i,j,k)*100, rdOcp) <<  "\n";
-                    amrex::Print() << "\n";
-                    //exit(0);
+                    dbg = 2;
                 }
 
-                // Update temperature
-                tabs_array(i,j,k) = tabs1;
 
-                // Update pressure
-                pres_array(i,j,k) =  rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                   * (1.0 + R_v/R_d * qv_array(i,j,k));
+                // Precipitating components
+                if(tabs >= tprmax) {
+                    omp     = 1.0;
+                    lstarp  = fac_cond;
+                    dlstarp = 0.0;
+                }
+                else if(tabs <= tprmin) {
+                    omp     = 0.0;
+                    lstarp  = fac_sub;
+                    dlstarp = 0.0;
+                }
+                else {
+                    omp     = ap*tabs-bp;
+                    lstarp  = fac_cond+(1.0-omp)*fac_fus;
+                    dlstarp = -ap*fac_fus;
+                }
+                */
 
-                // Update theta from temperature
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k)*100, rdOcp);
-           //}
+                // Function for root finding:
+                // 0 = -T_new + T_old + L_v/C_p * (qv - qsatw) + L_i/C_p * (qi - qsati) - L_p/C_p * (qp)
+                fff   = -tabs + tabs_array(i,j,k)
+                      +  lstarw*( qv_array(i,j,k)-qsattw)
+                      +  lstari*(qci_array(i,j,k)-qsatti)
+                      -  lstarp*qp_array(i,j,k);
+
+                // Derivative of function (T_new iterated on)
+                dfff  = -1.0
+                      + ( dlstarw*( qv_array(i,j,k)-qsattw) - lstarw*dqsatw )
+                      + ( dlstari*(qci_array(i,j,k)-qsatti) - lstari*dqsati )
+                      - dlstarp*qp_array(i,j,k);
+
+                // Update the temperature
+                dtabs = -fff/dfff;
+                tabs  = tabs+dtabs;
+                niter = niter+1;
+            } while(std::abs(dtabs) > tol && niter < 20);
+
+            // Update qsat from last iteration (dq = dq/dt * dt)
+            qsattw   = qsattw + dqsatw*dtabs;
+            qsatti   = qsatti + dqsati*dtabs;
+            delta_qv = qv_array(i,j,k)-qsattw;
+            delta_qi = qci_array(i,j,k)-qsatti;
+            delta_qc = delta_qv - delta_qi;
+
+            // Partition the change in non-precipitating q
+             qv_array(i,j,k)  = qsattw;
+            qci_array(i,j,k)  = qsatti;
+            qcl_array(i,j,k)  = std::max(0.0,qcl_array(i,j,k) + delta_qc);
+             qn_array(i,j,k)  = qcl_array(i,j,k) + qci_array(i,j,k);
+             qt_array(i,j,k)  =  qv_array(i,j,k) +  qn_array(i,j,k);
+
+            // Partition the change in precipitating q
+            qpr_array(i,j,k) = 0.0;
+            qps_array(i,j,k) = 0.0;
+            qpg_array(i,j,k) = 0.0;
+             qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+            // Update temperature
+            tabs_array(i,j,k) = tabs;
+
+            // Update pressure
+            pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                              * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+            // Update theta from temperature
+            theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+            // Pressure unit conversion
+            pres_array(i,j,k) /= 100.0;
         });
     }
 }
