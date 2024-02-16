@@ -1,5 +1,4 @@
 #include <AMReX_GpuContainers.H>
-#include "MicrophysicsVariables.H"
 #include "SAM.H"
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
@@ -91,14 +90,14 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
-        auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
-        auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
-        auto qi_array    = mic_fab_vars[MicVar_Kess::qci]->array(mfi);
-        auto qn_array    = mic_fab_vars[MicVar_Kess::qn]->array(mfi);
-        auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto qv_array    = mic_fab_vars[MicVar::qv]->array(mfi);
+        auto qc_array    = mic_fab_vars[MicVar::qcl]->array(mfi);
+        auto qi_array    = mic_fab_vars[MicVar::qci]->array(mfi);
+        auto qn_array    = mic_fab_vars[MicVar::qn]->array(mfi);
+        auto qp_array    = mic_fab_vars[MicVar::qp]->array(mfi);
 
-        auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
-        auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 

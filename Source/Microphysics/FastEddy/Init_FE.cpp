@@ -1,6 +1,5 @@
 #include <AMReX_GpuContainers.H>
 #include "FastEddy.H"
-#include "MicrophysicsVariables.H"
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
 #include "EOS.H"

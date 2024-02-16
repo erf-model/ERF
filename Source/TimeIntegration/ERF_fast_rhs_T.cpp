@@ -23,7 +23,7 @@ using namespace amrex;
  * @param[in]    S_prev previous solution
  * @param[in]    S_stage_data solution            at previous RK stage
  * @param[in]    S_stage_prim primitive variables at previous RK stage
- * @param[in]    pi_stage   Exner function      at previous RK stage
+ * @param[in]    pi_stage     Exner function      at previous RK stage
  * @param[in]    fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
  * @param[out]   S_data current solution
  * @param[in]    S_scratch scratch space

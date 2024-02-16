@@ -52,7 +52,7 @@ To see an example of using the particle functionality, build the executable usin
 
 To visualize the number of particles per cell as a mesh-based variable, add
 ``tracer_particle_count`` (if you have set ``erf.use_tracer_particles``) and
- ``hydro_particle_count`` (if you have set ``erf.use_tracer_particles``)
+``hydro_particle_count`` (if you have set ``erf.use_tracer_particles``)
 to the line in the inputs file that begins
 
 ::
