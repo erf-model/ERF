@@ -22,6 +22,7 @@ struct SuperDropletsRealIdxSoA_RT
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
         sol_mass,       /*!< Solute mass */
+        sd_mass,        /*!< Superdroplet mass */
         ncomps
     };
 };
@@ -67,7 +68,12 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            return {AMREX_D_DECL("xvel","yvel","zvel"),"mass","radius","multiplicity","aerosol_mass"};
+            return {    AMREX_D_DECL("xvel","yvel","zvel"),
+                        "particle_mass",
+                        "radius",
+                        "multiplicity",
+                        "aerosol_mass",
+                        "superdroplet_mass"};
         }
 
         /*! \brief Initialize super-droplets in domain */
