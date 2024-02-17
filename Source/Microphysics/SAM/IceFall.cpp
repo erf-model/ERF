@@ -108,9 +108,9 @@ void SAM::IceFall () {
                 // The cloud ice increment is the difference of the fluxes.
                 Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
                 // Add this increment to both non-precipitating and total water.
-                amrex::Gpu::Atomic::Add(&qci_array(i,j,k), dqi);
-                amrex::Gpu::Atomic::Add( &qn_array(i,j,k), dqi);
-                amrex::Gpu::Atomic::Add( &qt_array(i,j,k), dqi);
+                qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) + dqi);
+                 qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k) + dqi);
+                 qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k) + dqi);
 
                 // The latent heat flux induced by the falling cloud ice enters
                 // the liquid-ice static energy budget in the same way as the

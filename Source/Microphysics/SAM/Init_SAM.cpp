@@ -110,15 +110,15 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
             rho_array(i,j,k)   = states_array(i,j,k,Rho_comp);
             theta_array(i,j,k) = states_array(i,j,k,RhoTheta_comp)/states_array(i,j,k,Rho_comp);
 
-            qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
-            qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
-            qi_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
+            qv_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp));
+            qc_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp));
+            qi_array(i,j,k)    = std::max(0.0,states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp));
             qn_array(i,j,k)    = qc_array(i,j,k) + qi_array(i,j,k);
             qt_array(i,j,k)    = qv_array(i,j,k) + qn_array(i,j,k);
 
-            qpr_array(i,j,k)   = states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp);
-            qps_array(i,j,k)   = states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp);
-            qpg_array(i,j,k)   = states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp);
+            qpr_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ4_comp)/states_array(i,j,k,Rho_comp));
+            qps_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ5_comp)/states_array(i,j,k,Rho_comp));
+            qpg_array(i,j,k)   = std::max(0.0,states_array(i,j,k,RhoQ6_comp)/states_array(i,j,k,Rho_comp));
              qp_array(i,j,k)   = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),

@@ -114,6 +114,7 @@ void SAM::Cloud () {
                     Tcase = 2;
                 }
 
+
                 // Function for root finding:
                 // 0 = -T_new + T_old + L_v/C_p * (qv - qsatw) + L_f/C_p * (qi - qsati) - L_f/C_p * (qc - qsatc)
                 fff   = -tabs + tabs_array(i,j,k)

@@ -199,6 +199,7 @@ void SAM::Precip () {
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
                     // TODO: Latent heat source term for theta?
+
                 }
             }
         });
