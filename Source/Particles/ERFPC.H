@@ -6,23 +6,35 @@
 #include <string>
 #include <AMReX_Particles.H>
 
-struct ERFParticlesRealIdx
+struct ERFParticlesIntIdxAoS
+{
+    enum {
+        k = 0,
+        ncomps
+    };
+};
+
+struct ERFParticlesRealIdxAoS
+{
+    enum {
+        ncomps = 0
+    };
+};
+
+struct ERFParticlesIntIdxSoA
+{
+    enum {
+        ncomps = 0
+    };
+};
+
+struct ERFParticlesRealIdxSoA
 {
     enum {
         vx = 0,
         vy,
         vz,
         mass,
-        ncomps
-    };
-};
-
-struct ERFParticlesIntIdx
-{
-    enum {
-        i = 0,
-        j,
-        k,
         ncomps
     };
 };
@@ -53,7 +65,7 @@ struct ERFParticlesAssignor
         amrex::IntVect iv(
             AMREX_D_DECL(   int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
                             int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                            p.idata(ERFParticlesIntIdx::k) ) );
+                            p.idata(ERFParticlesIntIdxAoS::k) ) );
         iv[0] += domain.smallEnd()[0];
         iv[1] += domain.smallEnd()[1];
         return iv;
@@ -62,42 +74,39 @@ struct ERFParticlesAssignor
 
 template <typename P>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void update_location_idata (P& p,
-                            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& plo,
-                            amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& dxi,
-                            const amrex::Array4<amrex::Real const>&  height_arr)
+void update_location_idata (  P& a_p,
+                              amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& a_plo,
+                              amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> const& a_dxi,
+                              const amrex::Array4<amrex::Real const>&  a_height_arr )
 {
-    amrex::IntVect iv( int(amrex::Math::floor((p.pos(0)-plo[0])*dxi[0])),
-                       int(amrex::Math::floor((p.pos(1)-plo[1])*dxi[1])),
-                       p.idata(ERFParticlesIntIdx::k) );
+    amrex::IntVect iv( int(amrex::Math::floor((a_p.pos(0)-a_plo[0])*a_dxi[0])),
+                       int(amrex::Math::floor((a_p.pos(1)-a_plo[1])*a_dxi[1])),
+                       a_p.idata(ERFParticlesIntIdxAoS::k) );
 
-    p.idata(ERFParticlesIntIdx::i) = iv[0];
-    p.idata(ERFParticlesIntIdx::j) = iv[1];
+    if (a_height_arr) {
+        amrex::Real lx = (a_p.pos(0)-a_plo[0])*a_dxi[0] - static_cast<amrex::Real>(iv[0]);
+        amrex::Real ly = (a_p.pos(1)-a_plo[1])*a_dxi[1] - static_cast<amrex::Real>(iv[1]);
+        auto zlo = a_height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
+                   a_height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
+                   a_height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
+                   a_height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
+        auto zhi = a_height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
+                   a_height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
+                   a_height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
+                   a_height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
 
-    if (height_arr) {
-        amrex::Real lx = (p.pos(0)-plo[0])*dxi[0] - static_cast<amrex::Real>(iv[0]);
-        amrex::Real ly = (p.pos(1)-plo[1])*dxi[1] - static_cast<amrex::Real>(iv[1]);
-        auto zlo = height_arr(iv[0]  ,iv[1]  ,iv[2]  ) * (1.0-lx) * (1.0-ly) +
-                   height_arr(iv[0]+1,iv[1]  ,iv[2]  ) *      lx  * (1.0-ly) +
-                   height_arr(iv[0]  ,iv[1]+1,iv[2]  ) * (1.0-lx) * ly +
-                   height_arr(iv[0]+1,iv[1]+1,iv[2]  ) *      lx  * ly;
-        auto zhi = height_arr(iv[0]  ,iv[1]  ,iv[2]+1) * (1.0-lx) * (1.0-ly) +
-                   height_arr(iv[0]+1,iv[1]  ,iv[2]+1) *      lx  * (1.0-ly) +
-                   height_arr(iv[0]  ,iv[1]+1,iv[2]+1) * (1.0-lx) * ly +
-                   height_arr(iv[0]+1,iv[1]+1,iv[2]+1) *      lx  * ly;
-
-        if (p.pos(2) > zhi) {
-            p.idata(ERFParticlesIntIdx::k) += 1;
-        } else if (p.pos(2) <= zlo) {
-            p.idata(ERFParticlesIntIdx::k) -= 1;
+        if (a_p.pos(2) > zhi) {
+            a_p.idata(ERFParticlesIntIdxAoS::k) += 1;
+        } else if (a_p.pos(2) <= zlo) {
+            a_p.idata(ERFParticlesIntIdxAoS::k) -= 1;
         }
     }
 }
 
-class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
-                                                ERFParticlesIntIdx::ncomps,
-                                                0,
-                                                0,
+class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps,  // AoS real attributes
+                                                ERFParticlesIntIdxAoS::ncomps,   // AoS integer attributes
+                                                ERFParticlesRealIdxSoA::ncomps,  // SoA real attributes
+                                                ERFParticlesIntIdxSoA::ncomps,   // SoA integer attributes
                                                 amrex::DefaultAllocator,
                                                 ERFParticlesAssignor >
 {
@@ -106,10 +115,10 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         /*! Constructor */
         ERFPC ( amrex::ParGDBBase* a_gdb,
                 const std::string& a_name = "particles" )
-            : amrex::ParticleContainer< ERFParticlesRealIdx::ncomps,
-                                        ERFParticlesIntIdx::ncomps,
-                                        0,
-                                        0,
+            : amrex::ParticleContainer< ERFParticlesRealIdxAoS::ncomps,   // AoS real attributes
+                                        ERFParticlesIntIdxAoS::ncomps,    // AoS integer attributes
+                                        ERFParticlesRealIdxSoA::ncomps,   // SoA real attributes
+                                        ERFParticlesIntIdxSoA::ncomps,    // SoA integer attributes
                                         amrex::DefaultAllocator,
                                         ERFParticlesAssignor> (a_gdb)
         {
@@ -123,10 +132,10 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
                 const amrex::DistributionMapping& a_dmap,
                 const amrex::BoxArray&            a_ba,
                 const std::string&                a_name = "particles" )
-            : amrex::ParticleContainer< ERFParticlesRealIdx::ncomps,
-                                        ERFParticlesIntIdx::ncomps,
-                                        0,
-                                        0,
+            : amrex::ParticleContainer< ERFParticlesRealIdxAoS::ncomps,   // AoS real attributes
+                                        ERFParticlesIntIdxAoS::ncomps,    // AoS real attributes
+                                        ERFParticlesRealIdxSoA::ncomps,   // SoA real attributes
+                                        ERFParticlesIntIdxSoA::ncomps,    // SoA integer attributes
                                         amrex::DefaultAllocator,
                                         ERFParticlesAssignor> ( a_geom, a_dmap, a_ba )
         {
@@ -175,6 +184,16 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
             m_advect_w_gravity = a_flag;
         }
 
+        // the following functions should ideally be private or protected, but need to be
+        // public due to CUDA extended lambda capture rules
+
+        /*! Default initialization for tracer particles for WoA case (ref: AA) */
+        void initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_ptr=nullptr);
+        /*! Default initialization for hydro particles (ref: AA) */
+        void initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        /*! Default particle initialization */
+        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
@@ -188,17 +207,10 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdx::ncomps,
         /*! read inputs from file */
         virtual void readInputs ();
 
-        /*! Default particle initialization */
-        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-
     private:
 
         /*! Default particle initialization */
         void initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-        /*! Default initialization for tracer particles for WoA case (ref: AA) */
-        void initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_ptr=nullptr);
-        /*! Default initialization for hydro particles (ref: AA) */
-        void initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
 
 };
 
