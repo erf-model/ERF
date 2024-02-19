@@ -412,7 +412,13 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
-        write_1D_profiles(time);
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(time);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(time);
+        }
     }
 
     if (output_1d_column) {
@@ -682,7 +688,13 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-        write_1D_profiles(t_new[0]);
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(t_new[0]);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(t_new[0]);
+        }
     }
 
     // We only write the file at level 0 for now
@@ -1119,6 +1131,7 @@ ERF::ReadParameters ()
         pp.query("plot_int_2", plot_int_2);
 
         pp.query("profile_int", profile_int);
+        pp.query("interp_profiles_to_cc", cc_profiles);
 
         pp.query("plot_lsm", plot_lsm);
 
