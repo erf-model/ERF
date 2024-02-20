@@ -152,14 +152,14 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
     }
 
     Vector<int> eddy_diff_idx{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q1_h   , EddyDiff::Q2_h, EddyDiff::Q3_h ,
-                              EddyDiff::Q4_h   , EddyDiff::Q5_h, EddyDiff::Q6_h };
+                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h ,
+                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h };
     Vector<int> eddy_diff_idy{EddyDiff::Theta_h, EddyDiff::KE_h, EddyDiff::QKE_h, EddyDiff::Scalar_h,
-                              EddyDiff::Q1_h   , EddyDiff::Q2_h, EddyDiff::Q3_h ,
-                              EddyDiff::Q4_h   , EddyDiff::Q5_h, EddyDiff::Q6_h };
+                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h ,
+                              EddyDiff::Q_h    , EddyDiff::Q_h, EddyDiff::Q_h };
     Vector<int> eddy_diff_idz{EddyDiff::Theta_v, EddyDiff::KE_v, EddyDiff::QKE_v, EddyDiff::Scalar_v,
-                              EddyDiff::Q1_v   , EddyDiff::Q2_v, EddyDiff::Q3_v ,
-                              EddyDiff::Q4_v   , EddyDiff::Q5_v, EddyDiff::Q6_v };
+                              EddyDiff::Q_v    , EddyDiff::Q_v, EddyDiff::Q_v ,
+                              EddyDiff::Q_v    , EddyDiff::Q_v, EddyDiff::Q_v };
 
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;

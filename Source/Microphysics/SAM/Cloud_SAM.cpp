@@ -6,7 +6,7 @@
 using namespace amrex;
 
 /**
- * Compute Cloud-related Microphysics quantities.
+ * Split cloud components according to saturation pressures; source theta from latent heat.
  */
 void SAM::Cloud () {
 
@@ -45,163 +45,183 @@ void SAM::Cloud () {
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            int Tcase = 0;
-
             // Initial guess for temperature assuming no cloud water/ice:
             Real tabs = tabs_array(i,j,k);
             Real pres = pres_array(i,j,k);
 
             // Saturation moisture fractions
-            Real omn, omp, omg;
-            Real qsattw, qsatti, qsattc;
-            Real dqsatw, dqsati, dqsatc;
+            Real omn, domn;
+            Real qsat, dqsat;
+            Real qsatw, dqsatw;
+            Real qsati, dqsati;
 
             // Newton iteration vars
             int niter;
             Real fff, dfff, dtabs;
+            Real lstar, dlstar;
             Real lstarw, dlstarw;
             Real lstari, dlstari;
-            Real lstarc, dlstarc;
-            Real lstarp, dlstarp;
-            Real delta_qn, delta_qv, delta_qc, delta_qi;
+            Real delta_qv, delta_qc, delta_qi;
 
-            //  Newton iteration for latent thermal sources
-            niter = 0;
-            dtabs = 1;
-            do {
-                // Latent heats and their derivatives wrt to T
-                lstarw  = fac_cond;
-                dlstarw = 0.0;
-                lstari  = fac_fus;
-                dlstari = 0.0;
-                lstarc  = fac_fus;
-                dlstarc = 0.0;
+            // NOTE: Conversion before iterations necessary to convert
+            //       cloud water to ice or vice versa.
 
-                // Cloud ice not permitted (condensation & melting)
-                if(tabs >= tbgmax) {
-                    erf_qsatw(  tabs, pres, qsattw);
-                    erf_dtqsatw(tabs, pres, dqsatw);
-                    qsattc = qcl_array(i,j,k);
-                    dqsatc = 0.0;
-                    qsatti = 0.0;
-                    dqsati = 0.0;
+            // Cloud ice not permitted (melt to form water)
+            if(tabs >= tbgmax) {
+                delta_qi = qci_array(i,j,k);
+                qci_array(i,j,k)   = 0.0;
+                qcl_array(i,j,k)  += delta_qi;
+                tabs_array(i,j,k) -= fac_fus * delta_qi;
+                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                     * (1.0 + R_v/R_d * qv_array(i,j,k));
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                pres_array(i,j,k) /= 100.0;
+            }
+            // Cloud water not permitted (freeze to form ice)
+            else if(tabs <= tbgmin) {
+                delta_qc = qcl_array(i,j,k);
+                qcl_array(i,j,k)   = 0.0;
+                qci_array(i,j,k)  += delta_qc;
+                tabs_array(i,j,k) += fac_fus * delta_qc;
+                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                     * (1.0 + R_v/R_d * qv_array(i,j,k));
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                pres_array(i,j,k) /= 100.0;
+            }
+            // Mixed cloud phase (condensation & fusion)
+            else {
+                omn = an*tabs-bn;
+                delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
+                delta_qi = qci_array(i,j,k) - qn_array(i,j,k) * (1.0 - omn);
+                qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
+                qci_array(i,j,k)   = qn_array(i,j,k) * (1.0 - omn);
+                tabs_array(i,j,k) += fac_fus * delta_qc;
+                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                     * (1.0 + R_v/R_d * qv_array(i,j,k));
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                pres_array(i,j,k) /= 100.0;
+            }
 
-                    Tcase = 0;
-                }
-                // Cloud water not permitted (sublimation & fusion)
-                else if(tabs <= tbgmin) {
-                    lstarw  = fac_sub;
-                    dlstarw = 0.0;
+            // Saturation moisture fractions
+            erf_qsatw(tabs, pres, qsatw);
+            erf_qsati(tabs, pres, qsati);
+            qsat = omn * qsatw  + (1.0-omn) * qsati;
 
-                    erf_qsatw(  tabs, pres, qsattw);
-                    erf_dtqsatw(tabs, pres, dqsatw);
-                    qsattc = 0.0;
-                    dqsatc = 0.0;
-                    qsatti = qci_array(i,j,k);
-                    dqsati = 0.0;
+            // We have enough total moisture to relax to equilibrium
+            if (qt_array(i,j,k) > qsat) {
 
-                    Tcase = 1;
-                }
-                // Mixed cloud phase (condensation & fusion)
-                else {
-                    erf_qsatw(  tabs, pres, qsattw);
-                    erf_dtqsatw(tabs, pres, dqsatw);
-                    qsattc = qcl_array(i,j,k);
-                    dqsatc = 0.0;
-                    erf_qsati(  tabs, pres, qsatti);
-                    erf_dtqsati(tabs, pres, dqsati);
+                niter = 0;
+                dtabs = 1;
+                //  Newton iteration for driving to equilibrium
+                do {
+                    // Latent heats and their derivatives wrt to T
+                  lstarw  = fac_cond;
+                  dlstarw = 0.0;
+                  lstari  = fac_fus;
+                  dlstari = 0.0;
+                  domn    = 0.0;
 
-                    Tcase = 2;
-                }
+                  // Saturation moisture fractions
+                  erf_qsatw(tabs, pres, qsatw);
+                  erf_qsati(tabs, pres, qsati);
+                  erf_dtqsatw(tabs, pres, dqsatw);
+                  erf_dtqsati(tabs, pres, dqsati);
 
+                  // Cloud ice not permitted (condensation & melting)
+                  if(tabs >= tbgmax) {
+                      omn   = 1.0;
+                  }
+                  // Cloud water not permitted (sublimation & fusion)
+                  else if(tabs <= tbgmin) {
+                      omn    = 0.0;
+                      lstarw = fac_sub;
+                  }
+                  // Mixed cloud phase (condensation & fusion)
+                  else {
+                      omn   = an*tabs-bn;
+                      domn  = an;
+                  }
 
-                // Function for root finding:
-                // 0 = -T_new + T_old + L_v/C_p * (qv - qsatw) + L_f/C_p * (qi - qsati) - L_f/C_p * (qc - qsatc)
-                fff   = -tabs + tabs_array(i,j,k)
-                      +  lstarw*( qv_array(i,j,k)-qsattw)
-                      +  lstarc*(qcl_array(i,j,k)-qsattc)
-                      -  lstari*(qci_array(i,j,k)-qsatti);
+                  // Linear combination of each component
+                  qsat   =  omn * qsatw  + (1.0-omn) * qsati;
+                  dqsat  =  omn * dqsatw + (1.0-omn) * dqsati;
+                  lstar  =  omn * lstarw + (1.0-omn) * lstari;
+                  dlstar = domn * lstarw - domn * lstari;
 
-                // Derivative of function (T_new iterated on)
-                dfff  = -1.0
-                      + ( dlstarw*( qv_array(i,j,k)-qsattw) - lstarw*dqsatw )
-                      + ( dlstarc*(qcl_array(i,j,k)-qsattc) - lstarc*dqsatc )
-                      - ( dlstari*(qci_array(i,j,k)-qsatti) - lstari*dqsati );
+                  // Function for root finding:
+                  // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
+                  fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
 
-                // Update the temperature
-                dtabs = -fff/dfff;
-                tabs  = tabs+dtabs;
-                niter = niter+1;
+                  // Derivative of function (T_new iterated on)
+                  dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+
+                  // Update the temperature
+                  dtabs = -fff/dfff;
+                  tabs  = tabs+dtabs;
+                  niter = niter+1;
+
+                  /*
+                    if (i==0 && j==0) {
+                    amrex::Print() << "Iter: " << Tcase << ' ' << niter << ' '
+                    << IntVect(i,j,k) << ' '
+                    << omn << ' '
+                    << qv_array(i,j,k) << ' '
+                    << qcl_array(i,j,k) << ' '
+                    << qci_array(i,j,k) << ' '
+                    << qsatw << ' '
+                    << qsati << ' '
+                    << qsat << "\n";
+                    }
+                  */
+                } while(std::abs(dtabs) > tol && niter < 20);
+
+                // Update qsat from last iteration (dq = dq/dt * dt)
+                qsat = qsat + dqsat*dtabs;
+
+                // Changes in each component
+                delta_qv = qv_array(i,j,k) - qsat;
+                delta_qc = delta_qv * omn;
+                delta_qi = delta_qv * (1.0-omn);
+
+                // Partition the change in non-precipitating q
+                 qv_array(i,j,k) = qsat;
+                qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) + delta_qc);
+                qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) + delta_qi);
+
+                qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
+                qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
 
                 /*
-                if (i==0 && j==0) {
-                    amrex::Print() << "Iter: " << Tcase << ' ' << niter << ' '
-                                   << IntVect(i,j,k) << ' '
-                                   << qv_array(i,j,k)  - qsattw << ' '
-                                   << qcl_array(i,j,k) - qsattc << ' '
-                                   << qci_array(i,j,k) - qsatti << ' '
-                                   << qsattw << ' '
-                                   << qsattc << ' '
-                                   << qsatti << "\n";
-                }
+                  if (i==0 && j==0) {
+                  amrex::Print() << "Update: " << IntVect(i,j,k) << ' '
+                  << getThgivenPandT(tabs, pres_array(i,j,k)*100, rdOcp) - theta_array(i,j,k) << ' '
+                  << tabs - tabs_array(i,j,k) << "\n";
+                  amrex::Print() << "dQ: " << Tcase << ' '
+                  << delta_qv << ' '
+                  << delta_qc << ' '
+                  << delta_qi << "\n";
+                  amrex::Print() << "Q: " << Tcase << ' '
+                  << qv_array(i,j,k) << ' '
+                  << qcl_array(i,j,k) << ' '
+                  << qci_array(i,j,k) << "\n";
+                  amrex::Print() << "\n";
+                  }
                 */
-            } while(std::abs(dtabs) > tol && niter < 20);
 
-            // Update qsat from last iteration (dq = dq/dt * dt)
-            qsattw   = qsattw + dqsatw*dtabs;
-            qsattc   = qsattc + dqsatc*dtabs;
-            qsatti   = qsatti + dqsati*dtabs;
+                // Update temperature
+                tabs_array(i,j,k) = tabs;
 
-            // Changes in each component
-            delta_qv =  qv_array(i,j,k)-qsattw;
-            delta_qc = qcl_array(i,j,k)-qsattc;
-            delta_qi = qci_array(i,j,k)-qsatti;
+                // Update pressure
+                pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                    * (1.0 + R_v/R_d * qv_array(i,j,k));
 
-            // The net change in q_i (d_qi or d_qc must be 0 for each case)
-            delta_qn = (delta_qi + delta_qc) + delta_qv;
+                // Update theta from temperature
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
 
-            // Partition the change in non-precipitating q
-             qv_array(i,j,k) = qsattw;
-            qcl_array(i,j,k) = (Tcase == 1) ? qsattc : (qcl_array(i,j,k)+delta_qn);
-            qci_array(i,j,k) = (Tcase != 1) ? qsatti : (qci_array(i,j,k)+delta_qn);
+                // Pressure unit conversion
+                pres_array(i,j,k) /= 100.0;
 
-             qv_array(i,j,k)  = std::max( qv_array(i,j,k),0.0);
-            qcl_array(i,j,k) = std::max(qcl_array(i,j,k),0.0);
-            qci_array(i,j,k) = std::max(qci_array(i,j,k),0.0);
-
-             qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
-             qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-
-             /*
-             if (i==0 && j==0) {
-                 amrex::Print() << "Update: " << IntVect(i,j,k) << ' '
-                                << getThgivenPandT(tabs, pres_array(i,j,k)*100, rdOcp) - theta_array(i,j,k) << ' '
-                                << tabs - tabs_array(i,j,k) << "\n";
-                 amrex::Print() << "dQ: " << Tcase << ' '
-                                << delta_qv << ' '
-                                << delta_qc << ' '
-                                << delta_qi << ' '
-                                << delta_qn << "\n";
-                 amrex::Print() << "Q: " << Tcase << ' '
-                                << qv_array(i,j,k) << ' '
-                                << qcl_array(i,j,k) << ' '
-                                << qci_array(i,j,k) << "\n";
-                 amrex::Print() << "\n";
-             }
-             */
-
-            // Update temperature
-            tabs_array(i,j,k) = tabs;
-
-            // Update pressure
-            pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                              * (1.0 + R_v/R_d * qv_array(i,j,k));
-
-            // Update theta from temperature
-            theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-
-            // Pressure unit conversion
-            pres_array(i,j,k) /= 100.0;
+            } // qt > qsat
         });
-    }
+    } // mfi
 }

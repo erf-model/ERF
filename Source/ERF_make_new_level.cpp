@@ -488,11 +488,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 
     if (l_use_kturb) {
-        // NOTE: Horiz and vert for mom/theta/ke/qke/scalar/q_i and pbl_lengthscale.
-        //       We have: cc_ncomp - 1 + 1; subtract rho and add mom
-        //       Simplify and add pbl_L: 2 * cc_ncomp + 1
-        int ncomp = 2 * vars_new[lev][Vars::cons].nComp() + 1;
-        eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, ncomp, 1 );
+      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );

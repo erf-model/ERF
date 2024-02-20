@@ -5,8 +5,7 @@
 using namespace amrex;
 
 /**
- * Compute positive definite monotonic advection with a non-oscillatory option
- * and gravitational sedimentation.
+ * Precipitation fluxes P_{r/s/g} (A19)
  *
  * Code modified from SAMXX, the C++ version of the SAM code.
  *

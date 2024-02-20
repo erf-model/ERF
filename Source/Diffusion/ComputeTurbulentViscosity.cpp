@@ -194,19 +194,14 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
     Real inv_Sc_t    = turbChoice.Sc_t_inv;
     Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
-    // EddyDiff mapping :   Theta_h     KE_h         QKE_h      Scalar_h
-    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_sigma_k, inv_Sc_t}; // alpha = mu/Pr
-    for (int nq(0); nq<qstate_size; ++ nq) {
-        Factors.push_back(inv_Sc_t); // Qi_h
-    }
+    // EddyDiff mapping :   Theta_h     KE_h         QKE_h      Scalar_h    Q_h
+    Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
     Gpu::copy(Gpu::hostToDevice, Factors.begin(), Factors.end(), d_Factors.begin());
     Real* fac_ptr = d_Factors.data();
 
     bool use_KE  = (turbChoice.les_type == LESType::Deardorff);
     bool use_QKE = (turbChoice.use_QKE && turbChoice.diffuse_QKE_3D);
-
-    int EDsize = eddyViscosity.nComp();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -258,8 +253,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         }
 
         // refactor the code to eliminate the need for ifdef's
-        for (auto n = 1; n < (EDsize-1)/2; ++n) {
-            int offset = (EDsize-1)/2;
+        for (auto n = 1; n < (EddyDiff::NumDiffs-1)/2; ++n) {
+            int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
             {
               case EddyDiff::QKE_h:
@@ -319,8 +314,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
 
         // refactor the code to eliminate the need for ifdef's
-        for (auto n = 0; n < (EDsize-1)/2; ++n) {
-            int offset = (EDsize-1)/2;
+        for (auto n = 0; n < (EddyDiff::NumDiffs-1)/2; ++n) {
+            int offset = (EddyDiff::NumDiffs-1)/2;
             switch (n)
             {
               case EddyDiff::QKE_h:

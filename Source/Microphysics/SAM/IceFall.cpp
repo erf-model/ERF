@@ -5,7 +5,7 @@
 using namespace amrex;
 
 /**
- * Computes contributions to Microphysics and thermodynamic variables from falling cloud ice in each column.
+ * Large-scale tendencies; sources theta
  */
 void SAM::IceFall () {
 

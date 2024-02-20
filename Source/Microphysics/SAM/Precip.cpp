@@ -1,9 +1,10 @@
 #include "SAM.H"
+#include "EOS.H"
 
 using namespace amrex;
 
 /**
- * Compute Precipitation-related Microphysics quantities.
+ * Autoconversion (A30), Accretion (A28), Evaporation (A24)
  */
 void SAM::Precip () {
 
@@ -28,17 +29,19 @@ void SAM::Precip () {
     auto evapg2_t  = evapg2.table();
     auto pres1d_t  = pres1d.table();
 
-    auto qt   = mic_fab_vars[MicVar::qt];
-    auto qp   = mic_fab_vars[MicVar::qp];
-    auto qn   = mic_fab_vars[MicVar::qn];
-    auto tabs = mic_fab_vars[MicVar::tabs];
+    Real fac_cond = m_fac_cond;
+    Real fac_sub  = m_fac_sub;
+    Real fac_fus  = m_fac_fus;
+    Real rdOcp    = m_rdOcp;
 
     Real dtn = dt;
 
     // get the temperature, dentisy, theta, qt and qp from input
-    for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
-        auto pres_array = mic_fab_vars[MicVar::pres]->array(mfi);
+    for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
 
         // Non-precipitating
         auto qv_array    = mic_fab_vars[MicVar::qv]->array(mfi);
@@ -58,14 +61,15 @@ void SAM::Precip () {
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             //------- Autoconversion/accretion
-            Real tmp, qsatt;
+            Real tmp;
             Real omn, omp, omg;
+            Real qsat, qsatw, qsati;
 
             Real qcc, qii, qpr, qps, qpg;
             Real dprc, dpsc, dpgc;
             Real dpri, dpsi, dpgi;
 
-            Real dqc, dqi;
+            Real dqc, dqi, dqp;
             Real dqpr, dqps, dqpg;
 
             Real autor, autos;
@@ -77,6 +81,9 @@ void SAM::Precip () {
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
+                // TODO: List
+                //       1. Are these if conditions correct?
+                //       2. Does autoconversion and accretion affect theta?
                 if (qn_array(i,j,k) > 0.0) {
                     qcc = qcl_array(i,j,k);
                     qii = qci_array(i,j,k);
@@ -146,12 +153,17 @@ void SAM::Precip () {
                     qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+                }
 
-                    // TODO: Reconcile the gcc operations from original formulation!
 
-                } else if(qp_array(i,j,k) > qp_threshold && qn_array(i,j,k) == 0.0) {
-
-                    erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatt);
+                // TODO: List
+                //       1. Are these if conditions correct?
+                //       2. Does evaporation source qv?
+                //       3. Is there a theta source here?
+                erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
+                erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
+                qsat = qsatw * omn + qsati * (1.0-omn);
+                if((qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat)) {
 
                     if(omp > 0.001) {
                         qpr  = qpr_array(i,j,k);
@@ -167,39 +179,27 @@ void SAM::Precip () {
                     }
 
                     // Evaporation
-                    dqpr *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
-                    dqps *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
-                    dqpg *= dtn * (qv_array(i,j,k)/qsatt - 1.0);
+                    dqpr *= dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqps *= dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqpg *= dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqp   = dqpr + dqps + dqpg;
 
                     // Update the primitive state variables
-                    qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) - dqpr);
-                    qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) - dqps - dqpg);
+                     qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k) - dqp);
                     qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + dqpr);
                     qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + dqps);
                     qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + dqpg);
 
                     // Update the primitive derived vars
-                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // TODO: Latent heat source term for theta?
-
-                } else {
-                    // Update the primitive state variables
-                    qcl_array(i,j,k) += qpr_array(i,j,k);
-                    qci_array(i,j,k) += qps_array(i,j,k) + qpg_array(i,j,k);
-                    qpr_array(i,j,k)  = 0.0;
-                    qps_array(i,j,k)  = 0.0;
-                    qpg_array(i,j,k)  = 0.0;
-
-                    // Update the primitive derived vars
-                    qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
-                    qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-                    qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
-
-                    // TODO: Latent heat source term for theta?
-
+                    // Latent heat source for theta
+                    tabs_array(i,j,k) += fac_cond * dqpr + fac_sub * (dqps + dqpg);
+                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                    pres_array(i,j,k) /= 100.0;
                 }
             }
         });
