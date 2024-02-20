@@ -34,6 +34,15 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
   amrex::Real zdamp = 500.0; // damping depth [m] from model top
 
+  //==============================================
+  // USER-DEFINED INPUTS
+  // source terms
+  amrex::Real advection_heating_rate;
+  amrex::Real restart_time = 9e9;
+  amrex::Real cutoff = 500.0;
+  amrex::Real cutoff_transition = 50.0;
+  //==============================================
+
   // helper vars
   amrex::Real aval;
   amrex::Real bval;
@@ -80,6 +89,7 @@ protected:
 
 private:
     ProbParm parms;
+    amrex::Vector<amrex::Real> zlevels;
 };
 
 #endif

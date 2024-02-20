@@ -1,4 +1,3 @@
-#include <AMReX_Random.H>
 #include <ERFPC.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -18,7 +17,7 @@ void ERFPC::readInputs ()
     pp.query("initial_distribution_type", m_initialization_type);
 
     m_ppc_init = 1;
-    pp.query("inital_particles_per_cell", m_ppc_init);
+    pp.query("initial_particles_per_cell", m_ppc_init);
 
     m_advect_w_flow = (m_name == ERFParticleNames::tracers ? true : false);
     pp.query("advect_with_flow", m_advect_w_flow);
@@ -65,103 +64,126 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
     BL_PROFILE("ERFPC::initializeParticlesDefaultTracersWoA");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
-    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
-    {
+    iMultiFab num_particles( ParticleBoxArray(lev),
+                             ParticleDistributionMap(lev),
+                             1, 0 );
+    num_particles.setVal(0);
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
-        Gpu::HostVector<ParticleType> host_particles;
+        auto num_particles_arr = num_particles[mfi].array();
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (i == 3) {
+                num_particles_arr(i,j,k) = 1;
+            }
+        });
+    }
+
+    iMultiFab offsets( ParticleBoxArray(lev),
+                       ParticleDistributionMap(lev),
+                       1, 0 );
+    offsets.setVal(0);
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box  = mfi.tilebox();
+
+        int np = 0;
+        {
+            int ncell = num_particles[mfi].numPts();
+            const int* in = num_particles[mfi].dataPtr();
+            int* out = offsets[mfi].dataPtr();
+            np = Scan::PrefixSum<int>( ncell,
+                                       [=] AMREX_GPU_DEVICE (int i) -> int { return in[i]; },
+                                       [=] AMREX_GPU_DEVICE (int i, int const &x) { out[i] = x; },
+                                       Scan::Type::exclusive,
+                                       Scan::retSum );
+        }
+        auto offset_arr = offsets[mfi].array();
+
+        auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
+        particle_tile.resize(np);
+        auto aos = &particle_tile.GetArrayOfStructs()[0];
+        auto soa = particle_tile.GetStructOfArrays();
+        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+
+        auto my_proc = ParallelDescriptor::MyProc();
+        Long pid;
+        {
+            pid = ParticleType::NextID();
+            ParticleType::NextID(pid+np);
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE( static_cast<Long>(pid + np) < LastParticleID,
+                                          "Error: overflow on particle id numbers!" );
 
         if (a_height_ptr) {
 
-            const auto& height = (*a_height_ptr)[mfi];
-            const FArrayBox* height_ptr = nullptr;
-#ifdef AMREX_USE_GPU
-            std::unique_ptr<FArrayBox> hostfab;
-            if (height.arena()->isManaged() || height.arena()->isDevice()) {
-                hostfab = std::make_unique<FArrayBox>(height.box(), height.nComp(),
-                                                      The_Pinned_Arena());
-                Gpu::dtoh_memcpy_async(hostfab->dataPtr(), height.dataPtr(),
-                                       height.size()*sizeof(Real));
-                Gpu::streamSynchronize();
-                height_ptr = hostfab.get();
-            }
-#else
-            height_ptr = &height;
-#endif
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                if (iv[0] == 3) {
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (i == 3) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv)
-                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
-                                         - (*height_ptr)(iv) );
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = height_arr(i,j,k)
+                              + r[2] * (   height_arr(i,j,k+1)
+                                         - height_arr(i,j,k) );
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[offset_arr(i,j,k)];
+                    p.id()  = pid + offset_arr(i,j,k);
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[offset_arr(i,j,k)] = v[0];
+                    vy_ptr[offset_arr(i,j,k)] = v[1];
+                    vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[offset_arr(i,j,k)] = 0.0;
                }
-            }
+            });
 
         } else {
 
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                if (iv[0] == 3) {
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (i == 3) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = plo[2] + (iv[2] + r[2])*dx[2];
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = plo[2] + (k + r[2])*dx[2];
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[offset_arr(i,j,k)];
+                    p.id()  = pid + offset_arr(i,j,k);
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[offset_arr(i,j,k)] = v[0];
+                    vy_ptr[offset_arr(i,j,k)] = v[1];
+                    vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[offset_arr(i,j,k)] = 0.0;
                }
-            }
+            });
 
         }
 
-        auto& particles = GetParticles(lev);
-        auto& particle_tile = particles[std::make_pair(mfi.index(), mfi.LocalTileIndex())];
-        auto old_size = particle_tile.GetArrayOfStructs().size();
-        auto new_size = old_size + host_particles.size();
-        particle_tile.resize(new_size);
-
-        Gpu::copy(Gpu::hostToDevice,
-                  host_particles.begin(),
-                  host_particles.end(),
-                  particle_tile.GetArrayOfStructs().begin() + old_size);
     }
 
     return;
@@ -173,106 +195,130 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
     BL_PROFILE("ERFPC::initializeParticlesDefaultHydro");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
-    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
-    {
+    iMultiFab num_particles( ParticleBoxArray(lev),
+                             ParticleDistributionMap(lev),
+                             1, 0 );
+    num_particles.setVal(0);
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
-        Gpu::HostVector<ParticleType> host_particles;
+        auto num_particles_arr = num_particles[mfi].array();
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // This is a random choice to put them above the ground and let them fall
+            if (k == 13) {
+                num_particles_arr(i,j,k) = 1;
+            }
+        });
+    }
+
+    iMultiFab offsets( ParticleBoxArray(lev),
+                       ParticleDistributionMap(lev),
+                       1, 0 );
+    offsets.setVal(0);
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box  = mfi.tilebox();
+
+        int np = 0;
+        {
+            int ncell = num_particles[mfi].numPts();
+            const int* in = num_particles[mfi].dataPtr();
+            int* out = offsets[mfi].dataPtr();
+            np = Scan::PrefixSum<int>( ncell,
+                                       [=] AMREX_GPU_DEVICE (int i) -> int { return in[i]; },
+                                       [=] AMREX_GPU_DEVICE (int i, int const &x) { out[i] = x; },
+                                       Scan::Type::exclusive,
+                                       Scan::retSum );
+        }
+        auto offset_arr = offsets[mfi].array();
+
+        auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
+        particle_tile.resize(np);
+        auto aos = &particle_tile.GetArrayOfStructs()[0];
+        auto soa = particle_tile.GetStructOfArrays();
+        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+
+        auto my_proc = ParallelDescriptor::MyProc();
+        Long pid;
+        {
+            pid = ParticleType::NextID();
+            ParticleType::NextID(pid+np);
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE( static_cast<Long>(pid + np) < LastParticleID,
+                                          "Error: overflow on particle id numbers!" );
 
         if (a_height_ptr) {
 
-            const auto& height = (*a_height_ptr)[mfi];
-            const FArrayBox* height_ptr = nullptr;
-#ifdef AMREX_USE_GPU
-            std::unique_ptr<FArrayBox> hostfab;
-            if (height.arena()->isManaged() || height.arena()->isDevice()) {
-                hostfab = std::make_unique<FArrayBox>(height.box(), height.nComp(),
-                                                      The_Pinned_Arena());
-                Gpu::dtoh_memcpy_async(hostfab->dataPtr(), height.dataPtr(),
-                                       height.size()*sizeof(Real));
-                Gpu::streamSynchronize();
-                height_ptr = hostfab.get();
-            }
-#else
-            height_ptr = &height;
-#endif
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                // This is a random choice to put them above the ground and let them fall
-                if (iv[2] == 13) {
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k == 13) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv)
-                             + r[2]*(   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
-                                      - (*height_ptr)(iv) );
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = height_arr(i,j,k)
+                              + r[2] * (   height_arr(i,j,k+1)
+                                         - height_arr(i,j,k) );
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[offset_arr(i,j,k)];
+                    p.id()  = pid + offset_arr(i,j,k);
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[offset_arr(i,j,k)] = v[0];
+                    vy_ptr[offset_arr(i,j,k)] = v[1];
+                    vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[offset_arr(i,j,k)] = 0.0;
                }
-            }
+            });
 
         } else {
 
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                // This is a random choice to put them above the ground and let them fall
-                if (iv[2] == 23) {
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k == 13) {
                     Real r[3] = {0.5, 0.5, 0.5};  // this means place at cell center
                     Real v[3] = {0.0, 0.0, 0.0};  // with 0 initial velocity
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = plo[2] + (iv[2] + r[2])*dx[2];
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = plo[2] + (k + r[2])*dx[2];
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[offset_arr(i,j,k)];
+                    p.id()  = pid + offset_arr(i,j,k);
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[offset_arr(i,j,k)] = v[0];
+                    vy_ptr[offset_arr(i,j,k)] = v[1];
+                    vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[offset_arr(i,j,k)] = 0.0;
                }
-            }
+            });
 
         }
 
-        auto& particles = GetParticles(lev);
-        auto& particle_tile = particles[std::make_pair(mfi.index(), mfi.LocalTileIndex())];
-        auto old_size = particle_tile.GetArrayOfStructs().size();
-        auto new_size = old_size + host_particles.size();
-        particle_tile.resize(new_size);
-
-        Gpu::copy(Gpu::hostToDevice,
-                  host_particles.begin(),
-                  host_particles.end(),
-                  particle_tile.GetArrayOfStructs().begin() + old_size);
     }
+
+    return;
 }
 
 /*! Uniform distribution: the number of particles per grid cell is specified
@@ -282,107 +328,128 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
     BL_PROFILE("ERFPC::initializeParticlesUniformDistribution");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
-    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi)
-    {
+    int particles_per_cell = m_ppc_init;
+
+    iMultiFab num_particles( ParticleBoxArray(lev),
+                             ParticleDistributionMap(lev),
+                             1, 0 );
+    num_particles.setVal(0);
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
-        Gpu::HostVector<ParticleType> host_particles;
+        auto num_particles_arr = num_particles[mfi].array();
+        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            num_particles_arr(i,j,k) = particles_per_cell;
+        });
+    }
+
+    iMultiFab offsets( ParticleBoxArray(lev),
+                       ParticleDistributionMap(lev),
+                       1, 0 );
+    offsets.setVal(0);
+
+    for(MFIter mfi = MakeMFIter(lev); mfi.isValid(); ++mfi) {
+        const Box& tile_box  = mfi.tilebox();
+
+        int np = 0;
+        {
+            int ncell = num_particles[mfi].numPts();
+            const int* in = num_particles[mfi].dataPtr();
+            int* out = offsets[mfi].dataPtr();
+            np = Scan::PrefixSum<int>( ncell,
+                                       [=] AMREX_GPU_DEVICE (int i) -> int { return in[i]; },
+                                       [=] AMREX_GPU_DEVICE (int i, int const &x) { out[i] = x; },
+                                       Scan::Type::exclusive,
+                                       Scan::retSum );
+        }
+        auto offset_arr = offsets[mfi].array();
+
+        auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
+        particle_tile.resize(np);
+        auto aos = &particle_tile.GetArrayOfStructs()[0];
+        auto soa = particle_tile.GetStructOfArrays();
+        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+
+        auto my_proc = ParallelDescriptor::MyProc();
+        Long pid;
+        {
+            pid = ParticleType::NextID();
+            ParticleType::NextID(pid+np);
+        }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE( static_cast<Long>(pid + np) < LastParticleID,
+                                          "Error: overflow on particle id numbers!" );
 
         if (a_height_ptr) {
 
-            const auto& height = (*a_height_ptr)[mfi];
-            const FArrayBox* height_ptr = nullptr;
-#ifdef AMREX_USE_GPU
-            std::unique_ptr<FArrayBox> hostfab;
-            if (height.arena()->isManaged() || height.arena()->isDevice()) {
-                hostfab = std::make_unique<FArrayBox>(height.box(), height.nComp(),
-                                                      The_Pinned_Arena());
-                Gpu::dtoh_memcpy_async(hostfab->dataPtr(), height.dataPtr(),
-                                       height.size()*sizeof(Real));
-                Gpu::streamSynchronize();
-                height_ptr = hostfab.get();
-            }
-#else
-            height_ptr = &height;
-#endif
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                std::vector<Real> rnd_reals(m_ppc_init*3);
-                amrex::FillRandom(rnd_reals.data(), rnd_reals.size());
-                for (int n = 0; n < m_ppc_init; n++) {
-                    Real r[3] = {rnd_reals[3*n], rnd_reals[3*n+1], rnd_reals[3*n+2]};
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
+                                                           const RandomEngine& rnd_engine) noexcept
+            {
+                int start = offset_arr(i,j,k);
+                for (int n = start; n < start+particles_per_cell; n++) {
+                    Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
                     Real v[3] = {0.0, 0.0, 0.0};
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = (*height_ptr)(iv)
-                              + r[2] * (   (*height_ptr)(iv + IntVect(AMREX_D_DECL(0, 0, 1)))
-                                         - (*height_ptr)(iv) );
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = height_arr(i,j,k)
+                              + r[2] * (   height_arr(i,j,k+1)
+                                         - height_arr(i,j,k) );
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[n];
+                    p.id()  = pid + n;
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[n] = v[0];
+                    vy_ptr[n] = v[1];
+                    vz_ptr[n] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[n] = 0.0;
                }
-            }
+            });
 
         } else {
 
-            for (IntVect iv = tile_box.smallEnd(); iv <= tile_box.bigEnd(); tile_box.next(iv)) {
-                std::vector<Real> rnd_reals(m_ppc_init*3);
-                amrex::FillRandom(rnd_reals.data(), rnd_reals.size());
-                for (int n = 0; n < m_ppc_init; n++) {
-                    Real r[3] = {rnd_reals[3*n], rnd_reals[3*n+1], rnd_reals[3*n+2]};
+            ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
+                                                           const RandomEngine& rnd_engine) noexcept
+            {
+                int start = offset_arr(i,j,k);
+                for (int n = start; n < start+particles_per_cell; n++) {
+                    Real r[3] = {Random(rnd_engine), Random(rnd_engine), Random(rnd_engine)};
                     Real v[3] = {0.0, 0.0, 0.0};
 
-                    Real x = plo[0] + (iv[0] + r[0])*dx[0];
-                    Real y = plo[1] + (iv[1] + r[1])*dx[1];
-                    Real z = plo[2] + (iv[2] + r[2])*dx[2];
+                    Real x = plo[0] + (i + r[0])*dx[0];
+                    Real y = plo[1] + (j + r[1])*dx[1];
+                    Real z = plo[2] + (k + r[2])*dx[2];
 
-                    ParticleType p;
-                    p.id()  = ParticleType::NextID();
-                    p.cpu() = ParallelDescriptor::MyProc();
+                    auto& p = aos[n];
+                    p.id()  = pid + n;
+                    p.cpu() = my_proc;
                     p.pos(0) = x;
                     p.pos(1) = y;
                     p.pos(2) = z;
 
-                    p.rdata(ERFParticlesRealIdx::vx) = v[0];
-                    p.rdata(ERFParticlesRealIdx::vy) = v[1];
-                    p.rdata(ERFParticlesRealIdx::vz) = v[2];
+                    p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    p.idata(ERFParticlesIntIdx::i) = iv[0];
-                    p.idata(ERFParticlesIntIdx::j) = iv[1];
-                    p.idata(ERFParticlesIntIdx::k) = iv[2];
+                    vx_ptr[n] = v[0];
+                    vy_ptr[n] = v[1];
+                    vz_ptr[n] = v[2];
 
-                    host_particles.push_back(p);
+                    mass_ptr[n] = 0.0;
                }
-            }
-
+            });
         }
-
-        auto& particles = GetParticles(lev);
-        auto& particle_tile = particles[std::make_pair(mfi.index(), mfi.LocalTileIndex())];
-        auto old_size = particle_tile.GetArrayOfStructs().size();
-        auto new_size = old_size + host_particles.size();
-        particle_tile.resize(new_size);
-
-        Gpu::copy(Gpu::hostToDevice,
-                  host_particles.begin(),
-                  host_particles.end(),
-                  particle_tile.GetArrayOfStructs().begin() + old_size);
     }
 
     return;
