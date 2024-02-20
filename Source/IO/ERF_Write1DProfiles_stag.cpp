@@ -303,7 +303,7 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
         });
 
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // average u, v to faces
             fab_arr_stag(i,j,k,0) = 0.5*(u_cc_arr(i,j,k) + u_cc_arr(i,j,k-1)) * w_fc_arr(i,j,k);   // uw
@@ -437,7 +437,7 @@ ERF::derive_stress_profiles_stag(Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVe
         });
 
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             fab_arr_stag(i,j,k,0) = 0.5*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k));
             fab_arr_stag(i,j,k,1) = 0.5*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k));
