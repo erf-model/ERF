@@ -242,6 +242,15 @@ MOSTAverage::set_k_indices_N()
     auto read_z = pp.query("most.zref",m_zref);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
+    // Default behavior is to use the first cell center
+    if (!read_z && !read_k) {
+        Real m_zlo = m_geom[0].ProbLo(2);
+        Real m_dz  = m_geom[0].CellSize(2);
+        m_zref = m_zlo + 0.5 * m_dz;
+        amrex::Print() << "Reference height for MOST set to " << m_zref << std::endl;
+        read_z = true;
+    }
+
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
         for (int lev(0); lev < m_maxlev; lev++) {
@@ -290,6 +299,11 @@ MOSTAverage::set_k_indices_T()
     auto read_z = pp.query("most.zref",m_zref);
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
+    // No default behavior with terrain (we can't tell the difference between
+    // vertical grid stretching and true terrain)
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_z != read_k,
+                                     "Need to specify zref or k_arr_in for MOST");
+
     // Capture for device
     Real d_zref   = m_zref;
     Real d_radius = m_radius;
@@ -336,7 +350,7 @@ void
 MOSTAverage::set_norm_indices_T()
 {
     ParmParse pp(m_pp_prefix);
-    pp.query("most.zref",m_zref);
+    pp.get("most.zref",m_zref);
 
     // Capture for device
     Real d_zref   = m_zref;
@@ -405,7 +419,7 @@ void
 MOSTAverage::set_z_positions_T()
 {
     ParmParse pp(m_pp_prefix);
-    pp.query("most.zref",m_zref);
+    pp.get("most.zref",m_zref);
 
     // Capture for device
     Real d_zref = m_zref;
@@ -448,7 +462,7 @@ void
 MOSTAverage::set_norm_positions_T()
 {
     ParmParse pp(m_pp_prefix);
-    pp.query("most.zref",m_zref);
+    pp.get("most.zref",m_zref);
 
     // Capture for device
     Real d_zref = m_zref;

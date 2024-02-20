@@ -64,8 +64,8 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
     BL_PROFILE("ERFPC::initializeParticlesDefaultTracersWoA");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
     iMultiFab num_particles( ParticleBoxArray(lev),
                              ParticleDistributionMap(lev),
@@ -195,8 +195,8 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
     BL_PROFILE("ERFPC::initializeParticlesDefaultHydro");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
     iMultiFab num_particles( ParticleBoxArray(lev),
                              ParticleDistributionMap(lev),
@@ -328,8 +328,8 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
     BL_PROFILE("ERFPC::initializeParticlesUniformDistribution");
 
     const int lev = 0;
-    const Real* dx = Geom(lev).CellSize();
-    const Real* plo = Geom(lev).ProbLo();
+    const auto dx = Geom(lev).CellSizeArray();
+    const auto plo = Geom(lev).ProbLoArray();
 
     int particles_per_cell = m_ppc_init;
 
@@ -411,11 +411,11 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    vx_ptr[offset_arr(i,j,k)] = v[0];
-                    vy_ptr[offset_arr(i,j,k)] = v[1];
-                    vz_ptr[offset_arr(i,j,k)] = v[2];
+                    vx_ptr[n] = v[0];
+                    vy_ptr[n] = v[1];
+                    vz_ptr[n] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[n] = 0.0;
                }
             });
 
@@ -442,11 +442,11 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
 
                     p.idata(ERFParticlesIntIdxAoS::k) = k;
 
-                    vx_ptr[offset_arr(i,j,k)] = v[0];
-                    vy_ptr[offset_arr(i,j,k)] = v[1];
-                    vz_ptr[offset_arr(i,j,k)] = v[2];
+                    vx_ptr[n] = v[0];
+                    vy_ptr[n] = v[1];
+                    vz_ptr[n] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[n] = 0.0;
                }
             });
         }
