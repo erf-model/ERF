@@ -8,11 +8,11 @@ using namespace amrex;
 /**
  * Writes 1-dimensional averaged quantities as profiles to output log files
  * at the given time. Quantities are output at their native grid locations,
- * therefore W, <u'w'>, <v'w'>, <w'w'>, tau13, and tau23 will be output at
- * staggered heights (i.e., z faces) rather than cell-center heights to avoid
- * performing additional averaging. The unstaggered quantities are associated
- * with the left cell face, i.e., they share the same k index. These quantities
- * will have a zero value at the max height of Nz+1.
+ * therefore W, <(*)'w'>, tau13, and tau23 (where * includes u, v, p, theta,
+ * and k) will be output at staggered heights (i.e., z faces) rather than
+ * cell-center heights to avoid performing additional averaging. The unstaggered
+ * quantities are associated with the left cell face, i.e., they share the same
+ * k index. These quantities will have a zero value at the max height of Nz+1.
  *
  * @param time Current time
  */
@@ -87,8 +87,11 @@ ERF::write_1D_profiles_stag(Real time)
                   // Write the perturbational quantities at this time
                   for (int k = 0; k < hu_size; k++) {
                       Real z = k * dx[2];
-                      Real uface = 0.5*(h_avg_u[k] + h_avg_u[k-1]);
-                      Real vface = 0.5*(h_avg_v[k] + h_avg_v[k-1]);
+                      Real uface  = 0.5*(h_avg_u[k]  + h_avg_u[k-1]);
+                      Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
+                      Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
+                      Real pface  = 0.5*(h_avg_p[k]  + h_avg_p[k-1]);
+                      Real kface  = 0.5*(h_avg_k[k]  + h_avg_k[k-1]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -99,38 +102,41 @@ ERF::write_1D_profiles_stag(Real time)
                                 << h_avg_ww[k]   - h_avg_w[k]*h_avg_w[k]  << " "
                                 << h_avg_uth[k]  - h_avg_u[k]*h_avg_th[k] << " "
                                 << h_avg_vth[k]  - h_avg_v[k]*h_avg_th[k] << " "
-                                << h_avg_wth[k]  - h_avg_w[k]*h_avg_th[k] << " "
+                                << h_avg_wth[k]  - h_avg_w[k]*thface      << " "
                                 << h_avg_thth[k] - h_avg_th[k]*h_avg_th[k] << " "
                                 << h_avg_ku[k]   - h_avg_k[k]*h_avg_u[k] << " "
                                 << h_avg_kv[k]   - h_avg_k[k]*h_avg_v[k] << " "
-                                << h_avg_kw[k]   - h_avg_k[k]*h_avg_w[k] << " "
+                                << h_avg_kw[k]   -      kface*h_avg_w[k] << " "
                                 << h_avg_pu[k]   - h_avg_p[k]*h_avg_u[k] << " "
                                 << h_avg_pv[k]   - h_avg_p[k]*h_avg_v[k] << " "
-                                << h_avg_pw[k]   - h_avg_p[k]*h_avg_w[k]
+                                << h_avg_pw[k]   -      pface*h_avg_w[k]
                                 << std::endl;
                   } // loop over z
                   // Write top face values
                   const int k = hu_size;
-                  Real uface = 0.5*(h_avg_u[k] + h_avg_u[k-1]);
-                  Real vface = 0.5*(h_avg_v[k] + h_avg_v[k-1]);
+                  Real uface  = 0.5*(h_avg_u[k]  + h_avg_u[k-1]);
+                  Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
+                  Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
+                  Real pface  = 0.5*(h_avg_p[k]  + h_avg_p[k-1]);
+                  Real kface  = 0.5*(h_avg_k[k]  + h_avg_k[k-1]);
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << k * dx[2] << " "
-                            << 0  << " "
-                            << 0  << " "
-                            << h_avg_uw[k]   -      uface*h_avg_w[k]  << " "
-                            << 0  << " "
-                            << h_avg_vw[k]   -      vface*h_avg_w[k]  << " "
-                            << h_avg_ww[k]   - h_avg_w[k]*h_avg_w[k]  << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0 << " "
-                            << 0
+                            << 0  << " " // u'u'
+                            << 0  << " " // u'v'
+                            << h_avg_uw[k]   -      uface*h_avg_w[k] << " "
+                            << 0  << " " // v'v'
+                            << h_avg_vw[k]   -      vface*h_avg_w[k] << " "
+                            << h_avg_ww[k]   - h_avg_w[k]*h_avg_w[k] << " "
+                            << 0 << " " // u'th'
+                            << 0 << " " // v'th'
+                            << h_avg_th[k]   -     thface*h_avg_w[k] << " "
+                            << 0 << " " // th'th'
+                            << 0 << " " // ku'
+                            << 0 << " " // kv'
+                            << h_avg_kw[k]   -      kface*h_avg_w[k] << " "
+                            << 0 << " " // pu'
+                            << 0 << " " // pv'
+                            << h_avg_pw[k]    -     pface*h_avg_w[k]
                             << std::endl;
                 } // if good
             } // NumDataLogs
