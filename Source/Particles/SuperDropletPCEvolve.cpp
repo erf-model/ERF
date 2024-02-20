@@ -36,6 +36,8 @@ void SuperDropletPC::EvolveParticles ( int                                      
 
     // TODO: coalescence();
 
+    Redistribute();
+
     return;
 }
 
