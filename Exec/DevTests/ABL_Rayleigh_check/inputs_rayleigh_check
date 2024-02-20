@@ -1,0 +1,61 @@
+# RAYLEIGH SANITY CHECK
+# ---------------------
+# Problem: uniform flow, without Rayleigh the solution sits there;
+#   adding Rayleigh damping will drive mean flow back to initial solution
+#
+# Exact solution: du/dt = Fdamp = -dampcoef*(u - ubar)
+#   u(t) = ubar * (1 - exp(-dampcoef * t))
+stop_time = 600.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent = 25  25  25
+amr.n_cell           =  4   4   4
+geometry.is_periodic = 1 1 0
+
+# BOUNDARY
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# INITIALIZATION
+# initial conditions and Rayleigh reference come from sounding
+erf.init_type = "input_sounding"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 6
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+
+erf.data_log    = dummy.dat mean_profiles.dat
+erf.profile_int = 1
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1         # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 10        # number of timesteps between plotfiles
+erf.plot_vars_1     = x_velocity
+
+
+# SOLVER CHOICE
+erf.molec_diff_type = "None"
+erf.use_rayleigh_damping = true
+erf.rayleigh_damp_U = true
+
+# PROBLEM CHOICE
+prob.zdamp = 9e99 # no vertical variation in damping layer strength
+prob.dampcoef = 0.02 # timescale is 50 s
+prob.U_0 = -10.0 # subtract out mean wind from profile to start with U = 0
+
