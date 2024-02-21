@@ -112,13 +112,16 @@ void SAM::IceFall () {
             if ( k >= std::max(0,kmin) && k <= kmax ) {
                 Real coef = dtn/dz;
                 // The cloud ice increment is the difference of the fluxes.
-                Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
-                dqi = std::max(dqi,-qci_array(i,j,k));
+                Real dqi  = std::max(-qci_array(i,j,k),coef*(fz_array(i,j,k)-fz_array(i,j,k+1)));
 
                 // Add this increment to both non-precipitating and total water.
                 qci_array(i,j,k) += dqi;
                  qn_array(i,j,k) += dqi;
                  qt_array(i,j,k) += dqi;
+
+                /*
+                // NOTE: Sedimentation does not affect the potential temperature,
+                //       but it does affect the liquid/ice static  energy
 
                 // The latent heat flux induced by the falling cloud ice enters
                 // the liquid-ice static energy budget in the same way as the
@@ -128,6 +131,7 @@ void SAM::IceFall () {
 
                 // Add divergence of latent heat flux contribution to liquid-ice static potential temperature.
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
+                */
             }
         });
     }

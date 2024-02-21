@@ -33,13 +33,13 @@ void SAM::Copy_Micro_to_State (amrex::MultiFab& cons)
         {
             states_arr(i,j,k,RhoTheta_comp) = rho_arr(i,j,k)*theta_arr(i,j,k);
 
-            states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*qv_arr(i,j,k);
-            states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*qc_arr(i,j,k);
-            states_arr(i,j,k,RhoQ3_comp)    = rho_arr(i,j,k)*qi_arr(i,j,k);
+            states_arr(i,j,k,RhoQ1_comp)    = rho_arr(i,j,k)*std::max(0.0,qv_arr(i,j,k));
+            states_arr(i,j,k,RhoQ2_comp)    = rho_arr(i,j,k)*std::max(0.0,qc_arr(i,j,k));
+            states_arr(i,j,k,RhoQ3_comp)    = rho_arr(i,j,k)*std::max(0.0,qi_arr(i,j,k));
 
-            states_arr(i,j,k,RhoQ4_comp)    = rho_arr(i,j,k)*qpr_arr(i,j,k);
-            states_arr(i,j,k,RhoQ5_comp)    = rho_arr(i,j,k)*qps_arr(i,j,k);
-            states_arr(i,j,k,RhoQ6_comp)    = rho_arr(i,j,k)*qpg_arr(i,j,k);
+            states_arr(i,j,k,RhoQ4_comp)    = rho_arr(i,j,k)*std::max(0.0,qpr_arr(i,j,k));
+            states_arr(i,j,k,RhoQ5_comp)    = rho_arr(i,j,k)*std::max(0.0,qps_arr(i,j,k));
+            states_arr(i,j,k,RhoQ6_comp)    = rho_arr(i,j,k)*std::max(0.0,qpg_arr(i,j,k));
         });
     }
 

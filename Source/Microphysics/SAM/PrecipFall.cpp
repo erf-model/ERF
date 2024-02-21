@@ -20,9 +20,9 @@ void SAM::PrecipFall (int hydro_type)
     Real gams3 = erf_gammafff(4.0+b_snow);
     Real gamg3 = erf_gammafff(4.0+b_grau);
 
-    Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),crain);
-    Real vsnow = a_snow*gams3/6.0/pow((PI*rhos*nzeros),csnow);
-    Real vgrau = a_grau*gamg3/6.0/pow((PI*rhog*nzerog),cgrau);
+    Real vrain = (a_rain*gamr3/6.0)*pow((PI*rhor*nzeror),-crain);
+    Real vsnow = (a_snow*gams3/6.0)*pow((PI*rhos*nzeros),-csnow);
+    Real vgrau = (a_grau*gamg3/6.0)*pow((PI*rhog*nzerog),-cgrau);
 
     Real dt_advance = dt;
     int nz = nlev;
@@ -126,12 +126,11 @@ void SAM::PrecipFall (int hydro_type)
             else if (hydro_type == 3) {
                 lfac_array(i,j,k) = 0.0;
             }
-            Real Veff = term_vel_qp(i,j,k,qp_array(i,j,k),
-                                   vrain, vsnow, vgrau, rho_array(i,j,k),
-                                   tabs_array(i,j,k));
-            wp_array(i,j,k) = std::sqrt(1.29/rho_array(i,j,k)) * Veff;
+            Real Veff = term_vel_qp(qp_array(i,j,k), vrain, vsnow, vgrau,
+                                    rho_array(i,j,k), tabs_array(i,j,k));
+            wp_array(i,j,k) = -Veff * std::sqrt(1.29/rho_array(i,j,k));
             prec_cfl_array(i,j,k) = wp_array(i,j,k) * iwmax_t(k);
-            wp_array(i,j,k) *= -rho_array(i,j,k)*dt_advance/dz;
+            wp_array(i,j,k) *= rho_array(i,j,k) * dt_advance/dz;
             if (k == 0) {
                 fz_array(i,j,nz-1)   = 0.0;
                 www_array(i,j,nz-1)  = 0.0;
@@ -212,7 +211,9 @@ void SAM::PrecipFall (int hydro_type)
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 int kc = min(k+1, nz-1);
-                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k)-(fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k); //Update temporary qp
+
+                Real dqp = (fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k);
+                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k) + (fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k); //Update temporary qp
             });
 
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -266,28 +267,27 @@ void SAM::PrecipFall (int hydro_type)
                 Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
-                Real scaler = std::min(qpr_array(i,j,k), dqp*omp) / (dqp*omp + eps);
-                Real scales = std::min(qps_array(i,j,k), dqp*(1.0-omp)*(1.0-omg)) / (dqp*(1.0-omp)*(1.0-omg) + eps);
-                Real scaleg = std::min(qpg_array(i,j,k), dqp*(1.0-omp)*omg) / (dqp*(1.0-omp)*omg + eps);
-                Real scalep = std::min(std::min(scaler,scales),scaleg);
-                dqp *= scalep;
+                qpr_array(i,j,k) = std::max(0.0, qpr_array(i,j,k) + dqp*omp);
+                qps_array(i,j,k) = std::max(0.0, qps_array(i,j,k) + dqp*(1.0-omp)*(1.0-omg));
+                qpg_array(i,j,k) = std::max(0.0, qpg_array(i,j,k) + dqp*(1.0-omp)*omg);
+                 qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                qpr_array(i,j,k) -= dqp*omp;
-                qps_array(i,j,k) -= dqp*(1.0-omp)*(1.0-omg);
-                qpg_array(i,j,k) -= dqp*(1.0-omp)*omg;
-                 qp_array(i,j,k)  = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+                /*
+                // NOTE: Sedimentation does not affect the potential temperature,
+                //       but it does affect the liquid/ice static  energy
 
-                 Real lat_heat   = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) ) / rho_array(i,j,k);
+                Real lat_heat = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) ) / rho_array(i,j,k);
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
+                */
             });
 
             if (iprec < nprec) {
                 // Re-compute precipitation velocity using new value of qp.
                 ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real tmp = term_vel_qp(i,j,k,qp_array(i,j,k),
-                                           vrain, vsnow, vgrau, rho_array(i,j,k),
-                                           tabs_array(i,j,k));
+                    Real tmp = term_vel_qp(qp_array(i,j,k),
+                                           vrain, vsnow, vgrau,
+                                           rho_array(i,j,k), tabs_array(i,j,k));
                     wp_array(i,j,k) = std::sqrt(1.29/rho_array(i,j,k))*tmp;
                     // Decrease precipitation velocity by factor of nprec
                     wp_array(i,j,k) = -wp_array(i,j,k)*rho_array(i,j,k)*dt_advance/dz/nprec;

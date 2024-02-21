@@ -245,7 +245,7 @@ void SAM::Compute_Coefficients ()
                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
 
         // accretion by rain:
-        accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3+b_rain)/4.))* erccoef;
+        accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3.0+b_rain)/4.))* erccoef;
 
         // evaporation of rain:
         coef1 = (lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));

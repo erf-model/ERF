@@ -63,11 +63,14 @@ void SAM::Cloud () {
             Real lstari, dlstari;
             Real delta_qv, delta_qc, delta_qi;
 
-            // NOTE: Conversion before iterations necessary to convert
-            //       cloud water to ice or vice versa.
+            // NOTE: Conversion before iterations is necessary to
+            //       convert cloud water to ice or vice versa.
+            //       This ensures the omn splitting is enforced
+            //       before the Newton itersion, which assume it is.
 
             // Cloud ice not permitted (melt to form water)
             if(tabs >= tbgmax) {
+                omn = 1.0;
                 delta_qi = qci_array(i,j,k);
                 qci_array(i,j,k)   = 0.0;
                 qcl_array(i,j,k)  += delta_qi;
@@ -79,6 +82,7 @@ void SAM::Cloud () {
             }
             // Cloud water not permitted (freeze to form ice)
             else if(tabs <= tbgmin) {
+                omn = 0.0;
                 delta_qc = qcl_array(i,j,k);
                 qcl_array(i,j,k)   = 0.0;
                 qci_array(i,j,k)  += delta_qc;
@@ -88,7 +92,7 @@ void SAM::Cloud () {
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) /= 100.0;
             }
-            // Mixed cloud phase (condensation & fusion)
+            // Mixed cloud phase (split according to omn)
             else {
                 omn = an*tabs-bn;
                 delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
@@ -109,7 +113,6 @@ void SAM::Cloud () {
 
             // We have enough total moisture to relax to equilibrium
             if (qt_array(i,j,k) > qsat) {
-
                 niter = 0;
                 dtabs = 1;
                 //  Newton iteration for driving to equilibrium
@@ -127,7 +130,7 @@ void SAM::Cloud () {
                     erf_dtqsatw(tabs, pres, dqsatw);
                     erf_dtqsati(tabs, pres, dqsati);
 
-                    // Cloud ice not permitted (condensation & melting)
+                    // Cloud ice not permitted (condensation & fusion)
                     if(tabs >= tbgmax) {
                         omn   = 1.0;
                     }
@@ -144,9 +147,10 @@ void SAM::Cloud () {
 
                     // Linear combination of each component
                     qsat   =  omn * qsatw  + (1.0-omn) * qsati;
-                    dqsat  =  omn * dqsatw + (1.0-omn) * dqsati;
+                    dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
+                           + domn *  qsatw -     domn  *  qsati;
                     lstar  =  omn * lstarw + (1.0-omn) * lstari;
-                    dlstar = domn * lstarw - domn * lstari;
+                    dlstar = domn * lstarw -     domn  * lstari;
 
                     // Function for root finding:
                     // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
@@ -159,20 +163,6 @@ void SAM::Cloud () {
                     dtabs = -fff/dfff;
                     tabs  = tabs+dtabs;
                     niter = niter+1;
-
-                    /*
-                    if (i==0 && j==0) {
-                        amrex::Print() << "Iter: " << niter << ' '
-                                       << IntVect(i,j,k) << ' '
-                                       << omn << ' '
-                                       << qv_array(i,j,k) << ' '
-                                       << qcl_array(i,j,k) << ' '
-                                       << qci_array(i,j,k) << ' '
-                                       << qsatw << ' '
-                                       << qsati << ' '
-                                       << qsat << "\n";
-                    }
-                    */
                 } while(std::abs(dtabs) > tol && niter < 20);
 
                 // Update qsat from last iteration (dq = dq/dt * dt)
@@ -180,35 +170,15 @@ void SAM::Cloud () {
 
                 // Changes in each component
                 delta_qv = qv_array(i,j,k) - qsat;
-                delta_qc = delta_qv * omn;
-                delta_qi = delta_qv * (1.0-omn);
+                delta_qc = std::max(-qcl_array(i,j,k), delta_qv * omn);
+                delta_qi = std::max(-qci_array(i,j,k), delta_qv * (1.0-omn));
 
                 // Partition the change in non-precipitating q
-                 qv_array(i,j,k) = qsat;
-                qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) + delta_qc);
-                qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) + delta_qi);
-
-                qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
-                qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
-
-                /*
-                if (i==0 && j==0) {
-                    amrex::Print() << "Update: " << IntVect(i,j,k) << ' '
-                                   << getThgivenPandT(tabs, pres_array(i,j,k)*100, rdOcp) - theta_array(i,j,k) << ' '
-                                   << tabs - tabs_array(i,j,k) << "\n";
-                    amrex::Print() << "dQ: "
-                                   << delta_qv << ' '
-                                   << delta_qc << ' '
-                                   << delta_qi << "\n";
-                    amrex::Print() << "Q: "
-                                   << qv_array(i,j,k) << ' '
-                                   << qcl_array(i,j,k) << ' '
-                                   << qci_array(i,j,k) << ' '
-                                   << qn_array(i,j,k) << ' '
-                                   << qt_array(i,j,k) << "\n";
-                    amrex::Print() << "\n";
-                  }
-                */
+                 qv_array(i,j,k)  = qsat;
+                qcl_array(i,j,k) += delta_qc;
+                qci_array(i,j,k) += delta_qi;
+                 qn_array(i,j,k)  = qcl_array(i,j,k) + qci_array(i,j,k);
+                 qt_array(i,j,k)  =  qv_array(i,j,k) +  qn_array(i,j,k);
 
                 // Update temperature
                 tabs_array(i,j,k) = tabs;

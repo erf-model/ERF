@@ -69,13 +69,13 @@ void SAM::Precip () {
 
             Real qcc, qii, qpr, qps, qpg;
             Real dprc, dpsc, dpgc;
-            Real dpri, dpsi, dpgi;
+            Real dpsi, dpgi;
 
             Real dqc, dqi, dqp;
             Real dqpr, dqps, dqpg;
 
             Real autor, autos;
-            Real accrr, accrcs, accris, accrcg, accrig;
+            Real accrcr, accrcs, accris, accrcg, accrig;
 
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
 
@@ -83,18 +83,18 @@ void SAM::Precip () {
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
+                qcc = qcl_array(i,j,k);
+                qii = qci_array(i,j,k);
+
+                qpr = qpr_array(i,j,k);
+                qps = qps_array(i,j,k);
+                qpg = qpg_array(i,j,k);
+
                 // TODO: List
                 //       1. Are these IF conditions correct?
                 //       2. Does autoconversion and accretion affect theta?
                 if (qn_array(i,j,k) > 0.0) {
-                    qcc = qcl_array(i,j,k);
-                    qii = qci_array(i,j,k);
-
-                    qpr = qpr_array(i,j,k);
-                    qps = qps_array(i,j,k);
-                    qpg = qpg_array(i,j,k);
-
-                    accrr  = 0.0;
+                    accrcr = 0.0;
                     accrcs = 0.0;
                     accris = 0.0;
                     accrcg = 0.0;
@@ -113,60 +113,58 @@ void SAM::Precip () {
                     }
 
                     if (omp > 0.001) {
-                        accrr = accrrc_t(k) * std::pow(qpr, powr1);
+                        accrcr = accrrc_t(k);
                     }
 
                     if (omp < 0.999 && omg < 0.999) {
-                        tmp = pow(qps, pows1);
-                        accrcs = accrsc_t(k) * tmp;
-                        accris = accrsi_t(k) * tmp;
+                        accrcs = accrsc_t(k);
+                        accris = accrsi_t(k);
                     }
 
                     if (omp < 0.999 && omg > 0.001) {
-                        tmp = pow(qpg, powg1);
-                        accrcg = accrgc_t(k) * tmp;
-                        accrig = accrgi_t(k) * tmp;
+                        accrcg = accrgc_t(k);
+                        accrig = accrgi_t(k);
                     }
 
-                    // Autoconversion & accretion
-                    dprc = dtn * autor  * (qcc-qcw0);
-                    dpsc = dtn * accrcs * qcc * std::pow(qps,(3.+b_snow)/4.);
-                    dpgc = dtn * accrcg * qcc * std::pow(qpg,(3.+b_grau)/4.);
+                    // Autoconversion & accretion (sink for cloud comps)
+                    dprc  = dtn * autor  * (qcc-qcw0);
+                    dprc += dtn * accrcr * qcc * std::pow(qpr, powr1);
+                    dpsc  = dtn * accrcs * qcc * std::pow(qps, pows1);
+                    dpgc  = dtn * accrcg * qcc * std::pow(qpg, powg1);
 
-                    dpri = dtn * autos  * (qii-qci0);
-                    dpsi = dtn * accris * qii * std::pow(qps,(3.+b_snow)/4.);
-                    dpgi = dtn * accrig * qii * std::pow(qpg,(3.+b_grau)/4.);
+                    dpsi  = dtn * autos  * (qii-qci0);
+                    dpsi += dtn * accris * qii * std::pow(qps, pows1);
+                    dpgi  = dtn * accrig * qii * std::pow(qpg, powg1);
 
+                    // Rescale sinks to avoid negative cloud fractions
                     dqc  = dprc + dpsc + dpgc;
-                    dqi  = dpri + dpsi + dpgi;
-
+                    dqi  = dpsi + dpgi;
                     Real scalec = std::min(qcl_array(i,j,k),dqc) / (dqc + eps);
                     Real scalei = std::min(qci_array(i,j,k),dqi) / (dqi + eps);
-                    dqc *= scalec;
-                    dqi *= scalei;
-                    dqpr = scalec * dprc + scalei * dpri;
-                    dqps = scalec * dpsc + scalei * dpsi;
-                    dqpg = scalec * dpgc + scalei * dpgi;
+                    dprc *= scalec; dpsc *= scalec; dpgc *= scalec;
+                    dpsi *= scalei; dpgi *= scalei;
+                    dqc  = dprc + dpsc + dpgc;
+                    dqi  = dpsi + dpgi;
 
                     /*
-                    if (i==0 && j==0) {
-                        amrex::Print() << "Pp acr aut: " << IntVect(i,j,k) << ' '
-                                       << dqpr << ' '
-                                       << dqps << ' '
-                                       << dqpg << "\n";
-                        amrex::Print() << "Pc acr aut: " << IntVect(i,j,k) << ' '
-                                       << qpr_array(i,j,k) + dqpr << ' '
-                                       << qps_array(i,j,k) + dqps << ' '
-                                       << qpg_array(i,j,k) + dqpg << "\n";
-                    }
+                    // Keep individual
+                    dqpr = dprc;
+                    dqps = dpsc + dpsi;
+                    dqpg = dpgc + dpgi;
                     */
 
+                    // Partition formed precip comps
+                    dqp  = dqc + dqi;
+                    dqpr = dqp * omp;
+                    dqps = dqp * (1.0 - omp) * (1.0 - omg);
+                    dqpg = dqp * (1.0 - omp) * omg;
+
                     // Update the primitive state variables
-                    qcl_array(i,j,k) -= dqc; //std::max(0.0,qcl_array(i,j,k) - dqc);
-                    qci_array(i,j,k) -= dqi; //std::max(0.0,qci_array(i,j,k) - dqi);
-                    qpr_array(i,j,k) += dqpr; //std::max(0.0,qpr_array(i,j,k) + dqpr);
-                    qps_array(i,j,k) += dqps; //std::max(0.0,qps_array(i,j,k) + dqps);
-                    qpg_array(i,j,k) += dqpg; //std::max(0.0,qpg_array(i,j,k) + dqpg);
+                    qcl_array(i,j,k) -= dqc;
+                    qci_array(i,j,k) -= dqi;
+                    qpr_array(i,j,k) += dqpr;
+                    qps_array(i,j,k) += dqps;
+                    qpg_array(i,j,k) += dqpg;
 
                     // Update the primitive derived vars
                     qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
@@ -182,50 +180,34 @@ void SAM::Precip () {
                 erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
                 erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
                 qsat = qsatw * omn + qsati * (1.0-omn);
-                if((qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat)) {
+                if((qp_array(i,j,k) > qp_threshold) && (qv_array(i,j,k) < qsat)) {
 
                     if(omp > 0.001) {
-                        qpr  = qpr_array(i,j,k);
                         dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
                     }
                     if(omp < 0.999 && omg < 0.999) {
-                        qps  = qps_array(i,j,k);
                         dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
                     }
                     if(omp < 0.999 && omg > 0.001) {
-                        qpg  = qpg_array(i,j,k);
                         dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
                     }
 
-                    // Evaporation
-                    dqpr *= dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqps *= dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqpg *= dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    // Evaporation (sink for precipitating comps)
+                    dqpr *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqps *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqpg *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
 
-                    Real scaler = std::max(-qpr_array(i,j,k),dqpr) / (dqpr + eps);
-                    Real scales = std::max(-qps_array(i,j,k),dqps) / (dqps + eps);
-                    Real scaleg = std::max(-qpg_array(i,j,k),dqpg) / (dqpg + eps);
-                    dqpr *= scaler;
-                    dqps *= scales;
-                    dqpg *= scaleg;
-                    dqp   = dqpr + dqps + dqpg;
-
-                    /*
-                    if (i==0 && j==0) {
-                        amrex::Print() << "Pp evap: " << IntVect(i,j,k) << ' '
-                                       << dqpr << ' '
-                                       << dqps << ' '
-                                       << dqpg << ' '
-                                       << dqp << "\n";
-                        amrex::Print() << "\n";
-                    }
-                    */
+                    // Limit to avoid negative moisture fractions
+                    dqpr = std::min(qpr_array(i,j,k),dqpr);
+                    dqps = std::min(qps_array(i,j,k),dqps);
+                    dqpg = std::min(qpg_array(i,j,k),dqpg);
+                    dqp  = dqpr + dqps + dqpg;
 
                     // Update the primitive state variables
-                     qv_array(i,j,k) -= dqp; //std::max(0.0, qv_array(i,j,k) - dqp);
-                    qpr_array(i,j,k) += dqpr; //std::max(0.0,qpr_array(i,j,k) + dqpr);
-                    qps_array(i,j,k) += dqps; //std::max(0.0,qps_array(i,j,k) + dqps);
-                    qpg_array(i,j,k) += dqpg; //std::max(0.0,qpg_array(i,j,k) + dqpg);
+                     qv_array(i,j,k) += dqp;
+                    qpr_array(i,j,k) -= dqpr;
+                    qps_array(i,j,k) -= dqps;
+                    qpg_array(i,j,k) -= dqpg;
 
                     // Update the primitive derived vars
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);

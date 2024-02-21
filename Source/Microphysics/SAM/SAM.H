@@ -122,18 +122,10 @@ public:
     {
         dt = dt_advance;
 
-        amrex::Print() << "CLOUD...";
         this->Cloud();
-        amrex::Print() << "DONE\n";
-        amrex::Print() << "ICEFALL...";
         this->IceFall();
-        amrex::Print() << "DONE\n";
-        amrex::Print() << "PRECIP...";
         this->Precip();
-        amrex::Print() << "DONE\n";
-        amrex::Print() << "PRECIPFALL...";
         this->PrecipFall();
-        amrex::Print() << "DONE\n";
     }
 
     amrex::MultiFab*
