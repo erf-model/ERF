@@ -36,7 +36,7 @@ ERF::write_1D_profiles_stag(Real time)
         Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
-        Gpu::HostVector<Real> h_avg_ku, h_avg_kv, h_avg_kw;
+        Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
         Gpu::HostVector<Real> h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw;
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
@@ -46,7 +46,7 @@ ERF::write_1D_profiles_stag(Real time)
                                       h_avg_rho, h_avg_th, h_avg_ksgs,
                                       h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                       h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
-                                      h_avg_ku, h_avg_kv, h_avg_kw,
+                                      h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
                                       h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
         }
 
@@ -86,26 +86,39 @@ ERF::write_1D_profiles_stag(Real time)
                 std::ostream& data_log2 = DataLog(2);
                 if (data_log2.good()) {
                   // Write the perturbational quantities at this time
-                  // For surface values (k=0), assume w=0
+                  // For surface values (k=0), assume w = uw = vw = ww = 0
+                  Real w_cc  = h_avg_w[1] / 2;  // w at first cell center
+                  Real uw_cc = h_avg_uw[1] / 2; // u*w at first cell center
+                  Real vw_cc = h_avg_vw[1] / 2; // v*w at first cell center
+                  Real ww_cc = h_avg_ww[1] / 2; // w*w at first cell center
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << 0 << " "
                             << h_avg_uu[0]   - h_avg_u[0]*h_avg_u[0]   << " " // u'u'
                             << h_avg_uv[0]   - h_avg_u[0]*h_avg_v[0]   << " " // u'v'
-                            << h_avg_uw[0]                             << " " // u'w'
+                            << 0                                       << " " // u'w'
                             << h_avg_vv[0]   - h_avg_v[0]*h_avg_v[0]   << " " // v'v'
-                            << h_avg_vw[0]                             << " " // v'w'
-                            << h_avg_ww[0]                             << " " // w'w'
+                            << 0                                       << " " // v'w'
+                            << 0                                       << " " // w'w'
                             << h_avg_uth[0]  - h_avg_u[0]*h_avg_th[0]  << " " // u'th'
                             << h_avg_vth[0]  - h_avg_v[0]*h_avg_th[0]  << " " // v'th'
-                            << h_avg_wth[0]                            << " " // w'th'
+                            << 0                                       << " " // w'th'
                             << h_avg_thth[0] - h_avg_th[0]*h_avg_th[0] << " " // th'th'
-                            << h_avg_ku[0]                             << " " // ku'
-                            << h_avg_kv[0]                             << " " // kv'
-                            << h_avg_kw[0]                             << " " // kw'
+                            << h_avg_uiuiu[0]
+                             - (h_avg_uu[0] + h_avg_vv[0] + ww_cc)*h_avg_u[0]
+                             - 2*(h_avg_u[0]*h_avg_uu[0] + h_avg_v[0]*h_avg_uv[0] + w_cc*uw_cc)
+                             + 2*(h_avg_u[0]*h_avg_u[0] + h_avg_v[0]*h_avg_v[0] + w_cc*w_cc)*h_avg_u[0]
+                               << " " // (u'_i u'_i)u'
+                            << h_avg_uiuiv[0]
+                             - (h_avg_uu[0] + h_avg_vv[0] + ww_cc)*h_avg_v[0]
+                             - 2*(h_avg_u[0]*h_avg_uv[0] + h_avg_v[0]*h_avg_vv[0] + w_cc*vw_cc)
+                             + 2*(h_avg_u[0]*h_avg_u[0] + h_avg_v[0]*h_avg_v[0] + w_cc*w_cc)*h_avg_v[0]
+                               << " " // (u'_i u'_i)v'
+                            << 0 << " " // (u'_i u'_i)w'
                             << h_avg_pu[0]   - h_avg_p[0]*h_avg_u[0]   << " " // pu'
                             << h_avg_pv[0]   - h_avg_p[0]*h_avg_v[0]   << " " // pv'
-                            << h_avg_pw[0]                                    // pw'
+                            << 0                                              // pw'
                             << std::endl;
+
                   // For internal values, interpolate scalar quantities to faces
                   for (int k = 1; k < unstag_size; k++) {
                       Real z = k * dx[2];
@@ -113,6 +126,13 @@ ERF::write_1D_profiles_stag(Real time)
                       Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
                       Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
                       Real pface  = 0.5*(h_avg_p[k]  + h_avg_p[k-1]);
+                      Real uuface = 0.5*(h_avg_uu[k] + h_avg_uu[k-1]);
+                      Real uvface = 0.5*(h_avg_uv[k] + h_avg_uv[k-1]);
+                      Real vvface = 0.5*(h_avg_vv[k] + h_avg_vv[k-1]);
+                      Real w_cc   = 0.5*(h_avg_w[k-1]  + h_avg_w[k]);
+                      Real uw_cc  = 0.5*(h_avg_uw[k-1] + h_avg_uw[k]);
+                      Real vw_cc  = 0.5*(h_avg_vw[k-1] + h_avg_vw[k]);
+                      Real ww_cc  = 0.5*(h_avg_ww[k-1] + h_avg_ww[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
@@ -125,20 +145,40 @@ ERF::write_1D_profiles_stag(Real time)
                                 << h_avg_vth[k]  - h_avg_v[k]*h_avg_th[k]  << " " // v'th'
                                 << h_avg_wth[k]  - h_avg_w[k]*thface       << " " // w'th'
                                 << h_avg_thth[k] - h_avg_th[k]*h_avg_th[k] << " " // th'th'
-                                << h_avg_ku[k]                             << " " // ku'
-                                << h_avg_kv[k]                             << " " // kv'
-                                << h_avg_kw[k]                             << " " // kw'
+                                // Note: <u'_i u'_i u'_j> =   <u_i u_i u_j>
+                                //                        -   <u_i u_i> * <u_j>
+                                //                        - 2*<u_i> * <u_i u_j>
+                                //                        + 2*<u_i>*<u_i> * <u_j>
+                                << h_avg_uiuiu[k]
+                                 - (h_avg_uu[k] + h_avg_vv[k] + ww_cc)*h_avg_u[k]
+                                 - 2*(h_avg_u[k]*h_avg_uu[k] + h_avg_v[k]*h_avg_uv[k] + w_cc*uw_cc)
+                                 + 2*(h_avg_u[k]*h_avg_u[k] + h_avg_v[k]*h_avg_v[k] + w_cc*w_cc)*h_avg_u[k]
+                                   << " " // cell-centered (u'_i u'_i)u'
+                                << h_avg_uiuiv[k]
+                                 - (h_avg_uu[k] + h_avg_vv[k] + ww_cc)*h_avg_v[k]
+                                 - 2*(h_avg_u[k]*h_avg_uv[k] + h_avg_v[k]*h_avg_vv[k] + w_cc*vw_cc)
+                                 + 2*(h_avg_u[k]*h_avg_u[k] + h_avg_v[k]*h_avg_v[k] + w_cc*w_cc)*h_avg_v[k]
+                                   << " " // cell-centered (u'_i u'_i)v'
+                                << h_avg_uiuiw[k]
+                                 - (uuface + vvface + h_avg_ww[k])*h_avg_w[k]
+                                 - 2*(uface*h_avg_uw[k] + vface*h_avg_vw[k] + h_avg_w[k]*h_avg_ww[k])
+                                 + 2*(uface*uface + vface*vface + h_avg_w[k]*h_avg_w[k])*h_avg_w[k]
+                                   << " " // face-centered (u'_i u'_i)w'
                                 << h_avg_pu[k]   - h_avg_p[k]*h_avg_u[k]   << " " // pu'
                                 << h_avg_pv[k]   - h_avg_p[k]*h_avg_v[k]   << " " // pv'
                                 << h_avg_pw[k]   -      pface*h_avg_w[k]          // pw'
                                 << std::endl;
                   } // loop over z
+
                   // Write top face values, extrapolating scalar quantities
                   const int k = unstag_size;
                   Real uface  = 1.5*h_avg_u[k-1]  - 0.5*h_avg_u[k-2];
                   Real vface  = 1.5*h_avg_v[k-1]  - 0.5*h_avg_v[k-2];
                   Real thface = 1.5*h_avg_th[k-1] - 0.5*h_avg_th[k-2];
                   Real pface  = 1.5*h_avg_p[k-1]  - 0.5*h_avg_p[k-2];
+                  Real uuface = 1.5*h_avg_uu[k-1] - 0.5*h_avg_uu[k-2];
+                  Real uvface = 1.5*h_avg_uv[k-1] - 0.5*h_avg_uv[k-2];
+                  Real vvface = 1.5*h_avg_vv[k-1] - 0.5*h_avg_vv[k-2];
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << k * dx[2] << " "
                             << 0                                     << " " // u'u'
@@ -151,9 +191,13 @@ ERF::write_1D_profiles_stag(Real time)
                             << 0                                     << " " // v'th'
                             << h_avg_wth[k]  -     thface*h_avg_w[k] << " " // w'th'
                             << 0                                     << " " // th'th'
-                            << h_avg_ku[k]                           << " " // ku'
-                            << h_avg_kv[k]                           << " " // kv'
-                            << h_avg_kw[k]                           << " " // kw'
+                            << 0                                     << " " // (u'_i u'_i)u'
+                            << 0                                     << " " // (u'_i u'_i)v'
+                            << h_avg_uiuiw[k]
+                             - (uuface + vvface + h_avg_ww[k])*h_avg_w[k]
+                             - 2*(uface*h_avg_uw[k] + vface*h_avg_vw[k] + h_avg_w[k]*h_avg_ww[k])
+                             + 2*(uface*uface + vface*vface + h_avg_w[k]*h_avg_w[k])*h_avg_w[k]
+                               << " " // (u'_i u'_i)w'
                             << 0                                     << " " // pu'
                             << 0                                     << " " // pv'
                             << h_avg_pw[k]   -      pface*h_avg_w[k]        // pw'
@@ -203,9 +247,9 @@ ERF::write_1D_profiles_stag(Real time)
  * @param h_avg_vw Profile for y-velocity * z-velocity on Host
  * @param h_avg_ww Profile for z-velocity squared on Host
  * @param h_avg_uth Profile for x-velocity * potential temperature on Host
- * @param h_avg_ku Profile for TKE * x-velocity on Host
- * @param h_avg_kv Profile for TKE * y-velocity on Host
- * @param h_avg_kw Profile for TKE * z-velocity on Host
+ * @param h_avg_uiuiu Profile for u_i*u_i*u triple product on Host
+ * @param h_avg_uiuiv Profile for u_i*u_i*v triple product on Host
+ * @param h_avg_uiuiw Profile for u_i*u_i*w triple product on Host
  * @param h_avg_p Profile for pressure perturbation on Host
  * @param h_avg_pu Profile for pressure perturbation * x-velocity on Host
  * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
@@ -218,7 +262,7 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
                                Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
                                Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
                                Gpu::HostVector<Real>& h_avg_thth,
-                               Gpu::HostVector<Real>& h_avg_ku  , Gpu::HostVector<Real>& h_avg_kv , Gpu::HostVector<Real>& h_avg_kw,
+                               Gpu::HostVector<Real>& h_avg_uiuiu  , Gpu::HostVector<Real>& h_avg_uiuiv , Gpu::HostVector<Real>& h_avg_uiuiw,
                                Gpu::HostVector<Real>& h_avg_p,
                                Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
 {
@@ -228,13 +272,13 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
     bool l_use_KE  = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
     bool l_use_QKE = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
 
-    // This will hold rho, theta, ksgs, uu, uv, vv, uth, vth, thth, p, pu, pv
-    //         index:   0      1     2   3   4   5    6    7     8  9  10  11
-    MultiFab mf_out(grids[lev], dmap[lev], 12, 0);
+    // This will hold rho, theta, ksgs, uu, uv, vv, uth, vth, thth, uiuiu, uiuiv, p, pu, pv
+    //         index:   0      1     2   3   4   5    6    7     8      9     10  11 12  13
+    MultiFab mf_out(grids[lev], dmap[lev], 14, 0);
 
-    // This will hold uw, vw, ww, wth, ku, kv, kw, pw
-    //         index:  0   1   2    3   4   5   6   7
-    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 8, 0);
+    // This will hold uw, vw, ww, wth, uiuiw, pw (note: uiui == u_i*u_i = u*u + v*v + w*w)
+    //         index:  0   1   2    3      4   5
+    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 6, 0);
 
     // This is only used to average u and v
     MultiFab mf_vels(grids[lev], dmap[lev], 2, 0);
@@ -289,12 +333,17 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
             fab_arr(i, j, k, 7) = v_cc_arr(i,j,k) * theta;             // v*th
             fab_arr(i, j, k, 8) = theta * theta;                       // th*th
 
+            Real wcc = 0.5 * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
+            Real uiui = fab_arr(i,j,k,3) + fab_arr(i,j,k,5) + wcc*wcc;
+            fab_arr(i, j, k,9 ) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
+            fab_arr(i, j, k,10) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
+
             if (!use_moisture) {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k, 9) = p;                       // p'
-                fab_arr(i, j, k,10) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,11) = p * v_cc_arr(i,j,k);     // p'*v
+                fab_arr(i, j, k,11) = p;                       // p'
+                fab_arr(i, j, k,12) = p * u_cc_arr(i,j,k);     // p'*u
+                fab_arr(i, j, k,13) = p * v_cc_arr(i,j,k);     // p'*v
             }
         });
 
@@ -313,15 +362,13 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
             fab_arr_stag(i,j,k,1) =           vface * w_fc_arr(i,j,k); // v*w
             fab_arr_stag(i,j,k,2) = w_fc_arr(i,j,k) * w_fc_arr(i,j,k); // w*w
             fab_arr_stag(i,j,k,3) =          thface * w_fc_arr(i,j,k); // th*w
-            Real tkeface = 0.5*(uface*uface + vface*vface + fab_arr_stag(i,j,k,2)); // resolved
-            fab_arr_stag(i,j,k,4) =         tkeface * uface;           // k*u
-            fab_arr_stag(i,j,k,5) =         tkeface * vface;           // k*v
-            fab_arr_stag(i,j,k,6) =         tkeface * w_fc_arr(i,j,k); // k*w
+            Real uiui = uface*uface + vface*vface + fab_arr_stag(i,j,k,2);
+            fab_arr_stag(i,j,k,4) = uiui * w_fc_arr(i,j,k); // (ui*ui)*w
             if (!use_moisture) {
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp)) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp)) - p0_arr(i,j,k-1);
                 Real pface = 0.5 * (p0 + p1);
-                fab_arr_stag(i,j,k,7) = pface * w_fc_arr(i,j,k);       // p'*w
+                fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k);       // p'*w
             }
         });
 
@@ -345,9 +392,9 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
             {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k, 9) = p;                       // p'
-                fab_arr(i, j, k,10) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,11) = p * v_cc_arr(i,j,k);     // p'*v
+                fab_arr(i, j, k,11) = p;                       // p'
+                fab_arr(i, j, k,12) = p * u_cc_arr(i,j,k);     // p'*u
+                fab_arr(i, j, k,13) = p * v_cc_arr(i,j,k);     // p'*v
             });
 
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
@@ -356,7 +403,7 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp), qv_arr(i,j,k  )) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp), qv_arr(i,j,k-1)) - p0_arr(i,j,k-1);
                 Real pface = 0.5 * (p0 + p1);
-                fab_arr_stag(i,j,k,7) = pface * w_fc_arr(i,j,k); // p'*w
+                fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k); // p'*w
             });
         } // mfi
     } // use_moisture
@@ -375,43 +422,49 @@ ERF::derive_diag_profiles_stag(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
     h_avg_uth  = sumToLine(mf_out, 6,1,domain,zdir);
     h_avg_vth  = sumToLine(mf_out, 7,1,domain,zdir);
     h_avg_thth = sumToLine(mf_out, 8,1,domain,zdir);
-    h_avg_p    = sumToLine(mf_out, 9,1,domain,zdir);
-    h_avg_pu   = sumToLine(mf_out,10,1,domain,zdir);
-    h_avg_pv   = sumToLine(mf_out,11,1,domain,zdir);
+    h_avg_uiuiu= sumToLine(mf_out, 9,1,stag_domain,zdir);
+    h_avg_uiuiv= sumToLine(mf_out,10,1,stag_domain,zdir);
+    h_avg_p    = sumToLine(mf_out,11,1,domain,zdir);
+    h_avg_pu   = sumToLine(mf_out,12,1,domain,zdir);
+    h_avg_pv   = sumToLine(mf_out,13,1,domain,zdir);
 
     h_avg_uw   = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
     h_avg_vw   = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
     h_avg_ww   = sumToLine(mf_out_stag,2,1,stag_domain,zdir);
     h_avg_wth  = sumToLine(mf_out_stag,3,1,stag_domain,zdir);
-    h_avg_ku   = sumToLine(mf_out_stag,4,1,stag_domain,zdir);
-    h_avg_kv   = sumToLine(mf_out_stag,5,1,stag_domain,zdir);
-    h_avg_kw   = sumToLine(mf_out_stag,6,1,stag_domain,zdir);
-    h_avg_pw   = sumToLine(mf_out_stag,7,1,stag_domain,zdir);
+    h_avg_uiuiw= sumToLine(mf_out_stag,4,1,stag_domain,zdir);
+    h_avg_pw   = sumToLine(mf_out_stag,5,1,stag_domain,zdir);
 
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     int unstag_size = h_avg_w.size() - 1; // _un_staggered heights
     for (int k = 0; k < unstag_size; ++k) {
-        h_avg_u[k] /= area_z; h_avg_v[k] /= area_z;
-        h_avg_rho[k] /= area_z;  h_avg_ksgs[k] /= area_z;
-        h_avg_th[k]  /= area_z;  h_avg_thth[k] /= area_z;
-        h_avg_uu[k]  /= area_z;  h_avg_uv[k]   /= area_z;
-        h_avg_vv[k]  /= area_z;
-        h_avg_uth[k] /= area_z;  h_avg_vth[k]  /= area_z;
-        h_avg_p[k]   /= area_z;
-        h_avg_pu[k]  /= area_z;  h_avg_pv[k]   /= area_z;
+        h_avg_u[k]     /= area_z;
+        h_avg_v[k]     /= area_z;
+        h_avg_rho[k]   /= area_z;
+        h_avg_ksgs[k]  /= area_z;
+        h_avg_th[k]    /= area_z;
+        h_avg_thth[k]  /= area_z;
+        h_avg_uu[k]    /= area_z;
+        h_avg_uv[k]    /= area_z;
+        h_avg_vv[k]    /= area_z;
+        h_avg_uth[k]   /= area_z;
+        h_avg_vth[k]   /= area_z;
+        h_avg_uiuiu[k] /= area_z;
+        h_avg_uiuiv[k] /= area_z;
+        h_avg_p[k]     /= area_z;
+        h_avg_pu[k]    /= area_z;
+        h_avg_pv[k]    /= area_z;
     }
 
     for (int k = 0; k < unstag_size+1; ++k) { // staggered heights
-        h_avg_w[k]   /= area_z;
-        h_avg_uw[k]  /= area_z;
-        h_avg_vw[k]  /= area_z;
-        h_avg_ww[k]  /= area_z;
-        h_avg_wth[k] /= area_z;
-        h_avg_ku[k]  /= area_z;
-        h_avg_kv[k]  /= area_z;
-        h_avg_kw[k]  /= area_z;
-        h_avg_pw[k]  /= area_z;
+        h_avg_w[k]     /= area_z;
+        h_avg_uw[k]    /= area_z;
+        h_avg_vw[k]    /= area_z;
+        h_avg_ww[k]    /= area_z;
+        h_avg_wth[k]   /= area_z;
+        h_avg_uiuiw[k] /= area_z;
+        h_avg_pw[k]    /= area_z;
     }
 }
 
