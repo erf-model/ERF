@@ -82,7 +82,7 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 {
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
-        const auto& box3d = mfi.tilebox();
+        const auto& box3d = mfi.growntilebox();
 
         auto states_array = cons_in.array(mfi);
 

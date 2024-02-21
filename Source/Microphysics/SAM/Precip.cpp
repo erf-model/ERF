@@ -34,6 +34,8 @@ void SAM::Precip () {
     Real fac_fus  = m_fac_fus;
     Real rdOcp    = m_rdOcp;
 
+    Real eps = std::numeric_limits<Real>::epsilon();
+
     Real dtn = dt;
 
     // get the temperature, dentisy, theta, qt and qp from input
@@ -82,7 +84,7 @@ void SAM::Precip () {
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
                 // TODO: List
-                //       1. Are these if conditions correct?
+                //       1. Are these IF conditions correct?
                 //       2. Does autoconversion and accretion affect theta?
                 if (qn_array(i,j,k) > 0.0) {
                     qcc = qcl_array(i,j,k);
@@ -135,19 +137,36 @@ void SAM::Precip () {
                     dpsi = dtn * accris * qii * std::pow(qps,(3.+b_snow)/4.);
                     dpgi = dtn * accrig * qii * std::pow(qpg,(3.+b_grau)/4.);
 
-                    dqpr = dprc + dpri;
-                    dqps = dpsc + dpsi;
-                    dqpg = dpgc + dpgi;
-
                     dqc  = dprc + dpsc + dpgc;
                     dqi  = dpri + dpsi + dpgi;
 
+                    Real scalec = std::min(qcl_array(i,j,k),dqc) / (dqc + eps);
+                    Real scalei = std::min(qci_array(i,j,k),dqi) / (dqi + eps);
+                    dqc *= scalec;
+                    dqi *= scalei;
+                    dqpr = scalec * dprc + scalei * dpri;
+                    dqps = scalec * dpsc + scalei * dpsi;
+                    dqpg = scalec * dpgc + scalei * dpgi;
+
+                    /*
+                    if (i==0 && j==0) {
+                        amrex::Print() << "Pp acr aut: " << IntVect(i,j,k) << ' '
+                                       << dqpr << ' '
+                                       << dqps << ' '
+                                       << dqpg << "\n";
+                        amrex::Print() << "Pc acr aut: " << IntVect(i,j,k) << ' '
+                                       << qpr_array(i,j,k) + dqpr << ' '
+                                       << qps_array(i,j,k) + dqps << ' '
+                                       << qpg_array(i,j,k) + dqpg << "\n";
+                    }
+                    */
+
                     // Update the primitive state variables
-                    qcl_array(i,j,k) = std::max(0.0,qcl_array(i,j,k) - dqc);
-                    qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) - dqi);
-                    qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + dqpr);
-                    qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + dqps);
-                    qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + dqpg);
+                    qcl_array(i,j,k) -= dqc; //std::max(0.0,qcl_array(i,j,k) - dqc);
+                    qci_array(i,j,k) -= dqi; //std::max(0.0,qci_array(i,j,k) - dqi);
+                    qpr_array(i,j,k) += dqpr; //std::max(0.0,qpr_array(i,j,k) + dqpr);
+                    qps_array(i,j,k) += dqps; //std::max(0.0,qps_array(i,j,k) + dqps);
+                    qpg_array(i,j,k) += dqpg; //std::max(0.0,qpg_array(i,j,k) + dqpg);
 
                     // Update the primitive derived vars
                     qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
@@ -157,7 +176,7 @@ void SAM::Precip () {
 
 
                 // TODO: List
-                //       1. Are these if conditions correct?
+                //       1. Are these IF conditions correct?
                 //       2. Does evaporation source qv?
                 //       3. Is there a theta source here?
                 erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
@@ -182,13 +201,31 @@ void SAM::Precip () {
                     dqpr *= dtn * (qv_array(i,j,k)/qsat - 1.0);
                     dqps *= dtn * (qv_array(i,j,k)/qsat - 1.0);
                     dqpg *= dtn * (qv_array(i,j,k)/qsat - 1.0);
+
+                    Real scaler = std::max(-qpr_array(i,j,k),dqpr) / (dqpr + eps);
+                    Real scales = std::max(-qps_array(i,j,k),dqps) / (dqps + eps);
+                    Real scaleg = std::max(-qpg_array(i,j,k),dqpg) / (dqpg + eps);
+                    dqpr *= scaler;
+                    dqps *= scales;
+                    dqpg *= scaleg;
                     dqp   = dqpr + dqps + dqpg;
 
+                    /*
+                    if (i==0 && j==0) {
+                        amrex::Print() << "Pp evap: " << IntVect(i,j,k) << ' '
+                                       << dqpr << ' '
+                                       << dqps << ' '
+                                       << dqpg << ' '
+                                       << dqp << "\n";
+                        amrex::Print() << "\n";
+                    }
+                    */
+
                     // Update the primitive state variables
-                     qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k) - dqp);
-                    qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) + dqpr);
-                    qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) + dqps);
-                    qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) + dqpg);
+                     qv_array(i,j,k) -= dqp; //std::max(0.0, qv_array(i,j,k) - dqp);
+                    qpr_array(i,j,k) += dqpr; //std::max(0.0,qpr_array(i,j,k) + dqpr);
+                    qps_array(i,j,k) += dqps; //std::max(0.0,qps_array(i,j,k) + dqps);
+                    qpg_array(i,j,k) += dqpg; //std::max(0.0,qpg_array(i,j,k) + dqpg);
 
                     // Update the primitive derived vars
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);

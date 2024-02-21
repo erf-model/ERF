@@ -13,12 +13,12 @@ using namespace amrex;
  */
 void SAM::PrecipFall (int hydro_type)
 {
-    Real constexpr eps = 1.e-10;
+    Real eps = std::numeric_limits<Real>::epsilon();
     bool constexpr nonos = true;
 
-    Real gamr3 = erf_gammafff(4.0+b_rain      );
-    Real gams3 = erf_gammafff(4.0+b_snow      );
-    Real gamg3 = erf_gammafff(4.0+b_grau      );
+    Real gamr3 = erf_gammafff(4.0+b_rain);
+    Real gams3 = erf_gammafff(4.0+b_snow);
+    Real gamg3 = erf_gammafff(4.0+b_grau);
 
     Real vrain = a_rain*gamr3/6.0/pow((PI*rhor*nzeror),crain);
     Real vsnow = a_snow*gams3/6.0/pow((PI*rhos*nzeros),csnow);
@@ -32,6 +32,7 @@ void SAM::PrecipFall (int hydro_type)
     auto qpg   = mic_fab_vars[MicVar::qpg];
     auto qp    = mic_fab_vars[MicVar::qp];
     auto omega = mic_fab_vars[MicVar::omega];
+    auto rho   = mic_fab_vars[MicVar::rho];
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto theta = mic_fab_vars[MicVar::theta];
 
@@ -46,6 +47,7 @@ void SAM::PrecipFall (int hydro_type)
     MultiFab fz;
     MultiFab wp;
     MultiFab tmp_qp;
+    MultiFab prec_cfl_fab;
 
     mx.define(ba,dm, 1, ngrow);
     mn.define(ba,dm, 1, ngrow);
@@ -54,6 +56,7 @@ void SAM::PrecipFall (int hydro_type)
     fz.define(ba, dm, 1, ngrow);
     wp.define(ba, dm, 1, ngrow);
     tmp_qp.define(ba, dm, 1, ngrow);
+    prec_cfl_fab.define(ba, dm, 1, ngrow);
 
     TableData<Real, 1> irho;
     TableData<Real, 1> iwmax;
@@ -92,13 +95,11 @@ void SAM::PrecipFall (int hydro_type)
     });
 
     //  Add sedimentation of precipitation field to the vert. vel.
-    MultiFab prec_cfl_fab;
-    prec_cfl_fab.define(tabs->boxArray(),tabs->DistributionMap(), 1, tabs->nGrowVect());
-
     for ( MFIter mfi(lfac, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto lfac_array     = lfac.array(mfi);
         auto omega_array    = omega->array(mfi);
         auto qp_array       = qp->array(mfi);
+        auto rho_array      = rho->array(mfi);
         auto tabs_array     = tabs->array(mfi);
         auto wp_array       = wp.array(mfi);
         auto www_array      = www.array(mfi);
@@ -125,13 +126,12 @@ void SAM::PrecipFall (int hydro_type)
             else if (hydro_type == 3) {
                 lfac_array(i,j,k) = 0.0;
             }
-            Real tmp = term_vel_qp(i,j,k,qp_array(i,j,k),
-                                   vrain, vsnow, vgrau, rho1d_t(k),
+            Real Veff = term_vel_qp(i,j,k,qp_array(i,j,k),
+                                   vrain, vsnow, vgrau, rho_array(i,j,k),
                                    tabs_array(i,j,k));
-            wp_array(i,j,k)=rhofac_t(k)*tmp;
-            tmp = wp_array(i,j,k)*iwmax_t(k);
-            prec_cfl_array(i,j,k) = tmp;
-            wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt_advance/dz;
+            wp_array(i,j,k) = std::sqrt(1.29/rho_array(i,j,k)) * Veff;
+            prec_cfl_array(i,j,k) = wp_array(i,j,k) * iwmax_t(k);
+            wp_array(i,j,k) *= -rho_array(i,j,k)*dt_advance/dz;
             if (k == 0) {
                 fz_array(i,j,nz-1)   = 0.0;
                 www_array(i,j,nz-1)  = 0.0;
@@ -179,6 +179,7 @@ void SAM::PrecipFall (int hydro_type)
             auto qps_array    = qps->array(mfi);
             auto qpg_array    = qpg->array(mfi);
             auto qp_array     = qp->array(mfi);
+            auto rho_array    = rho->array(mfi);
             auto tabs_array   = tabs->array(mfi);
             auto theta_array  = theta->array(mfi);
             auto tmp_qp_array = tmp_qp.array(mfi);
@@ -211,7 +212,7 @@ void SAM::PrecipFall (int hydro_type)
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 int kc = min(k+1, nz-1);
-                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k)-(fz_array(i,j,kc)-fz_array(i,j,k))*irho_t(k); //Update temporary qp
+                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k)-(fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k); //Update temporary qp
             });
 
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -224,7 +225,7 @@ void SAM::PrecipFall (int hydro_type)
                 // precipitation mass fraction.  Therefore, a reformulated
                 // anti-diffusive flux is used here which accounts for
                 // this and results in reduced numerical diffusion.
-                www_array(i,j,k) = 0.5*(1.0+wp_array(i,j,k)*irho_t(k))*(tmp_qp_array(i,j,kb)*wp_array(i,j,kb) -
+                www_array(i,j,k) = 0.5*(1.0+wp_array(i,j,k)/rho_array(i,j,k))*(tmp_qp_array(i,j,kb)*wp_array(i,j,kb) -
                                                                         tmp_qp_array(i,j,k)*wp_array(i,j,k)); // works for wp(k)<0
             });
 
@@ -236,9 +237,9 @@ void SAM::PrecipFall (int hydro_type)
                     mx_array(i,j,k) = max(tmp_qp_array(i,j,kb),max(tmp_qp_array(i,j,kc), max(tmp_qp_array(i,j,k), mx_array(i,j,k))));
                     mn_array(i,j,k) = min(tmp_qp_array(i,j,kb),min(tmp_qp_array(i,j,kc), min(tmp_qp_array(i,j,k), mn_array(i,j,k))));
                     kc = min(nz-1,k+1);
-                    mx_array(i,j,k) = rho1d_t(k)*(mx_array(i,j,k)-tmp_qp_array(i,j,k))/(pn(www_array(i,j,kc)) +
+                    mx_array(i,j,k) = rho_array(i,j,k)*(mx_array(i,j,k)-tmp_qp_array(i,j,k))/(pn(www_array(i,j,kc)) +
                                                                                         pp(www_array(i,j,k))+eps);
-                    mn_array(i,j,k) = rho1d_t(k)*(tmp_qp_array(i,j,k)-mn_array(i,j,k))/(pp(www_array(i,j,kc)) +
+                    mn_array(i,j,k) = rho_array(i,j,k)*(tmp_qp_array(i,j,k)-mn_array(i,j,k))/(pp(www_array(i,j,kc)) +
                                                                                         pn(www_array(i,j,k))+eps);
                 });
 
@@ -261,15 +262,22 @@ void SAM::PrecipFall (int hydro_type)
                 // Note that fz is the total flux, including both the
                 // upwind flux and the anti-diffusive correction.
                 //      Real flagstat = 1.0;
-                Real dqp = ( fz_array(i,j,kc) - fz_array(i,j,k) )*irho_t(k);
+                Real dqp = ( fz_array(i,j,kc) - fz_array(i,j,k) ) / rho_array(i,j,k);
                 Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
-                qpr_array(i,j,k) = std::max(0.0,qpr_array(i,j,k) - dqp*omp);
-                qps_array(i,j,k) = std::max(0.0,qps_array(i,j,k) - dqp*(1.0-omp)*(1.0-omg));
-                qpg_array(i,j,k) = std::max(0.0,qpg_array(i,j,k) - dqp*(1.0-omp)*omg);
-                 qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                Real lat_heat   = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) )*irho_t(k);
+                Real scaler = std::min(qpr_array(i,j,k), dqp*omp) / (dqp*omp + eps);
+                Real scales = std::min(qps_array(i,j,k), dqp*(1.0-omp)*(1.0-omg)) / (dqp*(1.0-omp)*(1.0-omg) + eps);
+                Real scaleg = std::min(qpg_array(i,j,k), dqp*(1.0-omp)*omg) / (dqp*(1.0-omp)*omg + eps);
+                Real scalep = std::min(std::min(scaler,scales),scaleg);
+                dqp *= scalep;
+
+                qpr_array(i,j,k) -= dqp*omp;
+                qps_array(i,j,k) -= dqp*(1.0-omp)*(1.0-omg);
+                qpg_array(i,j,k) -= dqp*(1.0-omp)*omg;
+                 qp_array(i,j,k)  = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                 Real lat_heat   = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) ) / rho_array(i,j,k);
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
             });
 
@@ -278,11 +286,11 @@ void SAM::PrecipFall (int hydro_type)
                 ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real tmp = term_vel_qp(i,j,k,qp_array(i,j,k),
-                                           vrain, vsnow, vgrau, rho1d_t(k),
+                                           vrain, vsnow, vgrau, rho_array(i,j,k),
                                            tabs_array(i,j,k));
-                    wp_array(i,j,k) = rhofac_t(k)*tmp;
+                    wp_array(i,j,k) = std::sqrt(1.29/rho_array(i,j,k))*tmp;
                     // Decrease precipitation velocity by factor of nprec
-                    wp_array(i,j,k) = -wp_array(i,j,k)*rho1d_t(k)*dt_advance/dz/nprec;
+                    wp_array(i,j,k) = -wp_array(i,j,k)*rho_array(i,j,k)*dt_advance/dz/nprec;
                     // Note: Don't bother checking CFL condition at each
                     // substep since it's unlikely that the CFL will
                     // increase very much between substeps when using

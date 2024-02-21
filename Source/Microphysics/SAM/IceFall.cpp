@@ -5,7 +5,7 @@
 using namespace amrex;
 
 /**
- * Large-scale tendencies; sources theta
+ * Sedimentation of cloud ice (A32/33); sources enthalpy
  */
 void SAM::IceFall () {
 
@@ -13,19 +13,24 @@ void SAM::IceFall () {
     Real dtn = dt;
     int  nz  = nlev;
 
+    Real fac_cond = m_fac_cond;
+    Real fac_fus  = m_fac_fus;
+
     int kmax, kmin;
     auto qcl   = mic_fab_vars[MicVar::qcl];
     auto qci   = mic_fab_vars[MicVar::qci];
     auto qn    = mic_fab_vars[MicVar::qn];
     auto qt    = mic_fab_vars[MicVar::qt];
+    auto rho   = mic_fab_vars[MicVar::rho];
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto theta = mic_fab_vars[MicVar::theta];
 
     MultiFab fz;
-    fz.define(qcl->boxArray(),qcl->DistributionMap(), 1, qcl->nGrowVect());
+    IntVect  ng = qcl->nGrowVect();
+    BoxArray ba = qcl->boxArray();
+    DistributionMapping dm = qcl->DistributionMap();
+    fz.define(convert(ba, IntVect(0,0,1)), dm, 1, ng);
     fz.setVal(0.);
-
-    auto rho1d_t  = rho1d.table();
 
     kmin = nz;
     kmax = -1;
@@ -55,14 +60,17 @@ void SAM::IceFall () {
         auto qci_array   = qci->array(mfi);
         auto qn_array    = qn->array(mfi);
         auto qt_array    = qt->array(mfi);
+        auto rho_array   = rho->array(mfi);
         auto theta_array = theta->array(mfi);
+        auto tabs_array  = tabs->array(mfi);
         auto fz_array    = fz.array(mfi);
 
-        const auto& box3d = mfi.tilebox();
+        const auto& gbox3d = mfi.tilebox(IntVect(0),IntVect(0,0,1));
+        const auto& box3d  = mfi.tilebox();
 
-        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(gbox3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            if (k >= std::max(0,kmin-1) && k <= kmax ) {
+            if (k >= std::max(0,kmin-1) && k <= kmax+1 ) {
                 // Set up indices for x-y planes above and below current plane.
                 int kc = std::min(k+1, nz-1);
                 int kb = std::max(k-1, 0);
@@ -73,9 +81,9 @@ void SAM::IceFall () {
                 // Compute cloud ice density in this cell and the ones above/below.
                 // Since cloud ice is falling, the above cell is u(icrm,upwind),
                 // this cell is c (center) and the one below is d (downwind).
-                Real qiu = rho1d_t(kc)*qci_array(i,j,kc);
-                Real qic = rho1d_t(k )*qci_array(i,j,k );
-                Real qid = rho1d_t(kb)*qci_array(i,j,kb);
+                Real qiu = rho_array(i,j,kc)*qci_array(i,j,kc);
+                Real qic = rho_array(i,j,k )*qci_array(i,j,k );
+                Real qid = rho_array(i,j,kb)*qci_array(i,j,kb);
 
                 // Ice sedimentation velocity depends on ice content. The fiting is
                 // based on the data by Heymsfield (JAS,2003). -Marat
@@ -99,23 +107,24 @@ void SAM::IceFall () {
             }
         });
 
-        Real fac_cond = m_fac_cond;
-        Real fac_fus  = m_fac_fus;
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            if ( k >= std::max(0,kmin-1) && k <= kmax ) {
+            if ( k >= std::max(0,kmin) && k <= kmax ) {
                 Real coef = dtn/dz;
                 // The cloud ice increment is the difference of the fluxes.
                 Real dqi  = coef*(fz_array(i,j,k)-fz_array(i,j,k+1));
+                dqi = std::max(dqi,-qci_array(i,j,k));
+
                 // Add this increment to both non-precipitating and total water.
-                qci_array(i,j,k) = std::max(0.0,qci_array(i,j,k) + dqi);
-                 qn_array(i,j,k) = std::max(0.0, qn_array(i,j,k) + dqi);
-                 qt_array(i,j,k) = std::max(0.0, qt_array(i,j,k) + dqi);
+                qci_array(i,j,k) += dqi;
+                 qn_array(i,j,k) += dqi;
+                 qt_array(i,j,k) += dqi;
 
                 // The latent heat flux induced by the falling cloud ice enters
                 // the liquid-ice static energy budget in the same way as the
                 // precipitation.  Note: use latent heat of sublimation.
-                Real lat_heat = (fac_cond+fac_fus)*dqi;
+                Real omn      = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
+                Real lat_heat = (fac_cond + omn*fac_fus)*dqi;
 
                 // Add divergence of latent heat flux contribution to liquid-ice static potential temperature.
                 amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
