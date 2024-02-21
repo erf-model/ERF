@@ -50,7 +50,19 @@ List of Parameters
 |                             | level-0 time     | :math:`> 0`           |            |
 |                             | steps) to write  |                       |            |
 |                             | plot files       |                       |            |
-|                             | at seoncd freq.  |                       |            |
+|                             | at second freq.  |                       |            |
++-----------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_1**          | how often in     | Real                  | -1.0       |
+|                             | simulation time  | :math:`> 0`           |            |
+|                             | to write         |                       |            |
+|                             | plot files       |                       |            |
+|                             | at first freq.   |                       |            |
++-----------------------------+------------------+-----------------------+------------+
+| **erf.plot_per_2**          | how often in     | Real                  | -1.0       |
+|                             | simulation time  | :math:`> 0`           |            |
+|                             | to write         |                       |            |
+|                             | plot files       |                       |            |
+|                             | at second freq.  |                       |            |
 +-----------------------------+------------------+-----------------------+------------+
 | **erf.plot_vars_1**         | name of          | list of names         | None       |
 |                             | variables to     |                       |            |

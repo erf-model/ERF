@@ -135,6 +135,9 @@ public:
     // Restart
     void restart ();
 
+    // Is it time to write a plotfile or checkpoint?
+    bool writeNow (const amrex::Real cur_time, const amrex::Real dt, const int nstep, const int plot_int, const amrex::Real plot_per);
+
     // Called after every level 0 timestep
     void post_timestep (int nstep, amrex::Real time, amrex::Real dt_lev);
 
@@ -645,8 +648,11 @@ private:
     // plotfile prefix and frequency
     std::string plot_file_1 {"plt_1_"};
     std::string plot_file_2 {"plt_2_"};
-    int plot_int_1 = -1;
-    int plot_int_2 = -1;
+    int m_plot_int_1 = -1;
+    int m_plot_int_2 = -1;
+    amrex::Real m_plot_per_1 = -1.0;
+    amrex::Real m_plot_per_2 = -1.0;
+
     bool plot_lsm = false;
 
     // other sampling output control
@@ -656,7 +662,8 @@ private:
     std::string check_file {"chk"};
     std::string check_type {"native"};
     std::string restart_type {"native"};
-    int check_int = -1;
+    int m_check_int = -1;
+    amrex::Real m_check_per = -1.0;
 
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
