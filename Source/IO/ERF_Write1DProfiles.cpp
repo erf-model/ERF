@@ -30,7 +30,7 @@ ERF::write_1D_profiles(Real time)
         Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
-        Gpu::HostVector<Real> h_avg_k, h_avg_ku, h_avg_kv, h_avg_kw;
+        Gpu::HostVector<Real> h_avg_ku, h_avg_kv, h_avg_kw;
         Gpu::HostVector<Real> h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw;
         Gpu::HostVector<Real> h_avg_tau11, h_avg_tau12, h_avg_tau13, h_avg_tau22, h_avg_tau23, h_avg_tau33;
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
@@ -40,7 +40,7 @@ ERF::write_1D_profiles(Real time)
                                  h_avg_rho, h_avg_th, h_avg_ksgs,
                                  h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                  h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
-                                 h_avg_k, h_avg_ku, h_avg_kv, h_avg_kw,
+                                 h_avg_ku, h_avg_kv, h_avg_kw,
                                  h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
         }
 
@@ -88,9 +88,9 @@ ERF::write_1D_profiles(Real time)
                                 << h_avg_vth[k]  - h_avg_v[k]*h_avg_th[k] << " "
                                 << h_avg_wth[k]  - h_avg_w[k]*h_avg_th[k] << " "
                                 << h_avg_thth[k] - h_avg_th[k]*h_avg_th[k] << " "
-                                << h_avg_ku[k]   - h_avg_k[k]*h_avg_u[k] << " "
-                                << h_avg_kv[k]   - h_avg_k[k]*h_avg_v[k] << " "
-                                << h_avg_kw[k]   - h_avg_k[k]*h_avg_w[k] << " "
+                                << h_avg_ku[k]                           << " "
+                                << h_avg_kv[k]                           << " "
+                                << h_avg_kw[k]                           << " "
                                 << h_avg_pu[k]   - h_avg_p[k]*h_avg_u[k] << " "
                                 << h_avg_pv[k]   - h_avg_p[k]*h_avg_v[k] << " "
                                 << h_avg_pw[k]   - h_avg_p[k]*h_avg_w[k]
@@ -134,7 +134,6 @@ ERF::write_1D_profiles(Real time)
  * @param h_avg_vw Profile for y-velocity * z-velocity on Host
  * @param h_avg_ww Profile for z-velocity squared on Host
  * @param h_avg_uth Profile for x-velocity * potential temperature on Host
- * @param h_avg_k Profile for turbulent kinetic energy (TKE) on Host
  * @param h_avg_ku Profile for TKE * x-velocity on Host
  * @param h_avg_kv Profile for TKE * y-velocity on Host
  * @param h_avg_kw Profile for TKE * z-velocity on Host
@@ -150,7 +149,6 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
                           Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
                           Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
                           Gpu::HostVector<Real>& h_avg_thth,
-                          Gpu::HostVector<Real>& h_avg_k,
                           Gpu::HostVector<Real>& h_avg_ku  , Gpu::HostVector<Real>& h_avg_kv , Gpu::HostVector<Real>& h_avg_kw,
                           Gpu::HostVector<Real>& h_avg_p,
                           Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
@@ -284,7 +282,6 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
     h_avg_vth  = sumToLine(mf_out,10,1,domain,zdir);
     h_avg_wth  = sumToLine(mf_out,11,1,domain,zdir);
     h_avg_thth = sumToLine(mf_out,12,1,domain,zdir);
-    h_avg_k    = sumToLine(mf_out,13,1,domain,zdir);
     h_avg_ku   = sumToLine(mf_out,14,1,domain,zdir);
     h_avg_kv   = sumToLine(mf_out,15,1,domain,zdir);
     h_avg_kw   = sumToLine(mf_out,16,1,domain,zdir);
@@ -301,7 +298,6 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
         h_avg_uu[k]  /= area_z;  h_avg_uv[k]   /= area_z;  h_avg_uw[k]  /= area_z;
         h_avg_vv[k]  /= area_z;  h_avg_vw[k]   /= area_z;  h_avg_ww[k]  /= area_z;
         h_avg_uth[k] /= area_z;  h_avg_vth[k]  /= area_z;  h_avg_wth[k] /= area_z;
-        h_avg_k[k]   /= area_z;
         h_avg_ku[k]  /= area_z;  h_avg_kv[k]   /= area_z;  h_avg_kw[k]  /= area_z;
         h_avg_p[k]   /= area_z;
         h_avg_pu[k]  /= area_z;  h_avg_pv[k]   /= area_z;  h_avg_pw[k]  /= area_z;
