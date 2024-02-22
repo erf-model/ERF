@@ -551,7 +551,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_new;
 
     Microphysics micro;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 6 components: qv, qc, qi, qr, qs, qg
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
@@ -687,7 +687,8 @@ private:
     amrex::Vector<std::string> plot_var_names_1;
     amrex::Vector<std::string> plot_var_names_2;
     const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoQKE", "rhoadv_0",
-                                                     "rhoQ1", "rhoQ2", "rhoQ3"};
+                                                     "rhoQ1", "rhoQ2", "rhoQ3",
+                                                     "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
