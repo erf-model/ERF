@@ -582,7 +582,7 @@ centers or on x/y faces will remain at those locations). Note that all output
 quantities--whether cell-centered or face-centered--will be output on the
 staggered grid. The user should discard the highest z level (corresponding to
 the z-dir ``amr.n_cell`` + 1) for cell-centered quantities. Staggered quantities
-are indicated with "(S)" below.
+are indicated below.
 
 The requested output files have the following columns:
 
@@ -607,7 +607,7 @@ The requested output files have the following columns:
 
   #. Y-velocity, :math:`\langle v \rangle` (m/s)
 
-  #. Z-velocity, :math:`\langle w \rangle` (m/s)
+  #. *Z-velocity*, :math:`\langle w \rangle` (m/s) -- *staggered*
 
   #. Dry air density, :math:`\langle \rho \rangle` (kg/m3)
 
@@ -625,19 +625,19 @@ The requested output files have the following columns:
 
   #. X,Y-velocity covariance, :math:`\langle u^\prime v^\prime \rangle` (m2/s2)
 
-  #. X,Z-velocity covariance, :math:`\langle u^\prime w^\prime \rangle` (m2/s2)
+  #. *X,Z-velocity covariance*, :math:`\langle u^\prime w^\prime \rangle` (m2/s2) -- *staggered*
 
   #. Y-velocity variance, :math:`\langle v^\prime v^\prime \rangle` (m2/s2)
 
-  #. Y,Z-velocity covariance, :math:`\langle v^\prime w^\prime \rangle` (m2/s2)
+  #. *Y,Z-velocity covariance*, :math:`\langle v^\prime w^\prime \rangle` (m2/s2) -- *staggered*
 
-  #. Z-velocity variance, :math:`\langle w^\prime w^\prime \rangle` (m2/s2)
+  #. *Z-velocity variance*, :math:`\langle w^\prime w^\prime \rangle` (m2/s2) -- *staggered*
 
   #. X-direction heat flux, :math:`\langle u^\prime \theta^\prime \rangle` (K m/s)
 
   #. Y-direction heat flux, :math:`\langle v^\prime \theta^\prime \rangle` (K m/s)
 
-  #. Z-direction heat flux, :math:`\langle w^\prime \theta^\prime \rangle` (K m/s)
+  #. *Z-direction heat flux*, :math:`\langle w^\prime \theta^\prime \rangle` (K m/s) -- *staggered*
 
   #. Temperature variance, :math:`\langle \theta^\prime \theta^\prime \rangle` (K m/s)
 
@@ -646,13 +646,13 @@ The requested output files have the following columns:
 
   #. Y-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime v^\prime \rangle` (m3/s3)
 
-  #. Z-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime w^\prime \rangle` (m3/s3)
+  #. *Z-direction turbulent transport of TKE*, :math:`\langle u_i^\prime u_i^\prime w^\prime \rangle` (m3/s3) -- *staggered*
 
   #. X-direction pressure transport of TKE, :math:`\langle p^\prime u^\prime \rangle` (m3/s3)
 
   #. Y-direction pressure transport of TKE, :math:`\langle p^\prime v^\prime \rangle` (m3/s3)
 
-  #. Z-direction pressure transport of TKE, :math:`\langle p^\prime w^\prime \rangle` (m3/s3)
+  #. *Z-direction pressure transport of TKE*, :math:`\langle p^\prime w^\prime \rangle` (m3/s3) -- *staggered*
 
 * Modeled subgrid-scale (SGS) profiles
 
@@ -660,11 +660,11 @@ The requested output files have the following columns:
 
   #. SGS stress tensor component, :math:`\tau_{12}` (m2/s2)
 
-  #. SGS stress tensor component, :math:`\tau_{13}` (m2/s2)
+  #. *SGS stress tensor component*, :math:`\tau_{13}` (m2/s2) -- *staggered*
 
   #. SGS stress tensor component, :math:`\tau_{22}` (m2/s2)
 
-  #. SGS stress tensor component, :math:`\tau_{23}` (m2/s2)
+  #. *SGS stress tensor component*, :math:`\tau_{23}` (m2/s2) -- *staggered*
 
   #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
 
