@@ -542,6 +542,137 @@ Examples of Usage
    | for example. If this line is commented out then it will not compute
      and print these quantities.
 
+Diagnostic Outputs
+==================
+
+If ``erf.v`` is set then one or more additional output files may be requested.
+These include (1) a surface time history file, (2) a history of mean profiles,
+(3) a history of vertical flux profiles (i.e., variances and covariances), and
+(4) a history of modeled subgrid stresses. The number of specified output
+filenames dictates the level of output. E.g., specifying 3 filenames will give
+outputs (1), (2), and (3). Data files are only written if ``erf.profile_int >
+0``. This output functionality has not been implemented for terrain.
+
+.. _list-of-parameters-10a:
+
+
+List of Parameters
+------------------
+
++-------------------------------+------------------+----------------+----------------+
+| Parameter                     | Definition       | Acceptable     | Default        |
+|                               |                  | Values         |                |
++===============================+==================+================+================+
+| **erf.datalog**               | Output           | Up to four     | NONE           |
+|                               | filename(s)      | strings        |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.profile_int**           | Interval (number)| Integer        | -1             |
+|                               | of steps between |                |                |
+|                               | ouputs           |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.interp_profiles_to_cc** | Interpolate all  | Boolean        | true           |
+|                               | outputs to cell  |                |                |
+|                               | centers          |                |                |
++-------------------------------+------------------+----------------+----------------+
+
+By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
+interpolated to cell centers. Setting ``erf.interp_profiles_to_cc = false`` will
+keep vertically staggered quantities on z faces (quantities already at cell
+centers or on x/y faces will remain at those locations). Note that all output
+quantities--whether cell-centered or face-centered--will be output on the
+staggered grid. The user should discard the highest z level (corresponding to
+the z-dir ``amr.n_cell`` + 1) for cell-centered quantities. Staggered quantities
+are indicated with "(S)" below.
+
+The requested output files have the following columns:
+
+
+* Surface time history
+
+  #. Time (s)
+
+  #. Friction velocity, :math:`u_*` (m/s)
+
+  #. Surface-layer potential temperature scale, :math:`\theta_*` (K)
+
+  #. Obukhov length, :math:`L` (m)
+
+* Mean flow profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. X-velocity, :math:`\langle u \rangle` (m/s)
+
+  #. Y-velocity, :math:`\langle v \rangle` (m/s)
+
+  #. Z-velocity, :math:`\langle w \rangle` (m/s)
+
+  #. Dry air density, :math:`\langle \rho \rangle` (kg/m3)
+
+  #. Total (moist) potential temperature, :math:`\langle \theta \rangle` (K)
+
+  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) for the subgrid model
+
+* Vertical flux profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. X-velocity variance, :math:`\langle u^\prime u^\prime \rangle` (m2/s2)
+
+  #. X,Y-velocity covariance, :math:`\langle u^\prime v^\prime \rangle` (m2/s2)
+
+  #. X,Z-velocity covariance, :math:`\langle u^\prime w^\prime \rangle` (m2/s2)
+
+  #. Y-velocity variance, :math:`\langle v^\prime v^\prime \rangle` (m2/s2)
+
+  #. Y,Z-velocity covariance, :math:`\langle v^\prime w^\prime \rangle` (m2/s2)
+
+  #. Z-velocity variance, :math:`\langle w^\prime w^\prime \rangle` (m2/s2)
+
+  #. X-direction heat flux, :math:`\langle u^\prime \theta^\prime \rangle` (K m/s)
+
+  #. Y-direction heat flux, :math:`\langle v^\prime \theta^\prime \rangle` (K m/s)
+
+  #. Z-direction heat flux, :math:`\langle w^\prime \theta^\prime \rangle` (K m/s)
+
+  #. Temperature variance, :math:`\langle \theta^\prime \theta^\prime \rangle` (K m/s)
+
+  #. X-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime u^\prime \rangle` (m3/s3)
+     -- Note: :math:`u_i u_i = uu + vv + ww`
+
+  #. Y-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime v^\prime \rangle` (m3/s3)
+
+  #. Z-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime w^\prime \rangle` (m3/s3)
+
+  #. X-direction pressure transport of TKE, :math:`\langle p^\prime u^\prime \rangle` (m3/s3)
+
+  #. Y-direction pressure transport of TKE, :math:`\langle p^\prime v^\prime \rangle` (m3/s3)
+
+  #. Z-direction pressure transport of TKE, :math:`\langle p^\prime w^\prime \rangle` (m3/s3)
+
+* Modeled subgrid-scale (SGS) profiles
+
+  #. SGS stress tensor component, :math:`\tau_{11}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{12}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{13}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{22}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{23}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
+
+  #. SGS heat flux, :math:`\tau_{\theta w}` (K m/s)
+
+  #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+
 Advection Schemes
 =================
 
