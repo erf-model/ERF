@@ -633,31 +633,6 @@ ERF::InitData ()
         }
     }
 
-    // Configure ABLMost params if used MostWall boundary condition
-    // NOTE: we must set up the MOST routine before calling WritePlotFile because
-    //       WritePlotFile calls FillPatch in order to compute gradients
-    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
-    {
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux
-#ifdef ERF_USE_NETCDF
-                                           ,start_bdy_time, bdy_time_interval
-#endif
-                                           );
-
-        // We now configure ABLMost params here so that we can print the averages at t=0
-        // Note we don't fill ghost cells here because this is just for diagnostics
-        for (int lev = 0; lev <= finest_level; ++lev)
-        {
-            amrex::IntVect ng = IntVect(0,0,0);
-            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
-            MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
-            MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
-            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
-            m_most->update_fluxes(lev, t_new[lev]);
-        }
-    }
-
     if (solverChoice.custom_rhotheta_forcing)
     {
         h_rhotheta_src.resize(max_level+1, amrex::Vector<Real>(0));
@@ -769,6 +744,33 @@ ERF::InitData ()
         if (solverChoice.terrain_type != TerrainType::Static) {
             MultiFab::Copy(base_state_new[lev],base_state[lev],0,0,3,1);
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
+        }
+    }
+
+    // Configure ABLMost params if used MostWall boundary condition
+    // NOTE: we must set up the MOST routine after calling FillPatch
+    //       in order to have lateral ghost cells filled (MOST + terrain interp).
+    //       FillPatch does not call MOST, FillIntermediatePatch does.
+    if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
+    {
+        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux
+#ifdef ERF_USE_NETCDF
+                                           ,start_bdy_time, bdy_time_interval
+#endif
+                                           );
+
+        // We now configure ABLMost params here so that we can print the averages at t=0
+        // Note we don't fill ghost cells here because this is just for diagnostics
+        for (int lev = 0; lev <= finest_level; ++lev)
+        {
+            Real time  = t_new[lev];
+            IntVect ng = Theta_prim[lev]->nGrowVect();
+            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+            MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+            m_most->update_fluxes(lev, time);
         }
     }
 
