@@ -38,15 +38,15 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     // configure ABLMost params if used MostWall boundary condition
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-      if (m_most) {
-        amrex::IntVect ng = S_old.nGrowVect(); ng[2]=0;
-        MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
-        MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
-        // NOTE: std::swap above causes the field ptrs to be out of date.
-        //       Reassign the field ptrs for MAC avg computation.
-        m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
-        m_most->update_fluxes(lev, time);
-      }
+        if (m_most) {
+            IntVect ng = Theta_prim[lev]->nGrowVect();
+            MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
+            MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+            // NOTE: std::swap above causes the field ptrs to be out of date.
+            //       Reassign the field ptrs for MAC avg computation.
+            m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
+            m_most->update_fluxes(lev, time);
+        }
     }
 
     // We need to set these because otherwise in the first call to erf_advance we may
