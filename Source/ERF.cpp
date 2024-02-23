@@ -150,7 +150,7 @@ ERF::ERF ()
                 << " does not match highest requested z level " << zlevels_stag[nz-1]
                 << std::endl;
         }
-        if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2) > 1.0e-4) {
+        if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
             amrex::Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
                 << " does not match lowest requested level " << zlevels_stag[0]
                 << std::endl;
