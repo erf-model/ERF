@@ -219,7 +219,8 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
-                    const amrex::MultiFab* r0);
+                    const amrex::MultiFab* r0,
+                    const int& qstate_size);
 #endif
 
 #ifdef ERF_USE_POISSON_SOLVE

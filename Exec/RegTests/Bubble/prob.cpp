@@ -406,6 +406,14 @@ Problem::init_custom_pert(
                 state(i, j, k, RhoQ1_comp) = rho*q_v_hot;
                 state(i, j, k, RhoQ2_comp) = rho*(parms.qt_init - q_v_hot);
 
+                // Cold microphysics are present
+                int nstate = state.ncomp;
+                if (nstate == NVAR_max) {
+                    Real omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
+                    Real qn  = state(i, j, k, RhoQ2_comp);
+                    state(i, j, k, RhoQ2_comp) = qn * omn;
+                    state(i, j, k, RhoQ3_comp) = qn * (1.0-omn);
+                }
             });
         } else {
             amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept

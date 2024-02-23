@@ -42,9 +42,6 @@ namespace MicVar_Kess {
   };
 }
 
-//
-// use MultiFab for 3D data, but table for 1D data
-//
 class Kessler : public NullMoist {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
