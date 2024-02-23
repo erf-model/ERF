@@ -35,6 +35,11 @@ List of Parameters
 |                                 | write restart  |                |                |
 |                                 | files          |                |                |
 +---------------------------------+----------------+----------------+----------------+
+| **erf.check_per**               | how often in   | Real           | -1.0           |
+|                                 | simulation     | :math:`> 0`    |                |
+|                                 | time to write  |                |                |
+|                                 | restart files  |                |                |
++---------------------------------+----------------+----------------+----------------+
 
 Restarting
 ==========
@@ -61,9 +66,16 @@ Examples of Usage
 -  **erf.check_int** = 10
 
    means that restart files (really directories) starting with the
-   prefix “*chk_run*” will be generated every 10 level-0 time steps. The
-   directory names will be *chk_run00000*, *chk_run00010*,
+   prefix “*chk_run*” will be generated every 10 level-0 time steps.
+   The directory names will be *chk_run00000*, *chk_run00010*,
    *chk_run00020*, etc.
+
+-  **erf.check_per** = 5.0
+
+   means that restart files (really directories) starting with the
+   prefix “*chk_run*” will be generated whenever the simulation time
+   passes a multiple of 5.0.  The directory names will reflect the
+   integer number of steps which have elapsed.
 
 To restart from *chk_run00061*,for example, then set
 

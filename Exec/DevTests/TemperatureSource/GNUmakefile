@@ -29,6 +29,6 @@ USE_ASSERTION = TRUE
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-ERF_HOME := ../..
+ERF_HOME := ../../..
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/DevTests/TemperatureSource
 include $(ERF_HOME)/Exec/Make.ERF

@@ -32,7 +32,7 @@ constexpr amrex::Real tbgmin       = 253.16;    // Minimum temperature for cloud
 constexpr amrex::Real tbgmax       = 273.16;    // Maximum temperature for cloud ice, K
 constexpr amrex::Real tprmin       = 268.16;    // Minimum temperature for rain, K
 constexpr amrex::Real tprmax       = 283.16;    // Maximum temperature for snow+graupel, K
-constexpr amrex::Real tgrmin       = 223.16;    // Minimum temperature for snow, K
+constexpr amrex::Real tgrmin       = 223.16;    // Minimum temperature for graupel, K
 constexpr amrex::Real tgrmax       = 283.16;    // Maximum temperature for graupel, K
 
 constexpr amrex::Real a_rain       = 842.;   // Coeff.for rain term vel

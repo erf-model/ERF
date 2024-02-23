@@ -158,28 +158,23 @@ void z0_est (amrex::Real z, amrex::Real bflx, amrex::Real wnd, amrex::Real ustar
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real term_vel_qp (int /*i*/, int /*j*/, int /*k*/, amrex::Real qploc, amrex::Real vrain, amrex::Real vsnow,
-                         amrex::Real vgrau, amrex::Real rho, amrex::Real tabs) {
+amrex::Real term_vel_qp (amrex::Real qploc,
+                         amrex::Real vrain,
+                         amrex::Real vsnow,
+                         amrex::Real vgrau,
+                         amrex::Real rho,
+                         amrex::Real tabs)
+{
     amrex::Real term_vel = 0.0;
     if(qploc > qp_threshold) {
         amrex::Real omp = std::max(0.0,std::min(1.0,(tabs-tprmin)*a_pr));
-        if(omp == 1.0) {
-            term_vel = vrain*std::pow(rho*qploc,crain);
-        }
-        else if(omp == 0.0) {
-            amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
-            amrex::Real qgg = omg*qploc;
-            amrex::Real qss = qploc-qgg;
-            term_vel = (omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow));
-        }
-        else {
-            amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
-            amrex::Real qrr = omp*qploc;
-            amrex::Real qss = qploc-qrr;
-            amrex::Real qgg = omg*qss;
-            qss = qss-qgg;
-            term_vel = (omp*vrain*std::pow(rho*qrr,crain) + (1.0-omp)*(omg*vgrau*std::pow(rho*qgg,cgrau) + (1.0-omg)*vsnow*std::pow(rho*qss,csnow)));
-        }
+        amrex::Real omg = std::max(0.0,std::min(1.0,(tabs-tgrmin)*a_gr));
+        amrex::Real qrr = omp*qploc;
+        amrex::Real qss = (1.0-omp)*(1.0-omg)*qploc;
+        amrex::Real qgg = (1.0-omp)*(omg)*qploc;
+        term_vel = omp*vrain*std::pow(rho*qrr,crain)
+                 + (1.0-omp)*( (1.0-omg)*vsnow*std::pow(rho*qss,csnow)
+                             +      omg *vgrau*std::pow(rho*qgg,cgrau) );
     }
     return term_vel;
 }
