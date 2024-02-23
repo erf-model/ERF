@@ -284,16 +284,16 @@ ERF::Evolve ()
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
+        if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
             last_plot_file_step_1 = step+1;
             WritePlotFile(1,plot_var_names_1);
         }
-        if (plot_int_2 > 0 && (step+1) % plot_int_2 == 0) {
+        if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
             last_plot_file_step_2 = step+1;
             WritePlotFile(2,plot_var_names_2);
         }
 
-        if (check_int > 0 && (step+1) % check_int == 0) {
+        if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
             last_check_file_step = step+1;
 #ifdef ERF_USE_NETCDF
             if (check_type == "netcdf") {
@@ -316,14 +316,15 @@ ERF::Evolve ()
         if (cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
 
-    if (plot_int_1 > 0 && istep[0] > last_plot_file_step_1) {
+    // Write plotfiles at final time
+    if ( (m_plot_int_1 > 0 || m_plot_per_1 > 0.) && istep[0] > last_plot_file_step_1 ) {
         WritePlotFile(1,plot_var_names_1);
     }
-    if (plot_int_2 > 0 && istep[0] > last_plot_file_step_2) {
+    if ( (m_plot_int_2 > 0 || m_plot_per_2 > 0.) && istep[0] > last_plot_file_step_2) {
         WritePlotFile(2,plot_var_names_2);
     }
 
-    if (check_int > 0 && istep[0] > last_check_file_step) {
+    if ( (m_check_int > 0 || m_check_per > 0.) && istep[0] > last_check_file_step) {
 #ifdef ERF_USE_NETCDF
         if (check_type == "netcdf") {
            WriteNCCheckpointFile();
@@ -410,7 +411,13 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
-        write_1D_profiles(time);
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(time);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(time);
+        }
     }
 
     if (output_1d_column) {
@@ -692,7 +699,13 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-        write_1D_profiles(t_new[0]);
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(t_new[0]);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(t_new[0]);
+        }
     }
 
     // We only write the file at level 0 for now
@@ -775,7 +788,7 @@ ERF::InitData ()
     }
 
 
-    if (restart_chkfile.empty() && check_int > 0)
+    if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > 0.) )
     {
 #ifdef ERF_USE_NETCDF
         if (check_type == "netcdf") {
@@ -791,12 +804,12 @@ ERF::InitData ()
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
-        if (plot_int_1 > 0)
+        if (m_plot_int_1 > 0 || m_plot_per_1 > 0.)
         {
             WritePlotFile(1,plot_var_names_1);
             last_plot_file_step_1 = istep[0];
         }
-        if (plot_int_2 > 0)
+        if (m_plot_int_2 > 0 || m_plot_per_2 > 0.)
         {
             WritePlotFile(2,plot_var_names_2);
             last_plot_file_step_2 = istep[0];
@@ -1022,11 +1035,13 @@ ERF::ReadParameters ()
         pp.query("check_file", check_file);
         pp.query("check_type", check_type);
 
-        // The regression tests use "amr.restart" and "amr.check_int" so we allow
-        //    for those or "erf.restart" / "erf.check_int" with the former taking
-        //    precedenceif both are specified
-        pp.query("check_int", check_int);
-        pp_amr.query("check_int", check_int);
+        // The regression tests use "amr.restart" and "amr.m_check_int" so we allow
+        //    for those or "erf.restart" / "erf.m_check_int" with the former taking
+        //    precedence if both are specified
+        pp.query("check_int", m_check_int);
+        pp.query("check_per", m_check_per);
+        pp_amr.query("check_int", m_check_int);
+        pp_amr.query("check_per", m_check_per);
 
         pp.query("restart", restart_chkfile);
         pp_amr.query("restart", restart_chkfile);
@@ -1150,12 +1165,20 @@ ERF::ReadParameters ()
             amrex::Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
             amrex::Abort("Dont know this plotfile_type");
         }
-        pp.query("plot_file_1", plot_file_1);
-        pp.query("plot_file_2", plot_file_2);
-        pp.query("plot_int_1", plot_int_1);
-        pp.query("plot_int_2", plot_int_2);
+        pp.query("plot_file_1",   plot_file_1);
+        pp.query("plot_file_2",   plot_file_2);
+        pp.query("plot_int_1" , m_plot_int_1);
+        pp.query("plot_int_2" , m_plot_int_2);
+        pp.query("plot_per_1",  m_plot_per_1);
+        pp.query("plot_per_2",  m_plot_per_2);
+
+        if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
+             (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
+            amrex::Abort("Must choose only one of plot_int or plot_per");
+        }
 
         pp.query("profile_int", profile_int);
+        pp.query("interp_profiles_to_cc", cc_profiles);
 
         pp.query("plot_lsm", plot_lsm);
 
@@ -1724,16 +1747,17 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         post_timestep(step, cur_time, dt[0]);
 
-        if (plot_int_1 > 0 && (step+1) % plot_int_1 == 0) {
+        if (writeNow(cur_time, dt[0], step+1, m_plot_int_1, m_plot_per_1)) {
             last_plot_file_step_1 = step+1;
             WritePlotFile(1,plot_var_names_1);
         }
-        if (plot_int_2 > 0 && (step+1) % plot_int_2 == 0) {
+
+        if (writeNow(cur_time, dt[0], step+1, m_plot_int_2, m_plot_per_2)) {
             last_plot_file_step_2 = step+1;
             WritePlotFile(2,plot_var_names_2);
         }
 
-        if (check_int > 0 && (step+1) % check_int == 0) {
+        if (writeNow(cur_time, dt[0], step+1, m_check_int, m_check_per)) {
             last_check_file_step = step+1;
 #ifdef ERF_USE_NETCDF
             if (check_type == "netcdf") {
@@ -1755,6 +1779,49 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         if (cur_time >= stop_time - 1.e-6*dt[0]) break;
     }
-
 }
 #endif
+
+bool
+ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int plot_int, const Real plot_per)
+{
+    bool write_now = false;
+
+    if ( plot_int > 0 && (nstep % plot_int == 0) ) {
+        write_now = true;
+
+    } else if (plot_per > 0.0) {
+
+        // Check to see if we've crossed a plot_per interval by comparing
+        // the number of intervals that have elapsed for both the current
+        // time and the time at the beginning of this timestep.
+
+        const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
+
+        int num_per_old = static_cast<int>(std::round((cur_time-eps-dt_lev) / plot_per));
+        int num_per_new = static_cast<int>(std::round((cur_time-eps       ) / plot_per));
+
+        // Before using these, however, we must test for the case where we're
+        // within machine epsilon of the next interval. In that case, increment
+        // the counter, because we have indeed reached the next plot_per interval
+        // at this point.
+
+        const Real next_plot_time = (num_per_old + 1) * plot_per;
+
+        if ((num_per_new == num_per_old) && std::abs(cur_time - next_plot_time) <= eps)
+        {
+            num_per_new += 1;
+        }
+
+        // Similarly, we have to account for the case where the old time is within
+        // machine epsilon of the beginning of this interval, so that we don't double
+        // count that time threshold -- we already plotted at that time on the last timestep.
+
+        if ((num_per_new != num_per_old) && std::abs((cur_time - dt_lev) - next_plot_time) <= eps)
+            num_per_old += 1;
+
+        if (num_per_old != num_per_new)
+            write_now = true;
+    }
+    return write_now;
+}

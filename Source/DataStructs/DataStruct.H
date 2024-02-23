@@ -102,7 +102,8 @@ struct SolverChoice {
         // TODO: should we set default for dry??
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
-            if (moisture_type == MoistureType::FastEddy) {
+            if (moisture_type == MoistureType::FastEddy ||
+                moisture_type == MoistureType::SAM) {
                 buoyancy_type = 1; // asserted in make buoyancy
             } else {
                 buoyancy_type = 2; // uses Tprime

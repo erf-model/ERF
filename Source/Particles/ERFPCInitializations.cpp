@@ -106,11 +106,11 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
         auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
         particle_tile.resize(np);
         auto aos = &particle_tile.GetArrayOfStructs()[0];
-        auto soa = particle_tile.GetStructOfArrays();
-        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
-        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+        auto& soa = particle_tile.GetStructOfArrays();
+        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
 
         auto my_proc = ParallelDescriptor::MyProc();
         Long pid;
@@ -238,11 +238,11 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
         auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
         particle_tile.resize(np);
         auto aos = &particle_tile.GetArrayOfStructs()[0];
-        auto soa = particle_tile.GetStructOfArrays();
-        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
-        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+        auto& soa = particle_tile.GetStructOfArrays();
+        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
 
         auto my_proc = ParallelDescriptor::MyProc();
         Long pid;
@@ -370,11 +370,11 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
         auto& particle_tile = DefineAndReturnParticleTile(lev, mfi);
         particle_tile.resize(np);
         auto aos = &particle_tile.GetArrayOfStructs()[0];
-        auto soa = particle_tile.GetStructOfArrays();
-        auto vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
-        auto vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
-        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
-        auto mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
+        auto& soa = particle_tile.GetStructOfArrays();
+        auto* vx_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+        auto* vy_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+        auto* vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+        auto* mass_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::mass).data();
 
         auto my_proc = ParallelDescriptor::MyProc();
         Long pid;
