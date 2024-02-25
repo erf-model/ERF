@@ -61,7 +61,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
@@ -76,7 +76,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
         } else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3) {
 
-            PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+            PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
             PlaneAverage prim_ave(&S_prim, geom, solverChoice.ave_plane);
 
             int ncell = state_ave.ncell_line();
@@ -108,7 +108,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -149,7 +149,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
@@ -174,7 +174,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
         } else {
 
-            PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+            PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
             PlaneAverage  prim_ave(&S_prim                , geom, solverChoice.ave_plane);
 
             // Compute horizontal averages of all components of each field
@@ -230,7 +230,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
-                    const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
@@ -297,7 +297,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
-                    const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)

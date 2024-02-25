@@ -105,7 +105,7 @@ compute_interior_ghost_bxs_xy (const Box& bx,
  * @param[in] start_bdy_time time of the first boundary data read in
  */
 void
-realbdy_compute_interior_ghost_rhs (const std::string& init_type,
+realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                                     const Real& bdy_time_interval,
                                     const Real& start_bdy_time,
                                     const Real& time,
@@ -156,7 +156,7 @@ realbdy_compute_interior_ghost_rhs (const std::string& init_type,
 
     // Variable index map (WRFBdyVars -> Vars)
     Vector<int> var_map = {Vars::xvel, Vars::yvel, Vars::cons, Vars::cons};
-    Vector<int> ivar_map = {IntVar::xmom, IntVar::ymom, IntVar::cons, IntVar::cons};
+    Vector<int> ivar_map = {IntVars::xmom, IntVars::ymom, IntVars::cons, IntVars::cons};
 
     // Variable icomp map
     Vector<int> comp_map = {0, 0, Rho_comp, RhoTheta_comp};
@@ -413,23 +413,23 @@ realbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 if (ivar  == ivarU) {
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
-                    data_arr = S_old_data[IntVar::xmom].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
+                    data_arr = S_old_data[IntVars::xmom].array(mfi);
                 } else if (ivar  == ivarV) {
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
-                    data_arr = S_old_data[IntVar::ymom].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
+                    data_arr = S_old_data[IntVars::ymom].array(mfi);
                 } else if (ivar  == ivarR) {
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_old_data[IntVar::cons].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
+                    data_arr = S_old_data[IntVars::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_old_data[IntVar::cons].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
+                    data_arr = S_old_data[IntVars::cons].array(mfi);
                 } else {
                     continue;
                 }
@@ -472,23 +472,23 @@ realbdy_compute_interior_ghost_rhs (const std::string& init_type,
                 if (ivar  == ivarU) {
                     arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
                     arr_ylo  = U_ylo.array(); arr_yhi = U_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::xmom].array(mfi);
-                    data_arr = S_cur_data[IntVar::xmom].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::xmom].array(mfi);
+                    data_arr = S_cur_data[IntVars::xmom].array(mfi);
                 } else if (ivar  == ivarV) {
                     arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
                     arr_ylo  = V_ylo.array(); arr_yhi = V_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::ymom].array(mfi);
-                    data_arr = S_cur_data[IntVar::ymom].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::ymom].array(mfi);
+                    data_arr = S_cur_data[IntVars::ymom].array(mfi);
                 } else if (ivar  == ivarR) {
                     arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
                     arr_ylo  = R_ylo.array(); arr_yhi = R_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_cur_data[IntVar::cons].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
+                    data_arr = S_cur_data[IntVars::cons].array(mfi);
                 } else if (ivar  == ivarT){
                     arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
                     arr_ylo  = T_ylo.array(); arr_yhi = T_yhi.array();
-                    rhs_arr  = S_rhs[IntVar::cons].array(mfi);
-                    data_arr = S_cur_data[IntVar::cons].array(mfi);
+                    rhs_arr  = S_rhs[IntVars::cons].array(mfi);
+                    data_arr = S_cur_data[IntVars::cons].array(mfi);
                 } else {
                     continue;
                 }
@@ -578,7 +578,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
     Vector<MultiFab> fmf_p_v;
 
     // Loop over the variables
-    for (int ivar_idx = 0; ivar_idx < IntVar::NumVars; ++ivar_idx)
+    for (int ivar_idx = 0; ivar_idx < IntVars::NumTypes; ++ivar_idx)
     {
         // Fine mfs
         MultiFab& fmf = S_data_f[ivar_idx];
@@ -607,14 +607,14 @@ fine_compute_interior_ghost_rhs (const Real& time,
 
         // Fill fine patch on interior halo region
         //==========================================================
-        if (ivar_idx == IntVar::cons)
+        if (ivar_idx == IntVars::cons)
         {
             FPr_c->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
             mask           = FPr_c->GetMask();
             set_mask_val   = FPr_c->GetSetMaskVal();
             relax_mask_val = FPr_c->GetRelaxMaskVal();
         }
-        else if (ivar_idx == IntVar::xmom)
+        else if (ivar_idx == IntVars::xmom)
         {
             FPr_u->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
             mask           = FPr_u->GetMask();
@@ -641,7 +641,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 });
             } // mfi
         }
-        else if (ivar_idx == IntVar::ymom)
+        else if (ivar_idx == IntVars::ymom)
         {
             FPr_v->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
             mask           = FPr_v->GetMask();
@@ -668,7 +668,7 @@ fine_compute_interior_ghost_rhs (const Real& time,
                 });
             } // mfi
         }
-        else if (ivar_idx == IntVar::zmom)
+        else if (ivar_idx == IntVars::zmom)
         {
             FPr_w->FillRelax(fmf_p, time, void_bc, domain_bcs_type);
             mask           = FPr_w->GetMask();

@@ -42,9 +42,9 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
         const Array4<const Real>& dens_arr = density.array(mfi);
 
         // Momentum on faces
-        Array4<Real const> const& momx = xmom_in.array(mfi);
-        Array4<Real const> const& momy = ymom_in.array(mfi);
-        Array4<Real const> const& momz = zmom_in.array(mfi);
+        Array4<Real const> const& momx = xmom_in.const_array(mfi);
+        Array4<Real const> const& momy = ymom_in.const_array(mfi);
+        Array4<Real const> const& momz = zmom_in.const_array(mfi);
 
         // Velocity on faces
         const Array4<Real>& velx = xvel.array(mfi);

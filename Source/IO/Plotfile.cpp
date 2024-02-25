@@ -119,7 +119,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                    fillset);
+                                   {&vars_new[lev][Vars::cons], &rU_new[lev],
+                                    &rV_new[lev], &rW_new[lev]}, fillset);
     }
 
     // Get qmoist pointers if using moisture

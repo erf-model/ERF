@@ -18,50 +18,35 @@ using namespace amrex;
  * this sets up the multirate time integrator and calls the integrator's advance function
  *
  * @param[in] level level of refinement (coarsest level is 0)
- * @param[in] cons_old old-time conserved variables on cell centers
- * @param[in] cons_new new-time conserved variables on cell centers
+ * @param[in] state_old old-time conserved variables
+ * @param[in] state_new new-time conserved variables
  * @param[in] xvel_old old-time x-component of velocity
  * @param[in] yvel_old old-time y-component of velocity
  * @param[in] zvel_old old-time z-component of velocity
  * @param[in] xvel_new new-time x-component of velocity
  * @param[in] yvel_new new-time y-component of velocity
  * @param[in] zvel_new new-time z-component of velocity
- * @param[in] xmom_old old-time x-component of momentum
- * @param[in] ymom_old old-time y-component of momentum
- * @param[in] zmom_old old-time z-component of momentum
- * @param[in] xmom_new new-time x-component of momentum
- * @param[in] ymom_new new-time y-component of momentum
- * @param[in] zmom_new new-time z-component of momentum
- * @param[in] xmom_crse old-time x-component of momentum at coarser level
- * @param[in] ymom_crse old-time y-component of momentum at coarser level
- * @param[in] zmom_crse old-time z-component of momentum at coarser level
  * @param[in] source source term for conserved variables
  * @param[in] buoyancy buoyancy source term for z-component of momentum
  * @param[in] fine_geom container for geometry information at current level
  * @param[in] dt_advance time step for this time advance
  * @param[in] old_time old time for this time advance
- * @param[in] ifr  pointer to InterpFaceRegister to be used to fill boundary conditions from the coarser level
  */
 
 void ERF::advance_dycore(int level,
-                         MultiFab& cons_old,  MultiFab& cons_new,
+                         Vector<MultiFab>& state_old,
+                         Vector<MultiFab>& state_new,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                         MultiFab& xmom_old, MultiFab& ymom_old, MultiFab& zmom_old,
-                         MultiFab& xmom_new, MultiFab& ymom_new, MultiFab& zmom_new,
-                         MultiFab& xmom_crse, MultiFab& ymom_crse, MultiFab& zmom_crse,
                          MultiFab& source, MultiFab& buoyancy,
                          const amrex::Geometry fine_geom,
-                         const amrex::Real dt_advance, const amrex::Real old_time,
-                         amrex::InterpFaceRegister* ifr)
+                         const amrex::Real dt_advance, const amrex::Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
     if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
-
-    int nvars = cons_old.nComp();
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
@@ -89,14 +74,14 @@ void ERF::advance_dycore(int level,
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
 
-    const BoxArray& ba            = cons_old.boxArray();
+    const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
-    const DistributionMapping& dm = cons_old.DistributionMap();
+    const DistributionMapping& dm = state_old[IntVars::cons].DistributionMap();
 
-    int num_prim = cons_old.nComp() - 1;
+    int num_prim = state_old[IntVars::cons].nComp() - 1;
 
-    MultiFab    S_prim  (ba  , dm, num_prim,          cons_old.nGrowVect());
-    MultiFab  pi_stage  (ba  , dm,        1,          cons_old.nGrowVect());
+    MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
+    MultiFab  pi_stage  (ba  , dm,        1,          state_old[IntVars::cons].nGrowVect());
     MultiFab fast_coeffs(ba_z, dm,        5,          0);
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
@@ -123,7 +108,7 @@ void ERF::advance_dycore(int level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(cons_new,TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box bxcc  = mfi.growntilebox(IntVect(1,1,0));
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
@@ -171,31 +156,9 @@ void ERF::advance_dycore(int level,
     } // l_use_diff
     } // profile
 
-
-    MultiFab Omega (zmom_old.boxArray(),dm,1,1);
+    MultiFab Omega (state_old[IntVars::zmom].boxArray(),dm,1,1);
 
 #include "TI_utils.H"
-
-    amrex::Vector<amrex::MultiFab> state_old;
-    amrex::Vector<amrex::MultiFab> state_new;
-
-    // **************************************************************************************
-    // Here we define state_old and state_new which are to be advanced
-    // **************************************************************************************
-    {
-    BL_PROFILE("erf_advance_part_1");
-    // Initial solution
-    state_old.push_back(MultiFab(cons_old, amrex::make_alias, 0, nvars)); // cons
-    state_old.push_back(MultiFab(xmom_old, amrex::make_alias, 0,     1)); // xmom
-    state_old.push_back(MultiFab(ymom_old, amrex::make_alias, 0,     1)); // ymom
-    state_old.push_back(MultiFab(zmom_old, amrex::make_alias, 0,     1)); // zmom
-
-    // Final solution
-    state_new.push_back(MultiFab(cons_new, amrex::make_alias, 0, nvars)); // cons
-    state_new.push_back(MultiFab(xmom_new, amrex::make_alias, 0,     1)); // xmom
-    state_new.push_back(MultiFab(ymom_new, amrex::make_alias, 0,     1)); // ymom
-    state_new.push_back(MultiFab(zmom_new, amrex::make_alias, 0,     1)); // zmom
-    } // profile
 
     // Additional SFS quantities, calculated once per timestep
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
@@ -221,7 +184,7 @@ void ERF::advance_dycore(int level,
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
-                                  state_old[IntVar::cons],
+                                  state_old[IntVars::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level],
@@ -240,29 +203,26 @@ void ERF::advance_dycore(int level,
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
-    {
-    BL_PROFILE("pre_set_up_mri");
-    MultiFab density(state_old[IntVar::cons], make_alias, Rho_comp, 1);
+    MultiFab density(state_old[IntVars::cons], make_alias, Rho_comp, 1);
     VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
                        yvel_old, yvel_old.nGrowVect(),
                        zvel_old, zvel_old.nGrowVect(),
                        density,
-                       state_old[IntVar::xmom],
-                       state_old[IntVar::ymom],
-                       state_old[IntVar::zmom],
+                       state_old[IntVars::xmom],
+                       state_old[IntVars::ymom],
+                       state_old[IntVars::zmom],
                        solverChoice.use_NumDiff);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
     MultiFab::Copy(zvel_new,zvel_old,0,0,1,zvel_old.nGrowVect());
 
-    bool fast_only          = false;
+    bool fast_only = false;
     bool vel_and_mom_synced = true;
     apply_bcs(state_old, old_time,
-              state_old[IntVar::cons].nGrow(), state_old[IntVar::xmom].nGrow(), fast_only,
-              vel_and_mom_synced);
-    cons_to_prim(state_old[IntVar::cons], state_old[IntVar::cons].nGrow());
-    } // profile
+              state_old[IntVars::cons].nGrow(), state_old[IntVars::xmom].nGrow(),
+              fast_only, vel_and_mom_synced);
+    cons_to_prim(state_old[IntVars::cons], state_old[IntVars::cons].nGrow());
 
 #include "TI_no_substep_fun.H"
 #include "TI_slow_rhs_fun.H"
@@ -273,8 +233,6 @@ void ERF::advance_dycore(int level,
     // **************************************************************************************
     MRISplitIntegrator<Vector<MultiFab> >& mri_integrator = *mri_integrator_mem[level];
 
-    {
-    BL_PROFILE("set_up_mri_integrator");
     // Define rhs and 'post update' utility function that is called after calculating
     // any state data (e.g. at RK stages or at the end of a timestep)
     mri_integrator.set_slow_rhs_pre(slow_rhs_fun_pre);
@@ -291,17 +249,8 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_fast_rhs(fast_rhs_fun);
     mri_integrator.set_slow_fast_timestep_ratio(fixed_mri_dt_ratio > 0 ? fixed_mri_dt_ratio : dt_mri_ratio[level]);
     mri_integrator.set_no_substep(no_substep_fun);
-    } // profile
 
     mri_integrator.advance(state_old, state_new, old_time, dt_advance);
-
-    // Register coarse data for coarse-fine fill
-    if (level<finest_level && solverChoice.coupling_type != CouplingType::TwoWay && cf_width>0) {
-        FPr_c[level].RegisterCoarseData({&cons_old, &cons_new}, {old_time, old_time + dt_advance});
-        FPr_u[level].RegisterCoarseData({&xvel_old, &xvel_new}, {old_time, old_time + dt_advance});
-        FPr_v[level].RegisterCoarseData({&yvel_old, &yvel_new}, {old_time, old_time + dt_advance});
-        FPr_w[level].RegisterCoarseData({&zvel_old, &zvel_new}, {old_time, old_time + dt_advance});
-    }
 
     if (verbose) Print() << "Done with advance_dycore at level " << level << std::endl;
 }

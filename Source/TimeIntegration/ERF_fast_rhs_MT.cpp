@@ -55,7 +55,7 @@ void erf_fast_rhs_MT (int step, int nrk,
                       Vector<MultiFab>& S_slow_rhs,                  // the slow RHS already computed
                       const Vector<MultiFab>& S_prev,                // if step == 0, this is S_old, else the previous solution
                       Vector<MultiFab>& S_stg_data,                  // at last RK stg: S^n, S^* or S^**
-                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVar::cons]
+                      const MultiFab& S_stg_prim,                    // Primitive version of S_stg_data[IntVars::cons]
                       const MultiFab& pi_stage,                      // Exner function evaluated at last RK stg
                       const MultiFab& fast_coeffs,                   // Coeffs for tridiagonal solve
                       Vector<MultiFab>& S_data,                      // S_sum = state at end of this substep
@@ -108,7 +108,7 @@ void erf_fast_rhs_MT (int step, int nrk,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+    MultiFab extrap(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(),1,1);
 
     // *************************************************************************
     // Define updates in the current RK stg
@@ -126,40 +126,40 @@ void erf_fast_rhs_MT (int step, int nrk,
 
     //  NOTE: we leave tiling off here for efficiency -- to make this loop work with tiling
     //        will require additional changes
-    for ( MFIter mfi(S_stg_data[IntVar::cons],false); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stg_data[IntVars::cons],false); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
         Box tbx = surroundingNodes(bx,0);
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stg_cons = S_stg_data[IntVar::cons].const_array(mfi);
-        const Array4<const Real> & stg_xmom = S_stg_data[IntVar::xmom].const_array(mfi);
-        const Array4<const Real> & stg_ymom = S_stg_data[IntVar::ymom].const_array(mfi);
-        const Array4<const Real> & stg_zmom = S_stg_data[IntVar::zmom].const_array(mfi);
+        const Array4<const Real> & stg_cons = S_stg_data[IntVars::cons].const_array(mfi);
+        const Array4<const Real> & stg_xmom = S_stg_data[IntVars::xmom].const_array(mfi);
+        const Array4<const Real> & stg_ymom = S_stg_data[IntVars::ymom].const_array(mfi);
+        const Array4<const Real> & stg_zmom = S_stg_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim     = S_stg_prim.const_array(mfi);
 
-        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVars::cons].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVars::xmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVars::ymom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVars::zmom].const_array(mfi);
 
-        const Array4<Real>& cur_cons = S_data[IntVar::cons].array(mfi);
-        const Array4<Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
-        const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
-        const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
+        const Array4<Real>& cur_cons = S_data[IntVars::cons].array(mfi);
+        const Array4<Real>& cur_xmom = S_data[IntVars::xmom].array(mfi);
+        const Array4<Real>& cur_ymom = S_data[IntVars::ymom].array(mfi);
+        const Array4<Real>& cur_zmom = S_data[IntVars::zmom].array(mfi);
 
-        const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt = S_scratch[IntVars::cons].array(mfi);
 
-        const Array4<const Real>& prev_cons = S_prev[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& prev_cons = S_prev[IntVars::cons].const_array(mfi);
+        const Array4<const Real>& prev_xmom = S_prev[IntVars::xmom].const_array(mfi);
+        const Array4<const Real>& prev_ymom = S_prev[IntVars::ymom].const_array(mfi);
+        const Array4<const Real>& prev_zmom = S_prev[IntVars::zmom].const_array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-        const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-        const Array4<Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        const Array4<Real>& avg_xmom = S_scratch[IntVars::xmom].array(mfi);
+        const Array4<Real>& avg_ymom = S_scratch[IntVars::ymom].array(mfi);
+        const Array4<Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         const Array4<const Real>& z_nd_old = z_phys_nd_old->const_array(mfi);
         const Array4<const Real>& z_nd_new = z_phys_nd_new->const_array(mfi);

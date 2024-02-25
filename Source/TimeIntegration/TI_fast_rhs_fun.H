@@ -58,7 +58,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
             Real inv_dt   = 1./dtau;
 
-            z_t_pert = std::make_unique<MultiFab>(S_data[IntVar::zmom].boxArray(), S_data[IntVar::zmom].DistributionMap(), 1, 1);
+            z_t_pert = std::make_unique<MultiFab>(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 1);
 
             for (MFIter mfi(*z_t_rk[level],TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
@@ -166,9 +166,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
 
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
-        bool fast_only          = true;
-        bool vel_and_mom_synced = false;
         int ng_cons    = 1;
         int ng_vel     = 1;
-        apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
+        apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
     };

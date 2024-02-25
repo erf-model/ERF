@@ -55,60 +55,21 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     V_new.setVal(1.e34,V_new.nGrowVect());
     W_new.setVal(1.e34,W_new.nGrowVect());
 
-    FillPatch(lev, time, {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::xvel],
-                          &vars_old[lev][Vars::yvel], &vars_old[lev][Vars::zvel]});
+    FillPatch(lev, time, {&S_old, &U_old, &V_old, &W_old},
+                         {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
 
     if (solverChoice.moisture_type != MoistureType::None) {
         // TODO: This is only qv
         FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
-    #if defined(ERF_USE_WINDFARM)
+#if defined(ERF_USE_WINDFARM)
     // Update with the Fitch source terms
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
-            fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                          U_old, V_old, W_old,
-                             vars_fitch[lev]);
-        }
-    #endif
-
-    MultiFab* S_crse;
-    MultiFab rU_crse, rV_crse, rW_crse;
-
-    if (lev > 0)
-    {
-        S_crse = &vars_old[lev-1][Vars::cons];
-
-        MultiFab& U_crse = vars_old[lev-1][Vars::xvel];
-        MultiFab& V_crse = vars_old[lev-1][Vars::yvel];
-        MultiFab& W_crse = vars_old[lev-1][Vars::zvel];
-
-        rU_crse.define(U_crse.boxArray(), U_crse.DistributionMap(), 1, U_crse.nGrow());
-        rV_crse.define(V_crse.boxArray(), V_crse.DistributionMap(), 1, V_crse.nGrow());
-        rW_crse.define(W_crse.boxArray(), W_crse.DistributionMap(), 1, W_crse.nGrow());
-
-        MultiFab density(*S_crse, make_alias, Rho_comp, 1);
-        VelocityToMomentum(U_crse, U_crse.nGrowVect(),
-                           V_crse, V_crse.nGrowVect(),
-                           W_crse, W_crse.nGrowVect(),
-                           density ,rU_crse, rV_crse, rW_crse,
-                           solverChoice.use_NumDiff);
+    if (solverChoice.windfarm_type == WindFarmType::Fitch) {
+        fitch_advance(lev, Geom(lev), dt_lev, S_old,
+                      U_old, V_old, W_old, vars_fitch[lev]);
     }
-
-    // Do an error check
-    if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
-           (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU   )    )  &&
-        phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-        amrex::Error("Must use MOST BC for MYNN2.5 or YSU PBL model");
-    }
-
-    const auto& local_ref_ratio = (lev > 0) ? ref_ratio[lev-1] : IntVect(1,1,1);
-
-    InterpFaceRegister ifr;
-    if (lev > 0)
-    {
-        ifr.define(S_old.boxArray(), S_old.DistributionMap(), Geom(lev), local_ref_ratio);
-    }
+#endif
 
     const BoxArray&            ba = S_old.boxArray();
     const DistributionMapping& dm = S_old.DistributionMap();
@@ -126,29 +87,88 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
+    amrex::Vector<amrex::MultiFab> state_old;
+    amrex::Vector<amrex::MultiFab> state_new;
+
+    // **************************************************************************************
+    // Here we define state_old and state_new which are to be advanced
+    // **************************************************************************************
+    // Initial solution
+    // Note that "old" and "new" here are relative to each RK stage.
+    state_old.push_back(MultiFab(cons_mf    , amrex::make_alias, 0, nvars)); // cons
+    state_old.push_back(MultiFab(rU_old[lev], amrex::make_alias, 0,     1)); // xmom
+    state_old.push_back(MultiFab(rV_old[lev], amrex::make_alias, 0,     1)); // ymom
+    state_old.push_back(MultiFab(rW_old[lev], amrex::make_alias, 0,     1)); // zmom
+
+    // Final solution
+    // state_new at the end of the last RK stage holds the t^{n+1} data
+    state_new.push_back(MultiFab(S_new      , amrex::make_alias, 0, nvars)); // cons
+    state_new.push_back(MultiFab(rU_new[lev], amrex::make_alias, 0,     1)); // xmom
+    state_new.push_back(MultiFab(rV_new[lev], amrex::make_alias, 0,     1)); // ymom
+    state_new.push_back(MultiFab(rW_new[lev], amrex::make_alias, 0,     1)); // zmom
+
+    // **************************************************************************************
     // Update the dycore
-    advance_dycore(lev,
-                   cons_mf, S_new,
+    // **************************************************************************************
+    advance_dycore(lev, state_old, state_new,
                    U_old, V_old, W_old,
                    U_new, V_new, W_new,
-                   rU_old[lev], rV_old[lev], rW_old[lev],
-                   rU_new[lev], rV_new[lev], rW_new[lev],
-                   rU_crse, rV_crse, rW_crse,
                    source, buoyancy,
-                   Geom(lev), dt_lev, time, &ifr);
+                   Geom(lev), dt_lev, time);
 
+    // **************************************************************************************
     // Update the microphysics (moisture)
+    // **************************************************************************************
     advance_microphysics(lev, S_new, dt_lev);
 
+    // **************************************************************************************
     // Update the land surface model
+    // **************************************************************************************
     advance_lsm(lev, S_new, dt_lev);
 
 #if defined(ERF_USE_RRTMGP)
+    // **************************************************************************************
     // Update the radiation
+    // **************************************************************************************
     advance_radiation(lev, S_new, dt_lev);
 #endif
 
 #ifdef ERF_USE_PARTICLES
+    // **************************************************************************************
+    // Update the particle positions
+    // **************************************************************************************
    evolveTracers( lev, dt_lev, vars_new, z_phys_nd );
 #endif
+
+    // **************************************************************************************
+    // Register old and new coarse data if we are at a level less than the finest level
+    // **************************************************************************************
+    if (lev < finest_level)
+    {
+        if (cf_width > 0) {
+            // We must fill the ghost cells of these so that the parallel copy works correctly
+            state_old[IntVars::cons].FillBoundary(geom[lev].periodicity());
+            state_new[IntVars::cons].FillBoundary(geom[lev].periodicity());
+            FPr_c[lev].RegisterCoarseData({&state_old[IntVars::cons], &state_new[IntVars::cons]},
+                                          {time, time + dt_lev});
+        }
+
+        if (cf_width >= 0) {
+            // We must fill the ghost cells of these so that the parallel copy works correctly
+            state_old[IntVars::xmom].FillBoundary(geom[lev].periodicity());
+            state_new[IntVars::xmom].FillBoundary(geom[lev].periodicity());
+            FPr_u[lev].RegisterCoarseData({&state_old[IntVars::xmom], &state_new[IntVars::xmom]},
+                                          {time, time + dt_lev});
+
+            state_old[IntVars::ymom].FillBoundary(geom[lev].periodicity());
+            state_new[IntVars::ymom].FillBoundary(geom[lev].periodicity());
+            FPr_v[lev].RegisterCoarseData({&state_old[IntVars::ymom], &state_new[IntVars::ymom]},
+                                          {time, time + dt_lev});
+
+            state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
+            state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
+            FPr_w[lev].RegisterCoarseData({&state_old[IntVars::zmom], &state_new[IntVars::zmom]},
+                                          {time, time + dt_lev});
+        }
+    }
 }

@@ -11,7 +11,6 @@
 
 #include <AMReX_AmrCore.H>
 #include <AMReX_BCRec.H>
-#include <AMReX_InterpFaceRegister.H>
 
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_ParmParse.H>
@@ -203,16 +202,13 @@ public:
 
     // Interface for advancing the data at one level by one "slow" timestep
     void advance_dycore (int level,
-                         amrex::MultiFab& cons_old,  amrex::MultiFab& cons_new,
+                         amrex::Vector<amrex::MultiFab>& state_old,
+                         amrex::Vector<amrex::MultiFab>& state_new,
                          amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
-                         amrex::MultiFab& xmom_old,  amrex::MultiFab& ymom_old,  amrex::MultiFab& zmom_old,
-                         amrex::MultiFab& xmom_new,  amrex::MultiFab& ymom_new,  amrex::MultiFab& zmom_new,
-                         amrex::MultiFab& xmom_crse, amrex::MultiFab& ymom_crse, amrex::MultiFab& zmom_crse,
                          amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
                          amrex::Geometry fine_geom,
-                         amrex::Real dt, amrex::Real time,
-                         amrex::InterpFaceRegister* ifr);
+                         amrex::Real dt, amrex::Real time);
 
     void advance_microphysics (int lev,
                                amrex::MultiFab& cons_in,
@@ -334,8 +330,8 @@ private:
     // read in some parameters from inputs file
     void ReadParameters ();
 
-    // set covered coarse cells to be the average of overlying fine cells
-    void AverageDown (int scomp, int ncomp);
+    // set covered coarse cells/faces to be the average of overlying fine cells/faces
+    void AverageDown ();
 
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
@@ -344,8 +340,6 @@ private:
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
-
-    void Register_ERFFillPatchers (int lev);
 
     void init1DArrays ();
 
@@ -359,30 +353,35 @@ private:
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
-    // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells -
-    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    void FillPatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mf, bool fillset=true);
+    // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
+    //
+    // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
+    //
+    void FillPatch (int lev, amrex::Real time,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                    const amrex::Vector<amrex::MultiFab*>& mfs_mom,
+                    bool fillset=true, bool cons_only=false);
 
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
-    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
     void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
 
-    // compute new multifabs by copying in data from valid region and filling ghost cells
-    // works for single level and 2-level cases (fill fine grid ghost by interpolating from coarse)
-    // unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
+    // Compute new multifabs by copying data from valid region and filling ghost cells.
+    // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
     // This is to support filling boundary cells at an intermediate time between old/new times
     // on the fine level when valid data at a specific time is already available (such as
     // at each RK stage when integrating between initial and final times at a given level).
-    // NOTE: mfs should always contain {cons, xvel, yvel, zvel} multifab data.
-    // if which_var is supplied, then only fill the specified variable in the vector of mfs
+    //
+    // NOTE: FillIntermediatePatch takes in updated momenta, and returns both updated velocity and momenta
+    //
     void FillIntermediatePatch (int lev, amrex::Real time,
-                                const amrex::Vector<amrex::MultiFab*>& mfs,
+                                const amrex::Vector<amrex::MultiFab*>& mfs_vel,
+                                const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                                 int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons,
                                 bool allow_most_bcs = true);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
-    void FillCoarsePatch (int lev, amrex::Real time, const amrex::Vector<amrex::MultiFab*>& mfs);
+    void FillCoarsePatch (int lev, amrex::Real time);
 
     // advance a level by dt
     // includes a recursive call for finer levels
