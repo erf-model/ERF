@@ -29,6 +29,11 @@ different WENO schemes are available for scalar variables other than density and
 
 **Turbulent Mixing**: Sub-grid scale turbulence formulation.  Vertically implicit acoustic step off-centering.
 
+**Diffusion**: In WRF, the diffusion coefficients specified in the input file (:math:`K_h` and :math:`K_v` for 
+horizontal and vertical diffusion) get divided by the Prandtl number for the potential temperature and the scalars. 
+For the momentum, they are used as it is. In ERF, the coefficients specified in the inputs (:math:`\alpha_T` and :math:`\alpha_C`) 
+are used as it is, and no division by Prandtl number is done.
+
 **Initial conditions**: both ERF and WRF have the ability to initialize problems from
 3D "real" data (output of real.exe), "ideal" data (output of ideal.exe) and from 1D input soundings.
 

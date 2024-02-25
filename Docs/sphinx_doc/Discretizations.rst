@@ -448,6 +448,9 @@ Scalar Diffusion
     & & & & & + \left. \frac{1}{{\Delta z}^{2}}\left\lbrack C_{i,j,k + 1}^{n} - \ 2C_{i,j,k}^{n} + \ C_{i,j,k - 1}^{n} \right\rbrack \right\}
    \end{matrix}
 
+**Note**: In WRF, the diffusion coefficients specified in the input file (:math:`K_h` and :math:`K_v` for horizontal and vertical diffusion) get divided by the Prandtl number for 
+the potential temperature and the scalars. For the momentum, they are used as it is. In ERF, the coefficients specified in the inputs (:math:`\alpha_T` and :math:`\alpha_C`) are used as it is, and no division by Prandtl number is done.
+
 Momentum, Thermal, and Scalar Diffusion Contribution to LES
 ===========================================================
 
