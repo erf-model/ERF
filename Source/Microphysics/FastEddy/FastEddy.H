@@ -9,7 +9,6 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_TableData.H>
 #include <AMReX_MultiFabUtil.H>
-
 #include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"

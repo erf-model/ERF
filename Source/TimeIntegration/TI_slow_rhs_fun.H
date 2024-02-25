@@ -94,8 +94,8 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0_new);
+            make_buoyancy(S_data, S_prim, buoyancy, fine_geom,
+                          solverChoice, r0_new, micro.Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -188,7 +188,7 @@
 
             // If not moving_terrain
             make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0);
+                          fine_geom, solverChoice, r0, micro.Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -352,7 +352,7 @@
 
         // If not moving_terrain
         make_buoyancy(S_data, S_prim, buoyancy,
-                      fine_geom, solverChoice, r0);
+                      fine_geom, solverChoice, r0, micro.Get_Qstate_Size());
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

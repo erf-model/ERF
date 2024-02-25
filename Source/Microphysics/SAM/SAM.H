@@ -39,18 +39,15 @@ namespace MicVar {
       qci,   // cloud ice
       // precipitating vars
       qp,    // total precip
-      qpl,   // precip rain
-      qpi,   // precip ice
-      qg,    // graupel
+      qpr,   // precip rain
+      qps,   // precip ice
+      qpg,   // graupel
       // derived vars
       omega,
       NumVars
   };
 }
 
-//
-// use MultiFab for 3D data, but table for 1D data
-//
 class SAM : public NullMoist {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -72,10 +69,7 @@ public:
     void Precip ();
 
     // precip fall
-    void PrecipFall (int hydro_type);
-
-    // micro interface for precip fall
-    void MicroPrecipFall ();
+    void PrecipFall (int hydro_type=2);
 
     // diagnose
     void Diagnose () override;
@@ -84,13 +78,14 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        docloud = sc.do_cloud;
-        doprecip = sc.do_precip;
+        docloud    = sc.do_cloud;
+        doprecip   = sc.do_precip;
         m_fac_cond = lcond / sc.c_p;
-        m_fac_fus = lfus / sc.c_p;
-        m_fac_sub = lsub / sc.c_p;
-        m_gOcp = CONST_GRAV / sc.c_p;
-        m_axis = sc.ave_plane;
+        m_fac_fus  = lfus / sc.c_p;
+        m_fac_sub  = lsub / sc.c_p;
+        m_gOcp     = CONST_GRAV / sc.c_p;
+        m_axis     = sc.ave_plane;
+        m_rdOcp    = sc.rdOcp;
     }
 
     // init
@@ -112,7 +107,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Diagnose();
         this->Compute_Coefficients();
     }
 
@@ -129,10 +123,9 @@ public:
         dt = dt_advance;
 
         this->Cloud();
-        this->Diagnose();
         this->IceFall();
         this->Precip();
-        this->MicroPrecipFall();
+        this->PrecipFall();
     }
 
     amrex::MultiFab*
@@ -152,11 +145,11 @@ public:
     Qstate_Size () override { return SAM::m_qstate_size; }
 
 private:
-    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi, qpg)
+    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
     int m_qmoist_size = 8;
 
     // Number of qmoist variables
-    int m_qstate_size = 3;
+    int m_qstate_size = 6;
 
     // MicVar map (Qmoist indices -> MicVar enum)
     amrex::Vector<int> MicVarMap;
@@ -184,6 +177,7 @@ private:
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
+    amrex::Real m_rdOcp;
 
     // independent variables
     amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
@@ -212,9 +206,5 @@ private:
 
     amrex::TableData<amrex::Real, 1> gamaz;
     amrex::TableData<amrex::Real, 1> zmid; // mid value of vertical coordinate in physical domain
-
-    // data (output)
-    amrex::TableData<amrex::Real, 1> qifall;
-    amrex::TableData<amrex::Real, 1> tlatqi;
 };
 #endif

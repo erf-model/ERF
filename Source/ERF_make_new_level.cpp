@@ -463,25 +463,25 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
     } else {
-      Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
-      Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
-      Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
-      Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
-      SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
-      SFS_diss_lev[lev] = nullptr;
+        Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
+        Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
+        Tau13_lev[lev] = nullptr; Tau31_lev[lev] = nullptr;
+        Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
+        SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
+        SFS_diss_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {
       eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
-      eddyDiffs_lev[lev]->setVal(0.0);
-      if(l_use_ddorf) {
-          SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
-      } else {
-          SmnSmn_lev[lev] = nullptr;
-      }
+        eddyDiffs_lev[lev]->setVal(0.0);
+        if(l_use_ddorf) {
+            SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
+        } else {
+            SmnSmn_lev[lev] = nullptr;
+        }
     } else {
-      eddyDiffs_lev[lev] = nullptr;
-      SmnSmn_lev[lev]    = nullptr;
+        eddyDiffs_lev[lev] = nullptr;
+        SmnSmn_lev[lev]    = nullptr;
     }
 }
 
