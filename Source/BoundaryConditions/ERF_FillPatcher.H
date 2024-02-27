@@ -19,7 +19,7 @@ public:
                  amrex::Geometry const& fgeom,
                  amrex::BoxArray const& cba, amrex::DistributionMapping const& cdm,
                  amrex::Geometry const& cgeom,
-                 int nghost, int nghost_sset, int ncomp,
+                 int nghost, int nghost_set, int ncomp,
                  amrex::InterpBase* interp);
 
     void BuildMask (amrex::BoxArray const& fba, int nghost, int nghost_set);
@@ -123,6 +123,7 @@ ERFFillPatcher::Fill (amrex::MultiFab& mf, amrex::Real time,
                       BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val)
 {
     constexpr amrex::Real eps = std::numeric_limits<float>::epsilon();
+
     AMREX_ALWAYS_ASSERT((time >= m_crse_times[0]-eps) && (time <= m_crse_times[1]+eps));
 
     // Time interpolation factors

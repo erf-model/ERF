@@ -8,6 +8,9 @@ Mesh Refinement
 ===============
 
 ERF allows both static and dynamic mesh refinement, as well as the choice of one-way or two-way coupling.
+Dynamic refinement is currently only allowed when terrain is not being used.
+
+The refinement ratio is specified by the user at runtime. Refinement is not allowed in the vertical.
 
 Note that any tagged region will be covered by one or more boxes.  The user may
 specify the refinement criteria and/or region to be covered, but not the decomposition of the region into
@@ -145,6 +148,10 @@ a user may specify the total width of the interior specified (Dirichlet) and rel
 and analogously the width of the interior specified (Dirichlet) region may be specified with
 ``erf.cf_set_width = <Int>`` (yellow).
 
+Setting ``erf.cf_set_width = 0`` designates that we interpolate the momenta
+at faces only on the coarse-fine boundary itself; no interior cell-centered data, or momenta
+inside the fine region, are filled from the coarser level.
+
 By two-way coupling, we mean that in additional to interpolating data from the coarser level
 to supply boundary conditions for the fine regions,
 the fine level also communicates data back to the coarse level in two ways:
@@ -154,10 +161,8 @@ the fine level also communicates data back to the coarse level in two ways:
 - The fine momenta are conservatively averaged onto the coarse faces covered by fine mesh.
 
 - A "reflux" operation is performed for all cell-centered data; this updates values on the coarser
-level outside of regions covered by the finer level.
+  level outside of regions covered by the finer level.
 
-We note that both coupling schemes conserve mass because the fluxes for the continuity
-equation are the momenta themselves, which are interpolated on faces at the coarse-fine interface.
-Other advected quantities which are advanced in conservation form will lose conservation with one-way coupling.
-Two-way coupling ensures conservation of the advective contribution to all scalar updates but
-does not account for loss of conservation due to diffusive or source terms.
+We note that when one-way coupling is used, quantities which are advanced in conservation form
+potentially violate global conservation.  Two-way coupling ensures conservation of mass, and of the advective contribution
+to all scalar updates, but does not account for loss of conservation due to diffusive or source terms.

@@ -209,7 +209,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     }
                 });
 
-            } else if (var_idx == Vars::xvel || var_idx == Vars::xmom) {
+            } else if (var_idx == Vars::xvel) {
 
                 Box xb2d = surroundingNodes(bx,0);
                 xb2d.setBig(2,zlo-1);
@@ -217,13 +217,13 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
-                    flux_comp.compute_u_flux(i, j, k, icomp, var_idx, dz,
+                    flux_comp.compute_u_flux(i, j, k, icomp, dz,
                                              cons_arr, velx_arr, vely_arr, eta_arr,
                                              umm_arr, um_arr, u_star_arr,
                                              dest_arr);
                 });
 
-            } else if (var_idx == Vars::yvel || var_idx == Vars::ymom) {
+            } else if (var_idx == Vars::yvel) {
 
                 Box yb2d = surroundingNodes(bx,1);
                 yb2d.setBig(2,zlo-1);
@@ -231,7 +231,7 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
-                    flux_comp.compute_v_flux(i, j, k, icomp, var_idx, dz,
+                    flux_comp.compute_v_flux(i, j, k, icomp, dz,
                                              cons_arr, velx_arr, vely_arr, eta_arr,
                                              umm_arr, vm_arr, u_star_arr,
                                              dest_arr);

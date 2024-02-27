@@ -4,7 +4,11 @@
  *  Wrapper for calling the routine that creates the slow RHS
  */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+#ifdef ERF_USE_NETCDF
                                 Vector<MultiFab>& S_old,
+#else
+                                Vector<MultiFab>& /*S_old*/,
+#endif
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,
                                 const Real old_step_time,
@@ -13,7 +17,7 @@
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
-        if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
+        if (verbose) Print() << "\n Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
 
         Real slow_dt = new_stage_time - old_step_time;
@@ -216,6 +220,8 @@
         }
 #endif
 
+#if 0
+        // HACK -- NO RELAXATION INSIDE FINE GRIDS
         // Compute RHS for fine interior ghost
         if (level > 0 && cf_width > 0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
@@ -223,11 +229,7 @@
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             domain_bcs_type, S_rhs, S_data);
         }
-
-        // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::ymom].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::zmom].FillBoundary(fine_geom.periodicity());
+#endif
     }; // end slow_rhs_fun_pre
 
     // *************************************************************
@@ -235,7 +237,7 @@
     // *************************************************************
     auto pre_update_fun = [&](Vector<MultiFab>& S_data, int ng_cons)
     {
-        cons_to_prim(S_data[IntVar::cons], ng_cons);
+        cons_to_prim(S_data[IntVars::cons], ng_cons);
     };
 
     // *************************************************************
@@ -244,9 +246,7 @@
     auto post_update_fun = [&](Vector<MultiFab>& S_data,
                                const Real time_for_fp, int ng_cons, int ng_vel)
     {
-        bool fast_only = false;
-        bool vel_and_mom_synced = false;
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only=false, vel_and_mom_synced=false);
     };
 
     // *************************************************************
@@ -263,7 +263,7 @@
                                  const int nrk)
     {
         amrex::ignore_unused(nrk);
-        if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
+        if (verbose) Print() << "\n Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
 
@@ -380,6 +380,8 @@
         }
 #endif
 
+#if 0
+        // HACK -- NO RELAXATION INSIDE FINE GRIDS
         // Compute RHS for fine interior ghost
         if (level > 0 && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
@@ -388,5 +390,6 @@
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);
         }
+#endif
     }; // end slow_rhs_fun_inc
 #endif

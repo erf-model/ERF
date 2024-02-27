@@ -48,7 +48,7 @@ void erf_fast_rhs_T (int step, int nrk,
                      Vector<MultiFab>& S_slow_rhs,                   // the slow RHS already computed
                      const Vector<MultiFab>& S_prev,                 // if step == 0, this is S_old, else the previous solution
                      Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
-                     const MultiFab& S_stage_prim,                   // Primitive version of S_stage_data[IntVar::cons]
+                     const MultiFab& S_stage_prim,                   // Primitive version of S_stage_data[IntVars::cons]
                      const MultiFab& pi_stage,                       // Exner function evaluated at last stage
                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
@@ -82,8 +82,8 @@ void erf_fast_rhs_T (int step, int nrk,
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
-    const auto& ba = S_stage_data[IntVar::cons].boxArray();
-    const auto& dm = S_stage_data[IntVar::cons].DistributionMap();
+    const auto& ba = S_stage_data[IntVars::cons].boxArray();
+    const auto& dm = S_stage_data[IntVars::cons].DistributionMap();
 
     MultiFab Delta_rho_u(    convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab Delta_rho_v(    convert(ba,IntVect(0,1,0)), dm, 1, 1);
@@ -105,7 +105,7 @@ void erf_fast_rhs_T (int step, int nrk,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    MultiFab extrap(S_data[IntVar::cons].boxArray(),S_data[IntVar::cons].DistributionMap(),1,1);
+    MultiFab extrap(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(),1,1);
 
     // *************************************************************************
     // First set up some arrays we'll need
@@ -114,12 +114,12 @@ void erf_fast_rhs_T (int step, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-        const Array4<Real>       & cur_cons  = S_data[IntVar::cons].array(mfi);
-        const Array4<const Real>& prev_cons  = S_prev[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
-        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>       & cur_cons  = S_data[IntVars::cons].array(mfi);
+        const Array4<const Real>& prev_cons  = S_prev[IntVars::cons].const_array(mfi);
+        const Array4<const Real>& stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
+        const Array4<Real>& lagged_delta_rt  = S_scratch[IntVars::cons].array(mfi);
 
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
@@ -127,13 +127,13 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<Real>& old_drho_w     = Delta_rho_w.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<const Real>&  prev_xmom = S_prev[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>&  prev_ymom = S_prev[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>&  prev_zmom = S_prev[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>&  prev_xmom = S_prev[IntVars::xmom].const_array(mfi);
+        const Array4<const Real>&  prev_ymom = S_prev[IntVars::ymom].const_array(mfi);
+        const Array4<const Real>&  prev_zmom = S_prev[IntVars::zmom].const_array(mfi);
 
-        const Array4<const Real>& stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
-        const Array4<const Real>& stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
+        const Array4<const Real>& stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
+        const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
 
         Box gbx = mfi.tilebox(); gbx.grow(1);
 
@@ -176,12 +176,12 @@ void erf_fast_rhs_T (int step, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We define lagged_delta_rt for our next step as the current delta_rt
         Box gbx = mfi.tilebox(); gbx.grow(1);
         const Array4<Real>& old_drho_theta  = Delta_rho_theta.array(mfi);
-        const Array4<Real>& lagged_delta_rt = S_scratch[IntVar::cons].array(mfi);
+        const Array4<Real>& lagged_delta_rt = S_scratch[IntVars::cons].array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             lagged_delta_rt(i,j,k,RhoTheta_comp) = old_drho_theta(i,j,k);
         });
@@ -194,30 +194,30 @@ void erf_fast_rhs_T (int step, int nrk,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
 
-        const Array4<const Real> & stage_xmom = S_stage_data[IntVar::xmom].const_array(mfi);
-        const Array4<const Real> & stage_ymom = S_stage_data[IntVar::ymom].const_array(mfi);
+        const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
+        const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
         const Array4<Real>& old_drho_v     = Delta_rho_v.array(mfi);
 
-        const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVar::xmom].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVar::ymom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_u = S_slow_rhs[IntVars::xmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_v = S_slow_rhs[IntVars::ymom].const_array(mfi);
 
         const Array4<Real>& new_drho_u = New_rho_u.array(mfi);
         const Array4<Real>& new_drho_v = New_rho_v.array(mfi);
 
-        const Array4<Real>& cur_xmom = S_data[IntVar::xmom].array(mfi);
-        const Array4<Real>& cur_ymom = S_data[IntVar::ymom].array(mfi);
+        const Array4<Real>& cur_xmom = S_data[IntVars::xmom].array(mfi);
+        const Array4<Real>& cur_ymom = S_data[IntVars::ymom].array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<Real>& avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-        const Array4<Real>& avg_ymom = S_scratch[IntVar::ymom].array(mfi);
+        const Array4<Real>& avg_xmom = S_scratch[IntVars::xmom].array(mfi);
+        const Array4<Real>& avg_ymom = S_scratch[IntVars::ymom].array(mfi);
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
 
@@ -309,12 +309,12 @@ void erf_fast_rhs_T (int step, int nrk,
 #endif
     {
     std::array<FArrayBox,AMREX_SPACEDIM> flux;
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_zmom = S_stage_data[IntVar::zmom].const_array(mfi);
+        const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
         const Array4<Real>& old_drho_u     = Delta_rho_u.array(mfi);
@@ -323,17 +323,17 @@ void erf_fast_rhs_T (int step, int nrk,
         const Array4<Real>& old_drho       = Delta_rho.array(mfi);
         const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
 
-        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVar::cons].const_array(mfi);
-        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVar::zmom].const_array(mfi);
+        const Array4<const Real>& slow_rhs_cons  = S_slow_rhs[IntVars::cons].const_array(mfi);
+        const Array4<const Real>& slow_rhs_rho_w = S_slow_rhs[IntVars::zmom].const_array(mfi);
 
         const Array4<Real>& new_drho_u = New_rho_u.array(mfi);
         const Array4<Real>& new_drho_v = New_rho_v.array(mfi);
 
-        const Array4<Real>& cur_cons = S_data[IntVar::cons].array(mfi);
-        const Array4<Real>& cur_zmom = S_data[IntVar::zmom].array(mfi);
+        const Array4<Real>& cur_cons = S_data[IntVars::cons].array(mfi);
+        const Array4<Real>& cur_zmom = S_data[IntVars::zmom].array(mfi);
 
         // These store the advection momenta which we will use to update the slow variables
-        const Array4<Real>& avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        const Array4<Real>& avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
         const Array4<const Real>& detJ   = detJ_cc->const_array(mfi);

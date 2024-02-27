@@ -16,4 +16,6 @@ Also, any entry that can be specified in the inputs file can also be specified o
 
     mpirun -np 64 ./ERF3d.gnu.DEBUG.MPI.ex inputs amr.restart=chk0030 erf.use_gravity=true
 
-See :ref:`sec:Inputs` for details on run-time options that can be specified.
+See :ref:`sec:Inputs` for details on run-time options that can be specified. If running on a Mac and getting
+errors like ``SIGILL Invalid, privileged, or ill-formed instruction``, see the note on that page about
+runtime error-checking options.

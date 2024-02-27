@@ -60,11 +60,6 @@ ERF::timeStep (int lev, Real time, int iteration)
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
 
-    // We store the old and new data at level "lev" once we have finished the full advance at this level
-    if (finest_level > 0 && lev < finest_level && cf_set_width > 0) {
-        Register_ERFFillPatchers(lev);
-    }
-
     ++istep[lev];
 
     if (Verbose())
