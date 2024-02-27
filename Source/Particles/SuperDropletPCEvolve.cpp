@@ -25,14 +25,7 @@ void SuperDropletPC::EvolveParticles ( int                                      
         // TODO: massChange( const_vars );
     }
 
-    if (m_advect_w_flow) {
-        MultiFab* flow_vel( &a_flow_vars[a_lev][Vars::xvel] );
-        AdvectWithFlow( flow_vel, a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
-    }
-
-    if (m_advect_w_gravity) {
-        AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
-    }
+    AdvectParticles( a_lev, a_dt_lev, a_flow_vars, a_z_phys_nd, m_advect_w_flow, m_advect_w_gravity );
 
     // TODO: coalescence();
 

@@ -39,6 +39,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
                    ${SRC_DIR}/Particles/ERFTracers.cpp
+                   ${SRC_DIR}/Particles/SuperDropletPCAdvection.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCEvolve.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCInitializations.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCUtils.cpp)
@@ -168,6 +169,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
        ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
        ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
+       ${SRC_DIR}/MaterialProperties/MaterialProperties.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
