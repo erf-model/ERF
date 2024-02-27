@@ -22,7 +22,6 @@ struct SuperDropletsRealIdxSoA_RT
         radius = 0,     /*!< Radius of physical particles */
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
-        sol_mass,       /*!< Solute mass */
         sd_mass,        /*!< Superdroplet mass */
         ncomps
     };
@@ -39,6 +38,8 @@ namespace SuperDropletInitializations
     /*! No particles are initialized; nucleation generates them */
     const std::string init_null = "null";
 
+    /*! Maximum number of aerosols */
+    const int num_aerosols_max = 8;
 }
 
 class SuperDropletPC : public ERFPC
@@ -152,7 +153,10 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_numdens_init;         /*!< Initial number density of physical particles */
         amrex::Real m_numdens_sd_init;      /*!< Initial number density of super-droplets */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
-        amrex::Real m_mass_aerosol_init;    /*!< Initial aerosol mass of each physical particle */
+
+        /*! Initial aerosol masses of each physical particle */
+        std::vector<amrex::Real> m_mass_aerosol_init;
+        int m_num_aerosols;
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
 
@@ -175,11 +179,14 @@ class SuperDropletPC : public ERFPC
         {
             m_aerosol_mat.clear();
 
-            add_superdroplet_attributes();
-            readInputs();
-
             setVapourMaterial( a_vap_mat );
             setAerosolMaterial( a_aerosol_mat );
+            m_num_aerosols = m_aerosol_mat.size();
+            m_mass_aerosol_init.resize(m_num_aerosols);
+            AMREX_ASSERT(m_num_aerosols <= SuperDropletInitializations::num_aerosols_max);
+
+            add_superdroplet_attributes();
+            readInputs();
         }
 
         /*! \brief add super-droplet method-specific particle attributes */
