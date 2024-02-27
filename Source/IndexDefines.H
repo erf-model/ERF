@@ -100,10 +100,17 @@ namespace Vars {
         xvel,
         yvel,
         zvel,
-        NumTypes,
+        NumTypes
+    };
+}
+
+namespace IntVars {
+    enum {
+        cons = 0,
         xmom,
         ymom,
-        zmom
+        zmom,
+        NumTypes
     };
 }
 
@@ -148,16 +155,6 @@ enum mathematicalBndryTypes : int {
     neumann          =  103,
     neumann_int      =  104
 };
-}
-
-namespace IntVar {
-    enum {
-        cons = 0,
-        xmom,
-        ymom,
-        zmom,
-        NumVars
-    };
 }
 
 enum struct AdvType : int {

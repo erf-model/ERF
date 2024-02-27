@@ -1084,3 +1084,31 @@ List of Parameters
 | **erf.do_precip**           | include precipitation    |  true / false      | true       |
 |                             | in treatment of moisture |                    |            |
 +-----------------------------+--------------------------+--------------------+------------+
+
+Runtime Error Checking
+======================
+
+Through `AMReX functionality <https://amrex-codes.github.io/amrex/docs_html/Debugging.html>`_,
+ERF supports options to raise errors when NaNs, division by zero, and overflow errors
+are detected. These checks are activated at runtime using the input parameters below.
+
+.. note::
+
+   When running on Macs using the Apple-Clang compilers with optimization
+   (``DEBUG = FALSE`` in the ``GNUmakefile``), these checks may lead to false positives
+   due to optimizations performed by the compiler and the flags should be turned off.
+   It is still possible to run with these error checks with Apple-Clang debug builds.
+
+List of Parameters
+------------------
+
++-----------------------------+---------------------------+-------------------+------------+
+| Parameter                   | Definition                | Acceptable Values | Default    |
++=============================+===========================+===================+============+
+| **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
++-----------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_zero**     | Raise errors for divide   |  0 / 1            | 0          |
+|                             | by zero                   |                   |            |
++-----------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_overflow** | Raise errors for overflow |  0 / 1            | 0          |
++-----------------------------+---------------------------+-------------------+------------+

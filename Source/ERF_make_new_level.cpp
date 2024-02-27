@@ -73,15 +73,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
-    //*********************************************************
-    // Variables for Ftich model for windfarm parametrization
-    //*********************************************************
-#if defined(ERF_USE_WINDFARM)
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-    }
-#endif
-
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -155,7 +146,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Create the ERFFillPatcher object
     // ********************************************************************************************
-    if (cf_width > 0 && lev > 0) {
+    if (lev > 0 && cf_width >= 0) {
         Construct_ERFFillPatchers(lev);
            Define_ERFFillPatchers(lev);
     }
@@ -208,9 +199,11 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
     const auto& crse_new = vars_new[lev-1];
-    auto& lev_new = vars_new[lev];
-    auto& lev_old = vars_old[lev];
+          auto&  lev_new = vars_new[lev];
+          auto&  lev_old = vars_old[lev];
 
     int ncomp = lev_new[Vars::cons].nComp();
 
@@ -242,13 +235,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
-
-#if defined(ERF_USE_WINDFARM)
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-    }
-#endif
 
     init_stuff(lev, ba, dm);
 
@@ -292,9 +278,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level
+    // Note that internal to FillCoarsePatch we will convert velocity to momentum,
+    //      then interpolate momentum, then convert momentum back to velocity
+    // Also note that FillCoarsePatch is hard-wired to act only on lev_new at coarse and fine
     // ********************************************************************************************
-    FillCoarsePatch(lev, time, {&lev_new[Vars::cons],&lev_new[Vars::xvel],
-                                &lev_new[Vars::yvel],&lev_new[Vars::zvel]});
+    FillCoarsePatch(lev, time);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -305,9 +293,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // If we are making a new level then the FillPatcher for this level hasn't been allocated yet
     // ********************************************************************************************
-    if (cf_width > 0) {
+    if (cf_width >= 0) {
         Construct_ERFFillPatchers(lev);
-          Define_ERFFillPatchers(lev);
+           Define_ERFFillPatchers(lev);
     }
 }
 
@@ -363,13 +351,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
-#if defined(ERF_USE_WINDFARM)
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-    }
-#endif
-
-    init_stuff(lev,ba,dm);
+    init_stuff(lev, ba, dm);
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
@@ -378,7 +360,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // This will fill the temporary MultiFabs with data from vars_new
     // ********************************************************************************************
     FillPatch(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
-                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]}, false);
+                          &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
+                         {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
+                          false);
 
     // ********************************************************************************************
     // Copy from new into old just in case
@@ -426,7 +410,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     initialize_integrator(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel]);
 
     // We need to re-define the FillPatcher if the grids have changed
-    if (lev > 0 && cf_width > 0) {
+    if (lev > 0 && cf_width >= 0) {
         bool ba_changed = (ba != ba_old);
         bool dm_changed = (dm != dm_old);
         if (ba_changed || dm_changed) {
@@ -598,6 +582,16 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
         mapfac_u[lev]->setVal(1.);
         mapfac_v[lev]->setVal(1.);
     }
+
+#if defined(ERF_USE_WINDFARM)
+    //*********************************************************
+    // Variables for Ftich model for windfarm parametrization
+    //*********************************************************
+    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+    }
+#endif
 }
 
 //

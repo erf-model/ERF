@@ -165,9 +165,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *************************************************************************
     // Pre-computed quantities
     // *************************************************************************
-    int nvars                     = S_data[IntVar::cons].nComp();
-    const BoxArray& ba            = S_data[IntVar::cons].boxArray();
-    const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
+    int nvars                     = S_data[IntVars::cons].nComp();
+    const BoxArray& ba            = S_data[IntVars::cons].boxArray();
+    const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
     std::unique_ptr<MultiFab> expr;
     std::unique_ptr<MultiFab> dflux_x;
@@ -189,7 +189,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-        for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+        for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
             const Box& valid_bx = mfi.validbox();
@@ -209,7 +209,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             // Eddy viscosity
             const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
-            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVar::cons].const_array(mfi) : Array4<const Real>{};
+            const Array4<Real const>& cell_data = l_use_constAlpha ? S_data[IntVars::cons].const_array(mfi) : Array4<const Real>{};
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
@@ -487,7 +487,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     {
     std::array<FArrayBox,AMREX_SPACEDIM> flux;
 
-    for ( MFIter mfi(S_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
         Box tbx = mfi.nodaltilebox(0);
@@ -498,22 +498,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         tbz.growLo(2,-1);
         tbz.growHi(2,-1);
 
-        const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+        const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
-        const Array4<Real>       & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
+        const Array4<Real>       & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
         const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
-        Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-        Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-        Array4<Real> avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
+        Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
+        Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
         const Array4<const Real> & w = zvel.array(mfi);
 
-        const Array4<const Real>& rho_u = S_data[IntVar::xmom].array(mfi);
-        const Array4<const Real>& rho_v = S_data[IntVar::ymom].array(mfi);
-        const Array4<const Real>& rho_w = S_data[IntVar::zmom].array(mfi);
+        const Array4<const Real>& rho_u = S_data[IntVars::xmom].array(mfi);
+        const Array4<const Real>& rho_v = S_data[IntVars::ymom].array(mfi);
+        const Array4<const Real>& rho_w = S_data[IntVars::zmom].array(mfi);
 
         // Map factors
         const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
@@ -528,9 +528,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         else
             z_t = Array4<const Real>{};
 
-        const Array4<Real>& rho_u_rhs = S_rhs[IntVar::xmom].array(mfi);
-        const Array4<Real>& rho_v_rhs = S_rhs[IntVar::ymom].array(mfi);
-        const Array4<Real>& rho_w_rhs = S_rhs[IntVar::zmom].array(mfi);
+        const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
+        const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);
+        const Array4<Real>& rho_w_rhs = S_rhs[IntVars::zmom].array(mfi);
 
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
