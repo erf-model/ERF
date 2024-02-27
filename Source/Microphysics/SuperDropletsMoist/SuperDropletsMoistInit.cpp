@@ -1,5 +1,5 @@
 #include "SuperDropletsMoist.H"
-#include "MatPropLibrary.H"
+#include "MaterialProperties.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -44,8 +44,8 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     }
 
     /* create the super-droplet particle container */
-    std::shared_ptr<MatProp_Water> vapour_mat = std::make_shared<MatProp_Water>();
-    std::vector<std::shared_ptr<MaterialProperties>> aerosol_mat(1,std::make_shared<MatProp_NaCl>());
+    std::string vapour_mat = MaterialNames::h2o; // water
+    std::vector<std::string> aerosol_mat( 1, MaterialNames::nacl ); // salt
     m_super_droplets = new SuperDropletPC ( a_geom,
                                             a_cons_vars.DistributionMap(),
                                             a_cons_vars.boxArray(),
