@@ -110,14 +110,23 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     const Real aerosol_mass = m_mass_aerosol_init;
 
     // initial radius
-    const Real mat_density = 1.0; /* TODO: material object */
+    const Real mat_density = m_vapour_mat->density();
     const Real par_radius = std::exp( std::log(par_mass / ((4.0/3.0)*PI*mat_density))/3.0 );
 
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
             << "    Initial radius: " << par_radius << "\n"
-            << "    Initial mass: " << par_mass << "\n";
+            << "    Initial mass: " << par_mass << "\n"
+            << "    Vapour material: " << m_vapour_mat->name() << "\n";
+    if (m_aerosol_mat.size() > 0) {
+        Print() << "    Aerosol materials:\n";
+        for (int i=0; i < m_aerosol_mat.size(); i++) {
+            Print() << "        " << m_aerosol_mat[i]->name() << "\n";
+        }
+    }
+
+
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
@@ -263,7 +272,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
     const Real mass_aerosol = m_mass_aerosol_init;
 
     // condensate density
-    const Real mat_density = 1.0; /* TODO: material object */
+    const Real mat_density = m_vapour_mat->density();
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
