@@ -3,6 +3,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include "MaterialProperties.H"
 #include "ERFPC.H"
 
 /*! \brief Real-type array-of-struct attributes of a super-droplet */
@@ -46,22 +47,44 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Constructor */
         SuperDropletPC (  amrex::ParGDBBase* a_gdb,
+                          const std::shared_ptr<MaterialProperties>& a_vap_mat,
+                          const std::vector<std::shared_ptr<MaterialProperties>>& a_aerosol_mat,
                           const std::string& a_name = "super_droplets" )
                       : ERFPC (a_gdb, a_name)
         {
-            add_superdroplet_attributes();
-            readInputs();
+            define(a_vap_mat, a_aerosol_mat);
         }
 
         /*! \brief Constructor */
-        SuperDropletPC (  const amrex::Geometry&            a_geom,
+        SuperDropletPC (  const amrex::Geometry& a_geom,
                           const amrex::DistributionMapping& a_dmap,
-                          const amrex::BoxArray&            a_ba,
-                          const std::string&                a_name = "super_droplets" )
+                          const amrex::BoxArray& a_ba,
+                          const std::shared_ptr<MaterialProperties>& a_vap_mat,
+                          const std::vector<std::shared_ptr<MaterialProperties>>& a_aerosol_mat,
+                          const std::string& a_name = "super_droplets" )
                       : ERFPC (a_geom, a_dmap, a_ba, a_name)
         {
-            add_superdroplet_attributes();
-            readInputs();
+            define(a_vap_mat, a_aerosol_mat);
+        }
+
+        /*! \brief Set vapour material */
+        virtual inline void setVapourMaterial ( const std::shared_ptr<MaterialProperties>& a_mat_prop )
+        {
+            m_vapour_mat = a_mat_prop;
+        }
+
+        /*! \brief Set aerosol material */
+        virtual inline void setAerosolMaterial ( const std::shared_ptr<MaterialProperties>& a_mat_prop )
+        {
+            m_aerosol_mat.push_back(a_mat_prop);
+        }
+
+        /*! \brief Set aerosol material */
+        virtual inline void setAerosolMaterial ( const std::vector<std::shared_ptr<MaterialProperties>>& a_mat_prop )
+        {
+            for (int i = 0; i < a_mat_prop.size(); i++) {
+                m_aerosol_mat.push_back(a_mat_prop[i]);
+            }
         }
 
         /*! \brief Get real-type particle attribute names */
@@ -113,6 +136,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the particle mass density on a mesh */
         virtual void massDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
 
+
     protected:
 
         const int m_lev = 0; /*!< AMR Level: always 0 for super-droplets PC */
@@ -127,6 +151,9 @@ class SuperDropletPC : public ERFPC
 
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
 
+        std::shared_ptr<MaterialProperties> m_vapour_mat; /*!< Vapour material */
+        std::vector<std::shared_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
+
         /*! \brief read inputs from file */
         virtual void readInputs ();
 
@@ -135,8 +162,22 @@ class SuperDropletPC : public ERFPC
 
     private:
 
+        /*! \brief define super-droplets */
+        inline void define ( const std::shared_ptr<MaterialProperties>& a_vap_mat,
+                             const std::vector<std::shared_ptr<MaterialProperties>>& a_aerosol_mat)
+        {
+            m_aerosol_mat.clear();
+
+            add_superdroplet_attributes();
+            readInputs();
+
+            setVapourMaterial( a_vap_mat );
+            setAerosolMaterial( a_aerosol_mat );
+        }
+
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
+
 };
 
 #endif
