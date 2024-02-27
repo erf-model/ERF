@@ -1,4 +1,2 @@
 CEXE_headers += MaterialProperties.H
-CEXE_headers += MatProp_Water.H
-CEXE_headers += MatProp_NaCl.H
-CEXE_headers += MatPropLibrary.H
+CEXE_sources += MaterialProperties.cpp

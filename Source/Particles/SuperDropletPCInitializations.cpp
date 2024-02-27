@@ -14,6 +14,10 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
+    for (int i = 0; i < m_num_aerosols; i++) {
+        AddRealComp(communicate_this_comp);
+        count++;
+    }
     Print() << "SuperDropletPC: added " << count << " real-type attibute(s).\n";
     return;
 }
@@ -32,7 +36,6 @@ void SuperDropletPC::readInputs ()
     m_numdens_init = -1;
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_mass_condensate_init = 0.0;
-    m_mass_aerosol_init = 0.0;
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
@@ -40,7 +43,12 @@ void SuperDropletPC::readInputs ()
     pp.query("initial_super_droplet_density", m_numdens_sd_init);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("initial_condensate_mass", m_mass_condensate_init);
-    pp.query("initial_aerosol_mass", m_mass_aerosol_init);
+
+    for (int i = 0; i < m_num_aerosols; i++) {
+        m_mass_aerosol_init[i] = 0.0;
+        std::string key = "initial_aerosol_mass_" + m_aerosol_mat[i]->name();
+        pp.query(key.c_str(), m_mass_aerosol_init[i]);
+    }
 
     return;
 }
@@ -105,9 +113,16 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         num_par_per_cell = 1;
     }
 
+    // initial aerosol mass of each physical particle
+    const int num_aerosols = m_num_aerosols;
+    Array<Real,SuperDropletInitializations::num_aerosols_max> aerosol_mass;
+    Real aerosol_mass_total = 0.0;
+    for (int i = 0; i < num_aerosols; i++) {
+        aerosol_mass[i] = m_mass_aerosol_init[i];
+        aerosol_mass_total += m_mass_aerosol_init[i];
+    }
     // initial mass of each physical particle
-    const Real par_mass = m_mass_condensate_init + m_mass_aerosol_init;
-    const Real aerosol_mass = m_mass_aerosol_init;
+    const Real par_mass = m_mass_condensate_init + aerosol_mass_total;
 
     // initial radius
     const Real mat_density = m_vapour_mat->density();
@@ -176,9 +191,15 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         /* Runtime-added SoA attributes */
         int rt_offset = SuperDropletsRealIdxSoA::ncomps;
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
-        auto* aerosol_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sol_mass).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+
+        GpuArray<ParticleReal*,SuperDropletInitializations::num_aerosols_max> aerosol_mass_ptrs;
+        for (int i = 0; i < num_aerosols; i++) {
+            aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
+                                                    + SuperDropletsRealIdxSoA_RT::ncomps
+                                                    + i ).data();
+        }
 
         auto my_proc = ParallelDescriptor::MyProc();
         Long pid;
@@ -225,9 +246,12 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 mass_ptr[n] = par_mass;
 
                 radius_ptr[n] = par_radius;
-                aerosol_mass_ptr[n] = aerosol_mass;
                 mult_ptr[n] = multiplicity;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
+
+                for (int i = 0; i < num_aerosols; i++) {
+                    aerosol_mass_ptrs[i][n] = aerosol_mass[i];
+                }
            }
         });
 
@@ -269,7 +293,11 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
 
     const Real cell_volume = dx[0]*dx[1]*dx[2];
     const int num_sd_per_cell = m_num_sd_per_cell;
-    const Real mass_aerosol = m_mass_aerosol_init;
+
+    Real mass_aerosol = 0.0;
+    for (int i = 0; i < m_num_aerosols; i++) {
+        mass_aerosol += m_mass_aerosol_init[i];
+    }
 
     // condensate density
     const Real mat_density = m_vapour_mat->density();
