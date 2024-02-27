@@ -14,6 +14,7 @@ public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
 
     // MOSTAverage() = default;
@@ -35,8 +36,9 @@ public:
 
     // Reset the pointers to field MFs
     void update_field_ptrs (int lev,
-                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim);
+                            amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim);
 
     // Compute ncells per plane
     void set_plane_normalization ();
@@ -160,8 +162,8 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int m_nvar{3};                                                   // 3 fields for U/V/T
-    int m_navg{4};                                                   // 4 averages for U/V/T/Umag
+    int m_nvar{4};                                                   // 3 fields for U/V/T/Qv
+    int m_navg{5};                                                   // 4 averages for U/V/T/Qv/Umag
     int m_maxlev{0};                                                 // Total number of levels
     int m_policy{0};                                                 // Policy for type of averaging
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC

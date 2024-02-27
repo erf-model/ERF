@@ -64,7 +64,11 @@ ABLMost::update_fluxes (const int& lev,
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } // theta flux
-    } // Moeng flux
+    } else if (flux_type == FluxCalcType::CUSTOM) {
+        u_star[lev]->setVal(surf_mom_flux);
+        t_star[lev]->setVal(surf_temp_flux);
+        q_star[lev]->setVal(surf_moist_flux);
+    }
 }
 
 
@@ -83,7 +87,7 @@ ABLMost::compute_fluxes (const int& lev,
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2);
-    const auto *const umm_ptr = m_ma.get_average(lev,3);
+    const auto *const umm_ptr = m_ma.get_average(lev,4);
 
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
     {
@@ -121,11 +125,14 @@ ABLMost::impose_most_bcs (const int& lev,
                           MultiFab* z_phys)
 {
     const int zlo = 0;
-    if (flux_type == FluxCalcType::DONELAN) {
+    if (flux_type == FluxCalcType::MOENG) {
+        moeng_flux flux_comp(zlo);
+        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
+    } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(zlo);
         compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
-        moeng_flux flux_comp(zlo);
+        custom_flux flux_comp(zlo);
         compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
 }
@@ -208,6 +215,18 @@ ABLMost::compute_most_bcs (const int& lev,
                         lsm_flux_arr(i,j,zlo) = Tflux;
                     }
                 });
+
+                if (flux_type == FluxCalcType::CUSTOM) {
+                    n = RhoQ1_comp;
+                    ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+                        Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
+                                                              cons_arr, velx_arr, vely_arr, eta_arr,
+                                                              umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
+                                                              dest_arr);
+                    });
+                }
 
             } else if (var_idx == Vars::xvel) {
 

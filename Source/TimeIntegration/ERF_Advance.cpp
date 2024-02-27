@@ -42,9 +42,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
             IntVect ng = Theta_prim[lev]->nGrowVect();
             MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                ng = Qv_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+            }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
+            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim);
             m_most->update_fluxes(lev, time);
         }
     }
