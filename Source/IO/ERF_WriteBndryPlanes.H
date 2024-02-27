@@ -14,11 +14,11 @@
 class WriteBndryPlanes
 {
 public:
-    explicit WriteBndryPlanes(amrex::Vector<amrex::BoxArray>& grids,
-                              amrex::Vector<amrex::Geometry>& geom);
+    explicit WriteBndryPlanes (amrex::Vector<amrex::BoxArray>& grids,
+                               amrex::Vector<amrex::Geometry>& geom);
 
-    void write_planes(int t_step, amrex::Real time,
-                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new);
+    void write_planes (int t_step, amrex::Real time,
+                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new);
 
 private:
 
