@@ -23,11 +23,11 @@ using namespace amrex;
  */
 
 void VelocityToMomentum (const MultiFab& xvel_in,
-                         const IntVect& xvel_ngrow,
+                         const  IntVect& xvel_ngrow,
                          const MultiFab& yvel_in,
-                         const IntVect& yvel_ngrow,
+                         const  IntVect& yvel_ngrow,
                          const MultiFab& zvel_in,
-                         const IntVect& zvel_ngrow,
+                         const  IntVect& zvel_ngrow,
                          const MultiFab& density,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
                          bool l_use_ndiff)
@@ -61,9 +61,9 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         Array4<Real> const& momz = zmom.array(mfi);
 
         // Velocity on faces, used in computation
-        const Array4<Real const>& velx = xvel_in.array(mfi);
-        const Array4<Real const>& vely = yvel_in.array(mfi);
-        const Array4<Real const>& velz = zvel_in.array(mfi);
+        const Array4<Real const>& velx = xvel_in.const_array(mfi);
+        const Array4<Real const>& vely = yvel_in.const_array(mfi);
+        const Array4<Real const>& velz = zvel_in.const_array(mfi);
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {

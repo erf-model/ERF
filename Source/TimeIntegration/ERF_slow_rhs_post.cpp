@@ -131,9 +131,9 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     // Pre-computed quantities
     // *************************************************************************
-    int nvars                     = S_data[IntVar::cons].nComp();
-    const BoxArray& ba            = S_data[IntVar::cons].boxArray();
-    const DistributionMapping& dm = S_data[IntVar::cons].DistributionMap();
+    int nvars                     = S_data[IntVars::cons].nComp();
+    const BoxArray& ba            = S_data[IntVars::cons].boxArray();
+    const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
 
     std::unique_ptr<MultiFab> dflux_x;
     std::unique_ptr<MultiFab> dflux_y;
@@ -173,7 +173,7 @@ void erf_slow_rhs_post (int level, int finest_level,
       int start_comp;
       int   num_comp;
 
-      for ( MFIter mfi(S_data[IntVar::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+      for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& tbx  = mfi.tilebox();
 
@@ -190,23 +190,23 @@ void erf_slow_rhs_post (int level, int finest_level,
         // *************************************************************************
         // Define Array4's
         // *************************************************************************
-        const Array4<      Real> & old_cons   = S_old[IntVar::cons].array(mfi);
-        const Array4<      Real> & cell_rhs   = S_rhs[IntVar::cons].array(mfi);
+        const Array4<      Real> & old_cons   = S_old[IntVars::cons].array(mfi);
+        const Array4<      Real> & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
 
-        const Array4<      Real> & new_cons  = S_new[IntVar::cons].array(mfi);
-        const Array4<      Real> & new_xmom  = S_new[IntVar::xmom].array(mfi);
-        const Array4<      Real> & new_ymom  = S_new[IntVar::ymom].array(mfi);
-        const Array4<      Real> & new_zmom  = S_new[IntVar::zmom].array(mfi);
+        const Array4<      Real> & new_cons  = S_new[IntVars::cons].array(mfi);
+        const Array4<      Real> & new_xmom  = S_new[IntVars::xmom].array(mfi);
+        const Array4<      Real> & new_ymom  = S_new[IntVars::ymom].array(mfi);
+        const Array4<      Real> & new_zmom  = S_new[IntVars::zmom].array(mfi);
 
-        const Array4<      Real> & cur_cons  = S_data[IntVar::cons].array(mfi);
+        const Array4<      Real> & cur_cons  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cur_prim  = S_prim.array(mfi);
-        const Array4<      Real> & cur_xmom  = S_data[IntVar::xmom].array(mfi);
-        const Array4<      Real> & cur_ymom  = S_data[IntVar::ymom].array(mfi);
-        const Array4<      Real> & cur_zmom  = S_data[IntVar::zmom].array(mfi);
+        const Array4<      Real> & cur_xmom  = S_data[IntVars::xmom].array(mfi);
+        const Array4<      Real> & cur_ymom  = S_data[IntVars::ymom].array(mfi);
+        const Array4<      Real> & cur_zmom  = S_data[IntVars::zmom].array(mfi);
 
-        Array4<Real> avg_xmom = S_scratch[IntVar::xmom].array(mfi);
-        Array4<Real> avg_ymom = S_scratch[IntVar::ymom].array(mfi);
-        Array4<Real> avg_zmom = S_scratch[IntVar::zmom].array(mfi);
+        Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
+        Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
+        Array4<Real> avg_zmom = S_scratch[IntVars::zmom].array(mfi);
 
         const Array4<const Real> & u = xvel.array(mfi);
         const Array4<const Real> & v = yvel.array(mfi);
@@ -229,15 +229,15 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
         // **************************************************************************
-        int nsv = S_old[IntVar::cons].nComp() - 2;
-        const amrex::GpuArray<int, IntVar::NumVars> scomp_slow = {  2,0,0,0};
-        const amrex::GpuArray<int, IntVar::NumVars> ncomp_slow = {nsv,0,0,0};
+        int nsv = S_old[IntVars::cons].nComp() - 2;
+        const amrex::GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
+        const amrex::GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
 
         {
         BL_PROFILE("rhs_post_7");
-        ParallelFor(tbx, ncomp_slow[IntVar::cons],
+        ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
-            const int n = scomp_slow[IntVar::cons] + nn;
+            const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
         } // end profile
@@ -590,7 +590,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (l_moving_terrain)
         {
             start_comp = RhoScalar_comp;
-            num_comp   = S_data[IntVar::cons].nComp() - start_comp;
+            num_comp   = S_data[IntVars::cons].nComp() - start_comp;
             ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -677,16 +677,16 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
         BL_PROFILE("rhs_post_9");
         // This updates all the conserved variables (not just the "slow" ones)
-        int   num_comp_all = S_data[IntVar::cons].nComp();
+        int   num_comp_all = S_data[IntVars::cons].nComp();
         ParallelFor(tbx, num_comp_all,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             new_cons(i,j,k,n)  = cur_cons(i,j,k,n);
         });
         } // end profile
 
-        Box gtbx = mfi.tilebox(IntVect(1,0,0),S_old[IntVar::xmom].nGrowVect());
-        Box gtby = mfi.tilebox(IntVect(0,1,0),S_old[IntVar::ymom].nGrowVect());
-        Box gtbz = mfi.tilebox(IntVect(0,0,1),S_old[IntVar::zmom].nGrowVect());
+        Box gtbx = mfi.tilebox(IntVect(1,0,0),S_old[IntVars::xmom].nGrowVect());
+        Box gtby = mfi.tilebox(IntVect(0,1,0),S_old[IntVars::ymom].nGrowVect());
+        Box gtbz = mfi.tilebox(IntVect(0,0,1),S_old[IntVars::zmom].nGrowVect());
 
         {
         BL_PROFILE("rhs_post_10()");

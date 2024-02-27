@@ -215,7 +215,7 @@ public:
         // S_sum  = S(t)
         // F_slow = F(S_stage)
 
-        int n_data = IntVar::NumVars;
+        int n_data = IntVars::NumTypes;
 
         /**********************************************/
         /* RK3 Integration with Acoustic Sub-stepping */
@@ -264,7 +264,7 @@ public:
             // All pre_update does is call cons_to_prim, and we have done this with the old
             //     data already before starting the RK steps
             if (nrk > 0) {
-                pre_update(S_new, S_new[IntVar::cons].nGrow());
+                pre_update(S_new, S_new[IntVars::cons].nGrow());
             }
 
             // S_scratch also holds the average momenta over the fast iterations --
@@ -306,7 +306,7 @@ public:
 
             // Call the post-update hook for S_new after all the fast steps completed
             // This will update S_prim that is used in the slow RHS
-            post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            post_update(S_new, time + nsubsteps*dtau, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow());
           } // nrk
 
         } else {
@@ -322,7 +322,7 @@ public:
             // All pre_update does is call cons_to_prim, and we have done this with the old
             //     data already before starting the RK steps
             if (nrk > 0) {
-                pre_update(S_new, S_new[IntVar::cons].nGrow());
+                pre_update(S_new, S_new[IntVars::cons].nGrow());
             }
 
             // S_scratch also holds the average momenta over the fast iterations --
@@ -336,7 +336,7 @@ public:
 
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
-            post_update(S_new, time + nsubsteps*dtau, S_new[IntVar::cons].nGrow(), S_new[IntVar::xmom].nGrow());
+            post_update(S_new, time + nsubsteps*dtau, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow());
           } // nrk
         }
 

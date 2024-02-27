@@ -666,7 +666,6 @@ struct moeng_flux
                     const int& j,
                     const int& k,
                     const int& icomp,
-                    const int& var_idx,
                     const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -719,12 +718,7 @@ struct moeng_flux
         amrex::Real stressx = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-        if (var_idx == Vars::xmom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - rho*stressx/eta*deltaz;
-        } else {
-            AMREX_ALWAYS_ASSERT(var_idx == Vars::xvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
-        }
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
     }
 
     AMREX_GPU_DEVICE
@@ -734,7 +728,6 @@ struct moeng_flux
                     const int& j,
                     const int& k,
                     const int& icomp,
-                    const int& var_idx,
                     const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -787,12 +780,7 @@ struct moeng_flux
         amrex::Real stressy = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-        if (var_idx == Vars::ymom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - rho*stressy/eta*deltaz;
-        } else {
-            AMREX_ALWAYS_ASSERT(var_idx == Vars::yvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
-        }
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
     }
 
 private:
@@ -867,7 +855,6 @@ struct donelan_flux
                     const int& j,
                     const int& k,
                     const int& icomp,
-                    const int& var_idx,
                     const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -920,12 +907,7 @@ struct donelan_flux
         amrex::Real stressx = Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        if (var_idx == Vars::xmom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho*rho/eta*deltaz;
-        } else {
-            AMREX_ALWAYS_ASSERT(var_idx == Vars::xvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
-        }
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
     }
 
     AMREX_GPU_DEVICE
@@ -935,7 +917,6 @@ struct donelan_flux
                     const int& j,
                     const int& k,
                     const int& icomp,
-                    const int& var_idx,
                     const amrex::Real& dz,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -988,12 +969,7 @@ struct donelan_flux
         amrex::Real stressy = Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-        if (var_idx == Vars::ymom) {
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho*rho/eta*deltaz;
-        } else {
-            AMREX_ALWAYS_ASSERT(var_idx == Vars::yvel);
-            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
-        }
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
     }
 
 private:

@@ -69,12 +69,12 @@ void make_fast_coeffs (int /*level*/,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<const Real> & stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
