@@ -11,6 +11,7 @@
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
+#include <AMReX_Vector.H>
 #include <AMReX_Gpu.H>
 
 #include <ERFPC.H>
@@ -72,6 +73,45 @@ class ParticleData
                 pushBack( species_name, pc );
             }
             m_namelist_unalloc.clear();
+        }
+
+        /*! Get mesh plot quantities from each particle container */
+        void GetMeshPlotVarNames ( amrex::Vector<std::string>& a_names ) const
+        {
+            BL_PROFILE("ParticleData::GetMeshPlotVarNames()");
+            a_names.clear();
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                auto name( m_namelist[i] );
+                auto particles( m_particle_species.at(name) );
+
+                auto var_names = particles->meshPlotVarNames();
+                for (int n = 0; n < var_names.size(); n++) {
+                    a_names.push_back( std::string(name+"_"+var_names[n]) );
+                }
+            }
+        }
+
+        void GetMeshPlotVar (   const std::string& a_var_name,
+                                amrex::MultiFab&   a_mf,
+                                const int          a_lev )
+        {
+            BL_PROFILE("ParticleData::GetMeshPlotVar()");
+            for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                auto particle_name( m_namelist[i] );
+                auto particles( m_particle_species.at(particle_name) );
+
+                auto particle_var_names = particles->meshPlotVarNames();
+
+                for (int n = 0; n < particle_var_names.size(); n++) {
+
+                    std::string var_name = particle_name+"_"+particle_var_names[n];
+                    if ( var_name == a_var_name ) {
+                        particles->computeMeshVar(particle_var_names[n], a_mf, a_lev);
+                        return;
+                    }
+                }
+            }
+            amrex::Abort("Requested var_name not found in ParticleData::GetMeshPlotVar");
         }
 
         /*! Redistribute/rebalance particles data */
