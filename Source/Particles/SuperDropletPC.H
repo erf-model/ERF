@@ -135,6 +135,10 @@ class SuperDropletPC : public ERFPC
                     velocityComp( a_mf, 1 );
                 } else if (a_var_name == "zvel") {
                     velocityComp( a_mf, 2 );
+                } else if (a_var_name == "radius") {
+                    radius( a_mf );
+                } else if (a_var_name == "multiplicity") {
+                    multiplicity( a_mf );
                 } else {
                     for (int i = 0; i < m_num_aerosols; i++) {
                         std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
@@ -188,7 +192,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity ( amrex::MultiFab&, const int& a_comp=0 ) const override;
+        virtual void massDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle velocity component on a mesh */
         virtual void velocityComp ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle radius on a mesh */
@@ -245,6 +249,9 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
+
+        /* do not use */
+        using ERFPC::massDensity;
 
 };
 
