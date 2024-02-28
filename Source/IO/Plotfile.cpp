@@ -103,6 +103,10 @@ ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::stri
 #ifdef ERF_USE_PARTICLES
     Vector<std::string> particle_mesh_plot_names;
     particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+    Print() << "ParticleData: the following additional Eulerian variables are available to plot:\n";
+    for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+        Print() << "    " << particle_mesh_plot_names[i] << "\n";
+    }
     for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
         std::string tmp(particle_mesh_plot_names[i]);
         if (containerHasElement(plot_var_names, tmp) ) {
