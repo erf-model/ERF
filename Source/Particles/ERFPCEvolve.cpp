@@ -24,6 +24,8 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     if (m_advect_w_gravity) {
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
+
+    Redistribute();
     return;
 }
 

@@ -774,6 +774,10 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; ++lev) micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
     }
 
+    // check for additional plotting variables that are available after particle containers
+    // are setup.
+    const std::string& pv1 = "plot_vars_1"; appendPlotVariables(pv1,plot_var_names_1);
+    const std::string& pv2 = "plot_vars_2"; appendPlotVariables(pv2,plot_var_names_2);
 
     if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > 0.) )
     {
