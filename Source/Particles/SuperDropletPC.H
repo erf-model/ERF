@@ -92,12 +92,59 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Vector<std::string> varNames () const
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            return {    AMREX_D_DECL("xvel","yvel","zvel"),
-                        "particle_mass",
-                        "radius",
-                        "multiplicity",
-                        "aerosol_mass",
-                        "superdroplet_mass"};
+            amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
+                                                    "particle_mass",
+                                                    "radius",
+                                                    "multiplicity",
+                                                    "superdroplet_mass"};
+            for (int i = 0; i < m_num_aerosols; i++) {
+                retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
+            }
+            return retval;
+        }
+
+        /*! Get real-type particle attribute names */
+        virtual amrex::Vector<std::string> meshPlotVarNames () const
+        {
+            BL_PROFILE("ERFPCPC::varNames()");
+            amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
+                                                    "number_density",
+                                                    "mass_density",
+                                                    "radius",
+                                                    "multiplicity" };
+            for (int i = 0; i < m_num_aerosols; i++) {
+                retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
+            }
+            return retval;
+        }
+
+        /*! Compute mesh variable from particles */
+        virtual void computeMeshVar(    const std::string&  a_var_name,
+                                        amrex::MultiFab&    a_mf,
+                                        const int           a_lev) const
+        {
+            a_mf.setVal(0.0);
+            if (a_lev == 0) {
+                if (a_var_name == "number_density") {
+                    numberDensity( a_mf );
+                } else if (a_var_name == "mass_density") {
+                    massDensity( a_mf );
+                } else if (a_var_name == "xvel") {
+                    velocityComp( a_mf, 0 );
+                } else if (a_var_name == "yvel") {
+                    velocityComp( a_mf, 1 );
+                } else if (a_var_name == "zvel") {
+                    velocityComp( a_mf, 2 );
+                } else {
+                    for (int i = 0; i < m_num_aerosols; i++) {
+                        std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
+                        if (a_var_name == var_name) {
+                            aerosolMassDensity( a_mf, i );
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         /*! \brief Initialize super-droplets in domain */
@@ -139,10 +186,17 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Real TotalNumberOfParticles ();
 
         /*! \brief Compute the particle number density on a mesh */
-        virtual void numberDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
-
+        virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
-        virtual void massDensity( amrex::MultiFab&, const int& a_comp=0 ) const;
+        virtual void massDensity ( amrex::MultiFab&, const int& a_comp=0 ) const override;
+        /*! \brief Compute the particle velocity component on a mesh */
+        virtual void velocityComp ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the particle radius on a mesh */
+        virtual void radius ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        /*! \brief Compute the particle multiplicity on a mesh */
+        virtual void multiplicity ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        /*! \brief Compute the particle mass density on a mesh */
+        virtual void aerosolMassDensity ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
 
 
     protected:

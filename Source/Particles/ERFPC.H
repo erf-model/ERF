@@ -160,6 +160,13 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
             return {AMREX_D_DECL("xvel","yvel","zvel"),"mass"};
         }
 
+        /*! Get real-type particle attribute names */
+        virtual amrex::Vector<std::string> meshPlotVarNames () const
+        {
+            BL_PROFILE("ERFPCPC::varNames()");
+            return {"mass_density"};
+        }
+
         /*! Uses midpoint method to advance particles using flow velocity. */
         virtual void AdvectWithFlow (  amrex::MultiFab*,
                                        int,
@@ -170,6 +177,21 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         virtual void AdvectWithGravity ( int,
                                          amrex::Real,
                                          const std::unique_ptr<amrex::MultiFab>& );
+
+        /*! Compute mass density */
+        virtual void massDensity ( amrex::MultiFab&, const int&, const int& a_comp = 0) const;
+
+        /*! Compute mesh variable from particles */
+        virtual void computeMeshVar(    const std::string&  a_var_name,
+                                        amrex::MultiFab&    a_mf,
+                                        const int           a_lev) const
+        {
+            if (a_var_name == "mass_density") {
+                massDensity( a_mf, a_lev );
+            } else {
+                a_mf.setVal(0.0);
+            }
+        }
 
         /*! Specify if particles should advect with flow */
         inline void setAdvectWithFlow (bool a_flag)
