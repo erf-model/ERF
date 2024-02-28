@@ -234,6 +234,9 @@ ERF::ERF ()
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
+    // Qv prim for MOST
+    Qv_prim.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -765,7 +768,7 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -778,10 +781,16 @@ ERF::InitData ()
         {
             Real time  = t_new[lev];
             IntVect ng = Theta_prim[lev]->nGrowVect();
-            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,2);
+            MultiFab S(vars_new[lev][Vars::cons],make_alias,0,RhoTheta_comp+1);
             MultiFab::Copy(  *Theta_prim[lev], S, RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S, Rho_comp     , 0, 1, ng);
-            m_most->update_mac_ptrs(lev, vars_new, Theta_prim);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                ng = Qv_prim[lev]->nGrowVect();
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ1_comp+1);
+                MultiFab::Copy(  *Qv_prim[lev], Sm, RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], Sm, Rho_comp  , 0, 1, ng);
+            }
+            m_most->update_mac_ptrs(lev, vars_new, Theta_prim, Qv_prim);
             m_most->update_fluxes(lev, time);
         }
     }
