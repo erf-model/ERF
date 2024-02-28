@@ -375,8 +375,6 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             cell_rhs(i,j,k,qty_index) += (xflux(i+1,j  ,k  ,qty_index) - xflux(i, j, k, qty_index)) * dx_inv * mf_m(i,j,0)  // Diffusive flux in x-dir
                                         +(yflux(i  ,j+1,k  ,qty_index) - yflux(i, j, k, qty_index)) * dy_inv * mf_m(i,j,0)  // Diffusive flux in y-dir
                                         +(zflux(i  ,j  ,k+1,qty_index) - zflux(i, j, k, qty_index)) * dz_inv;               // Diffusive flux in z-dir
-
-            if (qty_index==RhoTheta_comp) hfx_z(i,j,k) = -0.5 * ( zflux(i, j, k, qty_index) + zflux(i, j, k+1, qty_index) );
         });
     }
 
