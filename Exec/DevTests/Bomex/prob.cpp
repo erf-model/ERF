@@ -5,12 +5,12 @@
 using namespace amrex;
 
 std::unique_ptr<ProblemBase>
-amrex_probinit(const amrex_real* problo, const amrex_real* probhi)
+amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
 {
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
+Problem::Problem (const amrex::Real* problo, const amrex::Real* probhi)
 {
   // Parse params
   ParmParse pp("prob");
@@ -42,11 +42,11 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 
   //===========================================================================
   // READ USER-DEFINED INPUTS
-  pp.get("advection_heating_rate", parms.advection_heating_rate);
+  pp.query("advection_heating_rate", parms.advection_heating_rate);
   pp.query("restart_time",parms.restart_time);
   pp.query("source_cutoff", parms.cutoff);
   pp.query("source_cutoff_transition", parms.cutoff_transition);
-  pp.get("advection_moisture_rate", parms.advection_moisture_rate);
+  pp.query("advection_moisture_rate", parms.advection_moisture_rate);
   pp.query("moisture_source_cutoff", parms.moisture_cutoff);
   pp.query("moisture_source_cutoff_transition", parms.moisture_cutoff_transition);
   //===========================================================================
@@ -55,7 +55,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
 }
 
 void
-Problem::init_custom_pert(
+Problem::init_custom_pert (
     const amrex::Box&  bx,
     const amrex::Box& xbx,
     const amrex::Box& ybx,
@@ -181,7 +181,7 @@ Problem::init_custom_pert(
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhotheta_sources (const amrex::Real& time,
+Problem::update_rhotheta_sources (const amrex::Real& /*time*/,
                                   amrex::Vector<amrex::Real>& src,
                                   amrex::Gpu::DeviceVector<amrex::Real>& d_src,
                                   const amrex::Geometry& geom,
@@ -223,7 +223,7 @@ Problem::update_rhotheta_sources (const amrex::Real& time,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhoqt_sources (const amrex::Real& time,
+Problem::update_rhoqt_sources (const amrex::Real& /*time*/,
                                amrex::Vector<amrex::Real>& qsrc,
                                amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
                                const amrex::Geometry& geom,
