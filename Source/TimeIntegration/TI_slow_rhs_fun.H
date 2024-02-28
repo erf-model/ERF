@@ -110,7 +110,7 @@
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_rhoqt_src, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -203,7 +203,7 @@
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_rhoqt_src, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -313,8 +313,8 @@
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src,
+                              fr_as_crse, fr_as_fine);
         } else {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
@@ -329,8 +329,8 @@
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src,
+                              fr_as_crse, fr_as_fine);
         }
     }; // end slow_rhs_fun_post
 
@@ -363,7 +363,7 @@
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_rhotheta_src, dptr_rhoqt_src, d_rayleigh_ptrs_at_lev);
+                         dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
 
 
 #ifdef ERF_USE_NETCDF

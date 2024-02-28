@@ -55,7 +55,6 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
                       const amrex::Real* dptr_rhotheta_src,
-                      const amrex::Real* dptr_rhoqt_src,
                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 
 /**
@@ -100,6 +99,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
+                       const amrex::Real* dptr_rhoqt_src,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine);
 
@@ -266,8 +266,6 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                       const amrex::Real* dptr_rhotheta_src,
-                       const amrex::Real* dptr_rhoqt_src,
                        const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 #endif
 

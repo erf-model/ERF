@@ -104,7 +104,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const amrex::Real* dptr_rhotheta_src,
-                       const amrex::Real* dptr_rhoqt_src,
                        const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
@@ -738,22 +737,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i, j, k, n) += dptr_rhotheta_src[k];
-                });
-            }
-        }
-
-        if (solverChoice.custom_moisture_forcing) {
-            const int n = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhoqt_src[k];
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += dptr_rhoqt_src[k];
                 });
             }
         }
