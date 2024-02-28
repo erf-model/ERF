@@ -184,6 +184,7 @@ ABLMost::compute_most_bcs (const int& lev,
         // Get derived arrays
         const auto u_star_arr = u_star[lev]->array(mfi);
         const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
         const auto t_surf_arr = t_surf[lev]->array(mfi);
 
         // Get LSM fluxes
@@ -216,6 +217,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     }
                 });
 
+                // TODO: Generalize MOST q flux with MOENG & DONELAN flux types
                 if (flux_type == FluxCalcType::CUSTOM) {
                     n = RhoQ1_comp;
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -223,7 +225,7 @@ ABLMost::compute_most_bcs (const int& lev,
                         Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
                                                               cons_arr, velx_arr, vely_arr, eta_arr,
-                                                              umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
+                                                              umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
                     });
                 }

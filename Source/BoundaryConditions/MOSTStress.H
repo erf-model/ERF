@@ -629,6 +629,7 @@ struct moeng_flux
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eps);
 
+        // TODO: Integrate MOST with moisture and MOENG FLUX type
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -882,6 +883,7 @@ struct donelan_flux
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eps);
 
+        // TODO: Integrate MOST with moisture and DONELAN FLUX type
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1118,7 +1120,7 @@ struct custom_flux
         eta   = amrex::max(eta,eps);
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(qstar) > eps) ? qstar : 0.0;
+        amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
@@ -1165,7 +1167,7 @@ struct custom_flux
         eta   = amrex::max(eta,eps);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? tstar : 0.0;
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
@@ -1218,12 +1220,11 @@ struct custom_flux
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
         eta   = amrex::max(eta,eps);
 
-        amrex::Real ustar    = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
-
         // Note: The surface mean shear stress is decomposed into tau_xz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
         //       modifies the demoninator from what is in Moeng 1984.
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressx = rho * ustar * ustar * velx / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
@@ -1276,12 +1277,11 @@ struct custom_flux
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
         eta   = amrex::max(eta,eps);
 
-        amrex::Real ustar     = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
-
         // Note: The surface mean shear stress is decomposed into tau_yz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
         //       modifies the demoninator from what is in Moeng 1984.
+        amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressy = rho * ustar * ustar * vely / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
