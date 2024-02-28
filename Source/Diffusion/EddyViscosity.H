@@ -20,7 +20,6 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            const TurbChoice& turbChoice, const amrex::Real const_grav,
                            std::unique_ptr<ABLMost>& most,
                            const amrex::BCRec* bc_ptr,
-                           const int& qstate_size,
                            bool vert_only = false);
 
 AMREX_GPU_DEVICE
