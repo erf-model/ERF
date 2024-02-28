@@ -377,12 +377,24 @@ void ReadBndryPlanes::read_file (const int idx,
         if (ori.coordDir() < 2) {
             FArrayBox& d = (*data_to_fill[ori])[lev];
             const auto& bx = d.box();
-            Array4<Real> d_arr    = d.array();
+            Array4<Real> d_arr = d.array();
             ParallelFor(
                 bx, ncomp_for_bc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                 d_arr(i,j,k,n) = 0.;
             });
         }
+    }
+
+    // Read density for primitive to conserved conversions
+    std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
+    BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
+    bndry_r.setVal(1.0e13);
+    for (OrientationIter oit; oit != nullptr; ++oit) {
+          auto ori = oit();
+          if (ori.coordDir() < 2) {
+              std::string facenamer = Concatenate(filenamer + '_', ori, 1);
+              bndry_r[ori].read(facenamer);
+          }
     }
 
     for (int ivar = 0; ivar < m_var_names.size(); ivar++)
@@ -440,8 +452,9 @@ void ReadBndryPlanes::read_file (const int idx,
             for (MFIter mfi(bndryMF); mfi.isValid(); ++mfi) {
 
                 const auto& vbx = mfi.validbox();
-                const auto& bndry_read_arr = bndry[ori].array(mfi);
-                const auto& bndry_mf_arr   = bndryMF.array(mfi);
+                const auto& bndry_read_arr   = bndry[ori].array(mfi);
+                const auto& bndry_read_r_arr = bndry_r[ori].array(mfi);
+                const auto& bndry_mf_arr     = bndryMF.array(mfi);
 
                 const auto& bx = bbx & vbx;
                 if (bx.isEmpty()) {
@@ -458,8 +471,8 @@ void ReadBndryPlanes::read_file (const int idx,
                   if (var_name == "temperature") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                             Real R1 =  bndry_read_arr(i, j, k, n_for_density);
-                             Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
+                             Real R1 =  bndry_read_r_arr(i, j, k, 0);
+                             Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real T1 =  bndry_read_arr(i, j, k, 0);
                              Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
@@ -470,7 +483,7 @@ void ReadBndryPlanes::read_file (const int idx,
                              var_name == "KE" || var_name == "QKE") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                             Real R1 =  bndry_read_arr(i, j, k, n_for_density);
+                             Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
                              bndry_mf_arr(i, j, k, 0) = 0.5 *
                                   ( R1 * bndry_read_arr(i, j, k, 0) +

@@ -71,4 +71,4 @@ prob.W_0_Pert_Mag = 0.0
 
 erf.input_bndry_planes = 1
 erf.bndry_file = "BndryFiles"
-erf.bndry_input_var_names = density temperature velocity 
+erf.bndry_input_var_names = temperature density velocity 
