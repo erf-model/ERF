@@ -211,9 +211,9 @@ struct SolverChoice {
 
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
-	pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
+        pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
-	pp.query("Ave_Plane", ave_plane);
+        pp.query("Ave_Plane", ave_plane);
 
         pp.query("mp_clouds", do_cloud);
         pp.query("mp_precip", do_precip);

@@ -54,24 +54,24 @@ erf.Cs              = 0.1
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true
 
-# Higher values of perturbations lead to instability
-# Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.01
-prob.V_0_Pert_Mag = 0.01 #
-prob.W_0_Pert_Mag = 0.0
-
-prob.pert_ref_height = 400.0
-prob.T_pert       = 0.1
-prob.qv_pert      = 0.025
-
 erf.add_custom_rhotheta_forcing = true
 erf.add_custom_moisture_forcing = true
 erf.custom_forcing_uses_primitive_vars = false
 
-erf.advection_heating_rate   = -2.3148E-5
-erf.source_cutoff            = 1500.0
-erf.source_cutoff_transition = 3000.0
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01 
+prob.W_0_Pert_Mag = 0.0
 
-erf.advection_moisture_rate   		= -1.2E-8
-erf.moisture_source_cutoff            	= 300.0
-erf.moisture_source_cutoff_transition 	= 500.0
+prob.pert_ref_height = 400.0
+prob.T_pert          = 0.1
+prob.qv_pert         = 0.025
+
+prob.advection_heating_rate   = -2.3148E-5
+prob.source_cutoff            = 1500.0
+prob.source_cutoff_transition = 3000.0
+
+prob.advection_moisture_rate   		    = -1.2E-8
+prob.moisture_source_cutoff            	= 300.0
+prob.moisture_source_cutoff_transition 	= 500.0

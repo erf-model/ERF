@@ -37,12 +37,12 @@ struct ProbParm : ProbParmDefaults {
   //==============================================
   // USER-DEFINED INPUTS
   // source terms
-  amrex::Real advection_heating_rate;
+  amrex::Real advection_heating_rate = 0.0;
   amrex::Real restart_time = 9e9;
   amrex::Real cutoff = 500.0;
   amrex::Real cutoff_transition = 50.0;
 
-  amrex::Real advection_moisture_rate;
+  amrex::Real advection_moisture_rate = 0.0;
   amrex::Real moisture_cutoff = 500.0;
   amrex::Real moisture_cutoff_transition = 50.0;
   //==============================================
@@ -57,7 +57,7 @@ struct ProbParm : ProbParmDefaults {
 class Problem : public ProblemBase
 {
 public:
-    Problem(const amrex::Real* problo, const amrex::Real* probhi);
+    Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
 #include "Prob/init_constant_density_hse.H"
 #include "Prob/init_rayleigh_damping.H"
@@ -82,21 +82,21 @@ public:
         const SolverChoice& sc) override;
 
     void update_rhotheta_sources (
-        const amrex::Real& time,
+        const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& src,
         amrex::Gpu::DeviceVector<amrex::Real>& d_src,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
     void update_rhoqt_sources (
-        const amrex::Real& time,
+        const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& qsrc,
         amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
-    std::string name() override { return "ABL"; }
+    std::string name () override { return "BOMEX"; }
 
 private:
     ProbParm parms;

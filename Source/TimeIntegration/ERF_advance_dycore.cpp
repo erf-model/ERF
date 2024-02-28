@@ -202,9 +202,9 @@ void ERF::advance_dycore(int level,
     }
 
     if (solverChoice.custom_moisture_forcing) {
-	prob->update_rhoqt_sources(old_time,
-                                      h_rhoqt_src[level], d_rhoqt_src[level],
-                                      fine_geom, z_phys_cc[level]);
+        prob->update_rhoqt_sources(old_time,
+                                   h_rhoqt_src[level], d_rhoqt_src[level],
+                                   fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************

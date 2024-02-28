@@ -99,7 +99,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
-		       const Vector<amrex::Real*> d_rayleigh_dptrs)
+                       const Vector<amrex::Real*> d_rayleigh_dptrs)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -666,7 +666,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
             }
         }
 
-	if (solverChoice.custom_moisture_forcing) {
+        if (solverChoice.custom_moisture_forcing) {
             const int n = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
