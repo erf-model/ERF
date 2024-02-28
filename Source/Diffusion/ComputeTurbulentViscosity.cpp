@@ -150,8 +150,18 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           // Calculate stratification-dependent mixing length (Deardorff 1980)
           Real eps       = std::numeric_limits<Real>::epsilon();
-          Real dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+          Real dtheta_dz;
+          if (use_most && k==klo) {
+              dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
+                                    / cell_data(i,j,k  ,Rho_comp)
+                                + 4 * cell_data(i,j,k+1,RhoTheta_comp)
+                                    / cell_data(i,j,k+1,Rho_comp)
+                                -     cell_data(i,j,k+2,RhoTheta_comp)
+                                    / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+          } else {
+              dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+          }
           Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
           Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
           Real length;

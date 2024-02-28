@@ -476,6 +476,13 @@ ERF::InitData ()
     // Initialize the start time for our CPU-time tracker
     startCPUTime = amrex::ParallelDescriptor::second();
 
+    // Create the ReadBndryPlanes object so we can read boundary plane data
+    // m_r2d is used by init_bcs so we must instantiate this class before
+    if (input_bndry_planes) {
+        amrex::Print() << "Defining r2d for the first time " << std::endl;
+        m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
+    }
+
     // Map the words in the inputs file to BC types, then translate
     //     those types into what they mean for each variable
     init_bcs();
@@ -608,14 +615,11 @@ ERF::InitData ()
     }
 
     if (input_bndry_planes) {
-        // Create the ReadBndryPlanes object so we can handle reading of boundary plane data
-        amrex::Print() << "Defining r2d for the first time " << std::endl;
-        m_r2d = std::make_unique< ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
-
         // Read the "time.dat" file to know what data is available
         m_r2d->read_time_file();
 
-        amrex::Real dt_dummy = 1.e200;
+        // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
+        amrex::Real dt_dummy = 0.0;
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 

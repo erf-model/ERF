@@ -60,24 +60,15 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
         for (MFIter mfi(mf); mfi.isValid(); ++mfi)
         {
             const Array4<Real>& dest_arr = mf.array(mfi);
-            Box bx = mfi.validbox();
+            Box bx = mfi.growntilebox();
 
             // x-faces
             {
-            Box bx_xlo(bx);
-            bx_xlo.setSmall(0,dom_lo.x-1); bx_xlo.setBig(0,dom_lo.x-1);
-            bx_xlo.setSmall(1,dom_lo.y); bx_xlo.setBig(1,dom_hi.y);
-            bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
-            if (var_idx == Vars::xvel) {
-                bx_xlo.setSmall(0,dom_lo.x); bx_xlo.setBig(0,dom_lo.x);
-            } else {
-                bx_xlo.setSmall(0,dom_lo.x-1); bx_xlo.setBig(0,dom_lo.x-1);
-            }
+            Box bx_xlo(bx); bx_xlo.setBig(0,dom_lo.x-1);
+            if (var_idx == Vars::xvel) bx_xlo.setBig(0,dom_lo.x);
 
-            Box bx_xhi(bx);
-            bx_xhi.setSmall(1,dom_lo.y  ); bx_xhi.setBig(1,dom_hi.y  );
-            bx_xhi.setSmall(2,dom_lo.z  ); bx_xhi.setBig(2,dom_hi.z  );
-            bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setBig(0,dom_hi.x+1);
+            Box bx_xhi(bx); bx_xhi.setSmall(0,dom_hi.x+1);
+            if (var_idx == Vars::xvel) bx_xhi.setSmall(0,dom_hi.x);
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -95,19 +86,11 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
 
             // y-faces
             {
-            Box bx_ylo(bx);
-            bx_ylo.setSmall(0,dom_lo.x); bx_ylo.setBig(0,dom_hi.x);
-            bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
-            if (var_idx == Vars::yvel) {
-                bx_ylo.setSmall(1,dom_lo.y); bx_ylo.setBig(1,dom_lo.y);
-            } else {
-                bx_ylo.setSmall(1,dom_lo.y-1); bx_ylo.setBig(1,dom_lo.y-1);
-            }
+            Box bx_ylo(bx); bx_ylo.setBig  (1,dom_lo.y-1);
+            if (var_idx == Vars::yvel) bx_ylo.setBig(1,dom_lo.y);
 
-            Box bx_yhi(bx);
-            bx_yhi.setSmall(0,dom_lo.x  ); bx_yhi.setBig(0,dom_hi.x);
-            bx_yhi.setSmall(2,dom_lo.z  ); bx_yhi.setBig(2,dom_hi.z);
-            bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setBig(1,dom_hi.y+1);
+            Box bx_yhi(bx); bx_yhi.setSmall(1,dom_hi.y+1);
+            if (var_idx == Vars::yvel) bx_yhi.setSmall(1,dom_hi.y);
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
