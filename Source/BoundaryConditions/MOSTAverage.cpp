@@ -361,7 +361,7 @@ MOSTAverage::set_norm_indices_T()
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto i_arr = m_i_indx[lev]->array(mfi);
@@ -429,20 +429,22 @@ MOSTAverage::set_z_positions_T()
         const auto dx = m_geom[lev].CellSizeArray();
         IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto x_pos_arr   = m_x_pos[lev]->array(mfi);
-            auto y_pos_arr   = m_y_pos[lev]->array(mfi);
-            auto z_pos_arr   = m_z_pos[lev]->array(mfi);
+            auto x_pos_arr = m_x_pos[lev]->array(mfi);
+            auto y_pos_arr = m_y_pos[lev]->array(mfi);
+            auto z_pos_arr = m_z_pos[lev]->array(mfi);
             ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = ((Real) i + 0.5) * dx[0];
                 y_pos_arr(i,j,k) = ((Real) j + 0.5) * dx[1];
-                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + d_zref;
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                z_pos_arr(i,j,k) = z_bot_face + d_zref;
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
@@ -789,9 +791,9 @@ MOSTAverage::compute_region_averages(int lev)
                       for (int lj(-d_radius); lj <= (d_radius); ++lj) {
                         for (int li(-d_radius); li <= (d_radius); ++li) {
                             Real interp{0};
-                            Real xp = x_pos_arr(i,j,k) + li*dx[0];
-                            Real yp = y_pos_arr(i,j,k) + lj*dx[1];
-                            Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            Real xp = x_pos_arr(i+li,j+lj,k);
+                            Real yp = y_pos_arr(i+li,j+lj,k);
+                            Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
                             Real val = denom * interp * d_fact_new;
                             ma_arr(i,j,k) += val;
@@ -861,9 +863,9 @@ MOSTAverage::compute_region_averages(int lev)
                         for (int li(-d_radius); li <= (d_radius); ++li) {
                             Real u_interp{0};
                             Real v_interp{0};
-                            Real xp = x_pos_arr(i,j,k) + li*dx[0];
-                            Real yp = y_pos_arr(i,j,k) + lj*dx[1];
-                            Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            Real xp = x_pos_arr(i+li,j+lj,k);
+                            Real yp = y_pos_arr(i+li,j+lj,k);
+                            Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                             trilinear_interp_T(xp, yp, zp, &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                             Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp);

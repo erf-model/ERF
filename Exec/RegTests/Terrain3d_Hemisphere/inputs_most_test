@@ -12,13 +12,6 @@ geometry.prob_hi     = 10.  1.  2.
 amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 geometry.is_periodic = 1 1 0
-
-#xlo.type = "Inflow"
-#xhi.type = "Outflow"
-#xlo.velocity = 1. 0. 0.
-#xlo.density  = 1.16
-#xlo.theta    = 300.
-#xlo.scalar   = 0.
     
 zhi.type = "SlipWall"
 
@@ -40,6 +33,7 @@ erf.most.zref              = 0.075    # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
 erf.most.radius            = 1       # SPECIFIED REGION RADIUS
 #-----------------------------------------------------------------
 #erf.most.time_window       = 50.0    # WINDOW FOR TIME AVG
+#=================================================================
     
     
 # TIME STEP CONTROL
