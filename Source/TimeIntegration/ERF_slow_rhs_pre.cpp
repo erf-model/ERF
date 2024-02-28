@@ -105,7 +105,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_fine,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_rhoqt_src,
-		       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev)
+                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 

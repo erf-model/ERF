@@ -181,12 +181,11 @@ Problem::init_custom_pert(
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhotheta_sources (
-    const amrex::Real& time,
-    amrex::Vector<amrex::Real>& src,
-    amrex::Gpu::DeviceVector<amrex::Real>& d_src,
-    const amrex::Geometry& geom,
-    std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_rhotheta_sources (const amrex::Real& time,
+                                  amrex::Vector<amrex::Real>& src,
+                                  amrex::Gpu::DeviceVector<amrex::Real>& d_src,
+                                  const amrex::Geometry& geom,
+                                  std::unique_ptr<amrex::MultiFab>& z_phys_cc)
 {
     if (src.empty()) return;
 
@@ -203,20 +202,19 @@ Problem::update_rhotheta_sources (
         zlevels.resize(khi+1);
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
-    
+
     // Only apply temperature source below nominal inversion height
-    for (int k = 0; k <= khi; k++) 
-    {
-    	const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-	if (z_cc < parms.cutoff) {
-		src[k] = parms.advection_heating_rate;
-	} else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-		src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        if (z_cc < parms.cutoff) {
+            src[k] = parms.advection_heating_rate;
+        } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
+            src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
         } else {
-        	src[k] = 0.0;
+            src[k] = 0.0;
         }
     }
-    
+
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
 }
@@ -225,12 +223,11 @@ Problem::update_rhotheta_sources (
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhoqt_sources (
-    const amrex::Real& time,
-    amrex::Vector<amrex::Real>& qsrc,
-    amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
-    const amrex::Geometry& geom,
-    std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_rhoqt_sources (const amrex::Real& time,
+                               amrex::Vector<amrex::Real>& qsrc,
+                               amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
+                               const amrex::Geometry& geom,
+                               std::unique_ptr<amrex::MultiFab>& z_phys_cc)
 {
     if (qsrc.empty()) return;
 
@@ -249,16 +246,15 @@ Problem::update_rhoqt_sources (
     }
 
     // Only apply temperature source below nominal inversion height
-    for (int k = 0; k <= khi; k++) 
-    {
-	const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
-	if (z_cc < parms.moisture_cutoff) {
-		qsrc[k] = parms.advection_moisture_rate;
-	} else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
-                qsrc[k] = parms.advection_moisture_rate * (z_cc-parms.moisture_cutoff)/parms.moisture_cutoff_transition;
-	} else {
-                qsrc[k] = 0.0;
-	}
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        if (z_cc < parms.moisture_cutoff) {
+            qsrc[k] = parms.advection_moisture_rate;
+        } else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
+            qsrc[k] = parms.advection_moisture_rate * (z_cc-parms.moisture_cutoff)/parms.moisture_cutoff_transition;
+        } else {
+            qsrc[k] = 0.0;
+        }
     }
 
     // Copy from host version to device version
