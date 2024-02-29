@@ -286,9 +286,9 @@ public:
         MODIFIED_CHARNOCK
     };
 
-    FluxCalcType  flux_type;
-    ThetaCalcType theta_type;
-    RoughCalcType rough_type;
+    FluxCalcType   flux_type{FluxCalcType::MOENG};
+    ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
+    RoughCalcType rough_type{RoughCalcType::CONSTANT};
 
 private:
     bool use_moisture;
