@@ -317,13 +317,15 @@ MOSTAverage::set_k_indices_T()
         for (int lev(0); lev < m_maxlev; lev++) {
             int kmax = m_geom[lev].Domain().bigEnd(2);
             for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+                Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
                 const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                 auto k_arr = m_k_indx[lev]->array(mfi);
                 ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     k_arr(i,j,k) = 0;
-                    Real z_target = d_zref + z_phys_arr(i,j,k);
+                    Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                              + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                    Real z_target    = z_bot_face + d_zref;
                     for (int lk(0); lk<=kmax; ++lk) {
                         Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
                                            + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
@@ -392,7 +394,9 @@ MOSTAverage::set_norm_indices_T()
                 j_arr(i,j,k) = j_new;
 
                 // Search for k (grid is stretched in z)
-                Real z_target = delta_z + z_phys_arr(i,j,k);
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                Real z_target    = z_bot_face + delta_z;
                 for (int lk(0); lk<=kmax; ++lk) {
                     Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
                                        + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
@@ -479,7 +483,7 @@ MOSTAverage::set_norm_positions_T()
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
@@ -506,7 +510,9 @@ MOSTAverage::set_norm_positions_T()
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = x0 + delta_x;
                 y_pos_arr(i,j,k) = y0 + delta_y;
-                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + delta_z;
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                z_pos_arr(i,j,k) = z_bot_face + delta_z;
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
