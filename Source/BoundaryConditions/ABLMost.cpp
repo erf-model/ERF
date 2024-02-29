@@ -174,7 +174,8 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto *const u_mean     = m_ma.get_average(lev,0);
         const auto *const v_mean     = m_ma.get_average(lev,1);
         const auto *const t_mean     = m_ma.get_average(lev,2);
-        const auto *const u_mag_mean = m_ma.get_average(lev,3);
+        const auto *const q_mean     = m_ma.get_average(lev,3);
+        const auto *const u_mag_mean = m_ma.get_average(lev,4);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
@@ -202,7 +203,6 @@ ABLMost::compute_most_bcs (const int& lev,
                 Box b2d = bx;
                 b2d.setBig(2,zlo-1);
                 int n = RhoTheta_comp;
-
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
