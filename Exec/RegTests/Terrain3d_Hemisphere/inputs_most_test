@@ -18,7 +18,7 @@ zhi.type = "SlipWall"
 # MOST BOUNDARY
 #=================================================================
 zlo.type                   = "Most"
-erf.most.average_policy    = 1       # POLICY FOR AVERAGING
+erf.most.average_policy    = 0       # POLICY FOR AVERAGING
 erf.most.use_normal_vector = false   # USE NORMAL VECTOR W/ TERRAIN
 erf.most.use_interpolation = true    # USE INTERPOLATION ON DESTINATION   
 #erf.most.time_average      = true    # USE TIME AVERAGING
@@ -81,3 +81,7 @@ erf.alpha_T = 0.0 # [m^2/s]
 prob.T_0   = 300.0
 prob.U_0   = 1.0
 prob.rho_0 = 1.16
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01
+prob.W_0_Pert_Mag = 0.0
+prob.pert_ref_height = 1.0

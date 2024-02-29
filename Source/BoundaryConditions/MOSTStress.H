@@ -627,7 +627,7 @@ struct moeng_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and MOENG FLUX type
         amrex::Real moflux  = 0.0;
@@ -686,7 +686,7 @@ struct moeng_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -749,7 +749,7 @@ struct moeng_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real umean    = um_arr(i,j,zlo);
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
@@ -811,7 +811,7 @@ struct moeng_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real vmean     = vm_arr(i,j,zlo);
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
@@ -832,7 +832,8 @@ struct moeng_flux
 
 private:
     int zlo;
-    const amrex::Real eps = 1e-16;
+    const amrex::Real     eps = 1e-15;
+    const amrex::Real eta_eps = 1e-8;
 };
 
 
@@ -881,7 +882,7 @@ struct donelan_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and DONELAN FLUX type
         amrex::Real moflux  = 0.0;
@@ -928,7 +929,7 @@ struct donelan_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -985,7 +986,7 @@ struct donelan_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -1047,7 +1048,7 @@ struct donelan_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -1068,7 +1069,7 @@ struct donelan_flux
 
 private:
     int zlo;
-    const amrex::Real eps = 1e-16;
+    const amrex::Real eta_eps = 1e-8;
 };
 
 
@@ -1117,7 +1118,7 @@ struct custom_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
@@ -1164,7 +1165,7 @@ struct custom_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
@@ -1218,12 +1219,8 @@ struct custom_flux
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
-        // Note: The surface mean shear stress is decomposed into tau_xz by
-        //       multiplying the modeled shear stress (rho*ustar^2) with
-        //       a factor of umean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressx = rho * ustar * ustar * velx / wsp;
@@ -1275,12 +1272,8 @@ struct custom_flux
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eps);
+        eta   = amrex::max(eta,eta_eps);
 
-        // Note: The surface mean shear stress is decomposed into tau_yz by
-        //       multiplying the modeled shear stress (rho*ustar^2) with
-        //       a factor of vmean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressy = rho * ustar * ustar * vely / wsp;
@@ -1291,6 +1284,7 @@ struct custom_flux
 
 private:
     int zlo;
-    const amrex::Real eps = 1e-16;
+    const amrex::Real     eps = 1e-15;
+    const amrex::Real eta_eps = 1e-8;
 };
 #endif
