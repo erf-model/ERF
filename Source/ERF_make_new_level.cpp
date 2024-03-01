@@ -578,8 +578,14 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
     // ********************************************************************************************
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
       Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+      if (solverChoice.moisture_type != MoistureType::None) {
+          Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+      } else {
+          Qv_prim[lev]    = nullptr;
+      }
     } else {
       Theta_prim[lev] = nullptr;
+      Qv_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************

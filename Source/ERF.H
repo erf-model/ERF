@@ -544,8 +544,9 @@ private:
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
 
-    // Store Theta variable for MOST BC
+    // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qv_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
