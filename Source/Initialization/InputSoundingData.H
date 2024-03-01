@@ -175,7 +175,6 @@ public:
                                                       pm_integ[k],
                                                       R_d/Cp_d,
                                                       qv);
-                amrex::Print() << k << " " << it << " " << pm_integ[k] << " " << rhod_integ[k] << std::endl;
             }
 #if 1       // Printing
             amrex::Print() << z_inp_sound[k]
