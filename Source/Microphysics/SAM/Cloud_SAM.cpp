@@ -115,7 +115,9 @@ void SAM::Cloud () {
             if (qt_array(i,j,k) > qsat) {
                 niter = 0;
                 dtabs = 1;
-                //  Newton iteration for driving to equilibrium
+                //==================================================
+                // Newton iteration to qv=qsat (cloud phase only)
+                //==================================================
                 do {
                     // Latent heats and their derivatives wrt to T
                     lstarw  = fac_cond;

@@ -18,21 +18,23 @@ class ReadBndryPlanes
 {
 
 public:
-    explicit ReadBndryPlanes(const amrex::Geometry& geom,
-                             const amrex::Real& rdOcp_in);
+    explicit ReadBndryPlanes (const amrex::Geometry& geom,
+                              const amrex::Real& rdOcp_in);
 
-    void define_level_data(int lev);
+    void define_level_data (int lev);
 
-    void read_time_file();
+    void read_time_file ();
 
-    void read_input_files(amrex::Real time, amrex::Real dt,
-        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
+    void read_input_files (amrex::Real time,
+                           amrex::Real dt,
+                           amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
 
-    void read_file(int idx, amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
-        amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
+    void read_file (int idx,
+                    amrex::Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
+                    amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals);
 
     // Return the pointer to PlaneVectors at time "time"
-    amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time(const amrex::Real& time);
+    amrex::Vector<std::unique_ptr<PlaneVector>>& interp_in_time (const amrex::Real& time);
 
     [[nodiscard]] amrex::Real tinterp() const { return m_tinterp; }
 
