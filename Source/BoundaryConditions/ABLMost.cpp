@@ -65,9 +65,9 @@ ABLMost::update_fluxes (const int& lev,
             }
         } // theta flux
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        u_star[lev]->setVal(surf_mom_flux);
-        t_star[lev]->setVal(surf_temp_flux);
-        q_star[lev]->setVal(surf_moist_flux);
+        u_star[lev]->setVal(custom_ustar);
+        t_star[lev]->setVal(custom_tstar);
+        q_star[lev]->setVal(custom_qstar);
     }
 }
 
