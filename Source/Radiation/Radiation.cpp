@@ -45,7 +45,7 @@ namespace internal {
     fluxes.bnd_flux_dn_dir = real3d("flux_dn_dir", nz, nlay+1, nbands);
   }
 
-  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes,
+  void expand_day_fluxes(const FluxesByband& daytime_fluxes, FluxesByband& expanded_fluxes, 
                          const int1d& day_indices) {
       auto ncol  = size(daytime_fluxes.bnd_flux_up, 1);
       auto nlev  = size(daytime_fluxes.bnd_flux_up, 2);
@@ -64,7 +64,7 @@ printf("daynight indices(check): %d, %d, %d\n",icol,day_indices(icol),nday_1d(1)
       parallel_for(SimpleBounds<3>(nday, nlev, nbnds), YAKL_LAMBDA (int iday, int ilev, int ibnd) {
         // Map daytime index to proper column index
         // auto icol = day_indices(iday);
-         auto icol = iday;
+         auto icol = iday; 
          // Expand broadband fluxes
          expanded_fluxes.flux_up(icol,ilev) = daytime_fluxes.flux_up(iday,ilev);
          expanded_fluxes.flux_dn(icol,ilev) = daytime_fluxes.flux_dn(iday,ilev);
@@ -89,7 +89,7 @@ printf("daynight indices(check): %d, %d, %d\n",icol,day_indices(icol),nday_1d(1)
 }
 
 // init
-void Radiation::initialize(const MultiFab& cons_in,
+void Radiation::initialize(const MultiFab& cons_in, 
                            const MultiFab& qmoist,
                            const BoxArray& grids,
                            const Geometry& geom,
@@ -193,7 +193,7 @@ void Radiation::initialize(const MultiFab& cons_in,
 
    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev) {
      zi(icol, ilev)  = lowz + (ilev+0.5)*dz;
-     pdel(icol,ilev) = pint(icol,ilev+1) - pint(icol,ilev);
+     pdel(icol,ilev) = pint(icol,ilev+1) - pint(icol,ilev);  
    });
 
    albedo_dir = real2d("albedo_dir", nswbands, ncol);
@@ -317,10 +317,10 @@ void Radiation::run() {
        icswp(i,k) = qn(i,k)/std::max(1.0e-4,cldfsnow(i,k))*pmid(i,k)/CONST_GRAV;
      });
 
-     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid,
+     m2005_effradius(qc, qc, qi, qi, qt, qt, cld, pmid, tmid, 
                      rel, rei, dei, lambdac, mu, des);
 
-     // calculate the cloud radiation
+     // calculate the cloud radiation  
      optics.get_cloud_optics_sw(ncol, nlev, nswbands, do_snow_optics, cld,
                                 cldfsnow, iclwp, iciwp, icswp,
                                 lambdac, mu, dei, des, rel, rei,
@@ -503,12 +503,12 @@ void Radiation::run() {
 }
 
 void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
-           const real2d& pmid, const real2d& pint, const real2d& tmid,
-           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs,
+           const real2d& pmid, const real2d& pint, const real2d& tmid, 
+           const real2d& albedo_dir, const real2d& albedo_dif, const real1d& coszrs, 
            const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
            const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
-           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs,
-           const real2d& qrsc)
+           FluxesByband& fluxes_clrsky, FluxesByband& fluxes_allsky, const real2d& qrs, 
+           const real2d& qrsc) 
 {
    // Incoming solar radiation, scaled for solar zenith angle
    // and earth-sun distance
@@ -639,7 +639,7 @@ void Radiation::radiation_driver_sw(int ncol, const real3d& gas_vmr,
    });
 
    // Do shortwave radiative transfer calculations
-   radiation.run_shortwave_rrtmgp( ngas, num_day(1), nlev, gas_vmr_rad, pmid,
+   radiation.run_shortwave_rrtmgp( ngas, num_day(1), nlev, gas_vmr_rad, pmid, 
       tmid_day, pint_day, coszrs_day, albedo_dir_day, albedo_dif_day,
       cld_tau_gpt_rad, cld_ssa_gpt_rad, cld_asm_gpt_rad, aer_tau_bnd_rad, aer_ssa_bnd_rad, aer_asm_bnd_rad,
       fluxes_allsky_day.flux_up    , fluxes_allsky_day.flux_dn    , fluxes_allsky_day.flux_net    , fluxes_allsky_day.flux_dn_dir    ,
