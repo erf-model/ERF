@@ -1,5 +1,4 @@
 #include "Kessler.H"
-#include "EOS.H"
 
 /**
  * Computes diagnostic quantities like cloud ice/liquid and precipitation ice/liquid
