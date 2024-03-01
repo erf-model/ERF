@@ -12,20 +12,13 @@ geometry.prob_hi     = 10.  1.  2.
 amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 geometry.is_periodic = 1 1 0
-
-#xlo.type = "Inflow"
-#xhi.type = "Outflow"
-#xlo.velocity = 1. 0. 0.
-#xlo.density  = 1.16
-#xlo.theta    = 300.
-#xlo.scalar   = 0.
     
 zhi.type = "SlipWall"
 
 # MOST BOUNDARY
 #=================================================================
 zlo.type                   = "Most"
-erf.most.average_policy    = 1       # POLICY FOR AVERAGING
+erf.most.average_policy    = 0       # POLICY FOR AVERAGING
 erf.most.use_normal_vector = false   # USE NORMAL VECTOR W/ TERRAIN
 erf.most.use_interpolation = true    # USE INTERPOLATION ON DESTINATION   
 #erf.most.time_average      = true    # USE TIME AVERAGING
@@ -40,6 +33,7 @@ erf.most.zref              = 0.075    # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
 erf.most.radius            = 1       # SPECIFIED REGION RADIUS
 #-----------------------------------------------------------------
 #erf.most.time_window       = 50.0    # WINDOW FOR TIME AVG
+#=================================================================
     
     
 # TIME STEP CONTROL
@@ -87,3 +81,7 @@ erf.alpha_T = 0.0 # [m^2/s]
 prob.T_0   = 300.0
 prob.U_0   = 1.0
 prob.rho_0 = 1.16
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01
+prob.W_0_Pert_Mag = 0.0
+prob.pert_ref_height = 1.0

@@ -17,6 +17,15 @@ in any Unix-like environments (e.g., Perl and sed). For building with CMake, the
    .. note::
       **While ERF is designed to work with SYCL, we do not make any guarantees that it will build and run on your Intel platform.**
 
+   .. note::
+      **ERF was successfully compiled with the Intel compiler suite (e.g., icx
+      version 2024.1.0). However, for older versions, it may be necessary to
+      use reduced compiler optimization** (``-O1``) **to avoid an internal compiler
+      error.** For example, ERF was successfully compiled with icpc version
+      19.1.2.254, with ``-O2`` (``CMAKE_BUILD_TYPE = RelWithDebInfo``) but
+      TimeIntegration/ERF_advance_dycore.cpp had to be manually compiled with
+      ``-O1``. Your mileage may vary.
+
 Paradigm
 ~~~~~~~~~~
 

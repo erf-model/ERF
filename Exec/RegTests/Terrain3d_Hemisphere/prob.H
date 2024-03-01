@@ -12,12 +12,30 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real T_0 = 300.0; // surface temperature == mean potential temperature
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
+
+  // random initial perturbations (legacy code)
+  amrex::Real U_0_Pert_Mag = 0.0;
+  amrex::Real V_0_Pert_Mag = 0.0;
+  amrex::Real W_0_Pert_Mag = 0.0;
+
+  // divergence-free initial perturbations
+  amrex::Real pert_deltaU = 0.0;
+  amrex::Real pert_deltaV = 0.0;
+  amrex::Real pert_periods_U  = 5.0;
+  amrex::Real pert_periods_V  = 5.0;
+  amrex::Real pert_ref_height = 1.0;
+
+  // helper vars
+  amrex::Real aval;
+  amrex::Real bval;
+  amrex::Real ufac;
+  amrex::Real vfac;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
 {
 public:
-    Problem();
+    Problem (const amrex::Real* problo, const amrex::Real* probhi);
 
 #include "Prob/init_density_hse_dry_terrain.H"
 
