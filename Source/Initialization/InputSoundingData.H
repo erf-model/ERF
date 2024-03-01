@@ -132,10 +132,12 @@ public:
         pm_integ.resize(Ninp);
         rhod_integ.resize(Ninp);
 
-        // evaluate surface quantities (k=0)
-        amrex::Real thm_surf = theta_ref_inp_sound * (1 + (R_v/R_d) * qv_ref_inp_sound); // moist (not virtual) potential temperature
-          pm_integ[0] = press_ref_inp_sound; // total pressure (including moisture)
-        rhod_integ[0] = (p_0/(R_d*thm_surf))*std::pow(pm_integ[0]/p_0, iGamma); // density of dry air
+        // evaluate surface quantities (k=0): total pressure and dry air
+          pm_integ[0] = press_ref_inp_sound;
+        rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
+                                              press_ref_inp_sound,
+                                              R_d/Cp_d,
+                                              qv_ref_inp_sound);
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
                        << rhod_integ[0] << " kg/m^3" << std::endl;
