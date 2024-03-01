@@ -43,7 +43,7 @@ class Radiation {
    ~Radiation() = default;
 
    // init
-   void initialize(const amrex::MultiFab& cons_in, 
+   void initialize(const amrex::MultiFab& cons_in,
                    const amrex::MultiFab& qmoist,
                    const amrex::BoxArray& grids,
                    const amrex::Geometry& geom,
