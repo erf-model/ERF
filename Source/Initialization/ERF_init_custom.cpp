@@ -27,8 +27,6 @@ ERF::init_custom (int lev)
 {
     auto& lev_new = vars_new[lev];
 
-    int n_qstate   = micro->Get_Qstate_Size();
-
     MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 

@@ -8,7 +8,7 @@
 */
 void
 erf_init_dens_hse (amrex::MultiFab& rho_hse,
-                   std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                   std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
                    std::unique_ptr<amrex::MultiFab>& z_phys_cc,
                    amrex::Geometry const& geom) override
 {

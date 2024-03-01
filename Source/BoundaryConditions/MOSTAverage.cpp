@@ -15,6 +15,7 @@ using namespace amrex;
 MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
                           Vector<Vector<MultiFab>>& vars_old,
                           Vector<std::unique_ptr<MultiFab>>& Theta_prim,
+                          Vector<std::unique_ptr<MultiFab>>& Qv_prim,
                           Vector<std::unique_ptr<MultiFab>>& z_phys_nd)
   : m_geom(std::move(geom))
 {
@@ -55,7 +56,6 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
       m_z_phys_nd[lev] = z_phys_nd[lev].get();
       { // Nodal in x
         auto& mf  = vars_old[lev][Vars::xvel];
-        MultiFab* mfp = &vars_old[lev][Vars::xvel];
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba  = mf.boxArray();
         BoxList bl2d = ba.boxList();
@@ -65,13 +65,12 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int ncomp   = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][0]   = mfp;
+          m_fields[lev][0]   = &vars_old[lev][Vars::xvel];
           m_averages[lev][0] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][0]->setVal(1.E34);
       }
       { // Nodal in y
         auto& mf  = vars_old[lev][Vars::yvel];
-        MultiFab* mfp = &vars_old[lev][Vars::yvel];
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba  = mf.boxArray();
         BoxList bl2d = ba.boxList();
@@ -81,13 +80,12 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int ncomp   = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][1] = mfp;
+          m_fields[lev][1] = &vars_old[lev][Vars::yvel];
         m_averages[lev][1] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][1]->setVal(1.E34);
       }
       { // CC vars
         auto& mf  = *Theta_prim[lev];
-        MultiFab* mfp = Theta_prim[lev].get();
         // Create a 2D ba, dm, & ghost cells
         const BoxArray& ba  = mf.boxArray();
         BoxList bl2d = ba.boxList();
@@ -98,12 +96,16 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
         const int incomp  = 1;
         IntVect ng = mf.nGrowVect(); ng[2]=0;
 
-          m_fields[lev][2] = mfp;
+          m_fields[lev][2] = Theta_prim[lev].get();
         m_averages[lev][2] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][2]->setVal(1.E34);
 
+          m_fields[lev][3] = Qv_prim[lev].get();
         m_averages[lev][3] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
         m_averages[lev][3]->setVal(1.E34);
+
+        m_averages[lev][4] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
+        m_averages[lev][4]->setVal(1.E34);
 
         if (m_z_phys_nd[0] && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -178,11 +180,13 @@ MOSTAverage::MOSTAverage (Vector<Geometry>  geom,
 void
 MOSTAverage::update_field_ptrs(int lev,
                                Vector<Vector<MultiFab>>& vars_old,
-                               Vector<std::unique_ptr<MultiFab>>& Theta_prim)
+                               Vector<std::unique_ptr<MultiFab>>& Theta_prim,
+                               Vector<std::unique_ptr<MultiFab>>& Qv_prim)
 {
     m_fields[lev][0] = &vars_old[lev][Vars::xvel];
     m_fields[lev][1] = &vars_old[lev][Vars::yvel];
     m_fields[lev][2] = Theta_prim[lev].get();
+    m_fields[lev][3] = Qv_prim[lev].get();
 }
 
 
@@ -313,13 +317,15 @@ MOSTAverage::set_k_indices_T()
         for (int lev(0); lev < m_maxlev; lev++) {
             int kmax = m_geom[lev].Domain().bigEnd(2);
             for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-                Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+                Box npbx = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
                 const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
                 auto k_arr = m_k_indx[lev]->array(mfi);
                 ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     k_arr(i,j,k) = 0;
-                    Real z_target = d_zref + z_phys_arr(i,j,k);
+                    Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                              + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                    Real z_target    = z_bot_face + d_zref;
                     for (int lk(0); lk<=kmax; ++lk) {
                         Real z_lo = 0.25 * ( z_phys_arr(i,j  ,lk  ) + z_phys_arr(i+1,j  ,lk  )
                                            + z_phys_arr(i,j+1,lk  ) + z_phys_arr(i+1,j+1,lk  ) );
@@ -361,7 +367,7 @@ MOSTAverage::set_norm_indices_T()
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         IntVect ng = m_k_indx[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_k_indx[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
             auto i_arr = m_i_indx[lev]->array(mfi);
@@ -388,7 +394,9 @@ MOSTAverage::set_norm_indices_T()
                 j_arr(i,j,k) = j_new;
 
                 // Search for k (grid is stretched in z)
-                Real z_target = delta_z + z_phys_arr(i,j,k);
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                Real z_target    = z_bot_face + delta_z;
                 for (int lk(0); lk<=kmax; ++lk) {
                     Real z_lo = 0.25 * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
                                        + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
@@ -429,20 +437,22 @@ MOSTAverage::set_z_positions_T()
         const auto dx = m_geom[lev].CellSizeArray();
         IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
             const auto z_phys_arr = m_z_phys_nd[lev]->const_array(mfi);
-            auto x_pos_arr   = m_x_pos[lev]->array(mfi);
-            auto y_pos_arr   = m_y_pos[lev]->array(mfi);
-            auto z_pos_arr   = m_z_pos[lev]->array(mfi);
+            auto x_pos_arr = m_x_pos[lev]->array(mfi);
+            auto y_pos_arr = m_y_pos[lev]->array(mfi);
+            auto z_pos_arr = m_z_pos[lev]->array(mfi);
             ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = ((Real) i + 0.5) * dx[0];
                 y_pos_arr(i,j,k) = ((Real) j + 0.5) * dx[1];
-                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + d_zref;
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                z_pos_arr(i,j,k) = z_bot_face + d_zref;
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
@@ -473,7 +483,7 @@ MOSTAverage::set_norm_positions_T()
         const auto dxInv  = m_geom[lev].InvCellSizeArray();
         IntVect ng = m_x_pos[lev]->nGrowVect(); ng[2]=0;
         for (MFIter mfi(*m_x_pos[lev], TileNoZ()); mfi.isValid(); ++mfi) {
-            Box npbx  = mfi.tilebox(); npbx.convert({1,1,0});
+            Box npbx  = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box gpbx  = mfi.growntilebox(ng);
             RealBox grb{gpbx,dx.data(),base.dataPtr()};
 
@@ -500,7 +510,9 @@ MOSTAverage::set_norm_positions_T()
                 // Final position at end of vector
                 x_pos_arr(i,j,k) = x0 + delta_x;
                 y_pos_arr(i,j,k) = y0 + delta_y;
-                z_pos_arr(i,j,k) = z_phys_arr(i,j,k) + delta_z;
+                Real z_bot_face  = 0.25 * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+                z_pos_arr(i,j,k) = z_bot_face + delta_z;
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
@@ -589,6 +601,10 @@ MOSTAverage::compute_plane_averages(int lev)
     }
 
     for (int imf(0); imf < m_nvar; ++imf) {
+
+        // Continue if no valid Qv pointer
+        if (!fields[imf]) continue;
+
         denom[imf]   = 1.0 / (Real)ncell_plane[imf];
         val_old[imf] = plane_average[imf]*d_fact_old;
 
@@ -763,6 +779,10 @@ MOSTAverage::compute_region_averages(int lev)
     // Averages over all the fields
     //----------------------------------------------------------
     for (int imf(0); imf < m_nvar; ++imf) {
+
+        // Continue if no valid Qv pointer
+        if (!fields[imf]) continue;
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -789,9 +809,9 @@ MOSTAverage::compute_region_averages(int lev)
                       for (int lj(-d_radius); lj <= (d_radius); ++lj) {
                         for (int li(-d_radius); li <= (d_radius); ++li) {
                             Real interp{0};
-                            Real xp = x_pos_arr(i,j,k) + li*dx[0];
-                            Real yp = y_pos_arr(i,j,k) + lj*dx[1];
-                            Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            Real xp = x_pos_arr(i+li,j+lj,k);
+                            Real yp = y_pos_arr(i+li,j+lj,k);
+                            Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &interp, mf_arr, z_phys_arr, plo, dxInv, 1);
                             Real val = denom * interp * d_fact_new;
                             ma_arr(i,j,k) += val;
@@ -861,9 +881,9 @@ MOSTAverage::compute_region_averages(int lev)
                         for (int li(-d_radius); li <= (d_radius); ++li) {
                             Real u_interp{0};
                             Real v_interp{0};
-                            Real xp = x_pos_arr(i,j,k) + li*dx[0];
-                            Real yp = y_pos_arr(i,j,k) + lj*dx[1];
-                            Real zp = z_pos_arr(i,j,k) + met_h_zeta*lk*dx[2];
+                            Real xp = x_pos_arr(i+li,j+lj,k);
+                            Real yp = y_pos_arr(i+li,j+lj,k);
+                            Real zp = z_pos_arr(i+li,j+lj,k) + met_h_zeta*lk*dx[2];
                             trilinear_interp_T(xp, yp, zp, &u_interp, u_mf_arr, z_phys_arr, plo, dxInv, 1);
                             trilinear_interp_T(xp, yp, zp, &v_interp, v_mf_arr, z_phys_arr, plo, dxInv, 1);
                             Real mag = std::sqrt(u_interp*u_interp + v_interp*v_interp);

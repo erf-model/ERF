@@ -47,7 +47,6 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const amrex::Geometry& geom,
                                    const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                   const int& qstate_size,
                                    const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
 {
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
@@ -407,7 +406,6 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
                                 const amrex::BCRec* bc_ptr,
-                                const int& qstate_size,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
@@ -438,8 +436,7 @@ void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::Multi
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
-                                     z_phys_nd, qstate_size,
-                                     turbChoice, const_grav, most);
+                                     z_phys_nd, turbChoice, const_grav, most);
     }
 
     if (turbChoice.pbl_type != PBLType::None) {
