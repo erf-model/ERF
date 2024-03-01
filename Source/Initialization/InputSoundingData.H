@@ -124,13 +124,8 @@ public:
     {
         /* Calculate density and pressure, roughly following the procedure in
          * WRF dyn_em/module_initialize_ideal.F. We integrate hydrostatically
-         * from the surface up through the air column to get the total (moist)
-         * density and pressure, then back down to get the dry density and
-         * pressure.
-         *
-         * This deviates from that code slightly because we calculate a moist
-         * theta that is equal to virtual potential temperature, and also
-         * remove the factor of (1+qv) for consistency with the surface density.
+         * from the surface up through the air column to get the dry density
+         * and moist pressure.
          */
         const int maxiter = 10;
         const int Ninp = size();
@@ -138,9 +133,9 @@ public:
         rhod_integ.resize(Ninp);
 
         // evaluate surface quantities (k=0)
-        amrex::Real thm_surf = theta_ref_inp_sound * (1 + (R_v/R_d) * qv_ref_inp_sound); // _moist_ theta == virtual potential temperature
-          pm_integ[0]  = press_ref_inp_sound; // _total_ pressure (incl moisture)
-        rhod_integ[0] = (p_0/(R_d*thm_surf))*std::pow(pm_integ[0]/p_0, iGamma); // density of _moist_ air
+        amrex::Real thm_surf = theta_ref_inp_sound * (1 + (R_v/R_d) * qv_ref_inp_sound); // moist (not virtual) potential temperature
+          pm_integ[0] = press_ref_inp_sound; // total pressure (including moisture)
+        rhod_integ[0] = (p_0/(R_d*thm_surf))*std::pow(pm_integ[0]/p_0, iGamma); // density of dry air
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
                        << rhod_integ[0] << " kg/m^3" << std::endl;
