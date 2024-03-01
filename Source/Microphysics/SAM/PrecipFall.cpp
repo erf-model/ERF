@@ -15,6 +15,7 @@ void SAM::PrecipFall (int hydro_type)
 {
     Real eps = std::numeric_limits<Real>::epsilon();
     bool constexpr nonos = true;
+    Real rho_0 = 1.29;
 
     Real gamr3 = erf_gammafff(4.0+b_rain);
     Real gams3 = erf_gammafff(4.0+b_snow);
@@ -88,7 +89,7 @@ void SAM::PrecipFall (int hydro_type)
 
     ParallelFor(nz, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
-        rhofac_t(k)  = std::sqrt(1.29/rho1d_t(k));
+        rhofac_t(k)  = std::sqrt(rho_0/rho1d_t(k));
         irho_t(k)    = 1.0/rho1d_t(k);
         Real wmax    = dz/dt_advance;   // Velocity equivalent to a cfl of 1.0.
         iwmax_t(k)   = 1.0/wmax;
@@ -128,7 +129,7 @@ void SAM::PrecipFall (int hydro_type)
             }
             Real Veff = term_vel_qp(qp_array(i,j,k), vrain, vsnow, vgrau,
                                     rho_array(i,j,k), tabs_array(i,j,k));
-            wp_array(i,j,k) = -Veff * std::sqrt(1.29/rho_array(i,j,k));
+            wp_array(i,j,k) = -Veff * std::sqrt(rho_0/rho_array(i,j,k));
             prec_cfl_array(i,j,k) = wp_array(i,j,k) * iwmax_t(k);
             wp_array(i,j,k) *= rho_array(i,j,k) * dt_advance/dz;
             if (k == 0) {
@@ -180,7 +181,6 @@ void SAM::PrecipFall (int hydro_type)
             auto qp_array     = qp->array(mfi);
             auto rho_array    = rho->array(mfi);
             auto tabs_array   = tabs->array(mfi);
-            auto theta_array  = theta->array(mfi);
             auto tmp_qp_array = tmp_qp.array(mfi);
             auto mx_array     = mx.array(mfi);
             auto mn_array     = mn.array(mfi);
@@ -262,7 +262,10 @@ void SAM::PrecipFall (int hydro_type)
                 // Update precipitation mass fraction.
                 // Note that fz is the total flux, including both the
                 // upwind flux and the anti-diffusive correction.
-                //      Real flagstat = 1.0;
+
+                //==================================================
+                // Precipitating sedimentation (A19)
+                //==================================================
                 Real dqp = ( fz_array(i,j,kc) - fz_array(i,j,k) ) / rho_array(i,j,k);
                 Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
@@ -272,13 +275,9 @@ void SAM::PrecipFall (int hydro_type)
                 qpg_array(i,j,k) = std::max(0.0, qpg_array(i,j,k) + dqp*(1.0-omp)*omg);
                  qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                /*
                 // NOTE: Sedimentation does not affect the potential temperature,
-                //       but it does affect the liquid/ice static  energy
-
-                Real lat_heat = -( lfac_array(i,j,kc)*fz_array(i,j,kc) - lfac_array(i,j,k)*fz_array(i,j,k) ) / rho_array(i,j,k);
-                amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
-                */
+                //       but it does affect the liquid/ice static energy.
+                //       No source to Theta occurs here.
             });
 
             if (iprec < nprec) {
@@ -288,7 +287,7 @@ void SAM::PrecipFall (int hydro_type)
                     Real tmp = term_vel_qp(qp_array(i,j,k),
                                            vrain, vsnow, vgrau,
                                            rho_array(i,j,k), tabs_array(i,j,k));
-                    wp_array(i,j,k) = std::sqrt(1.29/rho_array(i,j,k))*tmp;
+                    wp_array(i,j,k) = std::sqrt(rho_0/rho_array(i,j,k))*tmp;
                     // Decrease precipitation velocity by factor of nprec
                     wp_array(i,j,k) = -wp_array(i,j,k)*rho_array(i,j,k)*dt_advance/dz/nprec;
                     // Note: Don't bother checking CFL condition at each

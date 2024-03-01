@@ -7,9 +7,9 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  1024     1024    1024
-amr.n_cell           =    64      64     64
-amr.n_cell           =    32 32 32
+geometry.prob_lo =    0.    0.     0.
+geometry.prob_hi = 1024. 1024.  1024.
+amr.n_cell       =   32    32     32
 
 geometry.is_periodic = 1 1 0
 
@@ -23,7 +23,7 @@ erf.fixed_dt        = 2.0e-2  # fixed time step depending on grid resolution
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
+amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -51,7 +51,7 @@ erf.init_type = "uniform"
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
-
+prob.T_0 = 300.0
 prob.U_0 = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0

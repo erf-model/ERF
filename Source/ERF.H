@@ -435,6 +435,8 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    // append variables to plot
+    void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF

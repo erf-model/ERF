@@ -17,7 +17,7 @@
                                 const int nrk)
     {
         BL_PROFILE("slow_rhs_fun_pre");
-        if (verbose) Print() << "\n Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
+        if (verbose) Print() << "Making slow rhs at time " << old_stage_time << " for fast variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
 
         Real slow_dt = new_stage_time - old_step_time;
@@ -263,7 +263,7 @@
                                  const int nrk)
     {
         amrex::ignore_unused(nrk);
-        if (verbose) Print() << "\n Making slow rhs at time " << old_stage_time <<
+        if (verbose) Print() << "Making slow rhs at time " << old_stage_time <<
                                 " for slow variables advancing from " <<
                                 old_step_time << " to " << new_stage_time << std::endl;
 

@@ -77,15 +77,52 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 #endif
 
-    // Check to see if we found all the requested variables
-    for (const auto& plot_name : plot_var_names) {
-      if (!containerHasElement(tmp_plot_names, plot_name)) {
-           if (amrex::ParallelDescriptor::IOProcessor()) {
-               Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
-           }
-      }
-    }
     plot_var_names = tmp_plot_names;
+}
+
+void
+ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& a_plot_var_names)
+{
+    ParmParse pp(pp_prefix);
+
+    Vector<std::string> plot_var_names(0);
+    if (pp.contains(pp_plot_var_names.c_str())) {
+        std::string nm;
+        int nPltVars = pp.countval(pp_plot_var_names.c_str());
+        for (int i = 0; i < nPltVars; i++) {
+            pp.get(pp_plot_var_names.c_str(), nm, i);
+            // Add the named variable to our list of plot variables
+            // if it is not already in the list
+            if (!containerHasElement(plot_var_names, nm)) {
+                plot_var_names.push_back(nm);
+            }
+        }
+    }
+
+    Vector<std::string> tmp_plot_names(0);
+#ifdef ERF_USE_PARTICLES
+    Vector<std::string> particle_mesh_plot_names;
+    particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+    for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+        std::string tmp(particle_mesh_plot_names[i]);
+        if (containerHasElement(plot_var_names, tmp) ) {
+            tmp_plot_names.push_back(tmp);
+        }
+    }
+#endif
+
+    for (int i = 0; i < tmp_plot_names.size(); i++) {
+        a_plot_var_names.push_back( tmp_plot_names[i] );
+    }
+
+    // Finally, check to see if we found all the requested variables
+    for (const auto& plot_name : plot_var_names) {
+        if (!containerHasElement(a_plot_var_names, plot_name)) {
+             if (amrex::ParallelDescriptor::IOProcessor()) {
+                 Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+             }
+        }
+    }
 }
 
 // set plotfile variable names
@@ -721,6 +758,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
                 temp_dat.setVal(0);
                 particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+        }
+
+        Vector<std::string> particle_mesh_plot_names(0);
+        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string plot_var_name(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, plot_var_name) ) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                temp_dat.setVal(0);
+                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
             }

@@ -149,7 +149,7 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
                     vy_ptr[offset_arr(i,j,k)] = v[1];
                     vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[offset_arr(i,j,k)] = 1.0e-6;
                }
             });
 
@@ -178,7 +178,7 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
                     vy_ptr[offset_arr(i,j,k)] = v[1];
                     vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[offset_arr(i,j,k)] = 1.0e-6;
                }
             });
 
@@ -281,7 +281,7 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
                     vy_ptr[offset_arr(i,j,k)] = v[1];
                     vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[offset_arr(i,j,k)] = 1.0e-6;
                }
             });
 
@@ -310,7 +310,7 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
                     vy_ptr[offset_arr(i,j,k)] = v[1];
                     vz_ptr[offset_arr(i,j,k)] = v[2];
 
-                    mass_ptr[offset_arr(i,j,k)] = 0.0;
+                    mass_ptr[offset_arr(i,j,k)] = 1.0e-6;
                }
             });
 
@@ -415,7 +415,7 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
                     vy_ptr[n] = v[1];
                     vz_ptr[n] = v[2];
 
-                    mass_ptr[n] = 0.0;
+                    mass_ptr[n] = 1.0e-6;
                }
             });
 
@@ -446,7 +446,7 @@ void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex:
                     vy_ptr[n] = v[1];
                     vz_ptr[n] = v[2];
 
-                    mass_ptr[n] = 0.0;
+                    mass_ptr[n] = 1.0e-6;
                }
             });
         }
