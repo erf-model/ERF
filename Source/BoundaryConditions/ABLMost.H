@@ -70,11 +70,13 @@ public:
 
         // Custom type user must specify the fluxes
         if (flux_type == FluxCalcType::CUSTOM) {
-            AMREX_ASSERT_WITH_MESSAGE(use_moisture, "Moisture model must be used with MOST CUSTOM!");
             theta_type = ThetaCalcType::HEAT_FLUX;
             pp.query("most.ustar", custom_ustar);
             pp.query("most.tstar", custom_tstar);
             pp.query("most.qstar", custom_qstar);
+            if (custom_qstar != 0) {
+                AMREX_ASSERT_WITH_MESSAGE(use_moisture, "Specified custom MOST qv flux without moisture model!");
+            }
 
         // Specify surface temperature or surface flux
         } else {

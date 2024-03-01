@@ -218,7 +218,7 @@ ABLMost::compute_most_bcs (const int& lev,
                 });
 
                 // TODO: Generalize MOST q flux with MOENG & DONELAN flux types
-                if (flux_type == FluxCalcType::CUSTOM) {
+                if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
                     n = RhoQ1_comp;
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
