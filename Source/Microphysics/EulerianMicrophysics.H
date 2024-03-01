@@ -39,7 +39,7 @@ public:
 
     void
     Define (const int& lev,
-            SolverChoice& sc)
+            SolverChoice& sc) override
     {
         m_moist_model[lev]->Define(sc);
     }
@@ -49,7 +49,7 @@ public:
           const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance)
+          const amrex::Real& dt_advance) override
     {
         m_moist_model[lev]->Init(cons_in, grids, geom, dt_advance);
     }
@@ -58,37 +58,46 @@ public:
     Advance ( const int& lev,
               const amrex::Real& dt_advance,
               amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& )
+              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override
     {
         m_moist_model[lev]->Advance(dt_advance);
     }
 
     void
-    Diagnose (const int& lev)
+    Diagnose (const int& lev) override
     {
         m_moist_model[lev]->Diagnose();
     }
 
     void
-    Update_Micro_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
+    Update_Micro_Vars_Lev (const int& lev, amrex::MultiFab& cons_in) override
     {
         m_moist_model[lev]->Update_Micro_Vars(cons_in);
     }
 
     void
-    Update_State_Vars_Lev (const int& lev, amrex::MultiFab& cons_in)
+    Update_State_Vars_Lev (const int& lev, amrex::MultiFab& cons_in) override
     {
         m_moist_model[lev]->Update_State_Vars(cons_in);
     }
 
     amrex::MultiFab*
-    Get_Qmoist_Ptr (const int& lev, const int& varIdx) { return m_moist_model[lev]->Qmoist_Ptr(varIdx); }
+    Get_Qmoist_Ptr (const int& lev, const int& varIdx) override
+    {
+        return m_moist_model[lev]->Qmoist_Ptr(varIdx);
+    }
 
     int
-    Get_Qmoist_Size (const int& /* lev */) { return m_moist_model[0]->Qmoist_Size(); }
+    Get_Qmoist_Size (const int& /* lev */) override
+    {
+        return m_moist_model[0]->Qmoist_Size();
+    }
 
     int
-    Get_Qstate_Size () { return m_moist_model[0]->Qstate_Size(); }
+    Get_Qstate_Size () override
+    {
+        return m_moist_model[0]->Qstate_Size();
+    }
 
 protected:
 

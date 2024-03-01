@@ -14,6 +14,7 @@ public:
     explicit MOSTAverage (amrex::Vector<amrex::Geometry>  geom,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                          amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd);
 
     // MOSTAverage() = default;
@@ -35,8 +36,9 @@ public:
 
     // Reset the pointers to field MFs
     void update_field_ptrs (int lev,
-                           amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                           amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim);
+                            amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                            amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim);
 
     // Compute ncells per plane
     void set_plane_normalization ();
@@ -111,8 +113,9 @@ public:
                                     const int interp_comp)
     {
         // Search to get z/k
+        bool found = false;
         amrex::Real zval= 0.0;
-        int kmax = ubound(z_arr).z;
+        int kmax  = ubound(z_arr).z;
         int i_new = (int) (xp * dxi[0] - 0.5);
         int j_new = (int) (yp * dxi[1] - 0.5);
         amrex::Real z_target = zp;
@@ -122,10 +125,13 @@ public:
             amrex::Real z_hi = 0.25 * ( z_arr(i_new,j_new  ,lk+1) + z_arr(i_new+1,j_new  ,lk+1)
                                       + z_arr(i_new,j_new+1,lk+1) + z_arr(i_new+1,j_new+1,lk+1) );
             if (z_target > z_lo && z_target < z_hi){
+                found = true;
                 zval = (amrex::Real) lk + ((z_target - z_lo) / (z_hi - z_lo)) + 0.5;
                 break;
             }
         }
+
+        AMREX_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,
                                  (yp - plo[1])*dxi[1] + 0.5,
@@ -136,8 +142,8 @@ public:
         int i = ijk[0]; int j = ijk[1]; int k = ijk[2];
 
         // Weights
-        const amrex::RealVect sx_hi = lx - ijk;
-        const amrex::RealVect sx_lo = 1 - sx_hi;
+        const amrex::RealVect sx_hi = lx  - ijk;
+        const amrex::RealVect sx_lo = 1.0 - sx_hi;
 
         for (int n = 0; n < interp_comp; n++)
             interp_vals[n] = sx_lo[0]*sx_lo[1]*sx_lo[2]*interp_array(i-1, j-1, k-1,n) +
@@ -160,8 +166,8 @@ protected:
 
     // General vars for multiple or all policies
     //--------------------------------------------
-    int m_nvar{3};                                                   // 3 fields for U/V/T
-    int m_navg{4};                                                   // 4 averages for U/V/T/Umag
+    int m_nvar{4};                                                   // 3 fields for U/V/T/Qv
+    int m_navg{5};                                                   // 4 averages for U/V/T/Qv/Umag
     int m_maxlev{0};                                                 // Total number of levels
     int m_policy{0};                                                 // Policy for type of averaging
     amrex::Real m_zref{10.0};                                        // Height above surface for MOST BC
