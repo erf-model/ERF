@@ -653,8 +653,8 @@ ERF::InitData ()
         initRayleigh();
         if (init_type == "input_sounding")
         {
-            // Overwrite ubar, vbar, and thetabar with input profiles; wbar is
-            // assumed to be 0. Note: the tau coefficient set by
+            // Overwrite ubar, vbar, and thetabar with input profiles;
+            // wbar is assumed to be 0. Note: the tau coefficient set by
             // prob->erf_init_rayleigh() is still used
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
@@ -733,6 +733,18 @@ ERF::InitData ()
                   {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                   {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                   fillset);
+
+        //
+        // We do this here to make sure level (lev-1) boundary conditions are filled 
+        // before we interpolate to level (lev) ghost cells
+        //
+        if (lev < finest_level) {
+            auto& lev_old = vars_old[lev];
+            MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,lev_old[Vars::cons].nComp(),lev_old[Vars::cons].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,lev_old[Vars::xvel].nComp(),lev_old[Vars::xvel].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,lev_old[Vars::yvel].nComp(),lev_old[Vars::yvel].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,lev_old[Vars::zvel].nComp(),lev_old[Vars::zvel].nGrowVect());
+        }
 
         //
         // We fill the ghost cell values of the base state in case it wasn't done in the initialization
@@ -1089,6 +1101,10 @@ ERF::ReadParameters ()
         // We use this to keep track of how many boxes are specified thru the refinement indicators
         num_boxes_at_level.resize(max_level+1,0);
             boxes_at_level.resize(max_level+1);
+
+        // These hold the minimum and maximum value of k in the boxes *at each level*
+        min_k_at_level.resize(max_level+1,0);
+        max_k_at_level.resize(max_level+1,0);
 
         // We always have exactly one file at level 0
         num_boxes_at_level[0] = 1;
