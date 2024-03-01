@@ -23,7 +23,6 @@ void SAM::IceFall () {
     auto qt    = mic_fab_vars[MicVar::qt];
     auto rho   = mic_fab_vars[MicVar::rho];
     auto tabs  = mic_fab_vars[MicVar::tabs];
-    auto theta = mic_fab_vars[MicVar::theta];
 
     MultiFab fz;
     IntVect  ng = qcl->nGrowVect();
@@ -61,7 +60,6 @@ void SAM::IceFall () {
         auto qn_array    = qn->array(mfi);
         auto qt_array    = qt->array(mfi);
         auto rho_array   = rho->array(mfi);
-        auto theta_array = theta->array(mfi);
         auto tabs_array  = tabs->array(mfi);
         auto fz_array    = fz.array(mfi);
 
@@ -110,8 +108,10 @@ void SAM::IceFall () {
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if ( k >= std::max(0,kmin) && k <= kmax ) {
+                //==================================================
+                // Cloud ice sedimentation (A32)
+                //==================================================
                 Real coef = dtn/dz;
-                // The cloud ice increment is the difference of the fluxes.
                 Real dqi  = std::max(-qci_array(i,j,k),coef*(fz_array(i,j,k)-fz_array(i,j,k+1)));
 
                 // Add this increment to both non-precipitating and total water.
@@ -119,19 +119,9 @@ void SAM::IceFall () {
                  qn_array(i,j,k) += dqi;
                  qt_array(i,j,k) += dqi;
 
-                /*
                 // NOTE: Sedimentation does not affect the potential temperature,
-                //       but it does affect the liquid/ice static  energy
-
-                // The latent heat flux induced by the falling cloud ice enters
-                // the liquid-ice static energy budget in the same way as the
-                // precipitation.  Note: use latent heat of sublimation.
-                Real omn      = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
-                Real lat_heat = (fac_cond + omn*fac_fus)*dqi;
-
-                // Add divergence of latent heat flux contribution to liquid-ice static potential temperature.
-                amrex::Gpu::Atomic::Add(&theta_array(i,j,k), -lat_heat);
-                */
+                //       but it does affect the liquid/ice static energy.
+                //       No source to Theta occurs here.
             }
         });
     }

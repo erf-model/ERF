@@ -11,8 +11,8 @@ using namespace amrex;
 /**
  * Return closest index (from lower) of value in vector
  */
-AMREX_FORCE_INLINE int
-closest_index(const Vector<Real>& vec, const Real value)
+AMREX_FORCE_INLINE
+int closest_index (const Vector<Real>& vec, const Real value)
 {
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
     AMREX_ALWAYS_ASSERT(it != vec.end());
@@ -24,7 +24,8 @@ closest_index(const Vector<Real>& vec, const Real value)
 /**
  * Return offset vector
  */
-AMREX_FORCE_INLINE IntVect offset(const int face_dir, const int normal)
+AMREX_FORCE_INLINE
+IntVect offset (const int face_dir, const int normal)
 {
     IntVect offset(IntVect::TheDimensionVector(normal));
     if (face_dir == 1) {
@@ -39,7 +40,7 @@ AMREX_FORCE_INLINE IntVect offset(const int face_dir, const int normal)
  * Function in ReadBndryPlanes class for allocating space
  * for the boundary plane data ERF will need.
  */
-void ReadBndryPlanes::define_level_data(int /*lev*/)
+void ReadBndryPlanes::define_level_data (int /*lev*/)
 {
     amrex::Print() << "ReadBndryPlanes::define_level_data" << std::endl;
     // *********************************************************
@@ -80,7 +81,7 @@ void ReadBndryPlanes::define_level_data(int /*lev*/)
  * @param time Constant specifying the time for interpolation
  */
 Vector<std::unique_ptr<PlaneVector>>&
-ReadBndryPlanes::interp_in_time(const Real& time)
+ReadBndryPlanes::interp_in_time (const Real& time)
 {
     AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
 
@@ -136,7 +137,7 @@ ReadBndryPlanes::interp_in_time(const Real& time)
  * @param geom Geometry for the domain
  * @param rdOcp_in Real constant for the Rhydberg constant ($R_d$) divided by the specific heat at constant pressure ($c_p$)
  */
-ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
+ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
 :
     m_geom(geom),
     m_rdOcp(rdOcp_in)
@@ -158,7 +159,7 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
     is_q1_read           = 0;
     is_q2_read           = 0;
     is_KE_read           = 0;
-    is_QKE_read           = 0;
+    is_QKE_read          = 0;
 
     if (pp.contains("bndry_input_var_names"))
     {
@@ -194,7 +195,7 @@ ReadBndryPlanes::ReadBndryPlanes(const Geometry& geom, const Real& rdOcp_in)
  * Function in ReadBndryPlanes class for reading the external file
  * specifying time data and broadcasting this data across MPI ranks.
  */
-void ReadBndryPlanes::read_time_file()
+void ReadBndryPlanes::read_time_file ()
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_time_file");
 
@@ -264,8 +265,9 @@ void ReadBndryPlanes::read_time_file()
  * @param dt Current timestep
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
-void ReadBndryPlanes::read_input_files(Real time, Real dt,
-    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
+void ReadBndryPlanes::read_input_files (Real time,
+                                        Real dt,
+                                        Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
 {
     BL_PROFILE("ERF::ReadBndryPlanes::read_input_files");
 
@@ -337,8 +339,9 @@ void ReadBndryPlanes::read_input_files(Real time, Real dt,
  * @param data_to_fill Container for face data on boundaries
  * @param m_bc_extdir_vals Container storing the external dirichlet boundary conditions we are reading from the input files
  */
-void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
-    Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
+void ReadBndryPlanes::read_file (const int idx,
+                                 Vector<std::unique_ptr<PlaneVector>>& data_to_fill,
+                                 Array<Array<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> m_bc_extdir_vals)
 {
     const int t_step = m_in_timesteps[idx];
     const std::string chkname1 = m_filename + Concatenate("/bndry_output", t_step);
@@ -374,12 +377,24 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
         if (ori.coordDir() < 2) {
             FArrayBox& d = (*data_to_fill[ori])[lev];
             const auto& bx = d.box();
-            Array4<Real> d_arr    = d.array();
+            Array4<Real> d_arr = d.array();
             ParallelFor(
                 bx, ncomp_for_bc, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
                 d_arr(i,j,k,n) = 0.;
             });
         }
+    }
+
+    // Read density for primitive to conserved conversions
+    std::string filenamer = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "density");
+    BndryRegister bndry_r(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
+    bndry_r.setVal(1.0e13);
+    for (OrientationIter oit; oit != nullptr; ++oit) {
+          auto ori = oit();
+          if (ori.coordDir() < 2) {
+              std::string facenamer = Concatenate(filenamer + '_', ori, 1);
+              bndry_r[ori].read(facenamer);
+          }
     }
 
     for (int ivar = 0; ivar < m_var_names.size(); ivar++)
@@ -437,8 +452,9 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
             for (MFIter mfi(bndryMF); mfi.isValid(); ++mfi) {
 
                 const auto& vbx = mfi.validbox();
-                const auto& bndry_read_arr = bndry[ori].array(mfi);
-                const auto& bndry_mf_arr   = bndryMF.array(mfi);
+                const auto& bndry_read_arr   = bndry[ori].array(mfi);
+                const auto& bndry_read_r_arr = bndry_r[ori].array(mfi);
+                const auto& bndry_mf_arr     = bndryMF.array(mfi);
 
                 const auto& bx = bbx & vbx;
                 if (bx.isEmpty()) {
@@ -455,8 +471,8 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
                   if (var_name == "temperature") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                             Real R1 =  bndry_read_arr(i, j, k, n_for_density);
-                             Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
+                             Real R1 =  bndry_read_r_arr(i, j, k, 0);
+                             Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real T1 =  bndry_read_arr(i, j, k, 0);
                              Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real Th1 = getThgivenRandT(R1,T1,rdOcp);
@@ -467,7 +483,7 @@ void ReadBndryPlanes::read_file(const int idx, Vector<std::unique_ptr<PlaneVecto
                              var_name == "KE" || var_name == "QKE") {
                     ParallelFor(
                         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                             Real R1 =  bndry_read_arr(i, j, k, n_for_density);
+                             Real R1 =  bndry_read_r_arr(i, j, k, 0);
                              Real R2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],n_for_density);
                              bndry_mf_arr(i, j, k, 0) = 0.5 *
                                   ( R1 * bndry_read_arr(i, j, k, 0) +
