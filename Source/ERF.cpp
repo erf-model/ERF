@@ -959,7 +959,12 @@ ERF::init_only (int lev, Real time)
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
         init_from_input_sounding(lev);
-        if (!init_sounding_ideal) initHSE();
+        if (init_sounding_ideal) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
+                "Gravity should be on to be consistent with sounding initialization.");
+        } else {
+            initHSE();
+        }
 
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
