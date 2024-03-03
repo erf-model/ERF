@@ -606,7 +606,9 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -615,13 +617,16 @@ struct moeng_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -660,7 +665,9 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -669,7 +676,7 @@ struct moeng_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, theta, eta;
-        int ix, jx, iy, jy, ie, je, ic, jc;
+        int ix, jx, iy, jy, ic, jc;
 
         ix = i < lbound(velx_arr).x    ? lbound(velx_arr).x   : i;
         jx = j < lbound(velx_arr).y    ? lbound(velx_arr).y   : j;
@@ -681,10 +688,13 @@ struct moeng_flux
         iy = iy > ubound(vely_arr).x   ? ubound(vely_arr).x   : iy;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
@@ -736,14 +746,16 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
@@ -751,10 +763,13 @@ struct moeng_flux
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
         je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -807,14 +822,16 @@ struct moeng_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& vm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
@@ -822,10 +839,13 @@ struct moeng_flux
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
         je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
@@ -895,7 +915,9 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -904,13 +926,16 @@ struct donelan_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -949,7 +974,9 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -958,13 +985,16 @@ struct donelan_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real rho, theta, eta;
-        int ie, je, ic, jc;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -1007,14 +1037,16 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
@@ -1022,10 +1054,13 @@ struct donelan_flux
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
         je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -1078,14 +1113,16 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
@@ -1093,10 +1130,13 @@ struct donelan_flux
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
         je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;
@@ -1165,7 +1205,9 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1174,13 +1216,16 @@ struct custom_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real rho, eta, qv;
-        int ie, je, ic, jc;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -1219,7 +1264,9 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1228,13 +1275,16 @@ struct custom_flux
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real rho, eta, theta;
-        int ie, je, ic, jc;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+#endif
 
+        int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
         jc = j  < lbound(cons_arr).y ? lbound(cons_arr).y : j;
         ic = ic > ubound(cons_arr).x ? ubound(cons_arr).x : ic;
@@ -1274,14 +1324,16 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int jy, ie, je, ic, jc;
+        int jy, ic, jc;
 
         int iylo = i <= lbound(vely_arr).x ? lbound(vely_arr).x : i-1;
         int iyhi = i >  ubound(vely_arr).x ? ubound(vely_arr).x : i;
@@ -1289,10 +1341,13 @@ struct custom_flux
         jy = j  < lbound(vely_arr).y   ? lbound(vely_arr).y   : j;
         jy = jy > ubound(vely_arr).y-1 ? ubound(vely_arr).y-1 : jy;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
         je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x+1 ? lbound(cons_arr).x+1 : i;
         jc = j  < lbound(cons_arr).y   ? lbound(cons_arr).y   : j;
@@ -1336,14 +1391,16 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Array4<const amrex::Real>& eta_arr,
+#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
         amrex::Real velx, vely, rho, eta;
-        int ix, ie, je, ic, jc;
+        int ix, ic, jc;
 
         ix = i  < lbound(velx_arr).x ? lbound(velx_arr).x : i;
         ix = ix > ubound(velx_arr).x ? ubound(velx_arr).x : ix;
@@ -1351,10 +1408,13 @@ struct custom_flux
         int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
         int jxhi = j >  ubound(velx_arr).y ? ubound(velx_arr).y : j;
 
+#ifndef ERF_EXPLICIT_MOST_STRESS
+        int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
         je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
         ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
         je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+#endif
 
         ic = i  < lbound(cons_arr).x   ? lbound(cons_arr).x   : i;
         jc = j  < lbound(cons_arr).y+1 ? lbound(cons_arr).y+1 : j;

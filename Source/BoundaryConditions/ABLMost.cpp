@@ -214,7 +214,10 @@ ABLMost::compute_most_bcs (const int& lev,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                           dz1,
 #endif
-                                                          cons_arr, velx_arr, vely_arr, eta_arr,
+                                                          cons_arr, velx_arr, vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
+                                                          eta_arr,
+#endif
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
                                                           dest_arr);
 
@@ -238,7 +241,10 @@ ABLMost::compute_most_bcs (const int& lev,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                               dz1,
 #endif
-                                                              cons_arr, velx_arr, vely_arr, eta_arr,
+                                                              cons_arr, velx_arr, vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
+                                                              eta_arr,
+#endif
                                                               umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
                     });
@@ -258,9 +264,12 @@ ABLMost::compute_most_bcs (const int& lev,
 
                     flux_comp.compute_u_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                                                          dz1,
+                                             dz1,
 #endif
-                                             cons_arr, velx_arr, vely_arr, eta_arr,
+                                             cons_arr, velx_arr, vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
+                                             eta_arr,
+#endif
                                              umm_arr, um_arr, u_star_arr,
                                              dest_arr);
                 });
@@ -279,9 +288,12 @@ ABLMost::compute_most_bcs (const int& lev,
 
                     flux_comp.compute_v_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                                                          dz1,
+                                             dz1,
 #endif
-                                             cons_arr, velx_arr, vely_arr, eta_arr,
+                                             cons_arr, velx_arr, vely_arr,
+#ifndef ERF_EXPLICIT_MOST_STRESS
+                                             eta_arr,
+#endif
                                              umm_arr, vm_arr, u_star_arr,
                                              dest_arr);
                 });
