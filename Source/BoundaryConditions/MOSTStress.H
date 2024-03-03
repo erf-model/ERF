@@ -734,7 +734,7 @@ struct moeng_flux
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -806,11 +806,13 @@ struct moeng_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
 #endif
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -882,6 +884,8 @@ struct moeng_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
 #endif
+
+        return stressy;
     }
 
 private:
@@ -1025,7 +1029,7 @@ struct donelan_flux
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -1097,11 +1101,13 @@ struct donelan_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
 #endif
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -1173,6 +1179,8 @@ struct donelan_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
 #endif
+
+        return stressy;
     }
 
 private:
@@ -1312,7 +1320,7 @@ struct custom_flux
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_u_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -1375,11 +1383,13 @@ struct custom_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
 #endif
+
+        return stressx;
     }
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
-    void
+    amrex::Real
     compute_v_flux (const int& i,
                     const int& j,
                     const int& k,
@@ -1442,6 +1452,8 @@ struct custom_flux
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
 #endif
+
+        return stressy;
     }
 
 private:

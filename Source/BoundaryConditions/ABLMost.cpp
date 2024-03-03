@@ -262,16 +262,16 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
 #endif
 
-                    flux_comp.compute_u_flux(i, j, k, icomp, dz,
+                    Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                                             dz1,
+                                                            dz1,
 #endif
-                                             cons_arr, velx_arr, vely_arr,
+                                                            cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
-                                             eta_arr,
+                                                            eta_arr,
 #endif
-                                             umm_arr, um_arr, u_star_arr,
-                                             dest_arr);
+                                                            umm_arr, um_arr, u_star_arr,
+                                                            dest_arr);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -286,16 +286,16 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
 #endif
 
-                    flux_comp.compute_v_flux(i, j, k, icomp, dz,
+                    Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                                             dz1,
+                                                            dz1,
 #endif
-                                             cons_arr, velx_arr, vely_arr,
+                                                            cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
-                                             eta_arr,
+                                                            eta_arr,
 #endif
-                                             umm_arr, vm_arr, u_star_arr,
-                                             dest_arr);
+                                                            umm_arr, vm_arr, u_star_arr,
+                                                            dest_arr);
                 });
             }
         } // var_idx
