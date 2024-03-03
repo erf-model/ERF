@@ -626,14 +626,17 @@ struct moeng_flux
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and MOENG FLUX type
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -685,8 +688,6 @@ struct moeng_flux
         vely  = 0.5 *( vely_arr(iy,jy,zlo) + vely_arr(iy  ,jy+1,zlo) );
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -701,7 +702,12 @@ struct moeng_flux
                               tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -747,9 +753,6 @@ struct moeng_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real umean    = um_arr(i,j,zlo);
         amrex::Real wsp_mean = 0.5 * ( umm_arr(ic-1,jc,zlo) + umm_arr(ic,jc,zlo) );
@@ -765,7 +768,13 @@ struct moeng_flux
         amrex::Real stressx = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+#endif
     }
 
     AMREX_GPU_DEVICE
@@ -809,9 +818,6 @@ struct moeng_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real vmean     = vm_arr(i,j,zlo);
         amrex::Real wsp_mean  = 0.5 * ( umm_arr(ic,jc-1,zlo) + umm_arr(ic,jc,zlo) );
@@ -827,7 +833,13 @@ struct moeng_flux
         amrex::Real stressy = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+#endif
     }
 
 private:
@@ -881,14 +893,17 @@ struct donelan_flux
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         // TODO: Integrate MOST with moisture and DONELAN FLUX type
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -928,8 +943,6 @@ struct donelan_flux
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
@@ -938,7 +951,12 @@ struct donelan_flux
         amrex::Real moflux      = Cd * wsp_mean * (theta_surf - theta_mean);
         amrex::Real deltaz      = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -984,9 +1002,6 @@ struct donelan_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -1002,7 +1017,13 @@ struct donelan_flux
         amrex::Real stressx = Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
+#endif
     }
 
     AMREX_GPU_DEVICE
@@ -1046,9 +1067,6 @@ struct donelan_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real Cd       = 0.001;
         const amrex::Real c  = 7e-5;
@@ -1064,7 +1082,13 @@ struct donelan_flux
         amrex::Real stressy = Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
+#endif
     }
 
 private:
@@ -1117,14 +1141,17 @@ struct custom_flux
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -1164,14 +1191,17 @@ struct custom_flux
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+#endif
 
         return moflux;
     }
@@ -1217,16 +1247,19 @@ struct custom_flux
                      + vely_arr(iylo,jy,zlo)+vely_arr(iylo,jy+1,zlo) );
         rho   = 0.5 *( cons_arr(ic-1,jc,zlo,Rho_comp)
                      + cons_arr(ic  ,jc,zlo,Rho_comp) );
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressx = rho * ustar * ustar * velx / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+#endif
     }
 
     AMREX_GPU_DEVICE
@@ -1270,16 +1303,19 @@ struct custom_flux
         vely  = vely_arr(i,j,zlo);
         rho   = 0.5*( cons_arr(ic,jc-1,zlo,Rho_comp)
                     + cons_arr(ic,jc  ,zlo,Rho_comp) );
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real stressy = rho * ustar * ustar * vely / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
+#else
+        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+        eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+#endif
     }
 
 private:
