@@ -600,6 +600,9 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -632,6 +635,7 @@ struct moeng_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        amrex::Abort("Explicit MOST stress not implemented for Moeng moisture flux");
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -650,6 +654,9 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -720,6 +727,9 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -785,6 +795,9 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -867,6 +880,9 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -899,6 +915,7 @@ struct donelan_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        amrex::Abort("Explicit MOST stress not implemented for Donelan moisture flux");
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -917,6 +934,9 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -969,6 +989,9 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -1034,6 +1057,9 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -1115,6 +1141,9 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -1147,6 +1176,7 @@ struct custom_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        amrex::Abort("Explicit MOST stress not implemented for custom moisture flux");
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -1165,6 +1195,9 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
@@ -1214,6 +1247,9 @@ struct custom_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
@@ -1270,6 +1306,9 @@ struct custom_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    const amrex::Real& dz1,
+#endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,

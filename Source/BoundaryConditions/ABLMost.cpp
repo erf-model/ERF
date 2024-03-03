@@ -206,7 +206,14 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
+#endif
+
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                                          dz1,
+#endif
                                                           cons_arr, velx_arr, vely_arr, eta_arr,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
                                                           dest_arr);
@@ -223,7 +230,14 @@ ABLMost::compute_most_bcs (const int& lev,
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                        Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
+#endif
+
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                                              dz1,
+#endif
                                                               cons_arr, velx_arr, vely_arr, eta_arr,
                                                               umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
@@ -238,7 +252,14 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(xb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
+#endif
+
                     flux_comp.compute_u_flux(i, j, k, icomp, dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                                          dz1,
+#endif
                                              cons_arr, velx_arr, vely_arr, eta_arr,
                                              umm_arr, um_arr, u_star_arr,
                                              dest_arr);
@@ -252,7 +273,14 @@ ABLMost::compute_most_bcs (const int& lev,
                 ParallelFor(yb2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real dz = (zphys_arr) ? ( zphys_arr(i,j,zlo) - zphys_arr(i,j,zlo-1) ) : dz_no_terrain;
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
+#endif
+
                     flux_comp.compute_v_flux(i, j, k, icomp, dz,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                                          dz1,
+#endif
                                              cons_arr, velx_arr, vely_arr, eta_arr,
                                              umm_arr, vm_arr, u_star_arr,
                                              dest_arr);
