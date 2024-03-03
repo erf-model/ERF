@@ -710,6 +710,9 @@ struct moeng_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -779,6 +782,9 @@ struct moeng_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
 #else
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
@@ -847,6 +853,9 @@ struct moeng_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
 #else
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
@@ -972,6 +981,9 @@ struct donelan_flux
         amrex::Real deltaz      = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
 #else
         eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -1041,6 +1053,9 @@ struct donelan_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
 #else
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
@@ -1109,6 +1124,9 @@ struct donelan_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
 #else
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
@@ -1230,6 +1248,9 @@ struct custom_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
@@ -1290,6 +1311,9 @@ struct custom_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
 #else
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
@@ -1349,6 +1373,9 @@ struct custom_flux
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
+        // surface gradient equal to gradient at first zface
+        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
 #else
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
