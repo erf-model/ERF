@@ -716,7 +716,7 @@ struct moeng_flux
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
         amrex::Real moflux  = (std::abs(tstar) > eps) ?
-                              tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
+                              -tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
@@ -726,7 +726,10 @@ struct moeng_flux
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        // Note: Kh = eta/rho
+        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
 #endif
 
         return moflux;
@@ -1021,7 +1024,10 @@ struct donelan_flux
 #else
         eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        // Note: Kh = eta/rho
+        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
 #endif
 
         return moflux;
@@ -1088,7 +1094,7 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        amrex::Real stressx = Cd * velx * wsp;
+        amrex::Real stressx = rho * Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
@@ -1099,7 +1105,7 @@ struct donelan_flux
         eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
                       + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx*rho/eta*deltaz;
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
 #endif
 
         return stressx;
@@ -1166,7 +1172,7 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        amrex::Real stressy = Cd * vely * wsp;
+        amrex::Real stressy = rho * Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
@@ -1177,7 +1183,7 @@ struct donelan_flux
         eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
                      + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy*rho/eta*deltaz;
+        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
 #endif
 
         return stressy;
@@ -1277,7 +1283,7 @@ struct custom_flux
 #endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
+                    const amrex::Array4<const amrex::Real>& u_star_arr,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
@@ -1301,8 +1307,9 @@ struct custom_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
+        amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? -tstar*ustar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
@@ -1312,7 +1319,10 @@ struct custom_flux
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(theta - moflux*rho/eta*deltaz);
+        // Note: Kh = eta/rho
+        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
 #endif
 
         return moflux;

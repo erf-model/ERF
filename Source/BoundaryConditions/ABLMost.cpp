@@ -254,6 +254,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,zlo+1) - zphys_arr(i,j,zlo) ) : dz_no_terrain;
 #endif
 
+                    // This is the _kinematic_ heat flux [K m/s]
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                           dz1,
