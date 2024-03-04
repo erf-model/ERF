@@ -602,9 +602,6 @@ struct moeng_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
@@ -664,9 +661,6 @@ struct moeng_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -748,9 +742,6 @@ struct moeng_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -829,9 +820,6 @@ struct moeng_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -927,9 +915,6 @@ struct donelan_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
@@ -989,9 +974,6 @@ struct donelan_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
@@ -1055,9 +1037,6 @@ struct donelan_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -1136,9 +1115,6 @@ struct donelan_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -1233,9 +1209,6 @@ struct custom_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
@@ -1253,7 +1226,7 @@ struct custom_flux
         amrex::Real rho, eta, qv;
 
 #ifndef ERF_EXPLICIT_MOST_STRESS
-        int ie, je
+        int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
         ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
@@ -1295,9 +1268,6 @@ struct custom_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
@@ -1358,9 +1328,6 @@ struct custom_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
@@ -1430,9 +1397,6 @@ struct custom_flux
                     const amrex::Real& dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-                    const amrex::Array4<amrex::Real>& t13_arr,
-                    const amrex::Array4<amrex::Real>& t23_arr,
-                    const amrex::Array4<amrex::Real>& hfx_arr,
 #endif
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,

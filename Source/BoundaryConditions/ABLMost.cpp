@@ -255,7 +255,6 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                           dz1,
-                                                          t13_arr, t23_arr, hfx_arr,
 #endif
                                                           cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -283,7 +282,6 @@ ABLMost::compute_most_bcs (const int& lev,
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                               dz1,
-                                                              t13_arr, t23_arr, hfx_arr,
 #endif
                                                               cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -309,7 +307,6 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                             dz1,
-                                                            t13_arr, t23_arr, hfx_arr,
 #endif
                                                             cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -334,7 +331,6 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                             dz1,
-                                                            t13_arr, t23_arr, hfx_arr,
 #endif
                                                             cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
