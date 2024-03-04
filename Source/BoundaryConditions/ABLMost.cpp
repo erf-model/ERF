@@ -121,19 +121,49 @@ ABLMost::compute_fluxes (const int& lev,
 void
 ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                          MultiFab* xzmom_flux,
+                          MultiFab* yzmom_flux,
+                          MultiFab* heat_flux,
+#else
                           MultiFab* eddyDiffs,
+#endif
                           MultiFab* z_phys)
 {
     const int zlo = 0;
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp(zlo);
-        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
+        compute_most_bcs(lev, mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                         xzmom_flux,
+                         yzmom_flux,
+                         heat_flux,
+#else
+                         eddyDiffs,
+#endif
+                         z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(zlo);
-        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
+        compute_most_bcs(lev, mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                         xzmom_flux,
+                         yzmom_flux,
+                         heat_flux,
+#else
+                         eddyDiffs,
+#endif
+                         z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
         custom_flux flux_comp(zlo);
-        compute_most_bcs(lev, mfs, eddyDiffs, z_phys, m_geom[lev].CellSize(2), flux_comp);
+        compute_most_bcs(lev, mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                         xzmom_flux,
+                         yzmom_flux,
+                         heat_flux,
+#else
+                         eddyDiffs,
+#endif
+                         z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
 }
 
@@ -150,7 +180,13 @@ template<typename FluxCalc>
 void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                           MultiFab* xzmom_flux,
+                           MultiFab* yzmom_flux,
+                           MultiFab* heat_flux,
+#else
                            MultiFab* eddyDiffs,
+#endif
                            MultiFab* z_phys,
                            const Real& dz_no_terrain,
                            const FluxCalc& flux_comp)
@@ -167,7 +203,13 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
         const auto vely_arr  = mfs[Vars::yvel]->array(mfi);
+#ifdef ERF_EXPLICIT_MOST_STRESS
+        auto t13_arr = xzmom_flux->array(mfi);
+        auto t23_arr = yzmom_flux->array(mfi);
+        auto hfx_arr =  heat_flux->array(mfi);
+#else
         const auto  eta_arr  = eddyDiffs->array(mfi);
+#endif
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
         // Get average arrays
@@ -213,6 +255,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                           dz1,
+                                                          t13_arr, t23_arr, hfx_arr,
 #endif
                                                           cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -240,6 +283,7 @@ ABLMost::compute_most_bcs (const int& lev,
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                               dz1,
+                                                              t13_arr, t23_arr, hfx_arr,
 #endif
                                                               cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -265,6 +309,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                             dz1,
+                                                            t13_arr, t23_arr, hfx_arr,
 #endif
                                                             cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS
@@ -289,6 +334,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz,
 #ifdef ERF_EXPLICIT_MOST_STRESS
                                                             dz1,
+                                                            t13_arr, t23_arr, hfx_arr,
 #endif
                                                             cons_arr, velx_arr, vely_arr,
 #ifndef ERF_EXPLICIT_MOST_STRESS

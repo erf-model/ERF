@@ -216,14 +216,26 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                     amrex::MultiFab* xzmom_flux,
+                     amrex::MultiFab* yzmom_flux,
+                     amrex::MultiFab* heat_flux,
+#else
                      amrex::MultiFab* eddyDiffs,
+#endif
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                      amrex::MultiFab* xzmom_flux,
+                      amrex::MultiFab* yzmom_flux,
+                      amrex::MultiFab* heat_flux,
+#else
                       amrex::MultiFab* eddyDiffs,
+#endif
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
