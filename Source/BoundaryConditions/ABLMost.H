@@ -217,8 +217,8 @@ public:
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                     amrex::MultiFab* xzmom_flux,
-                     amrex::MultiFab* yzmom_flux,
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
 #else
                      amrex::MultiFab* eddyDiffs,
@@ -230,8 +230,8 @@ public:
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                      amrex::MultiFab* xzmom_flux,
-                      amrex::MultiFab* yzmom_flux,
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
 #else
                       amrex::MultiFab* eddyDiffs,

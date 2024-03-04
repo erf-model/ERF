@@ -236,6 +236,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Box tbxxy = mfi.tilebox(IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1));
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            if (use_most) {
+                // Don't overwrite modeled total stress value at boundary
+                tbxxz.setSmall(2,1);
+                tbxyz.setSmall(2,1);
+            }
+#endif
+
             // We need a halo cell for terrain
              bxcc.grow(IntVect(1,1,0));
             tbxxy.grow(IntVect(1,1,0));

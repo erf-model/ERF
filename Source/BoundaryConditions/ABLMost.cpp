@@ -122,8 +122,8 @@ void
 ABLMost::impose_most_bcs (const int& lev,
                           const Vector<MultiFab*>& mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                          MultiFab* xzmom_flux,
-                          MultiFab* yzmom_flux,
+                          MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                          MultiFab* yzmom_flux, MultiFab* zymom_flux,
                           MultiFab* heat_flux,
 #else
                           MultiFab* eddyDiffs,
@@ -135,8 +135,8 @@ ABLMost::impose_most_bcs (const int& lev,
         moeng_flux flux_comp(zlo);
         compute_most_bcs(lev, mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                         xzmom_flux,
-                         yzmom_flux,
+                         xzmom_flux, xzmom_flux,
+                         yzmom_flux, yzmom_flux,
                          heat_flux,
 #else
                          eddyDiffs,
@@ -146,8 +146,8 @@ ABLMost::impose_most_bcs (const int& lev,
         donelan_flux flux_comp(zlo);
         compute_most_bcs(lev, mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                         xzmom_flux,
-                         yzmom_flux,
+                         xzmom_flux, xzmom_flux,
+                         yzmom_flux, yzmom_flux,
                          heat_flux,
 #else
                          eddyDiffs,
@@ -157,8 +157,8 @@ ABLMost::impose_most_bcs (const int& lev,
         custom_flux flux_comp(zlo);
         compute_most_bcs(lev, mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                         xzmom_flux,
-                         yzmom_flux,
+                         xzmom_flux, xzmom_flux,
+                         yzmom_flux, yzmom_flux,
                          heat_flux,
 #else
                          eddyDiffs,
@@ -181,8 +181,8 @@ void
 ABLMost::compute_most_bcs (const int& lev,
                            const Vector<MultiFab*>& mfs,
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                           MultiFab* xzmom_flux,
-                           MultiFab* yzmom_flux,
+                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
+                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
                            MultiFab* heat_flux,
 #else
                            MultiFab* eddyDiffs,
@@ -206,6 +206,8 @@ ABLMost::compute_most_bcs (const int& lev,
 #ifdef ERF_EXPLICIT_MOST_STRESS
         auto t13_arr = xzmom_flux->array(mfi);
         auto t23_arr = yzmom_flux->array(mfi);
+        auto t31_arr = (zxmom_flux) ? zxmom_flux->array(mfi) : Array4<Real>{};
+        auto t32_arr = (zymom_flux) ? zymom_flux->array(mfi) : Array4<Real>{};
         auto hfx_arr =  heat_flux->array(mfi);
 #else
         const auto  eta_arr  = eddyDiffs->array(mfi);
@@ -263,10 +265,17 @@ ABLMost::compute_most_bcs (const int& lev,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
                                                           dest_arr);
 
+
+                    // TODO: make sure not to double-count surface heat flux if using a LSM
                     int is_land = (lmask_arr) ? lmask_arr(i,j,zlo) : 1;
                     if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
                         lsm_flux_arr(i,j,zlo) = Tflux;
                     }
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    else if ((k == zlo-1) && vbx.contains(i,j,k)) {
+                        hfx_arr(i,j,zlo) = Tflux;
+                    }
+#endif
                 });
 
                 // TODO: Generalize MOST q flux with MOENG & DONELAN flux types
@@ -314,6 +323,13 @@ ABLMost::compute_most_bcs (const int& lev,
 #endif
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    if ((k == zlo-1) && vbx.contains(i,j,k)) {
+                        t13_arr(i,j,zlo) = -stressx;
+                        if (t31_arr) t31_arr(i,j,zlo) = -stressx;
+                    }
+#endif
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -338,6 +354,13 @@ ABLMost::compute_most_bcs (const int& lev,
 #endif
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                    if ((k == zlo-1) && vbx.contains(i,j,k)) {
+                        t23_arr(i,j,zlo) = -stressy;
+                        if (t32_arr) t32_arr(i,j,zlo) = -stressy;
+                    }
+#endif
                 });
             }
         } // var_idx
