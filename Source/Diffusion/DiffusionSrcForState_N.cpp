@@ -218,6 +218,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool most_on_zlo    = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::MOST   ) && k == 0);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -226,6 +227,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -265,6 +268,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool most_on_zlo    = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::MOST   ) && k == 0);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -273,6 +277,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -309,6 +316,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool most_on_zlo    = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::MOST   ) && k == 0);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -317,6 +325,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -351,6 +361,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+            bool most_on_zlo    = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::MOST   ) && k == 0);
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -359,6 +370,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -407,7 +421,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         });
     }
 
-    // Using Deardorff
+    // Using PBL
     if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
         int qty_index = RhoQKE_comp;
         auto pbl_B1_l = turbChoice.pbl_B1;
