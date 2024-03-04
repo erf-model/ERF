@@ -130,6 +130,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
+    const bool use_most     = (most != nullptr);
+
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
 
@@ -630,7 +632,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                    diffflux_x, diffflux_y, diffflux_z,
                                    dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                    hfx_z, diss,
-                                   mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                   mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr, use_most);
         }
 
         if (l_use_ndiff) {

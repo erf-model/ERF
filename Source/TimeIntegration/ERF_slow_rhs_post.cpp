@@ -335,6 +335,8 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
+            const bool use_most = (most != nullptr);
+
             if (l_use_deardorff) {
                 start_comp = RhoKE_comp;
                   num_comp = 1;
@@ -344,14 +346,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
                 }
                 if (l_use_ndiff) {
                     NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
@@ -367,14 +369,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr, use_most);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
                 }
                 if (l_use_ndiff) {
                     NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
@@ -390,14 +392,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
             } else {
                 DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
             }
             if (l_use_ndiff) {
                 NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
