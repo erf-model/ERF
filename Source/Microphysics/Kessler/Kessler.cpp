@@ -16,6 +16,8 @@ void Kessler::AdvanceKessler ()
     auto pres  = mic_fab_vars[MicVar_Kess::pres];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
+    auto rain_accum = mic_fab_vars[MicVar_Kess::rain_accum];
+
 
     auto dz = m_geom.CellSize(2);
     auto domain = m_geom.Domain();
@@ -30,6 +32,8 @@ void Kessler::AdvanceKessler ()
     for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
         auto rho_array = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto rain_accum_array = rain_accum->array(mfi);
+
         auto fz_array  = fz.array(mfi);
         const Box& tbz = mfi.tilebox();
 
@@ -53,6 +57,10 @@ void Kessler::AdvanceKessler ()
             Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
 
             fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
+
+            if(k==k_lo){
+                rain_accum_array(i,j,k) = rain_accum_array(i,j,k) + rho_avg*qp_avg*V_terminal*dt/1000.0*1000.0; // Divide by rho_water and convert to mm
+            }
 
             /*if(k==0){
               fz_array(i,j,k) = 0;
