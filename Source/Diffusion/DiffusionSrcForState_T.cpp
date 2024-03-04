@@ -562,7 +562,6 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
     // Use fluxes to compute RHS
     //-----------------------------------------------------------------------------------
-    // Use fluxes to compute RHS
     for (int n(0); n < num_comp; ++n)
     {
         int qty_index = start_comp + n;
@@ -578,7 +577,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
         });
     }
 
-    // Using Deardorff
+    // Using Deardorff (see Sullivan et al 1994)
     if (l_use_deardorff && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -588,8 +587,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
             // flux; the TKE buoyancy production is then
             //   B = g/theta_0 * tau_{theta,w}
-            // for a dry atmosphere (see, e.g., Sullivan et al 1994). To
-            // account for moisture, the Brunt-Vaisala frequency,
+            // for a dry atmosphere. To account for moisture, the Brunt-Vaisala
+            // frequency,
             //   N^2 = g[1/theta * dtheta/dz + ...]
             // **should** be a function of the water vapor and total water
             // mixing ratios, depending on whether conditions are saturated or
