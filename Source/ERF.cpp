@@ -1219,7 +1219,8 @@ ERF::ReadParameters ()
     if (solverChoice.moisture_type == MoistureType::SAM) {
         micro.SetModel<SAM>();
         amrex::Print() << "SAM moisture model!\n";
-    } else if (solverChoice.moisture_type == MoistureType::Kessler) {
+    } else if (solverChoice.moisture_type == MoistureType::Kessler or
+               solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
         micro.SetModel<Kessler>();
         amrex::Print() << "Kessler moisture model!\n";
     } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
