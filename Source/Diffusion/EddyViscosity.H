@@ -41,23 +41,37 @@ ComputeSmnSmn (int& i, int& j, int& k,
     amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
 
+    amrex::Real s13bar;
+#ifndef ERF_EXPLICIT_MOST_STRESS
     // NOTE: We cannot use the strains lying on the bottom boundary with MOST.
     //       These values are corrupted with the reflect odd BC used to fill
     //       the ghost cells. We use one-sided for this case.
-    amrex::Real s13bar;
     if (use_most && k==klo) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
-    } else {
+    }
+    else
+#endif
+    // NOTE 2: If we are using the ERF_EXPLICIT_MOST_STRESS solver path,
+    //      however, then the tau13 and tau23 surface stresses are valid and
+    //      have been set to the exact values from MOST. The one-sided calc
+    //      is therefore not needed.
+    {
         s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
                         + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
     }
+
     amrex::Real s23bar;
+#ifndef ERF_EXPLICIT_MOST_STRESS
     if (use_most && k==klo) {
         s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
-    } else {
+    }
+    else
+#endif
+    {
         s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
                         + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
     }
+
     amrex::Real SmnSmn = s11bar*s11bar + s22bar*s22bar + s33bar*s33bar
                        + 2.0*s12bar*s12bar + 2.0*s13bar*s13bar + 2.0*s23bar*s23bar;
 
