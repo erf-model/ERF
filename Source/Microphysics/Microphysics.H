@@ -5,6 +5,7 @@
 #include <SAM.H>
 #include <Kessler.H>
 #include <FastEddy.H>
+#include <ERF.H>
 
 class Microphysics {
 
@@ -44,9 +45,9 @@ public:
     }
 
     void
-    Advance (const int& lev, const amrex::Real& dt_advance)
+    Advance (const int& lev, const amrex::Real& dt_advance, const SolverChoice &solverChoice)
     {
-        m_moist_model[lev]->Advance(dt_advance);
+        m_moist_model[lev]->Advance(dt_advance, solverChoice);
     }
 
     void

@@ -144,6 +144,7 @@ add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/taylor_
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 
+add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
 add_test_0(Deardorff_stationary              "ABL/erf_abl" "plt00010")
 endif()
 #=============================================================================

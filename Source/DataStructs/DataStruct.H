@@ -29,7 +29,7 @@ enum struct TerrainType {
 };
 
 enum struct MoistureType {
-    Kessler, SAM, FastEddy, None
+    Kessler, SAM, FastEddy, Kessler_NoRain, None
 };
 
 enum struct WindFarmType {
@@ -89,6 +89,8 @@ struct SolverChoice {
             moisture_type = MoistureType::SAM;
         } else if (moisture_model_string == "Kessler") {
             moisture_type = MoistureType::Kessler;
+        }else if (moisture_model_string == "Kessler_NoRain") {
+            moisture_type = MoistureType::Kessler_NoRain;
         } else if (moisture_model_string == "FastEddy") {
             moisture_type = MoistureType::FastEddy;
         } else {
