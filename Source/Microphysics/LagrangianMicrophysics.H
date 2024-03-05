@@ -46,6 +46,7 @@ public:
 
     void Advance ( const int& lev,
                    const amrex::Real& dt_advance,
+                   const SolverChoice&,
                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars,
                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z) override
     {

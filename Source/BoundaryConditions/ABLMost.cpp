@@ -65,9 +65,9 @@ ABLMost::update_fluxes (const int& lev,
             }
         } // theta flux
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        u_star[lev]->setVal(surf_mom_flux);
-        t_star[lev]->setVal(surf_temp_flux);
-        q_star[lev]->setVal(surf_moist_flux);
+        u_star[lev]->setVal(custom_ustar);
+        t_star[lev]->setVal(custom_tstar);
+        q_star[lev]->setVal(custom_qstar);
     }
 }
 
@@ -218,7 +218,7 @@ ABLMost::compute_most_bcs (const int& lev,
                 });
 
                 // TODO: Generalize MOST q flux with MOENG & DONELAN flux types
-                if (flux_type == FluxCalcType::CUSTOM) {
+                if ((flux_type == FluxCalcType::CUSTOM) && use_moisture) {
                     n = RhoQ1_comp;
                     ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {

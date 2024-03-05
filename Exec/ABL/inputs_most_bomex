@@ -14,9 +14,9 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type = "Most"
 erf.most.flux_type = "custom"
-erf.most.surf_mom_flux   = 0.28   # ustar
-erf.most.surf_temp_flux  = 8.0e-3 # theta flux
-erf.most.surf_moist_flux = 5.2e-5 # qv    flux
+erf.most.ustar = 0.28
+erf.most.tstar = 8.0e-3
+erf.most.qstar = 5.2e-5
 erf.most.z0   = 0.1
 erf.most.zref = 8.0
 

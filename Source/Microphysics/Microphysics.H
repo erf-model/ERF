@@ -1,7 +1,7 @@
 #ifndef MICROPHYSICS_H
 #define MICROPHYSICS_H
 
-#include <DataStruct.H>
+#include "DataStruct.H"
 
 class Microphysics {
 
@@ -21,6 +21,7 @@ public:
 
     virtual void Advance (  const int&,
                             const amrex::Real&,
+                            const SolverChoice&,
                             amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
 
@@ -40,6 +41,7 @@ public:
     {
         if (    (a_moisture_type == MoistureType::SAM)
              || (a_moisture_type == MoistureType::Kessler)
+             || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::FastEddy)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;

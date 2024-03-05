@@ -94,7 +94,7 @@ public:
 
     // wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt_advance) override
+    Advance (const amrex::Real& dt_advance, const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
 

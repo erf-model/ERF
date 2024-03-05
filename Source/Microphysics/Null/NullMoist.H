@@ -24,7 +24,8 @@ public:
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const amrex::Real& /*dt_advance*/,
+             const SolverChoice& /*solverChoce*/) { }
 
     virtual
     void
