@@ -687,7 +687,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
             int q_size = qmoist[lev].size();
-            int n_qstate   = micro.Get_Qstate_Size();
+            int n_qstate   = micro->Get_Qstate_Size();
 
             if(containerHasElement(plot_var_names, "qv") && (n_qstate >= 1))
             {
