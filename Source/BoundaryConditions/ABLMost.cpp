@@ -199,6 +199,9 @@ ABLMost::compute_most_bcs (const int& lev,
         // Valid CC box
         Box vbx = mfi.validbox(); vbx.makeSlab(2,zlo-1);
 
+        Box vbxx = surroundingNodes(vbx,0);
+        Box vbxy = surroundingNodes(vbx,1);
+
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
         const auto velx_arr  = mfs[Vars::xvel]->array(mfi);
@@ -326,7 +329,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             dest_arr);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                    if ((k == zlo-1) && vbx.contains(i,j,k)) {
+                    if ((k == zlo-1) && vbxx.contains(i,j,k)) {
                         t13_arr(i,j,zlo) = -stressx;
                         if (t31_arr) t31_arr(i,j,zlo) = -stressx;
                     }
@@ -357,7 +360,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             dest_arr);
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
-                    if ((k == zlo-1) && vbx.contains(i,j,k)) {
+                    if ((k == zlo-1) && vbxy.contains(i,j,k)) {
                         t23_arr(i,j,zlo) = -stressy;
                         if (t32_arr) t32_arr(i,j,zlo) = -stressy;
                     }
