@@ -960,7 +960,12 @@ ERF::init_only (int lev, Real time)
         // input sounding, if the init_sounding_ideal flag is set; otherwise
         // it is set by initHSE()
         init_from_input_sounding(lev);
-        if (!init_sounding_ideal) initHSE();
+        if (init_sounding_ideal) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_gravity,
+                "Gravity should be on to be consistent with sounding initialization.");
+        } else {
+            initHSE();
+        }
 
 #ifdef ERF_USE_NETCDF
     } else if (init_type == "ideal" || init_type == "real") {
@@ -1223,7 +1228,8 @@ ERF::ReadParameters ()
     if (solverChoice.moisture_type == MoistureType::SAM) {
         micro.SetModel<SAM>();
         amrex::Print() << "SAM moisture model!\n";
-    } else if (solverChoice.moisture_type == MoistureType::Kessler) {
+    } else if (solverChoice.moisture_type == MoistureType::Kessler or
+               solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
         micro.SetModel<Kessler>();
         amrex::Print() << "Kessler moisture model!\n";
     } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
