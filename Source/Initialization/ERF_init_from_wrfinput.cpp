@@ -150,7 +150,7 @@ ERF::init_from_wrfinput (int lev)
     }
 
     auto& lev_new = vars_new[lev];
-     int n_qstate = micro.Get_Qstate_Size();
+    int n_qstate = micro.Get_Qstate_Size();
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -325,12 +325,12 @@ init_state_from_wrfinput (int lev,
               state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ1_comp, 1);
             }
 
-            if (RhoQ2_comp < state_fab.nComp()) {
+            if (n_qstate >= 2) {
               state_fab.template copy<RunOn::Device>(NC_QCLOUD_fab[idx], 0, RhoQ2_comp, 1);
               state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]   , 0, RhoQ2_comp, 1);
             }
 
-            if (RhoQ3_comp < state_fab.nComp()) {
+            if (n_qstate >= 3) {
                 state_fab.template copy<RunOn::Device>(NC_QRAIN_fab[idx], 0, RhoQ3_comp, 1);
                 state_fab.template mult<RunOn::Device>(NC_rho_fab[idx]  , 0, RhoQ3_comp, 1);
             }
