@@ -912,8 +912,8 @@ ERF::initializeMicrophysics (const int& a_nlevsmax)
 
         micro = std::make_unique<EulerianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
 
-#ifdef ERF_USE_PARTICLES
     } else if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+#ifdef ERF_USE_PARTICLES
 
         micro = std::make_unique<LagrangianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
         /* Lagrangian microphysics models will have a particle container; it needs to be added
