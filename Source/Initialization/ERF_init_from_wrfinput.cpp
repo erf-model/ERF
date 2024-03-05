@@ -150,7 +150,7 @@ ERF::init_from_wrfinput (int lev)
     }
 
     auto& lev_new = vars_new[lev];
-    int n_qstate = micro.Get_Qstate_Size();
+    int n_qstate = micro->Get_Qstate_Size();
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
