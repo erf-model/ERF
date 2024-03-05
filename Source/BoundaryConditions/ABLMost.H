@@ -77,6 +77,10 @@ public:
             if (custom_qstar != 0) {
                 AMREX_ASSERT_WITH_MESSAGE(use_moisture, "Specified custom MOST qv flux without moisture model!");
             }
+            amrex::Print() << "Using specified ustar, tstar, qstar for MOST = "
+                << custom_ustar << " "
+                << custom_tstar << " "
+                << custom_qstar << std::endl;
 
         // Specify surface temperature or surface flux
         } else {
