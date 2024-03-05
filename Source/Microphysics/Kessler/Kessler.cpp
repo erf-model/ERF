@@ -19,6 +19,8 @@ if(solverChoice.moisture_type == MoistureType::Kessler){
     auto pres  = mic_fab_vars[MicVar_Kess::pres];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
+    auto rain_accum = mic_fab_vars[MicVar_Kess::rain_accum];
+
 
     auto dz = m_geom.CellSize(2);
     auto domain = m_geom.Domain();
@@ -30,9 +32,13 @@ if(solverChoice.moisture_type == MoistureType::Kessler){
     auto dm    = tabs->DistributionMap();
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
+    Real dtn = dt;
+
     for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
         auto rho_array = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto rain_accum_array = mic_fab_vars[MicVar_Kess::rain_accum]->array(mfi);
+
         auto fz_array  = fz.array(mfi);
         const Box& tbz = mfi.tilebox();
 
@@ -57,13 +63,16 @@ if(solverChoice.moisture_type == MoistureType::Kessler){
 
             fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
 
+            if(k==k_lo){
+                rain_accum_array(i,j,k) = rain_accum_array(i,j,k) + rho_avg*qp_avg*V_terminal*dtn/1000.0*1000.0; // Divide by rho_water and convert to mm
+            }
+
             /*if(k==0){
               fz_array(i,j,k) = 0;
               }*/
         });
     }
 
-    Real dtn = dt;
 
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
