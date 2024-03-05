@@ -1,11 +1,11 @@
 #ifndef EULERIANMICROPHYSICS_H
 #define EULERIANMICROPHYSICS_H
 
-#include <NullMoist.H>
-#include <SAM.H>
-#include <Kessler.H>
-#include <FastEddy.H>
-#include <Microphysics.H>
+#include "NullMoist.H"
+#include "SAM.H"
+#include "Kessler.H"
+#include "FastEddy.H"
+#include "Microphysics.H"
 
 class EulerianMicrophysics : public Microphysics {
 
@@ -23,7 +23,8 @@ public:
         if (a_model_type == MoistureType::SAM) {
             SetModel<SAM>();
             amrex::Print() << "SAM moisture model!\n";
-        } else if (a_model_type == MoistureType::Kessler) {
+        } else if (a_model_type == MoistureType::Kessler or
+                   a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
             amrex::Print() << "Kessler moisture model!\n";
         } else if (a_model_type == MoistureType::FastEddy) {
@@ -33,7 +34,7 @@ public:
             SetModel<NullMoist>();
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
         } else {
-            amrex::Abort("Dont know this moisture_type!") ;
+            amrex::Abort("EulerianMicrophysics: Dont know this moisture_type!") ;
         }
     }
 
@@ -55,12 +56,13 @@ public:
     }
 
     void
-    Advance ( const int& lev,
-              const amrex::Real& dt_advance,
-              amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override
+    Advance (   const int& lev,
+                const amrex::Real& dt_advance,
+                const SolverChoice &solverChoice,
+                amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override
     {
-        m_moist_model[lev]->Advance(dt_advance);
+        m_moist_model[lev]->Advance(dt_advance, solverChoice);
     }
 
     void

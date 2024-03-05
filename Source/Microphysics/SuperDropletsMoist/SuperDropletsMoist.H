@@ -5,7 +5,7 @@
 
 #include <string>
 
-#include "NullMoist.H"
+#include "NullMoistLagrangian.H"
 #include "SuperDropletPC.H"
 
 namespace MicVar_SD {
@@ -41,25 +41,26 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual ~SuperDropletsMoist() = default;
 
         /*! \brief Define super-droplet moisture model parameters */
-        virtual void Define (SolverChoice&);
+        virtual void Define (SolverChoice&) override;
 
         /*! \brief Initialize super-droplet moisture model data structures */
         virtual void Init ( const MultiFab&,
                             const BoxArray&,
                             const Geometry&,
-                            const Real& );
+                            const Real& ) override;
 
-        /* This is here just to avoid CUDA compiler warnings about virtual
-           function override. Don't ever call this! */
-        using NullMoist::Advance;
+        void Advance ( const amrex::Real&, const SolverChoice& ) override
+        {
+            amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
+        }
 
         /*! \brief Advance for one timestep */
         virtual void Advance (const Real&,
                               Vector<Vector<MultiFab>>&,
-                              const Vector<std::unique_ptr<MultiFab>>& );
+                              const Vector<std::unique_ptr<MultiFab>>& ) override;
 
         /*! \brief Update microphysics variables */
-        inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars)
+        inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override
         {
             Copy_State_to_Micro(a_cons_vars);
 
@@ -69,41 +70,41 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief state variables from microphysics variables */
-        inline virtual void Update_State_Vars (MultiFab& a_cons_vars)
+        inline virtual void Update_State_Vars (MultiFab& a_cons_vars) override
         {
             computeQc();
             Copy_Micro_to_State(a_cons_vars);
         }
 
         /*! \brief TODO */
-        virtual void Diagnose () { }
+        virtual void Diagnose () override { }
 
         /*! \brief Copy moisture model vars from state to member multifabs */
-        virtual void Copy_State_to_Micro (const MultiFab&);
+        virtual void Copy_State_to_Micro (const MultiFab&) override;
 
         /*! \brief Copy moisture model vars to state from member multifabs */
-        virtual void Copy_Micro_to_State (MultiFab&);
+        virtual void Copy_Micro_to_State (MultiFab&) override;
 
         /*! \brief returns the moisture variable asked for */
-        inline virtual MultiFab* Qmoist_Ptr (const int& a_idx)
+        inline virtual MultiFab* Qmoist_Ptr (const int& a_idx) override
         {
             AMREX_ALWAYS_ASSERT( a_idx < m_qmoist_size );
             return m_mic_fab_vars[m_mic_var_map[a_idx]].get();
         }
 
         /*! \brief returns number of variables in this moisture model */
-        inline virtual int Qmoist_Size () { return m_qmoist_size; }
+        inline virtual int Qmoist_Size () override { return m_qmoist_size; }
 
         /*! \brief returns number of conserved variables in this moisture model */
-        inline virtual int Qstate_Size () { return m_qstate_size; }
+        inline virtual int Qstate_Size () override { return m_qstate_size; }
 
         /*! \brief returns pointer to super-droplets particle container */
-        inline virtual ERFPC* getParticleContainer()
+        inline virtual ERFPC* getParticleContainer() override
         {
             return m_super_droplets;
         }
 
-        inline virtual const std::string& getName() const
+        inline virtual const std::string& getName() const override
         {
             return m_name;
         }

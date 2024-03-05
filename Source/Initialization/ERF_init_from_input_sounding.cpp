@@ -218,7 +218,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                          : z_lo + (k + 0.5) * dz;
 
-        Real rho_k, rhoTh_k;
+        Real rho_k, qv_k, rhoTh_k;
 
         // Set the density
         rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
@@ -232,8 +232,9 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         state(i, j, k, RhoScalar_comp) = 0;
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
-        r_hse_arr (i, j, k) = rho_k;
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
+        qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
+        r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
         // Boundary treatment
@@ -257,7 +258,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
         if (l_moist)
-            state(i, j, k, RhoQ1_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+            state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
     });
 }
 

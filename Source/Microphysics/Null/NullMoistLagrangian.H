@@ -25,7 +25,10 @@ public:
         return m_name;
     }
 
-    using NullMoist::Advance;
+    void Advance ( const amrex::Real&, const SolverChoice& ) override
+    {
+        amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
+    }
 
     virtual void
     Advance (const amrex::Real&,
@@ -36,6 +39,7 @@ protected:
 
 private:
     const std::string m_name = "null";
+
 };
 
 #endif

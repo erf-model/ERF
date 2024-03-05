@@ -328,6 +328,7 @@ Problem::init_custom_pert(
                 if (use_moisture) {
                     state(i, j, k, RhoQ1_comp) = 0.0;
                     state(i, j, k, RhoQ2_comp) = 0.0;
+                    state(i, j, k, RhoQ3_comp) = 0.0;
                 }
 
             });
@@ -405,6 +406,7 @@ Problem::init_custom_pert(
                 // mean states
                 state(i, j, k, RhoQ1_comp) = rho*q_v_hot;
                 state(i, j, k, RhoQ2_comp) = rho*(parms.qt_init - q_v_hot);
+                state(i, j, k, RhoQ3_comp) = 0.0;
 
                 // Cold microphysics are present
                 int nstate = state.ncomp;
@@ -436,6 +438,7 @@ Problem::init_custom_pert(
                 if (use_moisture) {
                     state(i, j, k, RhoQ1_comp) = 0.0;
                     state(i, j, k, RhoQ2_comp) = 0.0;
+                    state(i, j, k, RhoQ3_comp) = 0.0;
                 }
             });
         } // do_moist_bubble
