@@ -270,9 +270,9 @@ ABLMost::time_interp_sst (const int& lev,
     Real dT = m_bdy_time_interval;
     Real time_since_start = time - m_start_bdy_time;
     int n_time = static_cast<int>( time_since_start /  dT);
-    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    amrex::Real oma   = 1.0 - alpha;
+    Real oma   = 1.0 - alpha;
     AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
 
     // Populate t_surf

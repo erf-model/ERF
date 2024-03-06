@@ -21,19 +21,19 @@
 
 using namespace amrex;
 
-amrex::Real ERF::startCPUTime        = 0.0;
-amrex::Real ERF::previousCPUTimeUsed = 0.0;
+Real ERF::startCPUTime        = 0.0;
+Real ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
 // Time step control
-amrex::Real ERF::cfl           =  0.8;
-amrex::Real ERF::fixed_dt      = -1.0;
-amrex::Real ERF::fixed_fast_dt = -1.0;
-amrex::Real ERF::init_shrink   =  1.0;
-amrex::Real ERF::change_max    =  1.1;
+Real ERF::cfl           =  0.8;
+Real ERF::fixed_dt      = -1.0;
+Real ERF::fixed_fast_dt = -1.0;
+Real ERF::init_shrink   =  1.0;
+Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -41,7 +41,7 @@ int         ERF::verbose       = 0;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
-amrex::Real ERF::sum_per       = -1.0;
+Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
@@ -68,16 +68,16 @@ bool ERF::init_sounding_ideal = false;
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
 int         ERF::column_interval  = -1;
-amrex::Real ERF::column_per       = -1.0;
-amrex::Real ERF::column_loc_x     = 0.0;
-amrex::Real ERF::column_loc_y     = 0.0;
+Real ERF::column_per       = -1.0;
+Real ERF::column_loc_x     = 0.0;
+Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 // 2D BndryRegister output (for ingestion by AMR-Wind)
 int         ERF::output_bndry_planes            = 0;
 int         ERF::bndry_output_planes_interval   = -1;
-amrex::Real ERF::bndry_output_planes_per        = -1.0;
-amrex::Real ERF::bndry_output_planes_start_time =  0.0;
+Real ERF::bndry_output_planes_per        = -1.0;
+Real ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
 int         ERF::input_bndry_planes             = 0;
@@ -619,7 +619,7 @@ ERF::InitData ()
         m_r2d->read_time_file();
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
-        amrex::Real dt_dummy = 0.0;
+        Real dt_dummy = 0.0;
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 
@@ -682,7 +682,7 @@ ERF::InitData ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        amrex::Real time = 0.;
+        Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
             m_w2d->write_planes(0, time, vars_new);
         }
@@ -738,7 +738,7 @@ ERF::InitData ()
                   fillset);
 
         //
-        // We do this here to make sure level (lev-1) boundary conditions are filled 
+        // We do this here to make sure level (lev-1) boundary conditions are filled
         // before we interpolate to level (lev) ghost cells
         //
         if (lev < finest_level) {
@@ -1575,7 +1575,7 @@ ERF::Define_ERFFillPatchers (int lev)
 
 #ifdef ERF_USE_MULTIBLOCK
 // constructor used when ERF is created by a multiblock driver
-ERF::ERF (const amrex::RealBox& rb, int max_level_in,
+ERF::ERF (const RealBox& rb, int max_level_in,
           const amrex::Vector<int>& n_cell_in, int coord,
           const amrex::Vector<amrex::IntVect>& ref_ratios,
           const amrex::Array<int,AMREX_SPACEDIM>& is_per,

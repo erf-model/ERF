@@ -59,7 +59,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-                         const bool use_terrain, const int domhi_z);
+                         const bool use_terrain, const int lo_z_face, const int hi_z_face);
 
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
