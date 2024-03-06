@@ -1,10 +1,9 @@
-#include <SuperDropletPC.H>
+#include "SuperDropletPC.H"
 
 #ifdef ERF_USE_PARTICLES
 
-#include <IndexDefines.H>
-#include <ERF_Constants.H>
 #include <AMReX_TracerParticle_mod_K.H>
+#include "IndexDefines.H"
 
 using namespace amrex;
 

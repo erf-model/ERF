@@ -16,15 +16,11 @@ void SuperDropletPC::EvolveParticles ( int                                      
     BL_PROFILE("SuperDropletPCPC::EvolveParticles()");
 
     if (m_nucleate_particles) {
-        MultiFab* cons_vars( &a_flow_vars[a_lev][Vars::cons] );
+        //MultiFab* cons_vars( &a_flow_vars[a_lev][Vars::cons] );
         // TODO: nucleation( const_vars );
     }
 
-    {
-        MultiFab* cons_vars( &a_flow_vars[a_lev][Vars::cons] );
-        // TODO: massChange( const_vars );
-    }
-
+    MassChange( a_lev, a_dt_lev, a_flow_vars, a_z_phys_nd );
     AdvectParticles( a_lev, a_dt_lev, a_flow_vars, a_z_phys_nd, m_advect_w_flow, m_advect_w_gravity );
 
     // TODO: coalescence();

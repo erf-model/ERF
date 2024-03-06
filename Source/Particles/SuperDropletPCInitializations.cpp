@@ -141,8 +141,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         }
     }
 
-
-
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
                                  1, 0 );
