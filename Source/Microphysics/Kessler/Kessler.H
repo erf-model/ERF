@@ -38,6 +38,7 @@ namespace MicVar_Kess {
       // precipitating vars
       qp,    // total precip
       // derived vars
+      rain_accum,
       NumVars
   };
 }
@@ -127,7 +128,7 @@ public:
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qp)
-    int m_qmoist_size = 4;
+    int m_qmoist_size = 5;
 
     // Number of qstate variables
     int m_qstate_size = 3;
