@@ -733,6 +733,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
+
+            if (containerHasElement(plot_var_names, "rain_accum"))
+            {
+                MultiFab rain_accum_mf(*(qmoist[lev][0]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
+                mf_comp += 1;
+            }
         }
 
 #ifdef ERF_USE_PARTICLES
