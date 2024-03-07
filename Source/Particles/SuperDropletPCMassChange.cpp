@@ -128,7 +128,7 @@ void SuperDropletPC::MassChange (   int                                         
         SuperDropletsUtils::NewtonSolver< SuperDropletsUtils::dRsqdt_RHSFunc,
                                           SuperDropletsUtils::dRsqdt_RHSJac,
                                           ParticleReal > newton_solver { drsqdt_rhsfun, drsqdt_rhsjac,
-                                                                         1.0e-6,1.0e-12,1.0e-14,10 };
+                                                                         1.0e-6,1.0e-99,1.0e-99,10 };
 
         amrex::Gpu::Buffer<amrex::Long> unconverged_particles({0});
         amrex::Long* unconverged_particles_ptr = unconverged_particles.data();
