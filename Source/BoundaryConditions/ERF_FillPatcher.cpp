@@ -37,8 +37,7 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
     m_crse_times.resize(2);
 
     // Define the coarse and fine MFs
-    Define(fba, fdm, fgeom, cba, cdm, cgeom,
-           nghost, nghost_set, ncomp, interp);
+    Define(fba, fdm, fgeom, cba, cdm, cgeom,nghost, nghost_set, ncomp, interp);
 }
 
 

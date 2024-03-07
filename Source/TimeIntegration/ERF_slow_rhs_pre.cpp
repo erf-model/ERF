@@ -764,13 +764,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        int lo_z_face;
+        int hi_z_face;
+        if (level == 0) {
+            lo_z_face = domain.smallEnd(2);
+            hi_z_face = domain.bigEnd(2)+1;
+        } else {
+            lo_z_face = mfi.validbox().smallEnd(2);
+            hi_z_face = mfi.validbox().bigEnd(2)+1;
+        }
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
-                           l_use_terrain, domhi_z);
+                           l_use_terrain, lo_z_face, hi_z_face);
 
         if (l_use_diff) {
             // Note: tau** were calculated with calls to
@@ -1020,12 +1029,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_pre_zmom_2d");
         amrex::Box b2d = tbz;
-        b2d.setSmall(2,0);
-        b2d.setBig(2,0);
+        b2d.setSmall(2,lo_z_face);
+        b2d.setBig(2,lo_z_face);
         // Enforce no forcing term at top and bottom boundaries
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            rho_w_rhs(i,j,        0) = 0.;
-            rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
+            rho_w_rhs(i,j,lo_z_face) = 0.;
+            rho_w_rhs(i,j,hi_z_face) = 0.;
         });
         } // end profile
 

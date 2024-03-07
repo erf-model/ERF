@@ -416,21 +416,21 @@ void erf_fast_rhs_N (int step, int nrk,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
           // w_0 = 0
-          RHS_a   (i,j,0) =  0.0;
+          RHS_a   (i,j,lo.z) =  0.0;
 
           // w_khi = 0
           // Note that if we ever change this, we will need to include it in avg_zmom at the top
           RHS_a   (i,j,hi.z+1) =  0.0;
 
-          // w = 0 at k = 0
-          soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
-          cur_zmom(i,j,0) = stage_zmom(i,j,0) + soln_a(i,j,0);
+          // w = 0 at k = lo.z
+          soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
+          cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
           for (int k = 1; k <= hi.z+1; k++) {
               soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
           }
           cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-          for (int k = hi.z; k >= 0; k--) {
+          for (int k = hi.z; k >= lo.z; k--) {
               soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
           }
@@ -441,8 +441,8 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a   (i,j,0) =  0.0;
-                soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+                RHS_a   (i,j,lo.z) =  0.0;
+                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
         // Note that if we ever change this, we will need to include it in avg_zmom at the top
