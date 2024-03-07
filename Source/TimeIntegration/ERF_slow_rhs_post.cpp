@@ -86,9 +86,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<Vector<FArrayBox>>& bdy_data_ylo,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
 #endif
+                        const Real* dptr_rhoqt_src,
                         YAFluxRegister* fr_as_crse,
-                        YAFluxRegister* fr_as_fine
-                        )
+                        YAFluxRegister* fr_as_fine)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -404,6 +404,21 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    new_cons, cell_rhs, mf_u, mf_v, false, false);
             }
         }
+
+        if (solverChoice.custom_moisture_forcing) {
+            if (solverChoice.custom_forcing_prim_vars) {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoQ1_comp) += cur_cons(i,j,k,Rho_comp) * dptr_rhoqt_src[k];
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i,j,k,RhoQ1_comp) += dptr_rhoqt_src[k];
+                });
+            }
+        }
+
 #if defined(ERF_USE_NETCDF)
         if (moist_set_rhs) {
 
