@@ -296,6 +296,13 @@ class SuperDropletPC : public ERFPC
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override;
 
+        /*! \brief Evolve particles for one time step */
+        virtual void EvolveParticles (   int,
+                                         amrex::Real,
+                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                         amrex::MultiFab&,
+                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+
         /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int,
                                          amrex::Real,
@@ -307,6 +314,7 @@ class SuperDropletPC : public ERFPC
         virtual void MassChange (   int,
                                     amrex::Real,
                                     amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                    amrex::MultiFab&,
                                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Return the number of super-droplets

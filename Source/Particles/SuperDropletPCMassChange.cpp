@@ -16,9 +16,11 @@ using namespace amrex;
 void SuperDropletPC::MassChange (   int                                         a_lev,
                                     Real                                        a_dt,
                                     Vector<Vector<MultiFab>>&                   a_flow_vars,
+                                    MultiFab&                                   a_qv,
                                     const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::massChange()");
+    AMREX_ASSERT( a_lev == m_lev );
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
@@ -56,15 +58,12 @@ void SuperDropletPC::MassChange (   int                                         
 
             derived::erf_dertemp( bx, tfab, 0, 1, cfab, geom, 0.0, nullptr, a_lev );
 
-            const Array4<Real      >& p_arr = mf_pressure.array(mfi);
-            const Array4<Real const>& S_arr = cons_vars->const_array(mfi);
+            const Array4<Real      >& p_arr  = mf_pressure.array(mfi);
+            const Array4<Real const>& S_arr  = cons_vars->const_array(mfi);
+            const Array4<Real const>& qv_arr = a_qv.const_array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                Real qv_for_p = S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp);
-                const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
-                p_arr(i, j, k, 0) = getPgivenRTh(rhotheta,qv_for_p);
-            });
+            { p_arr(i,j,k,0) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0)); });
         }
 
         AMREX_ASSERT( !mf_pressure.contains_nan() );

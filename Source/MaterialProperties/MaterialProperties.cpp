@@ -17,7 +17,8 @@ namespace saturation_funcs
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                            { psat_arr(i,j,k,0) = erf_esatw(temperature_arr(i,j,k,0)); } );
+                            { psat_arr(i,j,k,0) = erf_esatw(temperature_arr(i,j,k,0))*100; } );
+                              // formula gives pressure in hPa; we will save it in Pa.
         }
     }
 
@@ -35,8 +36,9 @@ namespace saturation_funcs
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                             {
+                                // pressure is in Pa; formula takes pressure in hPa
                                 erf_qsatw(  temperature_arr(i,j,k,0),
-                                            pressure_arr(i,j,k,0),
+                                            pressure_arr(i,j,k,0)/100.0,
                                             qsat_arr(i,j,k,0) );
                             } );
         }
