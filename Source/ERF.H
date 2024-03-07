@@ -790,6 +790,9 @@ private:
     amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
 
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
 

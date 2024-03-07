@@ -58,6 +58,7 @@ void ERF::advance_dycore(int level,
     MultiFab* pi0 = &pi_hse;
 
     Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhoqt_src         = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data() : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
@@ -198,6 +199,12 @@ void ERF::advance_dycore(int level,
         prob->update_rhotheta_sources(old_time,
                                       h_rhotheta_src[level], d_rhotheta_src[level],
                                       fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        prob->update_rhoqt_sources(old_time,
+                                   h_rhoqt_src[level], d_rhoqt_src[level],
+                                   fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************
