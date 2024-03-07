@@ -211,9 +211,8 @@ void SAM::PrecipFall (int hydro_type)
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 int kc = min(k+1, nz-1);
-
                 Real dqp = (fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k);
-                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k) + (fz_array(i,j,kc)-fz_array(i,j,k)) / rho_array(i,j,k); //Update temporary qp
+                tmp_qp_array(i,j,k) = tmp_qp_array(i,j,k) + dqp; //Update temporary qp
             });
 
             ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
