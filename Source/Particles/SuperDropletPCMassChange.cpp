@@ -70,7 +70,18 @@ void SuperDropletPC::MassChange (   int                                         
         AMREX_ASSERT( !mf_temperature.contains_nan() );
 
         m_vapour_mat->computeSaturationPressure( mf_sat_pressure, mf_temperature );
-        m_vapour_mat->computeSaturationRatio( mf_sat_ratio, mf_temperature, mf_pressure );
+        m_vapour_mat->computeSaturationVapFrac( mf_sat_ratio, mf_temperature, mf_pressure );
+
+        for (MFIter mfi(mf_temperature, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+            const Box& bx = mfi.tilebox();
+            const Array4<Real>& sr_arr = mf_sat_ratio.array(mfi);
+            const Array4<Real const>& qv_arr = a_qv.const_array(mfi);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+        }
+
     }
 
     const int num_aerosols = m_num_aerosols;

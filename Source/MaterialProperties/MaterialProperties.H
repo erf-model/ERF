@@ -33,12 +33,12 @@ namespace saturation_funcs
     void compute_saturation_pressure_null (  amrex::MultiFab&, const amrex::MultiFab& );
     void compute_saturation_pressure_H2O  (  amrex::MultiFab&, const amrex::MultiFab& );
 
-    void compute_saturation_ratio_null (  amrex::MultiFab&,
-                                          const amrex::MultiFab&,
-                                          const amrex::MultiFab& );
-    void compute_saturation_ratio_H2O  (  amrex::MultiFab&,
-                                          const amrex::MultiFab&,
-                                          const amrex::MultiFab& );
+    void compute_saturation_vapfrac_null ( amrex::MultiFab&,
+                                           const amrex::MultiFab&,
+                                           const amrex::MultiFab& );
+    void compute_saturation_vapfrac_H2O  ( amrex::MultiFab&,
+                                           const amrex::MultiFab&,
+                                           const amrex::MultiFab& );
 }
 
 /*! Class for material properties */
@@ -69,11 +69,11 @@ class MaterialProperties {
         {
             m_saturation_pressure_func(a_e, a_T);
         }
-        inline void computeSaturationRatio (   amrex::MultiFab&         a_S,
-                                               const amrex::MultiFab&   a_T,
-                                               const amrex::MultiFab&   a_p )
+        inline void computeSaturationVapFrac  ( amrex::MultiFab&         a_S,
+                                                const amrex::MultiFab&   a_T,
+                                                const amrex::MultiFab&   a_p )
         {
-            m_saturation_ratio_func(a_S, a_T, a_p);
+            m_saturation_vapfrac_func(a_S, a_T, a_p);
         }
 
     protected:
@@ -95,7 +95,7 @@ class MaterialProperties {
         amrex::Real m_mol_diff;
 
         decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func;
-        decltype(saturation_funcs::compute_saturation_ratio_null)* m_saturation_ratio_func;
+        decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func;
 
     private:
 

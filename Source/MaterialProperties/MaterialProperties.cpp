@@ -22,15 +22,15 @@ namespace saturation_funcs
         }
     }
 
-    void compute_saturation_ratio_null ( MultiFab&, const MultiFab&) { }
+    void compute_saturation_vapfrac_null ( MultiFab&, const MultiFab&) { }
 
-    void compute_saturation_ratio_H2O ( MultiFab&          a_mf_sat_ratio,
-                                        const MultiFab&    a_mf_temperature,
-                                        const MultiFab&    a_mf_pressure )
+    void compute_saturation_vapfrac_H2O ( MultiFab&          a_mf_sat_vapfrac,
+                                          const MultiFab&    a_mf_temperature,
+                                          const MultiFab&    a_mf_pressure )
     {
-        for (MFIter mfi(a_mf_sat_ratio, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(a_mf_sat_vapfrac, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.tilebox();
-            const Array4<Real>& qsat_arr = a_mf_sat_ratio.array(mfi);
+            const Array4<Real>& qsat_arr = a_mf_sat_vapfrac.array(mfi);
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
             const Array4<Real const>& pressure_arr = a_mf_pressure.array(mfi);
 
@@ -73,7 +73,7 @@ void MaterialProperties::setProperties_H2O()
     m_mol_diff = 2.299e-9; // m^2 s^-1
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
-    m_saturation_ratio_func = saturation_funcs::compute_saturation_ratio_H2O;
+    m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
 
 }
 
@@ -93,5 +93,5 @@ void MaterialProperties::setProperties_NaCl()
     m_mol_diff = DBL_MAX;
 
     m_saturation_pressure_func = nullptr;
-    m_saturation_ratio_func = nullptr;
+    m_saturation_vapfrac_func = nullptr;
 }
