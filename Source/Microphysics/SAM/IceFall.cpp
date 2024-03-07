@@ -13,9 +13,6 @@ void SAM::IceFall () {
     Real dtn = dt;
     int  nz  = nlev;
 
-    Real fac_cond = m_fac_cond;
-    Real fac_fus  = m_fac_fus;
-
     int kmax, kmin;
     auto qcl   = mic_fab_vars[MicVar::qcl];
     auto qci   = mic_fab_vars[MicVar::qci];
@@ -60,7 +57,6 @@ void SAM::IceFall () {
         auto qn_array    = qn->array(mfi);
         auto qt_array    = qt->array(mfi);
         auto rho_array   = rho->array(mfi);
-        auto tabs_array  = tabs->array(mfi);
         auto fz_array    = fz.array(mfi);
 
         const auto& gbox3d = mfi.tilebox(IntVect(0),IntVect(0,0,1));
