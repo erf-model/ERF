@@ -918,8 +918,9 @@ ERF::InitData ()
     BL_PROFILE_VAR_STOP(InitData);
 }
 
+// Initialize microphysics object
 void
-ERF::initializeMicrophysics (const int& a_nlevsmax)
+ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 {
     if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Eulerian) {
 

@@ -375,6 +375,7 @@ private:
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
+    // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
