@@ -1314,8 +1314,9 @@ struct custom_flux
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
-        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
+        amrex::Real thetagrad = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp)/cons_arr(ic,jc,zlo+1,Rho_comp)
+                                - cons_arr(ic,jc,zlo  ,RhoTheta_comp)/cons_arr(ic,jc,zlo  ,Rho_comp)) / (0.5*(dz+dz1));
+        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rho*thetagrad * deltaz;
 #else
         eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
