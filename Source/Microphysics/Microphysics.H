@@ -4,7 +4,6 @@
 #include <NullMoist.H>
 #include <SAM.H>
 #include <Kessler.H>
-#include <FastEddy.H>
 #include <ERF.H>
 
 class Microphysics {
