@@ -42,7 +42,6 @@ public:
         if (    (a_moisture_type == MoistureType::SAM)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
-             || (a_moisture_type == MoistureType::FastEddy)
              || (a_moisture_type == MoistureType::None) ) {
             return MoistureModelType::Eulerian;
         } else {

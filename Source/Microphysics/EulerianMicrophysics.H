@@ -4,7 +4,6 @@
 #include "NullMoist.H"
 #include "SAM.H"
 #include "Kessler.H"
-#include "FastEddy.H"
 #include "Microphysics.H"
 
 class EulerianMicrophysics : public Microphysics {
@@ -27,9 +26,6 @@ public:
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
             amrex::Print() << "Kessler moisture model!\n";
-        } else if (a_model_type == MoistureType::FastEddy) {
-            SetModel<FastEddy>();
-            amrex::Print() << "FastEddy moisture model!\n";
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
             amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
