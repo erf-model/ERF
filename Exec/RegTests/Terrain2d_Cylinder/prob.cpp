@@ -15,7 +15,7 @@ amrex_probinit(
 Problem::Problem()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("U_0", parms.U_0);
 
@@ -42,55 +42,44 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
-
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
+    // Geometry (note we must include these here to get the data on device)
+    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const auto prob_lo  = geomdata.ProbLo();
+        const auto dx       = geomdata.CellSize();
+        const Real x = prob_lo[0] + (i + 0.5) * dx[0];
+        const Real z = z_cc(i,j,k);
 
-  // Geometry (note we must include these here to get the data on device)
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-    const auto prob_lo  = geomdata.ProbLo();
-    const auto dx       = geomdata.CellSize();
-    const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = z_cc(i,j,k);
+        // Set scalar = 0 everywhere
+        state(i, j, k, RhoScalar_comp) = 0.0;
 
-    // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+        if (use_moisture) {
+            state(i, j, k, RhoQ1_comp) = 0.0;
+            state(i, j, k, RhoQ2_comp) = 0.0;
+        }
+    });
 
-    if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
-    }
-  });
+    // Set the x-velocity
+    ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        x_vel(i, j, k) = 10.0;
+    });
 
-  // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      x_vel(i, j, k) = 10.0;
-  });
+    // Set the y-velocity
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        y_vel(i, j, k) = 0.0;
+    });
 
-  // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      y_vel(i, j, k) = 0.0;
-  });
+    // Set the z-velocity from impenetrable condition
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        z_vel(i, j, k) = 0.0;
+    });
 
-  const auto dx = geomdata.CellSize();
-  amrex::GpuArray<Real, AMREX_SPACEDIM> dxInv;
-  dxInv[0] = 1. / dx[0];
-  dxInv[1] = 1. / dx[1];
-  dxInv[2] = 1. / dx[2];
-
-  // Set the z-velocity from impenetrable condition
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-  {
-      z_vel(i, j, k) = 0.0;
-  });
-
-  amrex::Gpu::streamSynchronize();
-
+    amrex::Gpu::streamSynchronize();
 }
 
 void

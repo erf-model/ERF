@@ -75,10 +75,8 @@ ERF::refinement_criteria_setup ()
                 ppr.get("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
-                    ppr.getarr("in_box_lo",box_lo,0,2);
-                    ppr.getarr("in_box_hi",box_hi,0,2);
-                    box_lo[2] = geom[0].ProbLo(2);
-                    box_hi[2] = geom[0].ProbHi(2);
+                    ppr.getarr("in_box_lo",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
                     realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
 
                     amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;

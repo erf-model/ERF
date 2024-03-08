@@ -130,7 +130,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                                 int mask_val)
 {
     // Minimal bounding box of fine BA plus a halo cell
-    Box fba_bnd = amrex::grow(fba.minimalBox(), IntVect(1,1,0));
+    Box fba_bnd = amrex::grow(fba.minimalBox(), IntVect(1,1,1));
 
     // BoxList and BoxArray to store complement
     BoxList com_bl; BoxArray com_ba;

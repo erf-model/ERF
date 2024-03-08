@@ -53,6 +53,7 @@ ERF::FillPatch (int lev, Real time,
             FPr_u[lev-1].FillSet(*mfs_mom[Vars::xvel], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[Vars::yvel], time, null_bc, domain_bcs_type);
             FPr_w[lev-1].FillSet(*mfs_mom[Vars::zvel], time, null_bc, domain_bcs_type);
+
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
                                *mfs_mom[Vars::xvel], *mfs_mom[Vars::yvel], *mfs_mom[Vars::zvel]);
@@ -87,7 +88,7 @@ ERF::FillPatch (int lev, Real time,
             bccomp = BCVars::zvel_bc;
             mapper = &face_linear_interp;
         } else {
-          amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
+            amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
 
         if (lev == 0)

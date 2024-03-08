@@ -122,7 +122,7 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+| **amr.iterate_grids**     | do we iterate   | true, false     | true        |
 |                           | on the grids?   |                 |             |
 |                           |                 |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
@@ -778,8 +778,8 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
-|                                  | numerical diffusion| "False"             |              |
+| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
+|                                  | numerical diffusion| "false"             |              |
 |                                  |                    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |

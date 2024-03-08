@@ -46,11 +46,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-    const int khi = geomdata.Domain().bigEnd()[2];
-
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-    AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     const Real l_x_r = parms.x_r;
     //const Real l_x_r = parms.x_r * mf_u(0,0,0); //used to validate constant msf

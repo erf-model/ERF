@@ -42,11 +42,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
-  const int khi = geomdata.Domain().bigEnd()[2];
-
   const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-  AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
   const Real T_sfc    = parms.T_0;
   const Real rho_sfc  = p_0 / (R_d*T_sfc);
@@ -58,9 +54,6 @@ Problem::init_custom_pert(
   Real kp          = 2.0 * PI / wavelength;
   Real g           = CONST_GRAV;
   Real omega       = std::sqrt(g * kp);
-
-  // HACK HACK HACK
-  // Ampl = 0.;
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
@@ -131,13 +124,11 @@ Problem::init_custom_pert(
 }
 
 void
-Problem::erf_init_rayleigh(
-    amrex::Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
-    amrex::Geometry      const& geom,
-    std::unique_ptr<MultiFab>& /*z_phys_cc*/)
+Problem::erf_init_rayleigh (Vector<amrex::Vector<amrex::Real> >& rayleigh_ptrs,
+                            Geometry const& geom,
+                            std::unique_ptr<MultiFab>& /*z_phys_cc*/)
 {
     const int khi = geom.Domain().bigEnd()[2];
-
     for (int k = 0; k <= khi; k++)
     {
         rayleigh_ptrs[Rayleigh::tau][k]      =   0.0;
@@ -159,10 +150,9 @@ Problem::erf_init_rayleigh(
 }
 
 void
-Problem::init_custom_terrain(
-    const Geometry& geom,
-    MultiFab& z_phys_nd,
-    const Real& time)
+Problem::init_custom_terrain (const Geometry& geom,
+                              MultiFab& z_phys_nd,
+                              const Real& time)
 {
     // Domain cell size and real bounds
     auto dx = geom.CellSizeArray();
@@ -184,7 +174,7 @@ Problem::init_custom_terrain(
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);
 
-    for ( amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for (MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // Grown box with no z range
         amrex::Box xybx = mfi.growntilebox(ngrow);
