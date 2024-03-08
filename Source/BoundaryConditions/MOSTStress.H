@@ -788,7 +788,7 @@ struct moeng_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
+        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
@@ -863,7 +863,7 @@ struct moeng_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
+        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
@@ -1074,7 +1074,7 @@ struct donelan_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
+        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
@@ -1149,7 +1149,7 @@ struct donelan_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
+        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
@@ -1349,7 +1349,7 @@ struct custom_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(velx - ugrad * deltaz);
+        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
@@ -1415,7 +1415,7 @@ struct custom_flux
 #ifdef ERF_EXPLICIT_MOST_STRESS
         // surface gradient equal to gradient at first zface
         amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = rho*(vely - vgrad * deltaz);
+        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
 #else
         int ie, je;
         ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
