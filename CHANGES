@@ -1,5 +1,9 @@
 # 24.03
-    -- AMReX submodule set to 24.03 release hash (3525b4a)
+    -- AMReX submodule set to 24.03 release hash (d737886)
+
+    -- Plot rain accumulation (#1478)
+
+    -- Remove FastEddy completely (#1483)
 
     -- Rain accumulation capability (#1474)
 
