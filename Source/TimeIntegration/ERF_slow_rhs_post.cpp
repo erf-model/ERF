@@ -10,6 +10,7 @@
 
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
+#include <PlaneAverage.H>
 
 using namespace amrex;
 
@@ -64,10 +65,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
                         MultiFab* Hfx3, MultiFab* Diss,
-                        const amrex::Geometry geom,
+                        const Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
-                        const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         std::unique_ptr<MultiFab>& z_phys_nd,
                         std::unique_ptr<MultiFab>& detJ,
                         std::unique_ptr<MultiFab>& detJ_new,
@@ -87,6 +88,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         Vector<Vector<FArrayBox>>& bdy_data_yhi,
 #endif
                         const Real* dptr_rhoqt_src,
+                        const Real* dptr_wbar_sub,
                         YAFluxRegister* fr_as_crse,
                         YAFluxRegister* fr_as_fine)
 {
@@ -127,6 +129,36 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
+    // *************************************************************************
+    // Planar averages for subsidence terms
+    // *************************************************************************
+    Table1D<Real> dptr_q_plane;
+    TableData<Real, 1> q_plane_tab;
+    if (dptr_wbar_sub && (solverChoice.moisture_type != MoistureType::None)) {
+        PlaneAverage q_ave(&S_prim, geom, solverChoice.ave_plane, true);
+        q_ave.compute_averages(ZDir(), q_ave.field());
+
+        int ncell = q_ave.ncell_line();
+        Gpu::HostVector<  Real> q_plane_h(ncell);
+        Gpu::DeviceVector<Real> q_plane_d(ncell);
+
+        q_ave.line_average(PrimQ1_comp, q_plane_h);
+        Gpu::copyAsync(Gpu::hostToDevice, q_plane_h.begin(), q_plane_h.end(), q_plane_d.begin());
+
+        Real* dptr_q = q_plane_d.data();
+
+        IntVect ng_c = S_prim.nGrowVect();
+        Box qdomain  = domain; qdomain.grow(2,ng_c[2]);
+        q_plane_tab.resize({qdomain.smallEnd(2)}, {qdomain.bigEnd(2)});
+
+        int q_offset = ng_c[2];
+        dptr_q_plane = q_plane_tab.table();
+        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_q_plane(k-q_offset) = dptr_q[k];
+        });
+    }
 
     // *************************************************************************
     // Pre-computed quantities
@@ -405,18 +437,35 @@ void erf_slow_rhs_post (int level, int finest_level,
             }
         }
 
-        if (solverChoice.custom_moisture_forcing) {
+        if (solverChoice.custom_moisture_forcing && (solverChoice.moisture_type != MoistureType::None)) {
+            const int n = RhoQ1_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    cell_rhs(i,j,k,RhoQ1_comp) += cur_cons(i,j,k,Rho_comp) * dptr_rhoqt_src[k];
+                    cell_rhs(i,j,k,n) += cur_cons(i,j,k,Rho_comp) * dptr_rhoqt_src[k];
                 });
             } else {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                    cell_rhs(i,j,k,RhoQ1_comp) += dptr_rhoqt_src[k];
+                    cell_rhs(i,j,k,n) += dptr_rhoqt_src[k];
                 });
             }
+        }
+
+        if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
+            const int n = RhoQ1_comp;
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (i==0 && j==0) {
+                    AllPrint() << "Q SUB: " << IntVect(i,j,k) << ' '
+                               << dptr_wbar_sub[k]  << ' '
+                               << dptr_q_plane(k-1) << ' '
+                               << dptr_q_plane(k  ) << ' '
+                               << dptr_q_plane(k+1) << "\n";
+                }
+                cell_rhs(i,j,k,n) += dptr_wbar_sub[k] *
+                    0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
+            });
         }
 
 #if defined(ERF_USE_NETCDF)
