@@ -41,32 +41,29 @@ ComputeSmnSmn (int& i, int& j, int& k,
     amrex::Real s12bar = 0.25 * ( tau12(i  , j  , k  ) + tau12(i  , j+1, k  )
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
 
+    // NOTES:
+    // - We do not use the strains lying on the bottom boundary with MOST. If
+    //   ERF_EXPLICIT_MOST_STRESS is not used, then these values are corrupted
+    //   with the reflect odd BC used to fill the ghost cells.
+    // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then the assumption in
+    //   MOSTStress.H means that dU/dz at klo and klo+1 are equal.
+    // - In both cases, the strains at klo and klo+1 differ by dW/dx at klo+1.
+    //   This needs to be removed at the surface to be consistent with surface
+    //   conditions.
     amrex::Real s13bar;
-#ifndef ERF_EXPLICIT_MOST_STRESS
-    // NOTE: We cannot use the strains lying on the bottom boundary with MOST.
-    //       These values are corrupted with the reflect odd BC used to fill
-    //       the ghost cells. We use one-sided for this case.
     if (use_most && k==klo) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
     }
     else
-#endif
-    // NOTE 2: If we are using the ERF_EXPLICIT_MOST_STRESS solver path,
-    //      however, then the tau13 and tau23 surface stresses are valid and
-    //      have been set to the exact values from MOST. The one-sided calc
-    //      is therefore not needed.
     {
         s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
                         + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
     }
-
     amrex::Real s23bar;
-#ifndef ERF_EXPLICIT_MOST_STRESS
     if (use_most && k==klo) {
         s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
     }
     else
-#endif
     {
         s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
                         + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
