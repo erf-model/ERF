@@ -162,10 +162,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
@@ -212,7 +208,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy) 
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/SLM)

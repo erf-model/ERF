@@ -1248,9 +1248,6 @@ ERF::ReadParameters ()
                solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
         micro.SetModel<Kessler>();
         amrex::Print() << "Kessler moisture model!\n";
-    } else if (solverChoice.moisture_type == MoistureType::FastEddy) {
-        micro.SetModel<FastEddy>();
-        amrex::Print() << "FastEddy moisture model!\n";
     } else if (solverChoice.moisture_type == MoistureType::None) {
         micro.SetModel<NullMoist>();
         amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";

@@ -53,7 +53,6 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd"
 # PHYSICS OPTIONS
 erf.les_type        = "None"
 erf.pbl_type        = "None"
-#erf.moisture_model  = "FastEddy"
 erf.moisture_model  = "Kessler_NoRain"
 erf.buoyancy_type   = 1
 erf.use_moist_background = true
