@@ -118,14 +118,6 @@ void ERF::advance_dycore(int level,
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-            if (use_most) {
-                // Don't overwrite modeled total stress value at boundary
-                tbxxz.setSmall(2,1);
-                tbxyz.setSmall(2,1);
-            }
-#endif
-
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);

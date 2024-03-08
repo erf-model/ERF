@@ -42,28 +42,35 @@ ComputeSmnSmn (int& i, int& j, int& k,
                                 + tau12(i+1, j  , k  ) + tau12(i+1, j+1, k  ) );
 
     // NOTES:
-    // - We do not use the strains lying on the bottom boundary with MOST. If
-    //   ERF_EXPLICIT_MOST_STRESS is not used, then these values are corrupted
-    //   with the reflect odd BC used to fill the ghost cells.
-    // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then the assumption in
-    //   MOSTStress.H means that dU/dz at klo and klo+1 are equal.
-    // - In both cases, the strains at klo and klo+1 differ by dW/dx at klo+1.
-    //   This needs to be removed at the surface to be consistent with surface
-    //   conditions.
+    // - If ERF_EXPLICIT_MOST_STRESS is not used, then we do not use the
+    //   strains lying on the bottom boundary with MOST. These values are
+    //   corrupted with the reflect odd BC used to fill the ghost cells.
+    // - Neglecting the strains on the bottom boundary and using a one-
+    //   sided average implies that the strains are equal at klo and klo+1.
+    //   du/dz and dv/dz can be assumed to be equal through the first cell.
+    //   However, whereas dw/dx = dw/dy = 0 on the surface, this is not true at
+    //   klo+1. Therefore, the strains are not equal in general.
+    // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then strains may be correctly
+    //   evaluated at the surface and no assumptions are needed.
     amrex::Real s13bar;
+#ifndef ERF_EXPLICIT_MOST_STRESS
     if (use_most && k==klo) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
     }
     else
+#endif
     {
         s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
                         + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
     }
+
     amrex::Real s23bar;
+#ifndef ERF_EXPLICIT_MOST_STRESS
     if (use_most && k==klo) {
         s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
     }
     else
+#endif
     {
         s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
                         + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
