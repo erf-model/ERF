@@ -75,6 +75,8 @@ void ERF::advance_dycore(int level,
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
 
+    const bool use_most = (m_most != nullptr);
+
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
     const DistributionMapping& dm = state_old[IntVars::cons].DistributionMap();
@@ -115,6 +117,14 @@ void ERF::advance_dycore(int level,
             Box tbxxy = mfi.tilebox(IntVect(1,1,0),IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1),IntVect(1,1,0));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1),IntVect(1,1,0));
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            if (use_most) {
+                // Don't overwrite modeled total stress value at boundary
+                tbxxz.setSmall(2,1);
+                tbxyz.setSmall(2,1);
+            }
+#endif
 
             const Array4<const Real> & u = xvel_old.array(mfi);
             const Array4<const Real> & v = yvel_old.array(mfi);
