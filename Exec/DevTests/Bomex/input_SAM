@@ -61,8 +61,8 @@ erf.custom_forcing_uses_primitive_vars = false
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.0
-prob.V_0_Pert_Mag = 0.0 
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01 
 prob.W_0_Pert_Mag = 0.0
 
 prob.pert_ref_height = 400.0

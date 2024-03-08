@@ -814,14 +814,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             const int n = RhoTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (i==0 && j==0) {
-                    AllPrint() << "T SUB: " << IntVect(i,j,k) << ' '
-                               << dptr_wbar_sub[k]  << ' '
-                               << dptr_t_plane(k-1) << ' '
-                               << dptr_t_plane(k  ) << ' '
-                               << dptr_t_plane(k+1) << "\n";
-                }
-
                 cell_rhs(i, j, k, n) += dptr_wbar_sub[k] *
                     0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
 
@@ -1109,27 +1101,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
         if (solverChoice.custom_w_subsidence) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (i==0 && j==0) {
-                    AllPrint() << "U SUB: " << IntVect(i,j,k) << ' '
-                               << dptr_wbar_sub[k]  << ' '
-                               << u(i,j,k-1) << ' '
-                               << dptr_u_plane(k-1) << ' '
-                               << dptr_u_plane(k  ) << ' '
-                               << dptr_u_plane(k+1) << "\n";
-                }
-
                 rho_u_rhs(i, j, k) += dptr_wbar_sub[k] *
                     0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (i==0 && j==0) {
-                    AllPrint() << "V SUB: " << IntVect(i,j,k) << ' '
-                               << dptr_wbar_sub[k]  << ' '
-                               << dptr_v_plane(k-1) << ' '
-                               << dptr_v_plane(k  ) << ' '
-                               << dptr_v_plane(k+1) << "\n";
-                }
                 rho_v_rhs(i, j, k) += dptr_wbar_sub[k] *
                     0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
             });

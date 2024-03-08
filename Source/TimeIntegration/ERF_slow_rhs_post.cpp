@@ -456,13 +456,6 @@ void erf_slow_rhs_post (int level, int finest_level,
             const int n = RhoQ1_comp;
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                if (i==0 && j==0) {
-                    AllPrint() << "Q SUB: " << IntVect(i,j,k) << ' '
-                               << dptr_wbar_sub[k]  << ' '
-                               << dptr_q_plane(k-1) << ' '
-                               << dptr_q_plane(k  ) << ' '
-                               << dptr_q_plane(k+1) << "\n";
-                }
                 cell_rhs(i,j,k,n) += dptr_wbar_sub[k] *
                     0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
             });
