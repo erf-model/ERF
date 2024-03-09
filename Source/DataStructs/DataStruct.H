@@ -28,6 +28,10 @@ enum struct TerrainType {
     Static, Moving
 };
 
+enum struct MoistureModelType{
+    Eulerian, Lagrangian, Undefined
+};
+
 enum struct MoistureType {
     Kessler, SAM, Kessler_NoRain, None
 };

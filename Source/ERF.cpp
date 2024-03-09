@@ -111,10 +111,6 @@ ERF::ERF ()
 
     int nlevs_max = max_level + 1;
 
-    // NOTE: size micro before readparams (chooses the model at all levels)
-    micro.ReSize(nlevs_max);
-    qmoist.resize(nlevs_max);
-
 #ifdef ERF_USE_WINDFARM
     if(solverChoice.windfarm_type == WindFarmType::Fitch){
         Nturb.resize(nlevs_max);
@@ -132,6 +128,8 @@ ERF::ERF ()
     lsm_flux.resize(nlevs_max);
 
     ReadParameters();
+    initializeMicrophysics(nlevs_max);
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
@@ -609,10 +607,22 @@ ERF::InitData ()
         if (solverChoice.moisture_type != MoistureType::None)
         {
             for (int lev = 0; lev <= finest_level; lev++) {
-                FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
+                if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0])); // qv component
             }
         }
     }
+
+#ifdef ERF_USE_PARTICLES
+    /* If using a Lagrangian microphysics model, its particle container has now been
+       constructed and initialized (calls to micro->Init). So, add its pointer to
+       ERF::particleData and remove its name from list of unallocated particle containers. */
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+        const auto& pc_name( dynamic_cast<LagrangianMicrophysics&>(*micro).getName() );
+        const auto& pc_ptr( dynamic_cast<LagrangianMicrophysics&>(*micro).getParticleContainer() );
+        particleData.pushBack(pc_name, pc_ptr);
+        particleData.getNamesUnalloc().remove(pc_name);
+    }
+#endif
 
     if (input_bndry_planes) {
         // Read the "time.dat" file to know what data is available
@@ -811,7 +821,7 @@ ERF::InitData ()
 
     // Update micro vars before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
-        for (int lev = 0; lev <= finest_level; ++lev) micro.Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+        for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
     }
 
     // check for additional plotting variables that are available after particle containers
@@ -920,6 +930,34 @@ ERF::InitData ()
     }
 
     BL_PROFILE_VAR_STOP(InitData);
+}
+
+// Initialize microphysics object
+void
+ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
+{
+    if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Eulerian) {
+
+        micro = std::make_unique<EulerianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
+
+    } else if (Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+#ifdef ERF_USE_PARTICLES
+
+        micro = std::make_unique<LagrangianMicrophysics>(a_nlevsmax, solverChoice.moisture_type);
+        /* Lagrangian microphysics models will have a particle container; it needs to be added
+           to ERF::particleData */
+        const auto& pc_name( dynamic_cast<LagrangianMicrophysics&>(*micro).getName() );
+        /* The particle container has not yet been constructed and initialized, so just add
+           its name here for now (so that functions to set plotting variables can see it). */
+        particleData.addName( pc_name );
+
+#else
+        amrex::Abort("Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES");
+#endif
+    }
+
+    qmoist.resize(a_nlevsmax);
+    return;
 }
 
 void
@@ -1237,22 +1275,6 @@ ERF::ReadParameters ()
 
     solverChoice.init_params(max_level);
 
-    // What type of moisture model to use
-    // NOTE: Must be checked after init_params
-    if (solverChoice.moisture_type == MoistureType::SAM) {
-        micro.SetModel<SAM>();
-        amrex::Print() << "SAM moisture model!\n";
-    } else if (solverChoice.moisture_type == MoistureType::Kessler or
-               solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
-        micro.SetModel<Kessler>();
-        amrex::Print() << "Kessler moisture model!\n";
-    } else if (solverChoice.moisture_type == MoistureType::None) {
-        micro.SetModel<NullMoist>();
-        amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
-    } else {
-        amrex::Abort("Dont know this moisture_type!") ;
-    }
-
     // What type of land surface model to use
     // NOTE: Must be checked after init_params
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
@@ -1317,12 +1339,13 @@ ERF::MakeHorizontalAverages ()
             auto  fab_arr = mf.array(mfi);
             auto const cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
             auto const   qv_arr = qmoist[lev][0]->const_array(mfi);
+            int ncomp = vars_new[lev][Vars::cons].nComp();
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real dens = cons_arr(i, j, k, Rho_comp);
                 fab_arr(i, j, k, 2) = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
-                fab_arr(i, j, k, 3) = cons_arr(i, j, k, RhoQ1_comp) / dens;
-                fab_arr(i, j, k, 4) = cons_arr(i, j, k, RhoQ2_comp) / dens;
+                fab_arr(i, j, k, 3) = (ncomp > RhoQ1_comp ? cons_arr(i, j, k, RhoQ1_comp) / dens : 0.0);
+                fab_arr(i, j, k, 4) = (ncomp > RhoQ2_comp ? cons_arr(i, j, k, RhoQ2_comp) / dens : 0.0);
             });
         }
 
@@ -1614,10 +1637,6 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
 
     int nlevs_max = max_level + 1;
 
-    // NOTE: size micro before readparams (chooses the model at all levels)
-    micro.ReSize(nlevs_max);
-    qmoist.resize(nlevs_max);
-
 #ifdef ERF_USE_WINDFARM
     if(solverChoice.windfarm_type == WindFarmType::Fitch){
         Nturb.resize(nlevs_max);
@@ -1635,6 +1654,8 @@ ERF::ERF (const amrex::RealBox& rb, int max_level_in,
     lsm_flux.resize(nlevs_max);
 
     ReadParameters();
+    initializeMicrophysics(nlevs_max);
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 

@@ -69,7 +69,7 @@ public:
     void Precip ();
 
     // precip fall
-    void PrecipFall (int hydro_type=2);
+    void PrecipFall ();
 
     // diagnose
     void Diagnose () override;
