@@ -76,17 +76,17 @@ ERF::FillPatch (int lev, Real time,
         else if (var_idx == Vars::xvel)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::yvel)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::zvel)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         } else {
             amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
@@ -252,7 +252,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::xmom)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -260,7 +260,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::ymom)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -268,7 +268,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::zmom)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,0);
             icomp  = 0;
             ncomp  = 1;
@@ -363,7 +363,7 @@ ERF::FillCoarsePatch (int lev, Real time)
                                  mapper, domain_bcs_type, bccomp);
 
 
-    mapper = &face_linear_interp;
+    mapper = &face_cons_linear_interp;
 
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {
