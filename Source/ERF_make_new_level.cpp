@@ -44,7 +44,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     init_stuff(lev, ba, dm);
 
-    int n_qstate   = micro.Get_Qstate_Size();
+    int n_qstate   = micro->Get_Qstate_Size();
     int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     lev_new[Vars::cons].define(ba, dm, ncomp_cons, ngrow_state);
@@ -62,15 +62,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size  = micro.Get_Qmoist_Size();
+    int q_size  = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     //********************************************************************************************
@@ -225,15 +225,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size  = micro.Get_Qmoist_Size();
+    int q_size  = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     init_stuff(lev, ba, dm);
@@ -340,15 +340,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size = micro.Get_Qmoist_Size();
+    int q_size = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     init_stuff(lev, ba, dm);
