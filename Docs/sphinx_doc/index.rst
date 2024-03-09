@@ -39,6 +39,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    GettingStarted.rst
    Inputs.rst
+   BestPractices.rst
 
 .. toctree::
    :caption: THEORY
