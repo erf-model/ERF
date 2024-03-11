@@ -258,7 +258,7 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
 
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
-    if (bx.bigEnd(2) == dom_hi.z) {
+    if (bx.bigEnd(2) == dom_hi.z+1) {
         if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
             ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {

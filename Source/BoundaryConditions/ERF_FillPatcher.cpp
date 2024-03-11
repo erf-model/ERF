@@ -86,22 +86,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     }
 
     // Coarse box list
+    // NOTE: if we use face_cons_linear_interp then CoarseBox returns the grown box
+    //       so we don't need to manually grow it here
     BoxList cbl;
     cbl.set(m_ixt);
     cbl.reserve(fba.size());
     for (int i(0); i < fba.size(); ++i) {
         Box coarse_box(interp->CoarseBox(fba[i], m_ratio));
-        if (m_ixt[0] > 0) {
-            coarse_box.grow(1,1);
-            if (coarse_box.smallEnd(2) > m_cgeom.Domain().smallEnd(2)) coarse_box.growLo(2,1);
-            if (coarse_box.bigEnd(2)   > m_cgeom.Domain().bigEnd(2))   coarse_box.growHi(2,1);
-        } else if (m_ixt[1] > 0) {
-            coarse_box.grow(0,1);
-            if (coarse_box.smallEnd(2) > m_cgeom.Domain().smallEnd(2)) coarse_box.growLo(2,1);
-            if (coarse_box.bigEnd(2)   > m_cgeom.Domain().bigEnd(2))   coarse_box.growHi(2,1);
-        } else if (m_ixt[2] > 0) {
-            coarse_box.grow(0,1); coarse_box.grow(1,1);
-        }
         cbl.push_back(coarse_box);
     }
 
@@ -230,8 +221,16 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
     //     the domain for computing the slopes in the interpolation
     // We need it to be of the type of the faces being filled
     //
-    IndexType ixt = fine.boxArray().ixType();
-    Box const& domface = amrex::convert(m_cgeom.Domain(), ixt);
+    // IndexType ixt = fine.boxArray().ixType();
+    // Box const& domface = amrex::convert(m_cgeom.Domain(), ixt);
+
+    // We don't need to worry about face-based domain because this is only used in the tangential interpolation
+    Box per_grown_domain = m_cgeom.Domain();
+    for (int dim = 0; dim < AMREX_SPACEDIM; dim++) {
+        if (m_cgeom.isPeriodic(dim)) {
+            per_grown_domain.grow(dim,1);
+        }
+    }
 
     for (MFIter mfi(fine); mfi.isValid(); ++mfi)
     {
@@ -252,7 +251,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) { // x-faces
                     const int ii = amrex::coarsen(i,ratio[0]);
                     if (i-ii*ratio[0] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,domface,0);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,per_grown_domain,0);
                     }
                 }
             });
@@ -279,7 +278,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int jj = amrex::coarsen(j,ratio[1]);
                     if (j-jj*ratio[1] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,domface,1);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,per_grown_domain,1);
                     }
                 }
             });
@@ -305,7 +304,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 if (mask_arr(i,j,k) == mask_val) {
                     const int kk = amrex::coarsen(k,ratio[2]);
                     if (k-kk*ratio[2] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,1,domface,2);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,1,per_grown_domain,2);
                     }
                 }
             });

@@ -699,13 +699,13 @@ void erf_slow_rhs_post (int level, int finest_level,
         });
         } // end profile
 
-        Box gtbx = mfi.tilebox(IntVect(1,0,0),S_old[IntVars::xmom].nGrowVect());
-        Box gtby = mfi.tilebox(IntVect(0,1,0),S_old[IntVars::ymom].nGrowVect());
-        Box gtbz = mfi.tilebox(IntVect(0,0,1),S_old[IntVars::zmom].nGrowVect());
+        Box xtbx = mfi.nodaltilebox(0);
+        Box ytbx = mfi.nodaltilebox(1);
+        Box ztbx = mfi.nodaltilebox(2);
 
         {
         BL_PROFILE("rhs_post_10()");
-        ParallelFor(gtbx, gtby, gtbz,
+        ParallelFor(xtbx, ytbx, ztbx,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             new_xmom(i,j,k) = cur_xmom(i,j,k);
         },

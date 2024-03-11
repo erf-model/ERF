@@ -1260,6 +1260,15 @@ ERF::ReadParameters ()
         if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
             amrex::Abort("You must set cf_width >= cf_set_width >= 0");
         }
+        if (max_level > 0 && cf_set_width > 0) {
+            for (int lev = 1; lev <= max_level; lev++) {
+                if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
+                    cf_set_width%ref_ratio[lev-1][1] != 0 ||
+                    cf_set_width%ref_ratio[lev-1][2] != 0 ) {
+                    amrex::Abort("You must set cf_width to be a multiple of ref_ratio");
+                }
+            }
+        }
 
         // AmrMesh iterate on grids?
         bool iterate(true);
@@ -1569,13 +1578,13 @@ ERF::Construct_ERFFillPatchers (int lev)
                        -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
 }
 
 void
@@ -1597,13 +1606,13 @@ ERF::Define_ERFFillPatchers (int lev)
                         -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_v[lev-1].Define(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
 }
 
 #ifdef ERF_USE_MULTIBLOCK
