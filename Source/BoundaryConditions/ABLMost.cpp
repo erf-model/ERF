@@ -278,7 +278,7 @@ ABLMost::compute_most_bcs (const int& lev,
                     }
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     else if ((k == klo-1) && vbx.contains(i,j,k)) {
-                        hfx_arr(i,j,klo) = Tflux;
+                        hfx_arr(i,j,klo-1) = Tflux;
                     }
 #endif
                 });

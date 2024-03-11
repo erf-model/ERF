@@ -267,7 +267,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -349,7 +349,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -426,7 +426,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -501,7 +501,7 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }

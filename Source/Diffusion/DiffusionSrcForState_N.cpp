@@ -235,7 +235,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -291,7 +291,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -343,7 +343,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -394,7 +394,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,k);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
