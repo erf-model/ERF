@@ -600,6 +600,17 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
     }
 
     // Using Deardorff (see Sullivan et al 1994)
+    //
+    // Note: At this point, the thermal diffusivity ("Khv" field in ERF), the
+    //       subgrid heat flux ("hfx_z" here), and the subgrid dissipation
+    //       ("diss" here) have been updated by ComputeTurbulentViscosityLES --
+    //       at the beginning of each timestep.
+    //       The strain rate magnitude is updated at the beginning of the first
+    //       RK stage only, therefore the shear production term also does not
+    //       change between RK stages.
+    //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
+    //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
+    //       does not change the buoyancy production term here.
     if (l_use_deardorff && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -609,8 +620,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
             // flux; the TKE buoyancy production is then
             //   B = g/theta_0 * tau_{theta,w}
-            // for a dry atmosphere. To account for moisture, the Brunt-Vaisala
-            // frequency,
+            // for a dry atmosphere.
+            // TODO: To account for moisture, the Brunt-Vaisala frequency,
             //   N^2 = g[1/theta * dtheta/dz + ...]
             // **should** be a function of the water vapor and total water
             // mixing ratios, depending on whether conditions are saturated or

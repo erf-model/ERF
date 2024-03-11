@@ -195,6 +195,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
           diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
           // - heat flux
+          //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+          //    be overwritten when BCs are applied)
           hfx_x(i,j,k) = 0.0;
           hfx_y(i,j,k) = 0.0;
           hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
