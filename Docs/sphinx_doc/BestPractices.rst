@@ -29,7 +29,7 @@ Large-Eddy Simulations
     better resolve turbulence features. With ``Centered_2nd``, the simulation
     may remain numerically stable but without any upwinding or numerical
     diffusion, these results should be carefully interpreted.
-    
+
   - For higher-order central differencing alone (i.e., without any added
     upwinding), at least 5% numerical diffusion should be included to stabilize
     the solution; this was tested with ``Centered_6th``. Note that this does not
