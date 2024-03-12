@@ -314,6 +314,9 @@ void erf_fast_rhs_T (int step, int nrk,
         Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
+        Box vbx = mfi.validbox();
+        const auto& vbx_hi = ubound(vbx);
+
         const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
@@ -413,6 +416,22 @@ void erf_fast_rhs_T (int step, int nrk,
                                        xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq+
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                        yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * 0.5;
+
+            (flx_arr[0])(i,j,k,0) = xflux_lo;
+            (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+
+            (flx_arr[1])(i,j,k,0) = yflux_lo;
+            (flx_arr[1])(i,j,k,1) = (flx_arr[0])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+
+            if (i == vbx_hi.x) {
+                (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+            }
+            if (j == vbx_hi.y) {
+                (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+            }
+
         });
         } // end profile
 
@@ -589,7 +608,13 @@ void erf_fast_rhs_T (int step, int nrk,
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
-              (flx_arr[2])(i,j,k,0) = facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+              (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+
+              if (k == vbx_hi.z) {
+                  avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                  (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                  (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+              }
 
               Real fast_rhs_rho = -(temp_rhs_arr(i,j,k,0) + ( zflux_hi - zflux_lo ) * dzi) / detJ(i,j,k);
               cur_cons(i,j,k,0) += dtau * (slow_rhs_cons(i,j,k,0) + fast_rhs_rho);
@@ -605,7 +630,8 @@ void erf_fast_rhs_T (int step, int nrk,
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = 0;
-            int  num_comp_reflux = 2;
+            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
+            int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

@@ -534,6 +534,23 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
 void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
+    amrex::Print() << "init_stuff " << ba << std::endl;
+
+    if (lev == 0) {
+        min_k_at_level[lev] = 0;
+        max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
+    } else {
+        // Start with unreasonable values so we compute the right min/max
+        min_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
+        max_k_at_level[lev] = geom[lev].Domain().smallEnd(2);
+        for (int n = 0; n < ba.size(); n++)
+        {
+            min_k_at_level[lev] = std::min(min_k_at_level[lev], ba[n].smallEnd(2));
+            max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
+        }
+    }
+    amrex::Print() << "MIN/MAX K AT LEVEL " << lev << " ARE " << min_k_at_level[lev] << " " << max_k_at_level[lev] << std::endl;
+
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
@@ -550,6 +567,11 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
 
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
+
+    // We do this here just so they won't be undefined in the initial FillPatch
+    rU_new[lev].setVal(1.2e21);
+    rV_new[lev].setVal(3.4e22);
+    rW_new[lev].setVal(5.6e23);
 
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
@@ -593,7 +615,7 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
     //*********************************************************
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+    if (solverChoice.windfarm_type == WindFarmType::Fitch){
         int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     }

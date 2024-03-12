@@ -28,6 +28,8 @@ ERF::initRayleigh ()
         h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
         d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
 
+        AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
+
         const int zlen_rayleigh = geom[lev].Domain().length(2);
 
         // Allocate space for these 1D vectors
@@ -171,14 +173,33 @@ ERF::erf_enforce_hse (int lev,
 
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
-    int nz = geom[lev].Domain().length(2);
 
     const Box& domain = geom[lev].Domain();
+
+    if (lev > 0) {
+        int  icomp = 0;
+        int bccomp = 0;
+        int  ncomp = 1;
+        PhysBCFunctNoOp null_bc;
+        Real time = 0.;
+        amrex::Interpolater* mapper = &cell_cons_interp;
+
+        MultiFab p_hse_crse (base_state[lev-1], make_alias, 1, 1); // p_0  is second component
+
+        amrex::InterpFromCoarseLevel(pres, time, p_hse_crse,
+                                     icomp, icomp, ncomp,
+                                     geom[lev-1], geom[lev],
+                                     null_bc, 0, null_bc, 0, refRatio(lev-1),
+                                     mapper, domain_bcs_type, bccomp);
+    }
 
     for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
         const Box& tbz = mfi.nodaltilebox(2);
+        int klo = tbz.smallEnd(2);
+        int khi = tbz.bigEnd(2);
+
         amrex::Box b2d = tbz; // Copy constructor
         b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
         b2d.setRange(2,0);
@@ -206,7 +227,6 @@ ERF::erf_enforce_hse (int lev,
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            int k0  = 0;
             // Physical height of the terrain at cell center
             Real hz;
             if (l_use_terrain) {
@@ -217,23 +237,35 @@ ERF::erf_enforce_hse (int lev,
             }
 
             // Set value at surface from Newton iteration for rho
-            pres_arr(i,j,k0  ) = p_0 - hz * rho_arr(i,j,k0) * l_gravity;
-            pi_arr(i,j,k0  ) = getExnergivenP(pres_arr(i,j,k0  ), rdOcp);
+            if (klo == 0) {
+                pres_arr(i,j,klo  ) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
+                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
 
-            // Set ghost cell with dz and rho at boundary
-            pres_arr(i,j,k0-1) = p_0 + hz * rho_arr(i,j,k0) * l_gravity;
-            pi_arr(i,j,k0-1) = getExnergivenP(pres_arr(i,j,k0-1), rdOcp);
+                // Set ghost cell with dz and rho at boundary
+                pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
+                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+
+            } else {
+                // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
+                //    filled from FillPatch-ing it.
+                AMREX_ALWAYS_ASSERT(!l_use_terrain);
+                Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
+                pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz * dens_interp * l_gravity;
+
+                pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
+                pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
+            }
 
             Real dens_interp;
             if (l_use_terrain) {
-                for (int k = 1; k <= nz; k++) {
+                for (int k = klo+1; k <= khi; k++) {
                     Real dz_loc = (zcc_arr(i,j,k) - zcc_arr(i,j,k-1));
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz_loc * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);
                 }
             } else {
-                for (int k = 1; k <= nz; k++) {
+                for (int k = klo+1; k <= khi; k++) {
                     dens_interp = 0.5*(rho_arr(i,j,k) + rho_arr(i,j,k-1));
                     pres_arr(i,j,k) = pres_arr(i,j,k-1) - dz * dens_interp * l_gravity;
                     pi_arr(i,j,k) = getExnergivenP(pres_arr(i,j,k), rdOcp);

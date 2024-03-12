@@ -273,6 +273,9 @@ void erf_fast_rhs_N (int step, int nrk,
         Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
+        Box vbx = mfi.validbox();
+        const auto& vbx_hi = ubound(vbx);
+
         const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
@@ -328,8 +331,6 @@ void erf_fast_rhs_N (int step, int nrk,
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         // *********************************************************************
-        {
-        BL_PROFILE("making_rho_rhs");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             Real xflux_lo = (temp_cur_xmom_arr(i  ,j,k) - stage_xmom(i  ,j,k)) / mf_u(i  ,j,0);;
             Real xflux_hi = (temp_cur_xmom_arr(i+1,j,k) - stage_xmom(i+1,j,k)) / mf_u(i+1,j,0);;
@@ -344,9 +345,22 @@ void erf_fast_rhs_N (int step, int nrk,
                                                    xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi * mfsq +
                                                  ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                                    yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi * mfsq) * 0.5;
-        });
-        } // end profile
 
+            (flx_arr[0])(i,j,k,0) = xflux_lo;
+            (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+
+            (flx_arr[1])(i,j,k,0) = yflux_lo;
+            (flx_arr[1])(i,j,k,1) = (flx_arr[0])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+
+            if (i == vbx_hi.x) {
+                (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+            }
+            if (j == vbx_hi.y) {
+                (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+            }
+        });
 
         Box bx_shrunk_in_k = bx;
         int klo = tbz.smallEnd(2);
@@ -412,25 +426,26 @@ void erf_fast_rhs_N (int step, int nrk,
         {
         BL_PROFILE("fast_rhs_b2d_loop");
 #ifdef AMREX_USE_GPU
+        auto const lo = amrex::lbound(bx);
         auto const hi = amrex::ubound(bx);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
           // w_0 = 0
-          RHS_a   (i,j,0) =  0.0;
+          RHS_a   (i,j,lo.z) =  0.0;
 
           // w_khi = 0
           // Note that if we ever change this, we will need to include it in avg_zmom at the top
           RHS_a   (i,j,hi.z+1) =  0.0;
 
-          // w = 0 at k = 0
-          soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
-          cur_zmom(i,j,0) = stage_zmom(i,j,0) + soln_a(i,j,0);
+          // w = 0 at k = lo.z
+          soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
+          cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
           for (int k = 1; k <= hi.z+1; k++) {
               soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
           }
           cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-          for (int k = hi.z; k >= 0; k--) {
+          for (int k = hi.z; k >= lo.z; k--) {
               soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
               cur_zmom(i,j,k) = stage_zmom(i,j,k) + soln_a(i,j,k);
           }
@@ -441,8 +456,8 @@ void erf_fast_rhs_N (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a   (i,j,0) =  0.0;
-                soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+                RHS_a   (i,j,lo.z) =  0.0;
+                soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
         // Note that if we ever change this, we will need to include it in avg_zmom at the top
@@ -489,22 +504,26 @@ void erf_fast_rhs_N (int step, int nrk,
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * old_drho_w(i,j,k+1);
 
             avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
-            (flx_arr[2])(i,j,k,0) = facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+            (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
 
-            // Note that in the solve we effectively impose soln_a(i,j,vbx_hi.z+1)=0
-            // so we don't update avg_zmom at k=vbx_hi.z+1
+            if (k == vbx_hi.z) {
+                avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+            }
 
             temp_rhs_arr(i,j,k,Rho_comp     ) += dzi * ( zflux_hi - zflux_lo );
             temp_rhs_arr(i,j,k,RhoTheta_comp) += 0.5 * dzi * ( zflux_hi * (prim(i,j,k) + prim(i,j,k+1))
                                                              - zflux_lo * (prim(i,j,k) + prim(i,j,k-1)) );
-            (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
         });
         } // end profile
 
         // We only add to the flux registers in the final RK step
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = 0;
-            int  num_comp_reflux = 2;
+            // For now we don't reflux (rho theta) because it seems to create issues at c/f boundaries
+            int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},

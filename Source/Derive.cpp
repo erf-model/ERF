@@ -2,6 +2,8 @@
 #include "EOS.H"
 #include "IndexDefines.H"
 
+using namespace amrex;
+
 namespace derived {
 
 /**
@@ -24,8 +26,8 @@ void erf_derrhodivide (const amrex::Box& bx,
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        const amrex::Real rho       = dat(i, j, k, Rho_comp);
-        const amrex::Real conserved = dat(i, j, k, scalar_index);
+        const Real rho       = dat(i, j, k, Rho_comp);
+        const Real conserved = dat(i, j, k, scalar_index);
         primitive(i,j,k) = conserved / rho;
     });
 }
@@ -40,7 +42,7 @@ erf_dernull (const amrex::Box& /*bx*/,
              int /*ncomp*/,
              const amrex::FArrayBox& /*datfab*/,
              const amrex::Geometry& /*geomdata*/,
-             amrex::Real /*time*/,
+             Real /*time*/,
              const int* /*bcrec*/,
              const int /*level*/)
 { }
@@ -59,7 +61,7 @@ erf_dersoundspeed (const amrex::Box& bx,
                    int /*ncomp*/,
                    const amrex::FArrayBox& datfab,
                    const amrex::Geometry& /*geomdata*/,
-                   amrex::Real /*time*/,
+                   Real /*time*/,
                    const int* /*bcrec*/,
                    const int /*level*/)
 {
@@ -67,12 +69,12 @@ erf_dersoundspeed (const amrex::Box& bx,
     auto cfab      = derfab.array();
 
     // NOTE: we compute the soundspeed of dry air -- we do not account for any moisture effects here
-    amrex::Real qv = 0.;
+    Real qv = 0.;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
-        const amrex::Real rho      = dat(i, j, k, Rho_comp);
+        const Real rhotheta = dat(i, j, k, RhoTheta_comp);
+        const Real rho      = dat(i, j, k, Rho_comp);
         AMREX_ALWAYS_ASSERT(rhotheta > 0.);
         cfab(i,j,k) = std::sqrt(Gamma * getPgivenRTh(rhotheta,qv) / rho);
     });
@@ -92,7 +94,7 @@ erf_dertemp (const amrex::Box& bx,
              int /*ncomp*/,
              const amrex::FArrayBox& datfab,
              const amrex::Geometry& /*geomdata*/,
-             amrex::Real /*time*/,
+             Real /*time*/,
              const int* /*bcrec*/,
              const int /*level*/)
 {
@@ -101,8 +103,8 @@ erf_dertemp (const amrex::Box& bx,
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        const amrex::Real rho = dat(i, j, k, Rho_comp);
-        const amrex::Real rhotheta = dat(i, j, k, RhoTheta_comp);
+        const Real rho = dat(i, j, k, Rho_comp);
+        const Real rhotheta = dat(i, j, k, RhoTheta_comp);
         AMREX_ALWAYS_ASSERT(rhotheta > 0.);
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
     });
@@ -122,7 +124,7 @@ erf_dertheta (const amrex::Box& bx,
               int /*ncomp*/,
               const amrex::FArrayBox& datfab,
               const amrex::Geometry& /*geomdata*/,
-              amrex::Real /*time*/,
+              Real /*time*/,
               const int* /*bcrec*/,
               const int /*level*/)
 {
@@ -143,7 +145,7 @@ erf_derscalar (const amrex::Box& bx,
                int /*ncomp*/,
                const amrex::FArrayBox& datfab,
                const amrex::Geometry& /*geomdata*/,
-               amrex::Real /*time*/,
+               Real /*time*/,
                const int* /*bcrec*/,
                const int /*level*/)
 {
@@ -164,7 +166,7 @@ erf_derKE (const amrex::Box& bx,
            int /*ncomp*/,
            const amrex::FArrayBox& datfab,
            const amrex::Geometry& /*geomdata*/,
-           amrex::Real /*time*/,
+           Real /*time*/,
            const int* /*bcrec*/,
            const int /*level*/)
 {
@@ -185,7 +187,7 @@ erf_derQKE (const amrex::Box& bx,
             int /*ncomp*/,
             const amrex::FArrayBox& datfab,
             const amrex::Geometry& /*geomdata*/,
-            amrex::Real /*time*/,
+            Real /*time*/,
             const int* /*bcrec*/,
             const int /*level*/)
 {
