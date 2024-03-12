@@ -456,13 +456,16 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
             const auto& dom_hi = ubound(domain);
             const auto& dom_lo = lbound(domain);
 
+            int width2 = width;
+            if (ivar_idx == IntVars::cons) width2 -= 1;
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
             for ( MFIter mfi(S_cur_data[ivar_idx],amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                 Box tbx = mfi.tilebox();
                 Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-                compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
+                compute_interior_ghost_bxs_xy(tbx, domain, width2, set_width,
                                               tbx_xlo, tbx_xhi,
                                               tbx_ylo, tbx_yhi);
 
@@ -494,7 +497,7 @@ realbdy_compute_interior_ghost_rhs (const std::string& /*init_type*/,
                 }
 
                 wrfbdy_compute_laplacian_relaxation(icomp, 1,
-                                                    width, set_width, dom_lo, dom_hi, F1, F2,
+                                                    width2, set_width, dom_lo, dom_hi, F1, F2,
                                                     tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     data_arr, rhs_arr);

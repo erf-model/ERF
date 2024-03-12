@@ -527,17 +527,19 @@ void erf_slow_rhs_post (int level, int finest_level,
                                + alpha * bdatyhi_np1(ii,jj,k);
             });
 
+            int width2 = width - 1;
+
             // NOTE: We pass 'old_cons' here since the tendencies are with
             //       respect to the start of the RK integration.
 
             // Compute RHS in specified region
             //==========================================================
             if (set_width > 0 ) {
-                compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
+                compute_interior_ghost_bxs_xy(tbx, domain, width2, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
                 wrfbdy_set_rhs_in_spec_region(dt, RhoQ1_comp, 1,
-                                              width, set_width, dom_lo, dom_hi,
+                                              width2, set_width, dom_lo, dom_hi,
                                               bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
                                               arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                               old_cons, cell_rhs);
@@ -551,11 +553,11 @@ void erf_slow_rhs_post (int level, int finest_level,
             // Compute RHS in relaxation region
             //==========================================================
             if (width > set_width) {
-                compute_interior_ghost_bxs_xy(tbx, domain, width, set_width,
+                compute_interior_ghost_bxs_xy(tbx, domain, width2, set_width,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
                 wrfbdy_compute_laplacian_relaxation(RhoQ1_comp, 1,
-                                                    width, set_width, dom_lo, dom_hi, F1, F2,
+                                                    width2, set_width, dom_lo, dom_hi, F1, F2,
                                                     bx_xlo, bx_xhi, bx_ylo, bx_yhi,
                                                     arr_xlo, arr_xhi, arr_ylo, arr_yhi,
                                                     new_cons, cell_rhs);
