@@ -57,8 +57,9 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
-    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
-    Real* dptr_rhoqt_src         = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data() : nullptr;
+    Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
+    Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);

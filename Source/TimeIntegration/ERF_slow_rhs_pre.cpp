@@ -70,7 +70,7 @@ using namespace amrex;
 
 void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
-                       amrex::Real dt,
+                       Real dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
@@ -91,10 +91,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx3, MultiFab* Diss,
-                       const amrex::Geometry geom,
+                       const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                       const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
@@ -103,8 +103,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
-                       const amrex::Real* dptr_rhotheta_src,
-                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev)
+                       const Real* dptr_rhotheta_src,
+                       const Real* dptr_wbar_sub,
+                       const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -162,6 +163,73 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
+    // *************************************************************************
+    // Planar averages for subsidence terms
+    // *************************************************************************
+    Table1D<Real> dptr_t_plane;
+    Table1D<Real> dptr_u_plane;
+    Table1D<Real> dptr_v_plane;
+    TableData<Real, 1> t_plane_tab, u_plane_tab, v_plane_tab;
+    if (dptr_wbar_sub) {
+        PlaneAverage t_ave(&S_prim, geom, solverChoice.ave_plane, true);
+        PlaneAverage u_ave(&xvel  , geom, solverChoice.ave_plane, true);
+        PlaneAverage v_ave(&yvel  , geom, solverChoice.ave_plane, true);
+
+        t_ave.compute_averages(ZDir(), t_ave.field());
+        u_ave.compute_averages(ZDir(), u_ave.field());
+        v_ave.compute_averages(ZDir(), v_ave.field());
+
+        int t_ncell = t_ave.ncell_line();
+        int u_ncell = u_ave.ncell_line();
+        int v_ncell = v_ave.ncell_line();
+        Gpu::HostVector<    Real> t_plane_h(t_ncell), u_plane_h(u_ncell), v_plane_h(v_ncell);
+        Gpu::DeviceVector<  Real> t_plane_d(t_ncell), u_plane_d(u_ncell), v_plane_d(v_ncell);
+
+        t_ave.line_average(PrimTheta_comp, t_plane_h);
+        u_ave.line_average(0             , u_plane_h);
+        v_ave.line_average(0             , v_plane_h);
+
+        Gpu::copyAsync(Gpu::hostToDevice, t_plane_h.begin(), t_plane_h.end(), t_plane_d.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
+        Gpu::copyAsync(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
+
+        Real* dptr_t = t_plane_d.data();
+        Real* dptr_u = u_plane_d.data();
+        Real* dptr_v = v_plane_d.data();
+
+        IntVect ng_c = S_prim.nGrowVect();
+        IntVect ng_u = xvel.nGrowVect();
+        IntVect ng_v = yvel.nGrowVect();
+        Box tdomain = domain; tdomain.grow(2,ng_c[2]);
+        Box udomain = domain; udomain.grow(2,ng_u[2]);
+        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
+        t_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
+        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
+
+        int t_offset = ng_c[2];
+        dptr_t_plane = t_plane_tab.table();
+        ParallelFor(t_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_t_plane(k-t_offset) = dptr_t[k];
+        });
+
+        int u_offset = ng_u[2];
+        dptr_u_plane = u_plane_tab.table();
+        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_u_plane(k-u_offset) = dptr_u[k];
+        });
+
+        int v_offset = ng_v[2];
+        dptr_v_plane = v_plane_tab.table();
+        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_v_plane(k-v_offset) = dptr_v[k];
+        });
+    }
+
 
     // *************************************************************************
     // Pre-computed quantities
@@ -766,6 +834,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
+        // Add custom subsidence source terms
+        if (solverChoice.custom_w_subsidence) {
+            const int n = RhoTheta_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                cell_rhs(i, j, k, n) += dptr_wbar_sub[k] *
+                    0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
+
+            });
+        }
+
         // Add Rayleigh damping
         if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
@@ -1042,6 +1121,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
           });
         } // no terrain
         } // end profile
+
+        // Add custom subsidence source terms
+        if (solverChoice.custom_w_subsidence) {
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                rho_u_rhs(i, j, k) += dptr_wbar_sub[k] *
+                    0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
+            });
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                rho_v_rhs(i, j, k) += dptr_wbar_sub[k] *
+                    0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
+            });
+        }
 
         {
         BL_PROFILE("slow_rhs_pre_zmom_2d");
