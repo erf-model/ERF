@@ -67,7 +67,7 @@ using namespace amrex;
  */
 
 void erf_slow_rhs_inc (int /*level*/, int nrk,
-                       amrex::Real dt,
+                       Real dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -76,7 +76,6 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-                       const MultiFab* qv,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -87,21 +86,21 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx3, MultiFab* Diss,
-                       const amrex::Geometry geom,
+                       const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
-                       const Vector<amrex::BCRec>& domain_bcs_type,
+                       const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
+                       const Vector<BCRec>& domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
-                       const amrex::Real* dptr_rhotheta_src,
-                       const amrex::Real* dptr_rhoqt_src,
-                       const Vector<amrex::Real*> d_rayleigh_dptrs)
+                       const Real* dptr_rhotheta_src,
+                       const Real* dptr_wbar_sub,
+                       const Vector<Real*> d_rayleigh_dptrs)
 {
-    BL_PROFILE_REGION("erf_slow_rhs_pre()");
+    BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
