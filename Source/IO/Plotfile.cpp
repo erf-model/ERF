@@ -381,17 +381,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                         if(k == klo) {
                             gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                 p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                              - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
                         } else if (k == khi) {
                             gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                 p_arr(i-1,j,k  ) + p_arr(i,j,k  )
-                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                         } else {
                             gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
                                 p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+                        Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                         // Pgrad at higher I face
                         Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
@@ -411,7 +411,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
                                 - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                        Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
                         // Average P grad to CC
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
@@ -477,7 +477,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
                                 - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
                         }
-                        amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+                        Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                         Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
                         Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
@@ -496,7 +496,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
                                 - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                        Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                     });
@@ -542,7 +542,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+                    Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                     Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
                     Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
@@ -561,7 +561,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                    Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
                 });
@@ -599,7 +599,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
                                                              - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
                     }
-                    amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+                    Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                     Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
                     Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
@@ -618,7 +618,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                    Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                 });

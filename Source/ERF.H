@@ -76,7 +76,9 @@ namespace InterpType {
         CellBilinear,
         CellQuadratic,
         CellConservativeProtected,
-        CellConservativeQuartic
+        CellConservativeQuartic,
+        FaceLinear,
+        FaceConserativeLinear
     };
 }
 
@@ -520,6 +522,10 @@ private:
     ////////////////
     // private data members
 
+    // These are the minimum and maximum values of k in valid boxes *at this level*
+    amrex::Vector<int> min_k_at_level;
+    amrex::Vector<int> max_k_at_level;
+
     std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
@@ -796,6 +802,9 @@ private:
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;

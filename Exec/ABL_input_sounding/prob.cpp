@@ -140,7 +140,8 @@ Problem::init_custom_pert(
   });
 
   // Set the z-velocity
-  ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+  ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  {
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
     const int dom_hi_z = geomdata.Domain().bigEnd()[2];
 

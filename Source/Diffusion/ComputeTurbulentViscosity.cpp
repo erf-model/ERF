@@ -49,7 +49,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
 {
-    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    const amrex::GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
     const int& klo    = domain.smallEnd(2);
     const bool use_most = (most != nullptr);
@@ -71,7 +71,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Box bxcc  = mfi.growntilebox() & domain;
 
           const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-          const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+          const amrex::Array4<Real const > &cell_data = cons_in.array(mfi);
 
           Array4<Real const> tau11 = Tau11.array(mfi);
           Array4<Real const> tau22 = Tau22.array(mfi);
@@ -108,12 +108,12 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     //***********************************************************************************
     else if (turbChoice.les_type == LESType::Deardorff)
     {
-      const amrex::Real l_C_k        = turbChoice.Ck;
-      const amrex::Real l_C_e        = turbChoice.Ce;
-      const amrex::Real l_C_e_wall   = turbChoice.Ce_wall;
-      const amrex::Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
-      const amrex::Real l_abs_g      = const_grav;
-      const amrex::Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+      const Real l_C_k        = turbChoice.Ck;
+      const Real l_C_e        = turbChoice.Ce;
+      const Real l_C_e_wall   = turbChoice.Ce_wall;
+      const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+      const Real l_abs_g      = const_grav;
+      const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -128,7 +128,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& hfx_z   = Hfx3.array(mfi);
         const Array4<Real>& diss    = Diss.array(mfi);
 
-        const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+        const amrex::Array4<Real const > &cell_data = cons_in.array(mfi);
 
         Array4<Real const> mf_u = mapfac_u.array(mfi);
         Array4<Real const> mf_v = mapfac_v.array(mfi);
@@ -151,12 +151,17 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz;
           if (use_most && k==klo) {
+#ifdef ERF_EXPLICIT_MOST_STRESS
+              dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                          - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+#else
               dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
                                     / cell_data(i,j,k  ,Rho_comp)
                                 + 4 * cell_data(i,j,k+1,RhoTheta_comp)
                                     / cell_data(i,j,k+1,Rho_comp)
                                 -     cell_data(i,j,k+2,RhoTheta_comp)
                                     / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+#endif
           } else {
               dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
@@ -183,13 +188,15 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           // Calculate SFS quantities
           // - dissipation
-          amrex::Real Ce;
+          Real Ce;
           if ((l_C_e_wall > 0) && (k==0))
               Ce = l_C_e_wall;
           else
               Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
           diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
           // - heat flux
+          //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+          //    be overwritten when BCs are applied)
           hfx_x(i,j,k) = 0.0;
           hfx_y(i,j,k) = 0.0;
           hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]

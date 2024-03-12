@@ -67,7 +67,7 @@ using namespace amrex;
  */
 
 void erf_slow_rhs_inc (int /*level*/, int nrk,
-                       amrex::Real dt,
+                       Real dt,
                        Vector<MultiFab>& S_rhs,
                        Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
@@ -76,7 +76,6 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-                       const MultiFab* qv,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
                        const MultiFab& source,
@@ -87,21 +86,21 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
                        MultiFab* Hfx3, MultiFab* Diss,
-                       const amrex::Geometry geom,
+                       const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
-                       const Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
-                       const Vector<amrex::BCRec>& domain_bcs_type,
+                       const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
+                       const Vector<BCRec>& domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
-                       const amrex::Real* dptr_rhotheta_src,
-                       const amrex::Real* dptr_rhoqt_src,
-                       const Vector<amrex::Real*> d_rayleigh_dptrs)
+                       const Real* dptr_rhotheta_src,
+                       const Real* dptr_wbar_sub,
+                       const Vector<Real*> d_rayleigh_dptrs)
 {
-    BL_PROFILE_REGION("erf_slow_rhs_pre()");
+    BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -131,6 +130,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+
+    const bool use_most     = (most != nullptr);
 
     const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
     const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -632,7 +633,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                                    diffflux_x, diffflux_y, diffflux_z,
                                    dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                    hfx_z, diss,
-                                   mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr);
+                                   mu_turb, solverChoice, tm_arr, grav_gpu, bc_ptr, use_most);
         }
 
         if (l_use_ndiff) {
@@ -819,7 +820,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // Enforce no forcing term at top and bottom boundaries
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
-            rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
+            rho_w_rhs(i,j,domhi_z+1) = 0.;
         });
         } // end profile
 

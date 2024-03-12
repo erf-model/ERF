@@ -21,19 +21,19 @@
 
 using namespace amrex;
 
-amrex::Real ERF::startCPUTime        = 0.0;
-amrex::Real ERF::previousCPUTimeUsed = 0.0;
+Real ERF::startCPUTime        = 0.0;
+Real ERF::previousCPUTimeUsed = 0.0;
 
 Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
 // Time step control
-amrex::Real ERF::cfl           =  0.8;
-amrex::Real ERF::fixed_dt      = -1.0;
-amrex::Real ERF::fixed_fast_dt = -1.0;
-amrex::Real ERF::init_shrink   =  1.0;
-amrex::Real ERF::change_max    =  1.1;
+Real ERF::cfl           =  0.8;
+Real ERF::fixed_dt      = -1.0;
+Real ERF::fixed_fast_dt = -1.0;
+Real ERF::init_shrink   =  1.0;
+Real ERF::change_max    =  1.1;
 int         ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -41,7 +41,7 @@ int         ERF::verbose       = 0;
 
 // Frequency of diagnostic output
 int         ERF::sum_interval  = -1;
-amrex::Real ERF::sum_per       = -1.0;
+Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
@@ -68,16 +68,16 @@ bool ERF::init_sounding_ideal = false;
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int         ERF::output_1d_column = 0;
 int         ERF::column_interval  = -1;
-amrex::Real ERF::column_per       = -1.0;
-amrex::Real ERF::column_loc_x     = 0.0;
-amrex::Real ERF::column_loc_y     = 0.0;
+Real ERF::column_per       = -1.0;
+Real ERF::column_loc_x     = 0.0;
+Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 // 2D BndryRegister output (for ingestion by AMR-Wind)
 int         ERF::output_bndry_planes            = 0;
 int         ERF::bndry_output_planes_interval   = -1;
-amrex::Real ERF::bndry_output_planes_per        = -1.0;
-amrex::Real ERF::bndry_output_planes_start_time =  0.0;
+Real ERF::bndry_output_planes_per        = -1.0;
+Real ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
 int         ERF::input_bndry_planes             = 0;
@@ -629,7 +629,7 @@ ERF::InitData ()
         m_r2d->read_time_file();
 
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
-        amrex::Real dt_dummy = 0.0;
+        Real dt_dummy = 0.0;
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 
@@ -674,13 +674,27 @@ ERF::InitData ()
         }
     }
 
+    if (solverChoice.custom_w_subsidence)
+    {
+        h_w_subsid.resize(max_level+1, amrex::Vector<Real>(0));
+        d_w_subsid.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++) {
+            const int domlen = geom[lev].Domain().length(2);
+            h_w_subsid[lev].resize(domlen, 0.0_rt);
+            d_w_subsid[lev].resize(domlen, 0.0_rt);
+            prob->update_w_subsidence(t_new[0],
+                                      h_w_subsid[lev], d_w_subsid[lev],
+                                      geom[lev], z_phys_cc[lev]);
+        }
+    }
+
     if (solverChoice.use_rayleigh_damping)
     {
         initRayleigh();
         if (init_type == "input_sounding")
         {
-            // Overwrite ubar, vbar, and thetabar with input profiles; wbar is
-            // assumed to be 0. Note: the tau coefficient set by
+            // Overwrite ubar, vbar, and thetabar with input profiles;
+            // wbar is assumed to be 0. Note: the tau coefficient set by
             // prob->erf_init_rayleigh() is still used
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
@@ -705,7 +719,7 @@ ERF::InitData ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        amrex::Real time = 0.;
+        Real time = 0.;
         if (time >= bndry_output_planes_start_time) {
             m_w2d->write_planes(0, time, vars_new);
         }
@@ -761,6 +775,18 @@ ERF::InitData ()
                   fillset);
 
         //
+        // We do this here to make sure level (lev-1) boundary conditions are filled
+        // before we interpolate to level (lev) ghost cells
+        //
+        if (lev < finest_level) {
+            auto& lev_old = vars_old[lev];
+            MultiFab::Copy(lev_old[Vars::cons],lev_new[Vars::cons],0,0,lev_old[Vars::cons].nComp(),lev_old[Vars::cons].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::xvel],lev_new[Vars::xvel],0,0,lev_old[Vars::xvel].nComp(),lev_old[Vars::xvel].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::yvel],lev_new[Vars::yvel],0,0,lev_old[Vars::yvel].nComp(),lev_old[Vars::yvel].nGrowVect());
+            MultiFab::Copy(lev_old[Vars::zvel],lev_new[Vars::zvel],0,0,lev_old[Vars::zvel].nComp(),lev_old[Vars::zvel].nGrowVect());
+        }
+
+        //
         // We fill the ghost cell values of the base state in case it wasn't done in the initialization
         //
         base_state[lev].FillBoundary(geom[lev].periodicity());
@@ -778,6 +804,10 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
+#ifdef ERF_EXPLICIT_MOST_STRESS
+        amrex::Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+#endif
+
         m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
@@ -1155,6 +1185,10 @@ ERF::ReadParameters ()
         num_boxes_at_level.resize(max_level+1,0);
             boxes_at_level.resize(max_level+1);
 
+        // These hold the minimum and maximum value of k in the boxes *at each level*
+        min_k_at_level.resize(max_level+1,0);
+        max_k_at_level.resize(max_level+1,0);
+
         // We always have exactly one file at level 0
         num_boxes_at_level[0] = 1;
         boxes_at_level[0].resize(1);
@@ -1243,6 +1277,15 @@ ERF::ReadParameters ()
         pp.query("cf_set_width", cf_set_width);
         if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
             amrex::Abort("You must set cf_width >= cf_set_width >= 0");
+        }
+        if (max_level > 0 && cf_set_width > 0) {
+            for (int lev = 1; lev <= max_level; lev++) {
+                if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
+                    cf_set_width%ref_ratio[lev-1][1] != 0 ||
+                    cf_set_width%ref_ratio[lev-1][2] != 0 ) {
+                    amrex::Abort("You must set cf_width to be a multiple of ref_ratio");
+                }
+            }
         }
 
         // AmrMesh iterate on grids?
@@ -1553,13 +1596,13 @@ ERF::Construct_ERFFillPatchers (int lev)
                        -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u.emplace_back(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_v.emplace_back(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_w.emplace_back(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                        convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                       -cf_width, -cf_set_width, 1, &face_linear_interp);
+                       -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
 }
 
 void
@@ -1581,18 +1624,18 @@ ERF::Define_ERFFillPatchers (int lev)
                         -cf_width, -cf_set_width, ncomp, &cell_cons_interp);
     FPr_u[lev-1].Define(convert(ba_fine, IntVect(1,0,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(1,0,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_v[lev-1].Define(convert(ba_fine, IntVect(0,1,0)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,1,0)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
     FPr_w[lev-1].Define(convert(ba_fine, IntVect(0,0,1)), dm_fine, geom[lev]  ,
                         convert(ba_crse, IntVect(0,0,1)), dm_crse, geom[lev-1],
-                        -cf_width, -cf_set_width, 1, &face_linear_interp);
+                        -cf_width, -cf_set_width, 1, &face_cons_linear_interp);
 }
 
 #ifdef ERF_USE_MULTIBLOCK
 // constructor used when ERF is created by a multiblock driver
-ERF::ERF (const amrex::RealBox& rb, int max_level_in,
+ERF::ERF (const RealBox& rb, int max_level_in,
           const amrex::Vector<int>& n_cell_in, int coord,
           const amrex::Vector<amrex::IntVect>& ref_ratios,
           const amrex::Array<int,AMREX_SPACEDIM>& is_per,

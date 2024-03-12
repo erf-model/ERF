@@ -179,6 +179,43 @@ public:
     }
 
     /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] wbar             w vel forcing profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_w_subsidence (const amrex::Real& /*time*/,
+                         amrex::Vector<amrex::Real>& wbar,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+                         const amrex::Geometry& geom,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (wbar.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                wbar[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
+    }
+
+    /**
      * Function to perform custom initialization of terrain
      *
      * Note: Terrain functionality can also be used to provide grid stretching.

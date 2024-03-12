@@ -13,20 +13,20 @@ amrex_probinit (const amrex_real* problo,
 Problem::Problem (const amrex::Real* problo,
                   const amrex::Real* probhi)
 {
-  // Parse params
-  amrex::ParmParse pp("prob");
-  pp.query("rho_0", parms.rho_0);
-  pp.query("U_0", parms.U_0);
-  pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
-  pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
-  pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
-  pp.query("pert_ref_height", parms.pert_ref_height);
-  parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
-  parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
-  parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
-  parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
+    // Parse params
+    ParmParse pp("prob");
+    pp.query("rho_0", parms.rho_0);
+    pp.query("U_0", parms.U_0);
+    pp.query("U_0_Pert_Mag", parms.U_0_Pert_Mag);
+    pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
+    pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
+    pp.query("pert_ref_height", parms.pert_ref_height);
+    parms.aval = parms.pert_periods_U * 2.0 * PI / (probhi[1] - problo[1]);
+    parms.bval = parms.pert_periods_V * 2.0 * PI / (probhi[0] - problo[0]);
+    parms.ufac = parms.pert_deltaU * std::exp(0.5) / parms.pert_ref_height;
+    parms.vfac = parms.pert_deltaV * std::exp(0.5) / parms.pert_ref_height;
 
-  init_base_parms(parms.rho_0, parms.T_0);
+    init_base_parms(parms.rho_0, parms.T_0);
 }
 
 void

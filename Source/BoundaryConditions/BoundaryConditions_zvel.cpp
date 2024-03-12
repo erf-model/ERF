@@ -202,7 +202,12 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // *******************************************************
 
     // At the bottom boundary we always assert no normal flow
-    AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
+    if (m_lev == 0) {
+        AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
+    } else {
+       // If we do not reach to the top or bottom boundary then the z-vel should be
+       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
+    }
 
     // Moving terrain
     if (l_use_terrain && l_moving_terrain)
@@ -216,43 +221,59 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     // Static terrain
     } else if (l_use_terrain) {
 
-        AMREX_ALWAYS_ASSERT( (bc_ptr_u_h[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) == ERFBCType::ext_dir) ||
-                             (bc_ptr_u_h[0].lo(2) != ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) != ERFBCType::ext_dir) );
-
-        ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
-        });
+        if (m_lev == 0) {
+            AMREX_ALWAYS_ASSERT( (bc_ptr_u_h[0].lo(2) == ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) == ERFBCType::ext_dir) ||
+                                 (bc_ptr_u_h[0].lo(2) != ERFBCType::ext_dir && bc_ptr_v_h[0].lo(2) != ERFBCType::ext_dir) );
+        } else {
+            // If we do not reach to the top or bottom boundary then the z-vel should be
+            //    filled by interpolation from the coarser grid using ERF_FillPatcher.
+        }
+        if (bx.smallEnd(2) == dom_lo.z) {
+            ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][2],xvel_arr,yvel_arr,z_phys_nd,dxInv);
+            });
+        }
 
     // No terrain
     } else {
-        ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           dest_arr(i,j,k) = l_bc_extdir_vals_d[0][2];
-        });
+        if (bx.smallEnd(2) == dom_lo.z) {
+            ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+               dest_arr(i,j,k) = l_bc_extdir_vals_d[0][2];
+            });
+        }
     }
 
     // *******************************************************
     // Top boundary
     // *******************************************************
 
-    AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
-                        bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
+    if (m_lev == 0) {
+       AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
+                           bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
+    } else {
+       // If we do not reach to the top or bottom boundary then the z-vel should be
+       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
+    }
+
 
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
-    if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
-        ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            if (l_use_terrain) {
-                dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
-            } else {
-                dest_arr(i,j,k) = l_bc_extdir_vals_d[0][5];
-            }
-        });
-    } else if (bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int) {
-        ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            dest_arr(i,j,k) = (4.0*dest_arr(i,j,dom_hi.z) - dest_arr(i,j,dom_hi.z-1))/3.0;
-        });
+    if (bx.bigEnd(2) == dom_hi.z+1) {
+        if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
+            ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (l_use_terrain) {
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,l_bc_extdir_vals_d[0][5],xvel_arr,yvel_arr,z_phys_nd,dxInv);
+                } else {
+                    dest_arr(i,j,k) = l_bc_extdir_vals_d[0][5];
+                }
+            });
+        } else if (bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int) {
+            ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                dest_arr(i,j,k) = (4.0*dest_arr(i,j,dom_hi.z) - dest_arr(i,j,dom_hi.z-1))/3.0;
+            });
+        }
     }
     Gpu::streamSynchronize();
 }

@@ -53,6 +53,7 @@ ERF::FillPatch (int lev, Real time,
             FPr_u[lev-1].FillSet(*mfs_mom[Vars::xvel], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[Vars::yvel], time, null_bc, domain_bcs_type);
             FPr_w[lev-1].FillSet(*mfs_mom[Vars::zvel], time, null_bc, domain_bcs_type);
+
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
                                *mfs_mom[Vars::xvel], *mfs_mom[Vars::yvel], *mfs_mom[Vars::zvel]);
@@ -75,19 +76,19 @@ ERF::FillPatch (int lev, Real time,
         else if (var_idx == Vars::xvel)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::yvel)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::zvel)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         } else {
-          amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
+            amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
 
         if (lev == 0)
@@ -251,7 +252,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::xmom)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -259,7 +260,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::ymom)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -267,7 +268,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::zmom)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,0);
             icomp  = 0;
             ncomp  = 1;
@@ -319,8 +320,17 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // ***************************************************************************
 
     // MOST boundary conditions
-    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
-        m_most->impose_most_bcs(lev,mfs_vel,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
+    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs) {
+        m_most->impose_most_bcs(lev,mfs_vel,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                Tau13_lev[lev].get(), Tau31_lev[lev].get(),
+                                Tau23_lev[lev].get(), Tau32_lev[lev].get(),
+                                SFS_hfx3_lev[lev].get(),
+#else
+                                eddyDiffs_lev[lev].get(),
+#endif
+                                z_phys_nd[lev].get());
+    }
 
     // We always come in to this call with momenta so we need to leave with momenta!
     // We need to make sure we convert back on all ghost cells/faces because this is
@@ -362,7 +372,7 @@ ERF::FillCoarsePatch (int lev, Real time)
                                  mapper, domain_bcs_type, bccomp);
 
 
-    mapper = &face_linear_interp;
+    mapper = &face_cons_linear_interp;
 
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {

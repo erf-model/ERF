@@ -77,6 +77,10 @@ public:
             if (custom_qstar != 0) {
                 AMREX_ASSERT_WITH_MESSAGE(use_moisture, "Specified custom MOST qv flux without moisture model!");
             }
+            amrex::Print() << "Using specified ustar, tstar, qstar for MOST = "
+                << custom_ustar << " "
+                << custom_tstar << " "
+                << custom_qstar << std::endl;
 
         // Specify surface temperature or surface flux
         } else {
@@ -216,14 +220,26 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                     amrex::MultiFab* heat_flux,
+#else
                      amrex::MultiFab* eddyDiffs,
+#endif
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                      amrex::MultiFab* heat_flux,
+#else
                       amrex::MultiFab* eddyDiffs,
+#endif
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
