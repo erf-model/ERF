@@ -262,6 +262,8 @@ MOSTAverage::set_k_indices_N()
             Real m_zhi = m_geom[lev].ProbHi(2);
             Real m_dz  = m_geom[lev].CellSize(2);
 
+            amrex::ignore_unused(m_zhi);
+
             AMREX_ASSERT_WITH_MESSAGE(m_zref >= m_zlo + 0.5 * m_dz,
                                       "Query point must be past first z-cell!");
 
@@ -311,6 +313,7 @@ MOSTAverage::set_k_indices_T()
     // Capture for device
     Real d_zref   = m_zref;
     Real d_radius = m_radius;
+    amrex::ignore_unused(d_radius);
 
     // Specify z_ref & compute k_indx (z_ref takes precedence)
     if (read_z) {
@@ -411,6 +414,7 @@ MOSTAverage::set_norm_indices_T()
                 }
 
                 // Destination cell must be contained on the current process!
+                amrex::ignore_unused(gpbx);
                 AMREX_ASSERT_WITH_MESSAGE(gpbx.contains(i_arr(i,j,k),j_arr(i,j,k),k_arr(i,j,k)),
                                           "Query index outside of proc domain!");
             });
@@ -456,6 +460,7 @@ MOSTAverage::set_z_positions_T()
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+                amrex::ignore_unused(pos);
                 AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
                                            "Query point outside of proc domain!");
             });
@@ -516,6 +521,7 @@ MOSTAverage::set_norm_positions_T()
 
                 // Destination position must be contained on the current process!
                 Real pos[] = {x_pos_arr(i,j,k),y_pos_arr(i,j,k),0.5*dx[2]};
+                amrex::ignore_unused(pos);
                 AMREX_ASSERT_WITH_MESSAGE( grb.contains(&pos[0]),
                                            "Query point outside of proc domain!");
             });

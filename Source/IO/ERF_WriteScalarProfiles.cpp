@@ -21,18 +21,46 @@ ERF::sum_integrated_quantities(Real time)
     int datwidth = 14;
     int datprecision = 6;
 
+    // Single level sum
+    Real mass_sl;
+
     // Multilevel sums
     Real mass_ml = 0.0;
     Real rhth_ml = 0.0;
     Real scal_ml = 0.0;
 
-    // Level 0 sums
-    Real mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],      Rho_comp,*mapfac_m[0],false,false);
+#if 1
+    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],false,false);
+    for (int lev = 0; lev <= finest_level; lev++) {
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],false,true);
+    }
+#else
+    for (int lev = 0; lev <= finest_level; lev++) {
+        MultiFab pert_dens(vars_new[lev][Vars::cons].boxArray(),
+                           vars_new[lev][Vars::cons].DistributionMap(),
+                           1,0);
+        MultiFab r_hse (base_state[lev], make_alias, 0, 1); // r_0 is first  component
+        for ( MFIter mfi(pert_dens,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box& bx = mfi.tilebox();
+            const Array4<Real      >& pert_dens_arr = pert_dens.array(mfi);
+            const Array4<Real const>&         S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+            const Array4<Real const>&        r0_arr = r_hse.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                pert_dens_arr(i, j, k, 0) = S_arr(i,j,k,Rho_comp) - r0_arr(i,j,k);
+            });
+        }
+        if (lev == 0) {
+            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],false,false);
+        }
+        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],false,true);
+    } // lev
+#endif
+
     Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],false,false);
     Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],false,false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],      Rho_comp,*mapfac_m[lev],false,true);
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],false,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],false,true);
     }
@@ -80,11 +108,19 @@ ERF::sum_integrated_quantities(Real time)
 
             amrex::Print() << '\n';
             if (finest_level ==  0) {
-               amrex::Print() << "TIME= " << time << " MASS              = " << mass_sl << '\n';
+#if 1
+               amrex::Print() << "TIME= " << time << "      MASS         = " << mass_sl << '\n';
+#else
+               amrex::Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
+#endif
                amrex::Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
                amrex::Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
             } else {
-               amrex::Print() << "TIME= " << time << " MASS        SL/ML = " << mass_sl << " " << mass_ml << '\n';
+#if 1
+               amrex::Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+#else
+               amrex::Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+#endif
                amrex::Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
                amrex::Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
             }
