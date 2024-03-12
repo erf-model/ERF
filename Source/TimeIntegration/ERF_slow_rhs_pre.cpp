@@ -305,6 +305,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Box tbxxy = mfi.tilebox(IntVect(1,1,0));
             Box tbxxz = mfi.tilebox(IntVect(1,0,1));
             Box tbxyz = mfi.tilebox(IntVect(0,1,1));
+
             // We need a halo cell for terrain
              bxcc.grow(IntVect(1,1,0));
             tbxxy.grow(IntVect(1,1,0));
@@ -394,6 +395,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                // We've updated the strains at all locations including the
+                // surface. This is required to get the correct strain-rate
+                // magnitude. Now, update the stress everywhere but the surface
+                // to retain the values set by MOST.
+                if (use_most) {
+                    // Don't overwrite modeled total stress value at boundary
+                    tbxxz.setSmall(2,1);
+                    tbxyz.setSmall(2,1);
+                }
+#endif
 
                 //-----------------------------------------
                 // Stress tensor compute terrain
@@ -492,6 +505,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
                 }
+
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                // We've updated the strains at all locations including the
+                // surface. This is required to get the correct strain-rate
+                // magnitude. Now, update the stress everywhere but the surface
+                // to retain the values set by MOST.
+                if (use_most) {
+                    // Don't overwrite modeled total stress value at boundary
+                    tbxxz.setSmall(2,1);
+                    tbxyz.setSmall(2,1);
+                }
+#endif
 
                 //-----------------------------------------
                 // Stress tensor compute no terrain
@@ -744,7 +769,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss, mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr);
+                                       tm_arr, grav_gpu, bc_ptr, use_most);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -752,7 +777,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
                                        mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr);
+                                       tm_arr, grav_gpu, bc_ptr, use_most);
             }
         }
 

@@ -319,8 +319,17 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // ***************************************************************************
 
     // MOST boundary conditions
-    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs)
-        m_most->impose_most_bcs(lev,mfs_vel,eddyDiffs_lev[lev].get(),z_phys_nd[lev].get());
+    if (!(cons_only && ncomp_cons == 1) && m_most && allow_most_bcs) {
+        m_most->impose_most_bcs(lev,mfs_vel,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                                Tau13_lev[lev].get(), Tau31_lev[lev].get(),
+                                Tau23_lev[lev].get(), Tau32_lev[lev].get(),
+                                SFS_hfx3_lev[lev].get(),
+#else
+                                eddyDiffs_lev[lev].get(),
+#endif
+                                z_phys_nd[lev].get());
+    }
 
     // We always come in to this call with momenta so we need to leave with momenta!
     // We need to make sure we convert back on all ghost cells/faces because this is
