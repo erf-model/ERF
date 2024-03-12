@@ -674,6 +674,20 @@ ERF::InitData ()
         }
     }
 
+    if (solverChoice.custom_w_subsidence)
+    {
+        h_w_subsid.resize(max_level+1, amrex::Vector<Real>(0));
+        d_w_subsid.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++) {
+            const int domlen = geom[lev].Domain().length(2);
+            h_w_subsid[lev].resize(domlen, 0.0_rt);
+            d_w_subsid[lev].resize(domlen, 0.0_rt);
+            prob->update_w_subsidence(t_new[0],
+                                      h_w_subsid[lev], d_w_subsid[lev],
+                                      geom[lev], z_phys_cc[lev]);
+        }
+    }
+
     if (solverChoice.use_rayleigh_damping)
     {
         initRayleigh();
@@ -790,6 +804,10 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
+#ifdef ERF_EXPLICIT_MOST_STRESS
+        amrex::Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+#endif
+
         m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
