@@ -30,6 +30,130 @@ struct SuperDropletsRealIdxSoA_RT
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
 
+namespace SuperDropletsUtils
+{
+    using namespace amrex;
+
+    struct dRsqdt_RHSFunc
+    {
+        ParticleReal a;
+        ParticleReal b;
+        ParticleReal L;
+        ParticleReal K;
+        ParticleReal Rv;
+        ParticleReal rho_l;
+        ParticleReal D;
+
+        AMREX_GPU_HOST_DEVICE
+        ParticleReal operator() (   const ParticleReal a_R_sq,
+                                    const ParticleReal a_S,
+                                    const ParticleReal a_T,
+                                    const ParticleReal a_e_s,
+                                    const ParticleReal a_M_s ) const noexcept
+        {
+            ParticleReal F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            ParticleReal F_d = (rho_l*Rv*a_T) / (D*a_e_s);
+
+            ParticleReal alpha = 2.0 * (a_S-1.0) / (F_k + F_d);
+            ParticleReal beta = -2.0 * (a/a_T) / (F_k + F_d);
+            ParticleReal gamma = 2.0 * b * a_M_s / (F_k + F_d);
+
+            ParticleReal R_inv = std::exp(-0.5*std::log(a_R_sq));
+            ParticleReal R_inv_cubed = R_inv*R_inv*R_inv;
+
+            ParticleReal retval = alpha + beta*R_inv + gamma*R_inv_cubed;
+            return retval;
+        }
+
+    };
+
+    struct dRsqdt_RHSJac
+    {
+        ParticleReal a;
+        ParticleReal b;
+        ParticleReal L;
+        ParticleReal K;
+        ParticleReal Rv;
+        ParticleReal rho_l;
+        ParticleReal D;
+
+        AMREX_GPU_HOST_DEVICE
+        ParticleReal operator() (   const ParticleReal a_R_sq,
+                                    const ParticleReal a_T,
+                                    const ParticleReal a_e_s,
+                                    const ParticleReal a_M_s ) const noexcept
+        {
+            ParticleReal F_k = ( L/(Rv*a_T) - 1.0) * ((L*rho_l) / (K*a_T));
+            ParticleReal F_d = (rho_l*Rv*a_T) / (D*a_e_s);
+
+            ParticleReal beta = -2.0 * (a/a_T) / (F_k + F_d);
+            ParticleReal gamma = 2.0 * b * a_M_s / (F_k + F_d);
+
+            ParticleReal R_inv = 1.0/std::sqrt(a_R_sq);
+            ParticleReal R_inv_3 = R_inv*R_inv*R_inv;
+            ParticleReal R_inv_5 = R_inv_3*R_inv*R_inv;
+
+            ParticleReal retval = -0.5 * (beta*R_inv_3 + 3.0*gamma*R_inv_5);
+            return retval;
+        }
+
+    };
+
+    template<typename RHSFunc, typename JacFunc, typename RT>
+    struct NewtonSolver
+    {
+        RHSFunc&  m_rhs;
+        JacFunc&  m_jac;
+
+        RT  m_rtol;
+        RT  m_atol;
+        RT  m_stol;
+        int m_maxits;
+
+        AMREX_GPU_HOST_DEVICE
+        void operator()  (  RT&             a_u,
+                            RT&             a_r,
+                            const RT&       a_dt,
+                            const RT&       a_S,
+                            const RT&       a_T,
+                            const RT&       a_e_s,
+                            const RT&       a_M_s,
+                            bool&           a_converged ) const
+        {
+            a_converged = false;
+            RT res_norm0 = 0.0;
+
+            for (int k = 0; k < m_maxits; k++) {
+                RT residual = a_u - (a_r + a_dt * m_rhs( a_u, a_S, a_T, a_e_s, a_M_s ));
+                RT res_norm_a = std::sqrt(residual*residual);
+
+                if (k == 0) { res_norm0 = res_norm_a; }
+                RT res_norm_r = res_norm_a / res_norm0;
+
+                if (res_norm_a <= m_atol) {
+                    a_converged = true;
+                    break;
+                }
+                if (res_norm_r <= m_rtol) {
+                    a_converged = true;
+                    break;
+                }
+
+                RT slope = 1.0 - a_dt * m_jac( a_u, a_T, a_e_s, a_M_s );
+                RT du = - residual / slope;
+
+                RT du_norm = std::sqrt(du*du);
+                if (du_norm <= m_stol) {
+                    a_converged = true;
+                    break;
+                }
+
+                a_u += du;
+            }
+        }
+    };
+}
+
 /*! \brief List of super-droplet initializations */
 namespace SuperDropletInitializations
 {
@@ -89,7 +213,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> varNames () const
+        virtual amrex::Vector<std::string> varNames () const override
         {
             BL_PROFILE("ERFPCPC::varNames()");
             amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
@@ -104,7 +228,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> meshPlotVarNames () const
+        virtual amrex::Vector<std::string> meshPlotVarNames () const override
         {
             BL_PROFILE("ERFPCPC::varNames()");
             amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
@@ -121,7 +245,7 @@ class SuperDropletPC : public ERFPC
         /*! Compute mesh variable from particles */
         virtual void computeMeshVar(    const std::string&  a_var_name,
                                         amrex::MultiFab&    a_mf,
-                                        const int           a_lev) const
+                                        const int           a_lev) const override
         {
             a_mf.setVal(0.0);
             if (a_lev == 0) {
@@ -152,7 +276,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Initialize super-droplets in domain */
-        inline virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr)
+        inline virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr) override
         {
             InitializeParticles( m_initialization_type, a_ptr );
         }
@@ -170,6 +294,13 @@ class SuperDropletPC : public ERFPC
         virtual void EvolveParticles (   int,
                                          amrex::Real,
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override;
+
+        /*! \brief Evolve particles for one time step */
+        virtual void EvolveParticles (   int,
+                                         amrex::Real,
+                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                         amrex::MultiFab&,
                                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Advect particles for one time step */
@@ -178,6 +309,13 @@ class SuperDropletPC : public ERFPC
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                                          const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
                                          const bool, const bool );
+
+        /*! \brief Grow/shrink particles for one time step */
+        virtual void MassChange (   int,
+                                    amrex::Real,
+                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                    amrex::MultiFab&,
+                                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */

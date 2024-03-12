@@ -1,3 +1,22 @@
+# 24.03
+    -- AMReX submodule set to 24.03 release hash (d737886)
+
+    -- Plot rain accumulation (#1478)
+
+    -- Remove FastEddy completely (#1483)
+
+    -- Rain accumulation capability (#1474)
+
+    -- Remove the FastEddy model since it coincides with Kessler (#1473)
+
+    -- Input_sounding with moisture new HSE balance (#1469)
+
+    -- SAM microphysics re-write for ERF dycore (#1461/#1447)
+
+    -- Two-way coupled AMR (#1458)
+
+    -- Numerical diffusion bug fix (#1451)
+
 # 24.02
     -- AMReX submodule set to 24.02 release hash (52393d3)
 

@@ -137,7 +137,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     // ******************************************************************************************
     if (solverChoice.moisture_type != MoistureType::None) {
 
-        if (solverChoice.moisture_type == MoistureType::FastEddy)
+        if (solverChoice.moisture_type == MoistureType::Kessler_NoRain)
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
 
         if (solverChoice.moisture_type == MoistureType::SAM)

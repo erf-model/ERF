@@ -43,6 +43,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/SuperDropletPCAdvection.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCEvolve.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCInitializations.cpp
+                   ${SRC_DIR}/Particles/SuperDropletPCMassChange.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
@@ -166,10 +167,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistUtils.cpp
@@ -220,7 +217,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SuperDropletsMoist)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/MaterialProperties)

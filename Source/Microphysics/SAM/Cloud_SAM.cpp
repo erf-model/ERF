@@ -12,10 +12,6 @@ void SAM::Cloud () {
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;
-    constexpr Real ap = 1.0/(tprmax-tprmin);
-    constexpr Real bp = tprmin*ap;
-    constexpr Real ag = 1.0/(tgrmax-tgrmin);
-    constexpr Real bg = tgrmin*ag;
 
     Real fac_cond = m_fac_cond;
     Real fac_sub  = m_fac_sub;
@@ -30,11 +26,6 @@ void SAM::Cloud () {
         auto  qv_array = mic_fab_vars[MicVar::qv]->array(mfi);
         auto qcl_array = mic_fab_vars[MicVar::qcl]->array(mfi);
         auto qci_array = mic_fab_vars[MicVar::qci]->array(mfi);
-
-        auto  qp_array = mic_fab_vars[MicVar::qp]->array(mfi);
-        auto qpr_array = mic_fab_vars[MicVar::qpr]->array(mfi);
-        auto qps_array = mic_fab_vars[MicVar::qps]->array(mfi);
-        auto qpg_array = mic_fab_vars[MicVar::qpg]->array(mfi);
 
         auto   rho_array = mic_fab_vars[MicVar::rho]->array(mfi);
         auto  tabs_array = mic_fab_vars[MicVar::tabs]->array(mfi);
@@ -59,8 +50,7 @@ void SAM::Cloud () {
             int niter;
             Real fff, dfff, dtabs;
             Real lstar, dlstar;
-            Real lstarw, dlstarw;
-            Real lstari, dlstari;
+            Real lstarw, lstari;
             Real delta_qv, delta_qc, delta_qi;
 
             // NOTE: Conversion before iterations is necessary to
@@ -121,9 +111,7 @@ void SAM::Cloud () {
                 do {
                     // Latent heats and their derivatives wrt to T
                     lstarw  = fac_cond;
-                    dlstarw = 0.0;
                     lstari  = fac_fus;
-                    dlstari = 0.0;
                     domn    = 0.0;
 
                     // Saturation moisture fractions
