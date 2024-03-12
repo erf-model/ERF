@@ -105,7 +105,8 @@ public:
 
     // wrapper to advance micro vars
     void
-    Advance (const amrex::Real& dt_advance, const SolverChoice &solverChoice) override
+    Advance (const amrex::Real& dt_advance,
+             const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
 

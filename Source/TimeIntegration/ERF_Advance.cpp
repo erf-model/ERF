@@ -65,7 +65,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     if (solverChoice.moisture_type != MoistureType::None) {
         // TODO: This is only qv
-        FillPatchMoistVars(lev, *(qmoist[lev][0]));
+        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
 #if defined(ERF_USE_WINDFARM)

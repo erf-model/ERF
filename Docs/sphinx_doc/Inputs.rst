@@ -1066,7 +1066,10 @@ Examples of Usage
 Moisture
 ========
 
-ERF has several different moisture models.
+ERF has several different moisture models. The models that are currently implemented
+are Eulerian models; however, ERF has the capability for Lagrangian models when
+compiled with particles.
+
 The following run-time options control how the full moisture model is used.
 
 List of Parameters

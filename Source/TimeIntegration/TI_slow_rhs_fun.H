@@ -95,7 +95,7 @@
             MultiFab* p0_new = &p_hse_new;
 
             make_buoyancy(S_data, S_prim, buoyancy, fine_geom,
-                          solverChoice, r0_new, micro.Get_Qstate_Size());
+                          solverChoice, r0_new, micro->Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -188,7 +188,7 @@
 
             // If not moving_terrain
             make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0, micro.Get_Qstate_Size());
+                          fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -313,8 +313,8 @@
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src,
+                              fr_as_crse, fr_as_fine);
         } else {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
@@ -329,8 +329,8 @@
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src,
+                              fr_as_crse, fr_as_fine);
         }
     }; // end slow_rhs_fun_post
 
@@ -352,7 +352,7 @@
 
         // If not moving_terrain
         make_buoyancy(S_data, S_prim, buoyancy,
-                      fine_geom, solverChoice, r0, micro.Get_Qstate_Size());
+                      fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

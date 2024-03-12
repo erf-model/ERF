@@ -7,7 +7,7 @@
 
 class NullMoist {
 
- public:
+public:
     NullMoist () {}
 
     virtual ~NullMoist () = default;
@@ -59,8 +59,9 @@ class NullMoist {
     int
     Qstate_Size () { return NullMoist::m_qstate_size; }
 
- private:
+private:
     int m_qmoist_size = 1;
     int m_qstate_size = 0;
 };
+
 #endif

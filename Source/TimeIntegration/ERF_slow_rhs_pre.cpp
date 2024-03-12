@@ -64,6 +64,7 @@ using namespace amrex;
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rhotheta_src  custom temperature source term
+ * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
