@@ -426,6 +426,7 @@ void erf_fast_rhs_N (int step, int nrk,
         {
         BL_PROFILE("fast_rhs_b2d_loop");
 #ifdef AMREX_USE_GPU
+        auto const lo = amrex::lbound(bx);
         auto const hi = amrex::ubound(bx);
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
