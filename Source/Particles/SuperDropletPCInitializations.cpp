@@ -136,7 +136,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             << "    Vapour material: " << m_vapour_mat->name() << "\n";
     if (m_aerosol_mat.size() > 0) {
         Print() << "    Aerosol materials:\n";
-        for (int i=0; i < m_aerosol_mat.size(); i++) {
+        for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
             Print() << "        " << m_aerosol_mat[i]->name() << "\n";
         }
     }
@@ -247,8 +247,8 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 mult_ptr[n] = multiplicity;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
 
-                for (int i = 0; i < num_aerosols; i++) {
-                    aerosol_mass_ptrs[i][n] = aerosol_mass[i];
+                for (int ctr = 0; ctr < num_aerosols; ctr++) {
+                    aerosol_mass_ptrs[ctr][n] = aerosol_mass[ctr];
                 }
            }
         });

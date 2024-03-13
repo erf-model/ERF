@@ -30,10 +30,12 @@ struct SuperDropletsRealIdxSoA_RT
 /*! \brief Int-type struct-of-array attributes of a super-droplet */
 using SuperDropletsIntIdxSoA = ERFParticlesIntIdxSoA;
 
+/*! \brief Utilities for super-droplet PC */
 namespace SuperDropletsUtils
 {
     using namespace amrex;
 
+    /*! \brief RHS function for super-droplet radius ODE */
     struct dRsqdt_RHSFunc
     {
         ParticleReal a;
@@ -58,7 +60,7 @@ namespace SuperDropletsUtils
             ParticleReal beta = -2.0 * (a/a_T) / (F_k + F_d);
             ParticleReal gamma = 2.0 * b * a_M_s / (F_k + F_d);
 
-            ParticleReal R_inv = std::exp(-0.5*std::log(a_R_sq));
+            ParticleReal R_inv = 1.0/std::sqrt(a_R_sq);
             ParticleReal R_inv_cubed = R_inv*R_inv*R_inv;
 
             ParticleReal retval = alpha + beta*R_inv + gamma*R_inv_cubed;
@@ -67,6 +69,7 @@ namespace SuperDropletsUtils
 
     };
 
+    /*! \brief Jacobian for super-droplet radius ODE */
     struct dRsqdt_RHSJac
     {
         ParticleReal a;
@@ -99,6 +102,7 @@ namespace SuperDropletsUtils
 
     };
 
+    /*! \brief Newton solver for super-droplet radius ODE */
     template<typename RHSFunc, typename JacFunc, typename RT>
     struct NewtonSolver
     {
@@ -198,6 +202,9 @@ class SuperDropletPC : public ERFPC
             m_vapour_mat = std::make_unique<MaterialProperties>(a_name);
         }
 
+        /*! \brief Get vapour material */
+        virtual inline MaterialProperties& getVapourMaterial() const { return (*m_vapour_mat); }
+
         /*! \brief Set aerosol material */
         virtual inline void setAerosolMaterial ( const std::string& a_name )
         {
@@ -207,7 +214,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Set aerosol material */
         virtual inline void setAerosolMaterial ( const std::vector<std::string>& a_names )
         {
-            for (int i = 0; i < a_names.size(); i++) {
+            for (unsigned long i = 0; i < a_names.size(); i++) {
                 setAerosolMaterial( a_names[i] );
             }
         }
@@ -291,30 +298,26 @@ class SuperDropletPC : public ERFPC
         virtual void SetAttributes (  amrex::MultiFab& );
 
         /*! \brief Evolve particles for one time step */
-        virtual void EvolveParticles (   int,
-                                         amrex::Real,
-                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override;
-
-        /*! \brief Evolve particles for one time step */
-        virtual void EvolveParticles (   int,
-                                         amrex::Real,
-                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         amrex::MultiFab&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+        virtual void EvolveParticles ( int,
+                                       amrex::Real,
+                                       amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                       const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override
+        {
+            amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
+        }
 
         /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int,
                                          amrex::Real,
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>&,
-                                         const bool, const bool );
+                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
                                     amrex::Real,
-                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                    amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab&,
                                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Return the number of super-droplets

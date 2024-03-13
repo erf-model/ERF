@@ -11,8 +11,10 @@ namespace saturation_funcs
     void compute_saturation_pressure_H2O  ( MultiFab&       a_mf_sat_pressure,
                                             const MultiFab& a_mf_temperature)
     {
+        const auto& gvec = a_mf_sat_pressure.nGrowVect();
         for (MFIter mfi(a_mf_sat_pressure, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.tilebox();
+            Box bx = mfi.tilebox();
+            bx.grow(gvec);
             const Array4<Real>& psat_arr = a_mf_sat_pressure.array(mfi);
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
 
@@ -28,8 +30,10 @@ namespace saturation_funcs
                                           const MultiFab&    a_mf_temperature,
                                           const MultiFab&    a_mf_pressure )
     {
+        const auto& gvec = a_mf_sat_vapfrac.nGrowVect();
         for (MFIter mfi(a_mf_sat_vapfrac, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box& bx = mfi.tilebox();
+            Box bx = mfi.tilebox();
+            bx.grow(gvec);
             const Array4<Real>& qsat_arr = a_mf_sat_vapfrac.array(mfi);
             const Array4<Real const>& temperature_arr = a_mf_temperature.array(mfi);
             const Array4<Real const>& pressure_arr = a_mf_pressure.array(mfi);

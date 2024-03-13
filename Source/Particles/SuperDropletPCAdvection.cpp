@@ -11,9 +11,7 @@ using namespace amrex;
 void SuperDropletPC::AdvectParticles ( int                                        a_lev,
                                        Real                                       a_dt,
                                        Vector<Vector<MultiFab>>&                  a_flow_vars,
-                                       const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd,
-                                       const bool                                 a_advect,
-                                       const bool                                 a_grav )
+                                       const Vector<std::unique_ptr<MultiFab>>&   a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::AdvectParticles()");
 
@@ -33,6 +31,9 @@ void SuperDropletPC::AdvectParticles ( int                                      
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
+
+    const bool advect_w_flow = m_advect_w_flow;
+    const bool advect_w_gravity = m_advect_w_gravity;
 
     for (int ipass = 0; ipass < 2; ipass++) {
 #ifdef AMREX_USE_OMP
@@ -74,7 +75,7 @@ void SuperDropletPC::AdvectParticles ( int                                      
                 if (p.id() <= 0) { return; }
 
                 ParticleReal v[AMREX_SPACEDIM];
-                if (a_advect) {
+                if (advect_w_flow) {
                     if (use_terrain) {
                         mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
                     } else {
@@ -84,7 +85,7 @@ void SuperDropletPC::AdvectParticles ( int                                      
                     v[0] = v[1] = v[2] = 0.0;
                 }
 
-                if (a_grav) {
+                if (advect_w_gravity) {
                     ParticleReal terminal_vel = term_vel(radius_ptr[i]);
                     terminal_vel *= (1.0 - std::exp(-p.pos(2)*dxi[2]));
                     v[2] -= terminal_vel;
@@ -109,6 +110,7 @@ void SuperDropletPC::AdvectParticles ( int                                      
         }
     }
 
+    Redistribute();
 }
 
 #endif
