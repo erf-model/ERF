@@ -180,17 +180,11 @@ void SAM::Precip () {
                 erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
                 erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
                 qsat = qsatw * omn + qsati * (1.0-omn);
-                if((qp_array(i,j,k) > qp_threshold) && (qv_array(i,j,k) < qsat)) {
+                if((qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat)) {
 
-                    if(omp > 0.001) {
-                        dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
-                    }
-                    if(omp < 0.999 && omg < 0.999) {
-                        dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
-                    }
-                    if(omp < 0.999 && omg > 0.001) {
-                        dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
-                    }
+                    dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
+                    dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
+                    dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
 
                     // NOTE: This is always a sink for precipitating comps
                     //       since qv<qsat and thus (qv/qsat-1)<0. If we are
