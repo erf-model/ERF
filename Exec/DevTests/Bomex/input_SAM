@@ -43,7 +43,7 @@ erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure
 # SOLVER CHOICE
 erf.alpha_T = 0.0
 erf.alpha_C = 1.0
-erf.use_gravity = false
+erf.use_gravity = true
 
 erf.moisture_model  = "SAM"
 
@@ -56,6 +56,7 @@ erf.init_sounding_ideal = true
 
 erf.add_custom_rhotheta_forcing = true
 erf.add_custom_moisture_forcing = true
+erf.add_custom_w_subsidence     = true
 erf.custom_forcing_uses_primitive_vars = false
 
 # Higher values of perturbations lead to instability
@@ -75,3 +76,7 @@ prob.source_cutoff_transition = 3000.0
 prob.advection_moisture_rate   		    = -1.2E-8
 prob.moisture_source_cutoff            	= 300.0
 prob.moisture_source_cutoff_transition 	= 500.0
+
+prob.wbar_sub_max    = -0.65
+prob.wbar_cutoff_max = 1500.0
+prob.wbar_cutoff_min = 2100.0   

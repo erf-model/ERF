@@ -151,12 +151,17 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz;
           if (use_most && k==klo) {
+#ifdef ERF_EXPLICIT_MOST_STRESS
+              dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                          - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+#else
               dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
                                     / cell_data(i,j,k  ,Rho_comp)
                                 + 4 * cell_data(i,j,k+1,RhoTheta_comp)
                                     / cell_data(i,j,k+1,Rho_comp)
                                 -     cell_data(i,j,k+2,RhoTheta_comp)
                                     / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+#endif
           } else {
               dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
@@ -190,6 +195,8 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
               Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
           diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
           // - heat flux
+          //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+          //    be overwritten when BCs are applied)
           hfx_x(i,j,k) = 0.0;
           hfx_y(i,j,k) = 0.0;
           hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]

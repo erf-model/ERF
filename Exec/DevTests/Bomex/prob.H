@@ -8,50 +8,54 @@
 #include "prob_common.H"
 
 struct ProbParm : ProbParmDefaults {
-  amrex::Real rho_0 = 0.0;
-  amrex::Real T_0   = 0.0;
-  amrex::Real A_0   = 1.0;
-  amrex::Real QKE_0 = 0.1;
+    amrex::Real rho_0 = 0.0;
+    amrex::Real T_0   = 0.0;
+    amrex::Real A_0   = 1.0;
+    amrex::Real QKE_0 = 0.1;
 
-  amrex::Real U_0 = 0.0;
-  amrex::Real V_0 = 0.0;
-  amrex::Real W_0 = 0.0;
+    amrex::Real U_0 = 0.0;
+    amrex::Real V_0 = 0.0;
+    amrex::Real W_0 = 0.0;
 
-  // random initial perturbations (legacy code)
-  amrex::Real U_0_Pert_Mag = 0.0;
-  amrex::Real V_0_Pert_Mag = 0.0;
-  amrex::Real W_0_Pert_Mag = 0.0;
-  amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
+    // random initial perturbations (legacy code)
+    amrex::Real U_0_Pert_Mag = 0.0;
+    amrex::Real V_0_Pert_Mag = 0.0;
+    amrex::Real W_0_Pert_Mag = 0.0;
+    amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
 
-  // divergence-free initial perturbations
-  amrex::Real pert_deltaU = 0.0;
-  amrex::Real pert_deltaV = 0.0;
-  amrex::Real pert_periods_U = 5.0;
-  amrex::Real pert_periods_V = 5.0;
-  amrex::Real pert_ref_height = 100.0;
+    // divergence-free initial perturbations
+    amrex::Real pert_deltaU = 0.0;
+    amrex::Real pert_deltaV = 0.0;
+    amrex::Real pert_periods_U = 5.0;
+    amrex::Real pert_periods_V = 5.0;
+    amrex::Real pert_ref_height = 100.0;
 
-  // rayleigh damping
-  amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
-  amrex::Real zdamp = 500.0; // damping depth [m] from model top
+    // rayleigh damping
+    amrex::Real dampcoef = 0.2; // inverse time scale [1/s]
+    amrex::Real zdamp = 500.0; // damping depth [m] from model top
 
-  //==============================================
-  // USER-DEFINED INPUTS
-  // source terms
-  amrex::Real advection_heating_rate = 0.0;
-  amrex::Real restart_time = 9e9;
-  amrex::Real cutoff = 500.0;
-  amrex::Real cutoff_transition = 50.0;
+    //==============================================
+    // USER-DEFINED INPUTS
+    // source terms
+    amrex::Real advection_heating_rate = 0.0;
+    amrex::Real restart_time = 9e9;
+    amrex::Real cutoff = 500.0;
+    amrex::Real cutoff_transition = 50.0;
 
-  amrex::Real advection_moisture_rate = 0.0;
-  amrex::Real moisture_cutoff = 500.0;
-  amrex::Real moisture_cutoff_transition = 50.0;
-  //==============================================
+    amrex::Real advection_moisture_rate = 0.0;
+    amrex::Real moisture_cutoff = 500.0;
+    amrex::Real moisture_cutoff_transition = 50.0;
 
-  // helper vars
-  amrex::Real aval;
-  amrex::Real bval;
-  amrex::Real ufac;
-  amrex::Real vfac;
+    amrex::Real wbar_sub_max    = -0.65;
+    amrex::Real wbar_cutoff_max = 1500.0;
+    amrex::Real wbar_cutoff_min = 2100.0;
+    //==============================================
+
+    // helper vars
+    amrex::Real aval;
+    amrex::Real bval;
+    amrex::Real ufac;
+    amrex::Real vfac;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -92,6 +96,13 @@ public:
         const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& qsrc,
         amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
+        const amrex::Geometry& geom,
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
+
+    void update_w_subsidence (
+        const amrex::Real& /*time*/,
+        amrex::Vector<amrex::Real>& wbar,
+        amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 

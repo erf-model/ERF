@@ -32,6 +32,7 @@ using namespace amrex;
  * @param[in]  tm_arr theta mean array
  * @param[in]  grav_gpu gravity vector
  * @param[in]  bc_ptr container with boundary conditions
+ * @param[in]  use_most whether we have turned on MOST BCs
  */
 void
 DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
@@ -56,7 +57,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                         const TurbChoice &turbChoice,
                         const Array4<const Real>& tm_arr,
                         const amrex::GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
-                        const amrex::BCRec* bc_ptr)
+                        const amrex::BCRec* bc_ptr,
+                        const bool use_most)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
@@ -218,6 +220,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            bool most_on_zlo    = ( use_most &&
+                                    (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+#else
+            bool most_on_zlo    = false;
+#endif
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -226,6 +234,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -265,6 +275,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            bool most_on_zlo    = ( use_most &&
+                                    (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+#else
+            bool most_on_zlo    = false;
+#endif
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -273,6 +289,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -309,6 +328,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            bool most_on_zlo    = ( use_most &&
+                                    (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+#else
+            bool most_on_zlo    = false;
+#endif
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -317,6 +342,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -351,6 +378,12 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
 
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
             bool ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(5) == ERFBCType::ext_dir) && k == dom_hi.z+1);
+#ifdef ERF_EXPLICIT_MOST_STRESS
+            bool most_on_zlo    = ( use_most &&
+                                    (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::foextrap) && k == 0);
+#else
+            bool most_on_zlo    = false;
+#endif
             if (ext_dir_on_zlo) {
                 zflux(i,j,k,qty_index) = rhoAlpha * ( -(8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           + 3. * cell_prim(i, j, k  , prim_index)
@@ -359,6 +392,9 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                 zflux(i,j,k,qty_index) = rhoAlpha * (  (8./3.) * cell_prim(i, j, k-1, prim_index)
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
+            } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
+                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
             }
@@ -378,7 +414,18 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         });
     }
 
-    // Using Deardorff
+    // Using Deardorff (see Sullivan et al 1994)
+    //
+    // Note: At this point, the thermal diffusivity ("Khv" field in ERF), the
+    //       subgrid heat flux ("hfx_z" here), and the subgrid dissipation
+    //       ("diss" here) have been updated by ComputeTurbulentViscosityLES --
+    //       at the beginning of each timestep.
+    //       The strain rate magnitude is updated at the beginning of the first
+    //       RK stage only, therefore the shear production term also does not
+    //       change between RK stages.
+    //       The surface heat flux hfx_z(i,j,-1) is updated in MOSTStress at
+    //       each RK stage if using the ERF_EXPLICIT_MOST_STRESS path, but that
+    //       does not change the buoyancy production term here.
     if (l_use_deardorff && start_comp <= RhoKE_comp && end_comp >=RhoKE_comp) {
         int qty_index = RhoKE_comp;
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -388,8 +435,8 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
             // such that for dtheta/dz < 0, there is a positive (upward) heat
             // flux; the TKE buoyancy production is then
             //   B = g/theta_0 * tau_{theta,w}
-            // for a dry atmosphere (see, e.g., Sullivan et al 1994). To
-            // account for moisture, the Brunt-Vaisala frequency,
+            // for a dry atmosphere.
+            // TODO: To account for moisture, the Brunt-Vaisala frequency,
             //   N^2 = g[1/theta * dtheta/dz + ...]
             // **should** be a function of the water vapor and total water
             // mixing ratios, depending on whether conditions are saturated or
@@ -407,7 +454,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
         });
     }
 
-    // Using Deardorff
+    // Using PBL
     if (l_use_QKE && start_comp <= RhoQKE_comp && end_comp >=RhoQKE_comp) {
         int qty_index = RhoQKE_comp;
         auto pbl_B1_l = turbChoice.pbl_B1;
