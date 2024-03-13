@@ -328,6 +328,21 @@ void erf_fast_rhs_MT (int step, int nrk,
                                        xflux_lo * (prim(i,j,k,0) + prim(i-1,j,k,0)) ) * dxi +
                                      ( yflux_hi * (prim(i,j,k,0) + prim(i,j+1,k,0)) -
                                        yflux_lo * (prim(i,j,k,0) + prim(i,j-1,k,0)) ) * dyi) * 0.5;
+
+            (flx_arr[0])(i,j,k,0) = xflux_lo;
+            (flx_arr[0])(i,j,k,1) = (flx_arr[0])(i  ,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i-1,j,k,0));
+
+            (flx_arr[1])(i,j,k,0) = yflux_lo;
+            (flx_arr[1])(i,j,k,1) = (flx_arr[0])(i,j  ,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j-1,k,0));
+
+            if (i == vbx_hi.x) {
+                (flx_arr[0])(i+1,j,k,0) = xflux_hi;
+                (flx_arr[0])(i+1,j,k,1) = (flx_arr[0])(i+1,j,k,0) * 0.5 * (prim(i,j,k,0) + prim(i+1,j,k,0));
+            }
+            if (j == vbx_hi.y) {
+                (flx_arr[1])(i,j+1,k,0) = yflux_hi;
+                (flx_arr[1])(i,j+1,k,1) = (flx_arr[1])(i,j+1,k,0) * 0.5 * (prim(i,j,k,0) + prim(i,j+1,k,0));
+            }
         });
         } // end profile
 
@@ -454,19 +469,19 @@ void erf_fast_rhs_MT (int step, int nrk,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // Moving terrain
-            Real rho_on_bdy = 0.5 * ( prev_cons(i,j,0) + prev_cons(i,j,-1) );
-            RHS_a(i,j,0) = rho_on_bdy * zp_t_arr(i,j,0);
+            Real rho_on_bdy = 0.5 * ( prev_cons(i,j,lo.z) + prev_cons(i,j,lo.z-1) );
+            RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,0);
 
-            soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+            soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
             // w_khi = 0
             RHS_a(i,j,hi.z+1)     =  0.0;
 
-            for (int k = 1; k <= hi.z+1; k++) {
+            for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
 
-            for (int k = hi.z; k >= 0; k--) {
+            for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) * soln_a(i,j,k+1);
             }
 
@@ -478,10 +493,10 @@ void erf_fast_rhs_MT (int step, int nrk,
              AMREX_PRAGMA_SIMD
              for (int i = lo.x; i <= hi.x; ++i) {
 
-                 Real rho_on_bdy = 0.5 * ( prev_cons(i,j,0) + prev_cons(i,j,-1) );
-                 RHS_a(i,j,0) = rho_on_bdy * zp_t_arr(i,j,0);
+                 Real rho_on_bdy = 0.5 * ( prev_cons(i,j,lo.z) + prev_cons(i,j,lo.z-1) );
+                 RHS_a(i,j,lo.z) = rho_on_bdy * zp_t_arr(i,j,lo.z);
 
-                 soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+                 soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
              }
         }
 
@@ -525,7 +540,7 @@ void erf_fast_rhs_MT (int step, int nrk,
         {
              Real rho_on_face = 0.5 * (cur_cons(i,j,k,Rho_comp) + cur_cons(i,j,k-1,Rho_comp));
 
-             if (k == 0) {
+             if (k == lo.z) {
                  cur_zmom(i,j,k) = WFromOmega(i,j,k,rho_on_face*(z_t_arr(i,j,k)+zp_t_arr(i,j,k)),
                                               cur_xmom,cur_ymom,z_nd_new,dxInv);
 
@@ -563,7 +578,7 @@ void erf_fast_rhs_MT (int step, int nrk,
               // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
               // so we don't update avg_zmom at k=vbx_hi.z+1
               avg_zmom(i,j,k)      += facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
-              (flx_arr[2])(i,j,k,0) = facinv*zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
+              (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_m(i,j,0) * mf_m(i,j,0));
 
               // Note that the factor of (1/J) in the fast source term is canceled
               // when we multiply old and new by detJ_old and detJ_new , respectively
@@ -584,6 +599,11 @@ void erf_fast_rhs_MT (int step, int nrk,
               cur_cons(i,j,k,1) = temp_rth / detJ_new(i,j,k);
               (flx_arr[2])(i,j,k,1) = (flx_arr[2])(i,j,k,0) * 0.5 * (prim(i,j,k) + prim(i,j,k-1));
 
+              if (k == vbx_hi.z) {
+                  avg_zmom(i,j,k+1)      += facinv * zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                  (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_m(i,j,0) * mf_m(i,j,0));
+                  (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * 0.5 * (prim(i,j,k) + prim(i,j,k+1));
+              }
         });
         } // end profile
 

@@ -530,7 +530,7 @@ void erf_fast_rhs_T (int step, int nrk,
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
             // w_klo = 0  w_khi = 0
-            RHS_a(i,j lo.z  ) =  0.0;
+            RHS_a(i,j,lo.z  ) =  0.0;
             RHS_a(i,j,hi.z+1) =  0.0;
 
             // w = 0 at k = lo.z
