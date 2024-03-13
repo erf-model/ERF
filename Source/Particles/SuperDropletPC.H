@@ -238,13 +238,21 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Vector<std::string> meshPlotVarNames () const override
         {
             BL_PROFILE("ERFPCPC::varNames()");
-            amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
-                                                    "number_density",
-                                                    "mass_density",
-                                                    "radius",
-                                                    "multiplicity" };
+            amrex::Vector<std::string> retval = { AMREX_D_DECL("mass_flux_x",
+                                                               "mass_flux_y",
+                                                               "mass_flux_z"),
+                                                  "number_density",
+                                                  "mass_density",
+                                                  ("mass_density_"+m_vapour_mat->name()),
+                                                  AMREX_D_DECL (
+                                                      ("mass_flux_x_"+m_vapour_mat->name()),
+                                                      ("mass_flux_y_"+m_vapour_mat->name()),
+                                                      ("mass_flux_z_"+m_vapour_mat->name()) ) };
             for (int i = 0; i < m_num_aerosols; i++) {
                 retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
+                retval.push_back(std::string("aerosol_mass_flux_x_"+m_aerosol_mat[i]->name()));
+                retval.push_back(std::string("aerosol_mass_flux_y_"+m_aerosol_mat[i]->name()));
+                retval.push_back(std::string("aerosol_mass_flux_z_"+m_aerosol_mat[i]->name()));
             }
             return retval;
         }
@@ -260,21 +268,46 @@ class SuperDropletPC : public ERFPC
                     numberDensity( a_mf );
                 } else if (a_var_name == "mass_density") {
                     massDensity( a_mf );
-                } else if (a_var_name == "xvel") {
-                    velocityComp( a_mf, 0 );
-                } else if (a_var_name == "yvel") {
-                    velocityComp( a_mf, 1 );
-                } else if (a_var_name == "zvel") {
-                    velocityComp( a_mf, 2 );
-                } else if (a_var_name == "radius") {
-                    radius( a_mf );
-                } else if (a_var_name == "multiplicity") {
-                    multiplicity( a_mf );
+                } else if (a_var_name == ("mass_density_"+m_vapour_mat->name())) {
+                    massDensityCondensate( a_mf );
+                } else if (a_var_name == ("mass_flux_x_"+m_vapour_mat->name())) {
+                    massFluxCondensate( a_mf, 0 );
+                } else if (a_var_name == ("mass_flux_y_"+m_vapour_mat->name())) {
+                    massFluxCondensate( a_mf, 1 );
+                } else if (a_var_name == ("mass_flux_z_"+m_vapour_mat->name())) {
+                    massFluxCondensate( a_mf, 2 );
+                } else if (a_var_name == "mass_flux_x") {
+                    massFlux( a_mf, 0 );
+                } else if (a_var_name == "mass_flux_y") {
+                    massFlux( a_mf, 1 );
+                } else if (a_var_name == "mass_flux_z") {
+                    massFlux( a_mf, 2 );
                 } else {
                     for (int i = 0; i < m_num_aerosols; i++) {
                         std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
                         if (a_var_name == var_name) {
                             aerosolMassDensity( a_mf, i );
+                            break;
+                        }
+                    }
+                    for (int i = 0; i < m_num_aerosols; i++) {
+                        std::string var_name = "aerosol_mass_flux_x_"+m_aerosol_mat[i]->name();
+                        if (a_var_name == var_name) {
+                            aerosolMassFlux( a_mf, i, 0 );
+                            break;
+                        }
+                    }
+                    for (int i = 0; i < m_num_aerosols; i++) {
+                        std::string var_name = "aerosol_mass_flux_y_"+m_aerosol_mat[i]->name();
+                        if (a_var_name == var_name) {
+                            aerosolMassFlux( a_mf, i, 1 );
+                            break;
+                        }
+                    }
+                    for (int i = 0; i < m_num_aerosols; i++) {
+                        std::string var_name = "aerosol_mass_flux_z_"+m_aerosol_mat[i]->name();
+                        if (a_var_name == var_name) {
+                            aerosolMassFlux( a_mf, i, 2 );
                             break;
                         }
                     }
@@ -334,14 +367,16 @@ class SuperDropletPC : public ERFPC
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */
         virtual void massDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
-        /*! \brief Compute the particle velocity component on a mesh */
-        virtual void velocityComp ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
-        /*! \brief Compute the particle radius on a mesh */
-        virtual void radius ( amrex::MultiFab&, const int& a_comp=0 ) const;
-        /*! \brief Compute the particle multiplicity on a mesh */
-        virtual void multiplicity ( amrex::MultiFab&, const int& a_comp=0 ) const;
-        /*! \brief Compute the particle mass density on a mesh */
+        /*! \brief Compute the condensate mass density on a mesh */
+        virtual void massDensityCondensate ( amrex::MultiFab&, const int& a_comp=0 ) const;
+        /*! \brief Compute the mass flux component on a mesh */
+        virtual void massFlux ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the condensate mass flux component on a mesh */
+        virtual void massFluxCondensate ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the aerosol mass density on a mesh */
         virtual void aerosolMassDensity ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the aerosol mass flux component on a mesh */
+        virtual void aerosolMassFlux ( amrex::MultiFab&, const int&, const int&, const int& a_comp=0 ) const;
 
 
     protected:
