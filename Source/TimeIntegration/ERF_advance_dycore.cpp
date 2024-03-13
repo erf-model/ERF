@@ -77,6 +77,7 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type != PBLType::None) );
 
     const bool use_most = (m_most != nullptr);
+    amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
