@@ -88,10 +88,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    amrex::Array4<amrex::Real const> const& /*state*/,
+    amrex::Array4<amrex::Real      > const& state_pert,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
@@ -171,16 +172,16 @@ Problem::init_custom_pert(
         Real theta = getThgivenRandT(rho, temp+deltaT, rdOcp);
 
         // This version perturbs rho but not p
-        state(i, j, k, RhoTheta_comp) = rho*theta - getRhoThetagivenP(p_hse(i,j,k));
-        state(i, j, k, Rho_comp)      = rho - r_hse(i,j,k);
+        state_pert(i, j, k, RhoTheta_comp) = rho*theta - getRhoThetagivenP(p_hse(i,j,k));
+        state_pert(i, j, k, Rho_comp)      = rho - r_hse(i,j,k);
 
         // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
+        state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
         // mean states
         if (use_moisture) {
-            state(i, j, k, RhoQ1_comp) = rho*qvapor;
-            state(i, j, k, RhoQ2_comp) = 0.0;
+            state_pert(i, j, k, RhoQ1_comp) = rho*qvapor;
+            state_pert(i, j, k, RhoQ2_comp) = 0.0;
         }
     });
 
@@ -189,22 +190,22 @@ Problem::init_custom_pert(
     {
         const Real z = prob_lo_z + (k+0.5) * dz;
         if (z < zs-deltaz) {
-            x_vel(i, j, k) = us*(z/zs) - uc;
+            x_vel_pert(i, j, k) = us*(z/zs) - uc;
         } else if (std::abs(z-zs) < deltaz) {
-            x_vel(i, j, k) = (-0.8+3.*(z/zs)-1.25*(z/zs)*(z/zs))*us-uc;
+            x_vel_pert(i, j, k) = (-0.8+3.*(z/zs)-1.25*(z/zs)*(z/zs))*us-uc;
         } else {
-            x_vel(i, j, k) = us-uc;
+            x_vel_pert(i, j, k) = us-uc;
         }
     });
 
     // Set the y-velocity
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        y_vel(i, j, k) = 0.0;
+        y_vel_pert(i, j, k) = 0.0;
     });
 
     // Set the z-velocity
     ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        z_vel(i, j, k) = 0.0;
+        z_vel_pert(i, j, k) = 0.0;
     });
 
     amrex::Gpu::streamSynchronize();

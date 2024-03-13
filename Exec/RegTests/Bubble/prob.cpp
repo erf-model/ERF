@@ -266,10 +266,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& /*z_nd*/,
@@ -320,15 +321,15 @@ Problem::init_custom_pert(
 
                 perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
                                   parms, rdOcp,
-                                  state(i, j, k, Rho_comp),
-                                  state(i, j, k, RhoTheta_comp));
+                                  state_pert(i, j, k, Rho_comp),
+                                  state_pert(i, j, k, RhoTheta_comp));
 
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 if (use_moisture) {
-                    state(i, j, k, RhoQ1_comp) = 0.0;
-                    state(i, j, k, RhoQ2_comp) = 0.0;
-                    state(i, j, k, RhoQ3_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ1_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ2_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ3_comp) = 0.0;
                 }
 
             });
@@ -397,24 +398,24 @@ Problem::init_custom_pert(
                 Real rho_back = p_back[k]/(R_d*T_back*(1.0 + (R_v/R_d)*q_v_back[k]));
 
                 // This version perturbs rho but not p
-                state(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
-                state(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + parms.qt_init);
+                state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*theta_back[k]*(1.0 + (R_v/R_d)*q_v_back[k]);
+                state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + parms.qt_init);
 
                 // Set scalar = 0 everywhere
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 // mean states
-                state(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-                state(i, j, k, RhoQ2_comp) = rho*(parms.qt_init - q_v_hot);
-                state(i, j, k, RhoQ3_comp) = 0.0;
+                state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
+                state_pert(i, j, k, RhoQ2_comp) = rho*(parms.qt_init - q_v_hot);
+                state_pert(i, j, k, RhoQ3_comp) = 0.0;
 
                 // Cold microphysics are present
-                int nstate = state.ncomp;
+                int nstate = state_pert.ncomp;
                 if (nstate == NVAR_max) {
                     Real omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
-                    Real qn  = state(i, j, k, RhoQ2_comp);
-                    state(i, j, k, RhoQ2_comp) = qn * omn;
-                    state(i, j, k, RhoQ3_comp) = qn * (1.0-omn);
+                    Real qn  = state_pert(i, j, k, RhoQ2_comp);
+                    state_pert(i, j, k, RhoQ2_comp) = qn * omn;
+                    state_pert(i, j, k, RhoQ3_comp) = qn * (1.0-omn);
                 }
             });
         } else {
@@ -430,15 +431,15 @@ Problem::init_custom_pert(
 
                 perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
                                   parms, rdOcp,
-                                  state(i, j, k, Rho_comp),
-                                  state(i, j, k, RhoTheta_comp));
+                                  state_pert(i, j, k, Rho_comp),
+                                  state_pert(i, j, k, RhoTheta_comp));
 
-                state(i, j, k, RhoScalar_comp) = 0.0;
+                state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
                 if (use_moisture) {
-                    state(i, j, k, RhoQ1_comp) = 0.0;
-                    state(i, j, k, RhoQ2_comp) = 0.0;
-                    state(i, j, k, RhoQ3_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ1_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ2_comp) = 0.0;
+                    state_pert(i, j, k, RhoQ3_comp) = 0.0;
                 }
             });
         } // do_moist_bubble
@@ -451,19 +452,19 @@ Problem::init_custom_pert(
     // Set the x-velocity
     amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel(i, j, k) = u0;
+        x_vel_pert(i, j, k) = u0;
     });
 
     // Set the y-velocity
     amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        y_vel(i, j, k) = v0;
+        y_vel_pert(i, j, k) = v0;
     });
 
     // Set the z-velocity
     amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        z_vel(i, j, k) = w0;
+        z_vel_pert(i, j, k) = w0;
     });
 
     amrex::Gpu::streamSynchronize();

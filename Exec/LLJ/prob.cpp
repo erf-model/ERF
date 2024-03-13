@@ -22,23 +22,24 @@ Problem::Problem()
 
 void
 Problem::init_custom_pert(
-    const Box& /*bx*/,
-    const Box& /*xbx*/,
-    const Box& /*ybx*/,
-    const Box& /*zbx*/,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
-    GeometryData const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
-    const SolverChoice&)
+    const amrex::Box&  /*bx*/,
+    const amrex::Box& /*xbx*/,
+    const amrex::Box& /*ybx*/,
+    const amrex::Box& /*zbx*/,
+    amrex::Array4<amrex::Real const> const& /*state*/,
+    amrex::Array4<amrex::Real      > const& /*state_pert*/,
+    amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
+    amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
+    amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
+    amrex::Array4<amrex::Real      > const& /*r_hse*/,
+    amrex::Array4<amrex::Real      > const& /*p_hse*/,
+    amrex::Array4<amrex::Real const> const& /*z_nd*/,
+    amrex::Array4<amrex::Real const> const& /*z_cc*/,
+    amrex::GeometryData const& /*geomdata*/,
+    amrex::Array4<amrex::Real const> const& /*mf_m*/,
+    amrex::Array4<amrex::Real const> const& /*mf_u*/,
+    amrex::Array4<amrex::Real const> const& /*mf_v*/,
+    const SolverChoice& /*sc*/)
 {
   amrex::Print() << "Dummy function..Needed for linking" << std::endl;
 }
