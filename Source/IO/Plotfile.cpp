@@ -997,7 +997,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-            amrex::Print() << "Writing native plotfile " << plotfilename << "\n";
+            Print() << "Writing native plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
@@ -1017,7 +1017,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
-            amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
+            Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
             WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
                                         varnames,
@@ -1030,8 +1030,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
         } else {
-            amrex::Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
-            amrex::Abort("Dont know this plot_filetype");
+            Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
+            Abort("Dont know this plot_filetype");
         }
 
     } else { // multilevel
@@ -1085,7 +1085,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
             }
 
-            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
+            Print() << "Writing plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),

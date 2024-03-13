@@ -22,15 +22,15 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real      >& dest_arr
                                               int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
-    amrex::setBC(bx, domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(bx, domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -39,13 +39,13 @@ void ERFPhysBCFunct::impose_lateral_zvel_bcs (const Array4<Real      >& dest_arr
     // yhi: ori = 4
     // zhi: ori = 5
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
+    Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy_async(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
 #else
     std::memcpy(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
 #endif
-    const amrex::BCRec* bc_ptr_w = bcrs_w_d.data();
+    const BCRec* bc_ptr_w = bcrs_w_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
@@ -162,8 +162,8 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
                                                TerrainType terrain_type)
 {
     BL_PROFILE_VAR("impose_vertical_zvel_bcs()",impose_vertical_zvel_bcs);
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -177,14 +177,14 @@ void ERFPhysBCFunct::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_u(1), bcrs_v(1), bcrs_w(1);
-    amrex::setBC(bx, domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
-    amrex::setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
-    amrex::setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(bx, domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
+    setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
+    setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // We use these for the asserts below
-    const amrex::BCRec* bc_ptr_u_h = bcrs_u.data();
-    const amrex::BCRec* bc_ptr_v_h = bcrs_v.data();
-    const amrex::BCRec* bc_ptr_w_h = bcrs_w.data();
+    const BCRec* bc_ptr_u_h = bcrs_u.data();
+    const BCRec* bc_ptr_v_h = bcrs_v.data();
+    const BCRec* bc_ptr_w_h = bcrs_w.data();
 
     bool l_use_terrain = (m_z_phys_nd != nullptr);
     bool l_moving_terrain = (terrain_type == TerrainType::Moving);

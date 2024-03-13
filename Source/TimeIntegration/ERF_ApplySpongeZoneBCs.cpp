@@ -20,7 +20,7 @@ using namespace amrex;
 void
 ApplySpongeZoneBCs (
   const SpongeChoice& spongeChoice,
-  const amrex::Geometry geom,
+  const Geometry geom,
   const Box& tbx,
   const Box& tby,
   const Box& tbz,
@@ -39,7 +39,7 @@ ApplySpongeZoneBCs (
     auto ProbHiArr = geom.ProbHiArray();
     auto ProbLoArr = geom.ProbLoArray();
 
-    const amrex::Real sponge_strength = spongeChoice.sponge_strength;
+    const Real sponge_strength = spongeChoice.sponge_strength;
     const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
     const int use_xhi_sponge_damping = spongeChoice.use_xhi_sponge_damping;
     const int use_ylo_sponge_damping = spongeChoice.use_ylo_sponge_damping;
@@ -47,20 +47,20 @@ ApplySpongeZoneBCs (
     const int use_zlo_sponge_damping = spongeChoice.use_zlo_sponge_damping;
     const int use_zhi_sponge_damping = spongeChoice.use_zhi_sponge_damping;
 
-    const amrex::Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
-    const amrex::Real xhi_sponge_start = spongeChoice.xhi_sponge_start;
-    const amrex::Real ylo_sponge_end   = spongeChoice.ylo_sponge_end;
-    const amrex::Real yhi_sponge_start = spongeChoice.yhi_sponge_start;
-    const amrex::Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
-    const amrex::Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
+    const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+    const Real xhi_sponge_start = spongeChoice.xhi_sponge_start;
+    const Real ylo_sponge_end   = spongeChoice.ylo_sponge_end;
+    const Real yhi_sponge_start = spongeChoice.yhi_sponge_start;
+    const Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
+    const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
-    const amrex::Real sponge_density = spongeChoice.sponge_density;
-    const amrex::Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
-    const amrex::Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
-    const amrex::Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
+    const Real sponge_density = spongeChoice.sponge_density;
+    const Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
+    const Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
+    const Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
 
     // Domain valid box
-    const amrex::Box& domain = geom.Domain();
+    const Box& domain = geom.Domain();
     int domlo_x = domain.smallEnd(0);
     int domhi_x = domain.bigEnd(0) + 1;
     int domlo_y = domain.smallEnd(1);

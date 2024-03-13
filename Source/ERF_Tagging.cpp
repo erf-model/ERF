@@ -79,7 +79,7 @@ ERF::refinement_criteria_setup ()
                     ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
                     realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
 
-                    amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
+                    Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
                     const auto* dx  = geom[lev_for_box].CellSize();
@@ -95,7 +95,7 @@ ERF::refinement_criteria_setup ()
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
                          amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
-                    amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
                 if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {

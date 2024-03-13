@@ -39,11 +39,11 @@ void ERF::advance_dycore(int level,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
                          MultiFab& source, MultiFab& buoyancy,
-                         const amrex::Geometry fine_geom,
-                         const amrex::Real dt_advance, const amrex::Real old_time)
+                         const Geometry fine_geom,
+                         const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
-    if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
+    if (verbose) Print() << "Starting advance_dycore at level " << level << std::endl;
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -107,11 +107,11 @@ void ERF::advance_dycore(int level,
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
 
-        const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
@@ -185,7 +185,7 @@ void ERF::advance_dycore(int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
+        const BCRec* bc_ptr_d = domain_bcs_type_d.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,

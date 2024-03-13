@@ -53,7 +53,7 @@ void erf_fast_rhs_T (int step, int nrk,
                      const MultiFab& fast_coeffs,                    // Coeffs for tridiagonal solve
                      Vector<MultiFab>& S_data,                       // S_sum = most recent full solution
                      Vector<MultiFab>& S_scratch,                    // S_sum_old at most recent fast timestep for (rho theta)
-                     const amrex::Geometry geom,
+                     const Geometry geom,
                      const Real gravity,
                            MultiFab& Omega,
                      std::unique_ptr<MultiFab>& z_phys_nd,
@@ -94,11 +94,11 @@ void erf_fast_rhs_T (int step, int nrk,
     MultiFab New_rho_u(convert(ba,IntVect(1,0,0)), dm, 1, 1);
     MultiFab New_rho_v(convert(ba,IntVect(0,1,0)), dm, 1, 1);
 
-    MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
-    MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
-    MultiFab     coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
-    MultiFab     coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
-    MultiFab     coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
+    MultiFab     coeff_A_mf(fast_coeffs, make_alias, 0, 1);
+    MultiFab inv_coeff_B_mf(fast_coeffs, make_alias, 1, 1);
+    MultiFab     coeff_C_mf(fast_coeffs, make_alias, 2, 1);
+    MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
+    MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -112,7 +112,7 @@ void erf_fast_rhs_T (int step, int nrk,
     // *************************************************************************
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -174,7 +174,7 @@ void erf_fast_rhs_T (int step, int nrk,
     } // mfi
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -192,7 +192,7 @@ void erf_fast_rhs_T (int step, int nrk,
     // *************************************************************************
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
@@ -305,7 +305,7 @@ void erf_fast_rhs_T (int step, int nrk,
     }
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
     std::array<FArrayBox,AMREX_SPACEDIM> flux;
@@ -376,7 +376,7 @@ void erf_fast_rhs_T (int step, int nrk,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -436,10 +436,10 @@ void erf_fast_rhs_T (int step, int nrk,
         } // end profile
 
         // *********************************************************************
-        Box gbxo = mfi.nodaltilebox(2);
         {
-        BL_PROFILE("fast_T_making_omega");
-        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
+        Box gbxo = mfi.nodaltilebox(2);
+
+        Box gbxo_lo = gbxo; gbxo_lo.setBig(2,gbxo.smallEnd(2));
         ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = 0.;
         });
@@ -447,7 +447,7 @@ void erf_fast_rhs_T (int step, int nrk,
         ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = old_drho_w(i,j,k);
         });
-        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+        Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,gbxo.smallEnd(2)+1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
         ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             omega_arr(i,j,k) = OmegaFromW(i,j,k,old_drho_w(i,j,k),old_drho_u,old_drho_v,z_nd,dxInv);
         });
@@ -518,29 +518,29 @@ void erf_fast_rhs_T (int step, int nrk,
         });
         } // end profile
 
-        amrex::Box b2d = tbz; // Copy constructor
+        Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
-        auto const lo = amrex::lbound(bx);
-        auto const hi = amrex::ubound(bx);
+        auto const lo = lbound(bx);
+        auto const hi = ubound(bx);
 
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // w_0 = 0  w_khi = 0
-            RHS_a(i,j     ,0) =  0.0;
+            // w_klo = 0  w_khi = 0
+            RHS_a(i,j,lo.z  ) =  0.0;
             RHS_a(i,j,hi.z+1) =  0.0;
 
-            // w = 0 at k = 0
-            soln_a(i,j,0) = 0.;
+            // w = 0 at k = lo.z
+            soln_a(i,j,lo.z) = 0.;
 
-            for (int k = 1; k <= hi.z+1; k++) {
+            for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
             cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-            for (int k = hi.z; k >= 0; k--) {
+            for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }
         });
@@ -635,12 +635,12 @@ void erf_fast_rhs_T (int step, int nrk,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
         } // two-way coupling
     } // mfi

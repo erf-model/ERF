@@ -117,7 +117,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
-    const amrex::BCRec* bc_ptr = domain_bcs_type_d.data();
+    const BCRec* bc_ptr = domain_bcs_type_d.data();
 
     const Box& domain = geom.Domain();
 
@@ -197,7 +197,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
       std::array<FArrayBox,AMREX_SPACEDIM> flux;
@@ -213,7 +213,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(tbx,dir),nvars);
+            flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -262,8 +262,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         // Here we fill the "current" data with "new" data because that is the result of the previous RK stage
         // **************************************************************************
         int nsv = S_old[IntVars::cons].nComp() - 2;
-        const amrex::GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
-        const amrex::GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
+        const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
+        const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
 
         {
         BL_PROFILE("rhs_post_7");
@@ -486,9 +486,9 @@ void erf_slow_rhs_post (int level, int finest_level,
             Real dT = bdy_time_interval;
             Real time_since_start = new_stage_time - start_bdy_time;
             int n_time = static_cast<int>( time_since_start /  dT);
-            amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+            Real alpha = (time_since_start - n_time * dT) / dT;
             AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-            amrex::Real oma   = 1.0 - alpha;
+            Real oma   = 1.0 - alpha;
 
             /*
             // UNIT TEST DEBUG
@@ -614,28 +614,28 @@ void erf_slow_rhs_post (int level, int finest_level,
             ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    Print() << "ERROR XLO: " <<  RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
                     exit(0);
                 }
             });
             ParallelFor(bx_xhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (arr_xhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
+                    Print() << "ERROR XHI: " << RhoQ1_comp<< ' ' << IntVect(i,j,k) << "\n";
                     exit(0);
                 }
             });
             ParallelFor(bx_ylo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (arr_ylo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    Print() << "ERROR YLO: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
                     exit(0);
                 }
             });
             ParallelFor(bx_yhi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (arr_yhi(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
-                    amrex::Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
+                    Print() << "ERROR YHI: " << RhoQ1_comp << ' ' << IntVect(i,j,k) << "\n";
                     exit(0);
                 }
             });
@@ -682,9 +682,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
 #if 0           // Printing
                 if (cur_cons(i,j,k,n) < Real(0.)) {
-                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
+                    AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
-                    amrex::Abort();
+                    Abort();
                 }
 #endif
               });
@@ -703,7 +703,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
               num_comp = 1;
-              amrex::Real eps = std::numeric_limits<Real>::epsilon();
+              Real eps = std::numeric_limits<Real>::epsilon();
               ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
@@ -724,9 +724,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
 #if 0           // Printing
                 if (cur_cons(i,j,k,n) < Real(0.)) {
-                    amrex::AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
+                    AllPrint() << "MAKING NEGATIVE QKE " << IntVect(i,j,k) << " NEW / OLD " <<
                         cur_cons(i,j,k,n) << " " << old_cons(i,j,k,n) << std::endl;
-                    amrex::Abort();
+                    Abort();
                 }
 #endif
               });
@@ -771,12 +771,12 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
         } // two-way coupling
         } // end profile

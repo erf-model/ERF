@@ -519,13 +519,13 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     int ncomp_cons = cons_mf.nComp();
 
     // Initialize the integrator memory
-    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
+    amrex::Vector<MultiFab> int_state; // integration state data structure example
     int_state.push_back(MultiFab(cons_mf, amrex::make_alias, 0, ncomp_cons));         // cons
     int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, vel_mf.nGrow())); // xmom
     int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, vel_mf.nGrow())); // ymom
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
 
-    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
     mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
@@ -547,6 +547,7 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
             max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
         }
     }
+    // Print() << "MIN/MAX K AT LEVEL " << lev << " ARE " << min_k_at_level[lev] << " " << max_k_at_level[lev] << std::endl;
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces

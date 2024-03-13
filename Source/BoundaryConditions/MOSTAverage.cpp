@@ -251,7 +251,7 @@ MOSTAverage::set_k_indices_N()
         Real m_zlo = m_geom[0].ProbLo(2);
         Real m_dz  = m_geom[0].CellSize(2);
         m_zref = m_zlo + 0.5 * m_dz;
-        amrex::Print() << "Reference height for MOST set to " << m_zref << std::endl;
+        Print() << "Reference height for MOST set to " << m_zref << std::endl;
         read_z = true;
     }
 

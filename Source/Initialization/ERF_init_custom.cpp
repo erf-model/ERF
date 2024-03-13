@@ -47,8 +47,8 @@ ERF::init_custom (int lev)
     // Note that the value of 1024UL is not significant -- the point here is just to set the
     //     same seed for all MPI processes for the purpose of regression testing
     if (fix_random_seed) {
-        amrex::Print() << "Fixing the random seed" << std::endl;
-        amrex::InitRandom(1024UL);
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL);
     }
 
 #ifdef _OPENMP

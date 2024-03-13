@@ -2,6 +2,8 @@
 #include <AMReX_NonLocalBC.H>
 #include <ERF.H>
 
+using namespace amrex;
+
 /**
  * Constructor for the MultiBlockContainer class capable of taking a vector of boxes as input.
  *
@@ -16,12 +18,12 @@
  * @param[in] prefix_v Prefixes for ParmParse as a vector
  * @param[in] max_step Maximum number of timesteps to take
  */
-MultiBlockContainer::MultiBlockContainer(const std::vector<amrex::RealBox>& rb_v,
+MultiBlockContainer::MultiBlockContainer(const std::vector<RealBox>& rb_v,
                                          std::vector<int> max_level_in_v,
-                                         const std::vector<amrex::Vector<int>>& n_cell_in_v,
+                                         const std::vector<Vector<int>>& n_cell_in_v,
                                          std::vector<int> coord_v,
-                                         const std::vector<amrex::Vector<amrex::IntVect>>& ref_ratios_v,
-                                         const std::vector<amrex::Array<int,AMREX_SPACEDIM>>& is_per_v,
+                                         const std::vector<Vector<IntVect>>& ref_ratios_v,
+                                         const std::vector<Array<int,AMREX_SPACEDIM>>& is_per_v,
                                          std::vector<std::string> prefix_v,
                                          int max_step)
 : m_max_step(max_step),
@@ -33,19 +35,19 @@ MultiBlockContainer::MultiBlockContainer(const std::vector<amrex::RealBox>& rb_v
     erf2.SetMultiBlockPointer(this);
 
     // Set the permutation/sign of dtos
-    dtos.permutation = amrex::IntVect{AMREX_D_DECL(   0,   1,   2)};
-    dtos.sign        = amrex::IntVect{AMREX_D_DECL(   1,   1,   1)};
+    dtos.permutation = IntVect{AMREX_D_DECL(   0,   1,   2)};
+    dtos.sign        = IntVect{AMREX_D_DECL(   1,   1,   1)};
 
     // Set offset of dtos (NOTE: i_dst =  i_src - i_off -> [0] - [1])
-    amrex::Real dx = ( rb_v[0].hi(0) - rb_v[0].lo(0) ) / n_cell_in_v[0][0];
-    amrex::Real dy = ( rb_v[0].hi(1) - rb_v[0].lo(1) ) / n_cell_in_v[0][1];
-    amrex::Real dz = ( rb_v[0].hi(2) - rb_v[0].lo(2) ) / n_cell_in_v[0][2];
+    Real dx = ( rb_v[0].hi(0) - rb_v[0].lo(0) ) / n_cell_in_v[0][0];
+    Real dy = ( rb_v[0].hi(1) - rb_v[0].lo(1) ) / n_cell_in_v[0][1];
+    Real dz = ( rb_v[0].hi(2) - rb_v[0].lo(2) ) / n_cell_in_v[0][2];
     int offx = amrex::Math::floor(( rb_v[0].lo(0) - rb_v[1].lo(0) ) / dx);
     int offy = amrex::Math::floor(( rb_v[0].lo(1) - rb_v[1].lo(1) ) / dy);
     int offz = amrex::Math::floor(( rb_v[0].lo(2) - rb_v[1].lo(2) ) / dz);
     // DEBUG
     //offx=0; offy=0; offz=0;
-    dtos.offset = amrex::IntVect{AMREX_D_DECL(offx, offy, offz)};
+    dtos.offset = IntVect{AMREX_D_DECL(offx, offy, offz)};
 }
 
 /**
@@ -77,17 +79,17 @@ MultiBlockContainer::SetBoxLists()
 
     for (int i(0); i<nvars; ++i) {
         // Get ghost cells, domain & grown box
-        amrex::IntVect nghost = erf2.vars_new[0][i].nGrowVect();
-        amrex::Box dom = erf2.domain_p[i];
-        amrex::Box gbx = grow(dom,nghost);
+        IntVect nghost = erf2.vars_new[0][i].nGrowVect();
+        Box dom = erf2.domain_p[i];
+        Box gbx = grow(dom,nghost);
         // Tmp BoxList
-        amrex::BoxList bl;
+        BoxList bl;
         bl.clear();
         bl.set(gbx.ixType());
         for (int j(0); j<ndirs; ++j) {
             // Local box copies
-            amrex::Box lgbx(gbx);
-            amrex::Box ugbx(gbx);
+            Box lgbx(gbx);
+            Box ugbx(gbx);
             // Get lower & upper bound
             int se = dom.smallEnd(j) - 1;
             int be = dom.bigEnd(j)   + 1;
@@ -106,12 +108,12 @@ MultiBlockContainer::SetBoxLists()
     /*
     // DEBUG BOX LIST
     for (int i(0); i<nvars; ++i) {
-        amrex::Print() << "DOM: " << erf2.domain_p[i] << "\n";
-        amrex::Print() << "BA: " << erf2.vars_new[0][i].boxArray() << "\n";
+        Print() << "DOM: " << erf2.domain_p[i] << "\n";
+        Print() << "BA: " << erf2.vars_new[0][i].boxArray() << "\n";
         for (int j(0); j<6; ++j)
-            amrex::Print() << (blv[i].data())[j] << "\n";
+            Print() << (blv[i].data())[j] << "\n";
 
-        amrex::Print() << "\n";
+        Print() << "\n";
     }
     exit(0);
     */
@@ -132,7 +134,7 @@ MultiBlockContainer::SetBlockCommMetaData()
         // Make space
         cmd.push_back(std::vector<amrex::NonLocalBC::MultiBlockCommMetaData*>());
         // Get ghost cell vector for multifab growth
-        amrex::IntVect nghost = erf2.vars_new[0][i].nGrowVect();
+        IntVect nghost = erf2.vars_new[0][i].nGrowVect();
         for (int j(0); j<2*ndirs; ++j) {
 
             // Store temp ptr to communicator for i^th variable
@@ -151,19 +153,19 @@ MultiBlockContainer::SetBlockCommMetaData()
 void
 MultiBlockContainer::AdvanceBlocks()
 {
-    amrex::Print() << "STARTING MAIN DRIVER FOR: " << m_max_step << " STEPS" << "\n";
-    amrex::Print() << "\n";
+    Print() << "STARTING MAIN DRIVER FOR: " << m_max_step << " STEPS" << "\n";
+    Print() << "\n";
 
     for (int step(1); step <= m_max_step; ++step) {
-        amrex::Print() << "    STARTING ADVANCE DRIVER: " << step << "\n";
-        amrex::Print() << "===================================="  << "\n";
+        Print() << "    STARTING ADVANCE DRIVER: " << step << "\n";
+        Print() << "===================================="  << "\n";
         erf1.Evolve_MB(step,1);
-        amrex::Print() << '\n';
-        amrex::Print() << "        SECOND BLOCK STARTS         "  << "\n";
-        amrex::Print() << "------------------------------------"  << "\n";
+        Print() << '\n';
+        Print() << "        SECOND BLOCK STARTS         "  << "\n";
+        Print() << "------------------------------------"  << "\n";
         erf2.Evolve_MB(step,1);
-        amrex::Print() << "COMPLETE" << "\n";
-        amrex::Print() << "\n";
+        Print() << "COMPLETE" << "\n";
+        Print() << "\n";
     }
 }
 
