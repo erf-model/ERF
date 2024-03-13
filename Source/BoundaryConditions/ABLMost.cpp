@@ -258,8 +258,6 @@ ABLMost::compute_most_bcs (const int& lev,
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo) ) : dz_no_terrain;
-
-                    // This is the _kinematic_ heat flux [K m/s]
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1,
                                                           cons_arr, velx_arr, vely_arr,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
@@ -293,17 +291,18 @@ ABLMost::compute_most_bcs (const int& lev,
                         Real dz = (zphys_arr) ? ( zphys_arr(i,j,klo) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
 #ifdef ERF_EXPLICIT_MOST_STRESS
                         Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo) ) : dz_no_terrain;
-                        //Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1,
-                        //                                      cons_arr, velx_arr, vely_arr,
-                        //                                      umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
-                        //                                      dest_arr);
+                        Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1,
+                                                              cons_arr, velx_arr, vely_arr,
+                                                              umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
+                                                              dest_arr);
 #else
-                        //Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
-                        //                                      cons_arr, velx_arr, vely_arr,
-                        //                                      eta_arr,
-                        //                                      umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
-                        //                                      dest_arr);
+                        Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz,
+                                                              cons_arr, velx_arr, vely_arr,
+                                                              eta_arr,
+                                                              umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
+                                                              dest_arr);
 #endif
+                        amrex::ignore_unused(Qflux);
                     });
                 }
 
@@ -326,12 +325,13 @@ ABLMost::compute_most_bcs (const int& lev,
                         if (t31_arr) t31_arr(i,j,klo) = -stressx;
                     }
 #else
-                    //Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz,
-                    //                                        cons_arr, velx_arr, vely_arr,
-                    //                                        eta_arr,
-                    //                                        umm_arr, um_arr, u_star_arr,
-                    //                                        dest_arr);
+                    Real stressx = flux_comp.compute_u_flux(i, j, k, icomp, dz,
+                                                            cons_arr, velx_arr, vely_arr,
+                                                            eta_arr,
+                                                            umm_arr, um_arr, u_star_arr,
+                                                            dest_arr);
 #endif
+                    amrex::ignore_unused(stressx);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -353,12 +353,13 @@ ABLMost::compute_most_bcs (const int& lev,
                         if (t32_arr) t32_arr(i,j,klo) = -stressy;
                     }
 #else
-                    //Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz,
-                    //                                        cons_arr, velx_arr, vely_arr,
-                    //                                        eta_arr,
-                    //                                        umm_arr, vm_arr, u_star_arr,
-                    //                                        dest_arr);
+                    Real stressy = flux_comp.compute_v_flux(i, j, k, icomp, dz,
+                                                            cons_arr, velx_arr, vely_arr,
+                                                            eta_arr,
+                                                            umm_arr, vm_arr, u_star_arr,
+                                                            dest_arr);
 #endif
+                    amrex::ignore_unused(stressy);
                 });
             }
         } // var_idx
@@ -373,9 +374,9 @@ ABLMost::time_interp_sst (const int& lev,
     Real dT = m_bdy_time_interval;
     Real time_since_start = time - m_start_bdy_time;
     int n_time = static_cast<int>( time_since_start /  dT);
-    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    amrex::Real oma   = 1.0 - alpha;
+    Real oma   = 1.0 - alpha;
     AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
 
     // Populate t_surf
