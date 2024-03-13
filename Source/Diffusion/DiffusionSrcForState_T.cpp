@@ -67,6 +67,8 @@ DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
 {
     BL_PROFILE_VAR("DiffusionSrcForState_T()",DiffusionSrcForState_T);
 
+    amrex::ignore_unused(use_most);
+
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
     const Real dz_inv = cellSizeInv[2];
