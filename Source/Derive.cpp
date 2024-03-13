@@ -15,9 +15,9 @@ namespace derived {
  * @params[in] datfab array of data used to construct derived quantity
  * @params[in] scalar_index index of quantity to be divided by density
 */
-void erf_derrhodivide (const amrex::Box& bx,
-                       amrex::FArrayBox& derfab,
-                       const amrex::FArrayBox& datfab,
+void erf_derrhodivide (const Box& bx,
+                       FArrayBox& derfab,
+                       const FArrayBox& datfab,
                        const int scalar_index)
 {
     // This routine divides any cell-centered conserved quantity by density
@@ -36,12 +36,12 @@ void erf_derrhodivide (const amrex::Box& bx,
  * Placeholder function that does nothing
 */
 void
-erf_dernull (const amrex::Box& /*bx*/,
-             amrex::FArrayBox& /*derfab*/,
+erf_dernull (const Box& /*bx*/,
+             FArrayBox& /*derfab*/,
              int /*dcomp*/,
              int /*ncomp*/,
-             const amrex::FArrayBox& /*datfab*/,
-             const amrex::Geometry& /*geomdata*/,
+             const FArrayBox& /*datfab*/,
+             const Geometry& /*geomdata*/,
              Real /*time*/,
              const int* /*bcrec*/,
              const int /*level*/)
@@ -55,12 +55,12 @@ erf_dernull (const amrex::Box& /*bx*/,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dersoundspeed (const amrex::Box& bx,
-                   amrex::FArrayBox& derfab,
+erf_dersoundspeed (const Box& bx,
+                   FArrayBox& derfab,
                    int /*dcomp*/,
                    int /*ncomp*/,
-                   const amrex::FArrayBox& datfab,
-                   const amrex::Geometry& /*geomdata*/,
+                   const FArrayBox& datfab,
+                   const Geometry& /*geomdata*/,
                    Real /*time*/,
                    const int* /*bcrec*/,
                    const int /*level*/)
@@ -88,12 +88,12 @@ erf_dersoundspeed (const amrex::Box& bx,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertemp (const amrex::Box& bx,
-             amrex::FArrayBox& derfab,
+erf_dertemp (const Box& bx,
+             FArrayBox& derfab,
              int /*dcomp*/,
              int /*ncomp*/,
-             const amrex::FArrayBox& datfab,
-             const amrex::Geometry& /*geomdata*/,
+             const FArrayBox& datfab,
+             const Geometry& /*geomdata*/,
              Real /*time*/,
              const int* /*bcrec*/,
              const int /*level*/)
@@ -118,12 +118,12 @@ erf_dertemp (const amrex::Box& bx,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_dertheta (const amrex::Box& bx,
-              amrex::FArrayBox& derfab,
+erf_dertheta (const Box& bx,
+              FArrayBox& derfab,
               int /*dcomp*/,
               int /*ncomp*/,
-              const amrex::FArrayBox& datfab,
-              const amrex::Geometry& /*geomdata*/,
+              const FArrayBox& datfab,
+              const Geometry& /*geomdata*/,
               Real /*time*/,
               const int* /*bcrec*/,
               const int /*level*/)
@@ -139,12 +139,12 @@ erf_dertheta (const amrex::Box& bx,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derscalar (const amrex::Box& bx,
-               amrex::FArrayBox& derfab,
+erf_derscalar (const Box& bx,
+               FArrayBox& derfab,
                int /*dcomp*/,
                int /*ncomp*/,
-               const amrex::FArrayBox& datfab,
-               const amrex::Geometry& /*geomdata*/,
+               const FArrayBox& datfab,
+               const Geometry& /*geomdata*/,
                Real /*time*/,
                const int* /*bcrec*/,
                const int /*level*/)
@@ -160,12 +160,12 @@ erf_derscalar (const amrex::Box& bx,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derKE (const amrex::Box& bx,
-           amrex::FArrayBox& derfab,
+erf_derKE (const Box& bx,
+           FArrayBox& derfab,
            int /*dcomp*/,
            int /*ncomp*/,
-           const amrex::FArrayBox& datfab,
-           const amrex::Geometry& /*geomdata*/,
+           const FArrayBox& datfab,
+           const Geometry& /*geomdata*/,
            Real /*time*/,
            const int* /*bcrec*/,
            const int /*level*/)
@@ -181,12 +181,12 @@ erf_derKE (const amrex::Box& bx,
  * @params[in] datfab array of data used to construct derived quantity
 */
 void
-erf_derQKE (const amrex::Box& bx,
-            amrex::FArrayBox& derfab,
+erf_derQKE (const Box& bx,
+            FArrayBox& derfab,
             int /*dcomp*/,
             int /*ncomp*/,
-            const amrex::FArrayBox& datfab,
-            const amrex::Geometry& /*geomdata*/,
+            const FArrayBox& datfab,
+            const Geometry& /*geomdata*/,
             Real /*time*/,
             const int* /*bcrec*/,
             const int /*level*/)

@@ -54,7 +54,7 @@ std::string ERF::init_type;
 bool ERF::use_real_bcs;
 
 // NetCDF wrfinput (initialization) file(s)
-amrex::Vector<amrex::Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
+Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
 
 // NetCDF wrfbdy (lateral boundary) file
 std::string ERF::nc_bdy_file; // Must provide via input
@@ -82,31 +82,31 @@ Real ERF::bndry_output_planes_start_time =  0.0;
 // 2D BndryRegister input
 int         ERF::input_bndry_planes             = 0;
 
-amrex::Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
 // constructor - reads in parameters from inputs file
 //             - sizes multilevel arrays and data structures
 //             - initializes BCRec boundary condition object
 ERF::ERF ()
 {
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-        const char* erf_hash = amrex::buildInfoGetGitHash(1);
-        const char* amrex_hash = amrex::buildInfoGetGitHash(2);
-        const char* buildgithash = amrex::buildInfoGetBuildGitHash();
-        const char* buildgitname = amrex::buildInfoGetBuildGitName();
+    if (ParallelDescriptor::IOProcessor()) {
+        const char* erf_hash = buildInfoGetGitHash(1);
+        const char* amrex_hash = buildInfoGetGitHash(2);
+        const char* buildgithash = buildInfoGetBuildGitHash();
+        const char* buildgitname = buildInfoGetBuildGitName();
 
         if (strlen(erf_hash) > 0) {
-          amrex::Print() << "\n"
+          Print() << "\n"
                          << "ERF git hash: " << erf_hash << "\n";
         }
         if (strlen(amrex_hash) > 0) {
-          amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
+          Print() << "AMReX git hash: " << amrex_hash << "\n";
         }
         if (strlen(buildgithash) > 0) {
-          amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
+          Print() << buildgitname << " git hash: " << buildgithash << "\n";
         }
 
-        amrex::Print() << "\n";
+        Print() << "\n";
     }
 
     int nlevs_max = max_level + 1;
@@ -144,12 +144,12 @@ ERF::ERF ()
 
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
-            amrex::Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
+            Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
                 << " does not match highest requested z level " << zlevels_stag[nz-1]
                 << std::endl;
         }
         if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
-            amrex::Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
+            Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
                 << " does not match lowest requested level " << zlevels_stag[0]
                 << std::endl;
         }
@@ -242,12 +242,12 @@ ERF::ERF ()
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
+       Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
        {
-           amrex::Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
+           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
        }
     }
 }
@@ -266,7 +266,7 @@ ERF::Evolve ()
     //      for finer levels (with or without subcycling)
     for (int step = istep[0]; step < max_step && cur_time < stop_time; ++step)
     {
-        amrex::Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
+        Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
         ComputeDt();
 
@@ -282,7 +282,7 @@ ERF::Evolve ()
 
         cur_time  += dt[0];
 
-        amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
+        Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
 
         post_timestep(step, cur_time, dt[0]);
@@ -437,7 +437,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
          writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
       }
 #else
-      amrex::Abort("To output 1D column files ERF must be compiled with NetCDF");
+      Abort("To output 1D column files ERF must be compiled with NetCDF");
 #endif
     }
 
@@ -472,12 +472,12 @@ ERF::InitData ()
     BL_PROFILE_VAR("ERF::InitData()", InitData);
 
     // Initialize the start time for our CPU-time tracker
-    startCPUTime = amrex::ParallelDescriptor::second();
+    startCPUTime = ParallelDescriptor::second();
 
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
     if (input_bndry_planes) {
-        amrex::Print() << "Defining r2d for the first time " << std::endl;
+        Print() << "Defining r2d for the first time " << std::endl;
         m_r2d = std::make_unique<ReadBndryPlanes>(geom[0], solverChoice.rdOcp);
     }
 
@@ -490,12 +490,12 @@ ERF::InitData ()
         if ( ( (solverChoice.turbChoice[lev].pbl_type == PBLType::MYNN25) ||
                (solverChoice.turbChoice[lev].pbl_type == PBLType::YSU)       ) &&
             phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::MOST ) {
-            amrex::Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
+            Abort("MYNN2.5/YSU PBL Model requires MOST at lower boundary");
         }
     }
 
     if (!solverChoice.use_terrain && solverChoice.terrain_type != TerrainType::Static) {
-        amrex::Abort("We do not allow non-static terrain_type with use_terrain = false");
+        Abort("We do not allow non-static terrain_type with use_terrain = false");
     }
 
     last_plot_file_step_1 = -1;
@@ -520,7 +520,7 @@ ERF::InitData ()
 
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
-                amrex::Abort("We do not currently support init_type = ideal with terrain");
+                Abort("We do not currently support init_type = ideal with terrain");
             }
         }
 
@@ -534,7 +534,7 @@ ERF::InitData ()
             // Uniform initial rho*e field
             for (int lev = 0; lev <= finest_level; lev++) {
                 if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    amrex::Print() << "Initializing uniform rhoKE=" << RhoKE_0
+                    Print() << "Initializing uniform rhoKE=" << RhoKE_0
                         << " on level " << lev
                         << std::endl;
                     vars_new[lev][Vars::cons].setVal(RhoKE_0,RhoKE_comp,1,0);
@@ -550,7 +550,7 @@ ERF::InitData ()
             for (int lev = 0; lev <= finest_level; lev++) {
                 auto& lev_new = vars_new[lev];
                 if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-                    amrex::Print() << "Initializing uniform KE=" << KE_0
+                    Print() << "Initializing uniform KE=" << KE_0
                         << " on level " << lev
                         << std::endl;
                     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -571,7 +571,7 @@ ERF::InitData ()
 
         Real QKE_0;
         if (pp.query("QKE_0", QKE_0)) {
-            amrex::Print() << "Initializing uniform QKE=" << QKE_0 << std::endl;
+            Print() << "Initializing uniform QKE=" << QKE_0 << std::endl;
             for (int lev = 0; lev <= finest_level; lev++) {
                 auto& lev_new = vars_new[lev];
                 for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -592,7 +592,7 @@ ERF::InitData ()
         }
 
 #ifdef ERF_USE_PARTICLES
-        initializeTracers((amrex::ParGDBBase*)GetParGDB(),z_phys_nd);
+        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
 #endif
 
     } else { // Restart from a checkpoint
@@ -648,8 +648,8 @@ ERF::InitData ()
 
     if (solverChoice.custom_rhotheta_forcing)
     {
-        h_rhotheta_src.resize(max_level+1, amrex::Vector<Real>(0));
-        d_rhotheta_src.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
+        d_rhotheta_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
             const int domlen = geom[lev].Domain().length(2);
             h_rhotheta_src[lev].resize(domlen, 0.0_rt);
@@ -662,8 +662,8 @@ ERF::InitData ()
 
     if (solverChoice.custom_moisture_forcing)
     {
-        h_rhoqt_src.resize(max_level+1, amrex::Vector<Real>(0));
-        d_rhoqt_src.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        h_rhoqt_src.resize(max_level+1, Vector<Real>(0));
+        d_rhoqt_src.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
             const int domlen = geom[lev].Domain().length(2);
             h_rhoqt_src[lev].resize(domlen, 0.0_rt);
@@ -676,8 +676,8 @@ ERF::InitData ()
 
     if (solverChoice.custom_w_subsidence)
     {
-        h_w_subsid.resize(max_level+1, amrex::Vector<Real>(0));
-        d_w_subsid.resize(max_level+1, amrex::Gpu::DeviceVector<Real>(0));
+        h_w_subsid.resize(max_level+1, Vector<Real>(0));
+        d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
             const int domlen = geom[lev].Domain().length(2);
             h_w_subsid[lev].resize(domlen, 0.0_rt);
@@ -805,7 +805,7 @@ ERF::InitData ()
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
 #ifdef ERF_EXPLICIT_MOST_STRESS
-        amrex::Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
 #endif
 
         m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
@@ -968,7 +968,7 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
         particleData.addName( pc_name );
 
 #else
-        amrex::Abort("Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES");
+        Abort("Lagrangian microphysics can be used when compiled with ERF_USE_PARTICLES");
 #endif
     }
 
@@ -1128,7 +1128,7 @@ ERF::ReadParameters ()
         // If this is set, it must be even
         if (fixed_mri_dt_ratio > 0 && (fixed_mri_dt_ratio%2 != 0) )
         {
-            amrex::Abort("If you specify fixed_mri_dt_ratio, it must be even");
+            Abort("If you specify fixed_mri_dt_ratio, it must be even");
         }
 
         // If both fixed_dt and fast_dt are specified, their ratio must be an even integer
@@ -1138,7 +1138,7 @@ ERF::ReadParameters ()
             int ratio = static_cast<int>( ( (1.0+eps) * fixed_dt ) / fixed_fast_dt );
             if (fixed_dt / fixed_fast_dt != ratio)
             {
-                amrex::Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
+                Abort("Ratio of fixed_dt to fixed_fast_dt must be an even integer");
             }
         }
 
@@ -1147,7 +1147,7 @@ ERF::ReadParameters ()
         {
             if (fixed_dt / fixed_fast_dt != fixed_mri_dt_ratio)
             {
-                amrex::Abort("Dt is over-specfied");
+                Abort("Dt is over-specfied");
             }
         }
 
@@ -1162,7 +1162,7 @@ ERF::ReadParameters ()
             init_type != "metgrid" &&
             init_type != "input_sounding")
         {
-            amrex::Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
+            Error("if specified, init_type must be uniform, ideal, real, metgrid or input_sounding");
         }
 
         // Should we use the bcs we've read in from wrfbdy or metgrid files?
@@ -1175,7 +1175,7 @@ ERF::ReadParameters ()
 
         // No moving terrain with init real
         if (init_type == "real" && solverChoice.terrain_type != TerrainType::Static) {
-            amrex::Abort("Moving terrain is not supported with init real");
+            Abort("Moving terrain is not supported with init real");
         }
 
         // We use this to keep track of how many boxes we read in from WRF initialization
@@ -1201,7 +1201,7 @@ ERF::ReadParameters ()
         //        but we always have exactly one file at level 0
         for (int lev = 0; lev <= max_level; lev++)
         {
-            const std::string nc_file_names = amrex::Concatenate("nc_init_file_",lev,1);
+            const std::string nc_file_names = Concatenate("nc_init_file_",lev,1);
             if (pp.contains(nc_file_names.c_str()))
             {
                 int num_files = pp.countval(nc_file_names.c_str());
@@ -1209,7 +1209,7 @@ ERF::ReadParameters ()
                 nc_init_file[lev].resize(num_files);
                 pp.queryarr(nc_file_names.c_str(), nc_init_file[lev],0,num_files);
                 for (int j = 0; j < num_files; j++)
-                    amrex::Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
+                    Print() << "Reading NC init file names at level " << lev << " and index " << j << " : " << nc_init_file[lev][j] << std::endl;
             }
         }
 
@@ -1229,8 +1229,8 @@ ERF::ReadParameters ()
             plotfile_type != "netcdf" && plotfile_type != "NetCDF" &&
             plotfile_type != "hdf5"   && plotfile_type != "HDF5" )
         {
-            amrex::Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
-            amrex::Abort("Dont know this plotfile_type");
+            Print() << "User selected plotfile_type = " << plotfile_type << std::endl;
+            Abort("Dont know this plotfile_type");
         }
         pp.query("plot_file_1",   plot_file_1);
         pp.query("plot_file_2",   plot_file_2);
@@ -1241,7 +1241,7 @@ ERF::ReadParameters ()
 
         if ( (m_plot_int_1 > 0 && m_plot_per_1 > 0) ||
              (m_plot_int_2 > 0 && m_plot_per_2 > 0.) ) {
-            amrex::Abort("Must choose only one of plot_int or plot_per");
+            Abort("Must choose only one of plot_int or plot_per");
         }
 
         pp.query("profile_int", profile_int);
@@ -1276,14 +1276,14 @@ ERF::ReadParameters ()
         pp.query("cf_width", cf_width);
         pp.query("cf_set_width", cf_set_width);
         if (cf_width < 0 || cf_set_width < 0 || cf_width < cf_set_width) {
-            amrex::Abort("You must set cf_width >= cf_set_width >= 0");
+            Abort("You must set cf_width >= cf_set_width >= 0");
         }
         if (max_level > 0 && cf_set_width > 0) {
             for (int lev = 1; lev <= max_level; lev++) {
                 if (cf_set_width%ref_ratio[lev-1][0] != 0 ||
                     cf_set_width%ref_ratio[lev-1][1] != 0 ||
                     cf_set_width%ref_ratio[lev-1][2] != 0 ) {
-                    amrex::Abort("You must set cf_width to be a multiple of ref_ratio");
+                    Abort("You must set cf_width to be a multiple of ref_ratio");
                 }
             }
         }
@@ -1308,15 +1308,15 @@ ERF::ReadParameters ()
     // NOTE: Must be checked after init_params
     if (solverChoice.lsm_type == LandSurfaceType::SLM) {
         lsm.SetModel<SLM>();
-        amrex::Print() << "SLM land surface model!\n";
+        Print() << "SLM land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::MM5) {
         lsm.SetModel<MM5>();
-        amrex::Print() << "MM5 land surface model!\n";
+        Print() << "MM5 land surface model!\n";
     } else if (solverChoice.lsm_type == LandSurfaceType::None) {
         lsm.SetModel<NullSurf>();
-        amrex::Print() << "Null land surface model!\n";
+        Print() << "Null land surface model!\n";
     } else {
-        amrex::Abort("Dont know this moisture_type!") ;
+        Abort("Dont know this moisture_type!") ;
     }
 
     if (verbose > 0) {
@@ -1324,7 +1324,7 @@ ERF::ReadParameters ()
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
-        amrex::Abort("For two-way coupling you must set cf_width = 0");
+        Abort("For two-way coupling you must set cf_width = 0");
     }
 }
 
@@ -1409,16 +1409,16 @@ ERF::MakeHorizontalAverages ()
     d_havg_pressure.resize(size_z, 0.0_rt);
 
     // copy host vectors to device vectors
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
+    Gpu::copy(Gpu::hostToDevice, h_havg_density.begin(), h_havg_density.end(), d_havg_density.begin());
+    Gpu::copy(Gpu::hostToDevice, h_havg_temperature.begin(), h_havg_temperature.end(), d_havg_temperature.begin());
+    Gpu::copy(Gpu::hostToDevice, h_havg_pressure.begin(), h_havg_pressure.end(), d_havg_pressure.begin());
 
     if (solverChoice.moisture_type != MoistureType::None)
     {
         d_havg_qv.resize(size_z, 0.0_rt);
         d_havg_qc.resize(size_z, 0.0_rt);
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
+        Gpu::copy(Gpu::hostToDevice, h_havg_qv.begin(), h_havg_qv.end(), d_havg_qv.begin());
+        Gpu::copy(Gpu::hostToDevice, h_havg_qc.begin(), h_havg_qc.end(), d_havg_qc.begin());
     }
 }
 
@@ -1440,7 +1440,7 @@ ERF::MakeDiagnosticAverage (Vector<Real>& h_havg, MultiFab& S, int n)
 
     // Get the cell centered data and construct sums
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(S); mfi.isValid(); ++mfi) {
         const Box& box = mfi.validbox();
@@ -1516,9 +1516,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
       } // mfi
     } // lev
 
-    amrex::average_down(vars_new[crse_lev+1][Vars::cons],
-                        vars_new[crse_lev  ][Vars::cons],
-                        scomp, ncomp, refRatio(crse_lev));
+    average_down(vars_new[crse_lev+1][Vars::cons],
+                 vars_new[crse_lev  ][Vars::cons],
+                 scomp, ncomp, refRatio(crse_lev));
 
     // Here we multiply (rho S) by m^2 after average down
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
@@ -1562,9 +1562,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            true);
     }
 
-    amrex::average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    amrex::average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-    amrex::average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+    average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
 
     for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
         MomentumToVelocity(vars_new[lev][Vars::xvel],
@@ -1580,7 +1580,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
-    amrex::Print() << ":::Construct_ERFFillPatchers " << lev << std::endl;
+    Print() << ":::Construct_ERFFillPatchers " << lev << std::endl;
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1608,7 +1608,7 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
-    amrex::Print() << ":::Define_ERFFillPatchers " << lev << std::endl;
+    Print() << ":::Define_ERFFillPatchers " << lev << std::endl;
 
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
@@ -1636,32 +1636,32 @@ ERF::Define_ERFFillPatchers (int lev)
 #ifdef ERF_USE_MULTIBLOCK
 // constructor used when ERF is created by a multiblock driver
 ERF::ERF (const RealBox& rb, int max_level_in,
-          const amrex::Vector<int>& n_cell_in, int coord,
-          const amrex::Vector<amrex::IntVect>& ref_ratios,
-          const amrex::Array<int,AMREX_SPACEDIM>& is_per,
+          const Vector<int>& n_cell_in, int coord,
+          const Vector<IntVect>& ref_ratios,
+          const Array<int,AMREX_SPACEDIM>& is_per,
           std::string prefix)
     : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratios, is_per)
 {
     SetParmParsePrefix(prefix);
 
-    if (amrex::ParallelDescriptor::IOProcessor()) {
-        const char* erf_hash = amrex::buildInfoGetGitHash(1);
-        const char* amrex_hash = amrex::buildInfoGetGitHash(2);
-        const char* buildgithash = amrex::buildInfoGetBuildGitHash();
-        const char* buildgitname = amrex::buildInfoGetBuildGitName();
+    if (ParallelDescriptor::IOProcessor()) {
+        const char* erf_hash = buildInfoGetGitHash(1);
+        const char* amrex_hash = buildInfoGetGitHash(2);
+        const char* buildgithash = buildInfoGetBuildGitHash();
+        const char* buildgitname = buildInfoGetBuildGitName();
 
         if (strlen(erf_hash) > 0) {
-          amrex::Print() << "\n"
+          Print() << "\n"
                          << "ERF git hash: " << erf_hash << "\n";
         }
         if (strlen(amrex_hash) > 0) {
-          amrex::Print() << "AMReX git hash: " << amrex_hash << "\n";
+          Print() << "AMReX git hash: " << amrex_hash << "\n";
         }
         if (strlen(buildgithash) > 0) {
-          amrex::Print() << buildgitname << " git hash: " << buildgithash << "\n";
+          Print() << buildgitname << " git hash: " << buildgithash << "\n";
         }
 
-        amrex::Print() << "\n";
+        Print() << "\n";
     }
 
     int nlevs_max = max_level + 1;
@@ -1780,12 +1780,12 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
-       amrex::Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
+       Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
 
        if (ref_ratio[lev][2] != 1)
        {
-           amrex::Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
+           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
        }
     }
 }
@@ -1804,7 +1804,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
     {
         step = Bstep + MBstep - 1;
 
-        amrex::Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
+        Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
         ComputeDt();
 
@@ -1829,7 +1829,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         cur_time  += dt[0];
 
-        amrex::Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
+        Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
                        << " DT = " << dt[0]  << std::endl;
 
         post_timestep(step, cur_time, dt[0]);

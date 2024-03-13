@@ -43,8 +43,8 @@ ERF::initRayleigh ()
 
         // Copy from host vectors to device vectors
         for (int n = 0; n < Rayleigh::nvars; n++) {
-            amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
-                             d_rayleigh_ptrs[lev][n].begin());
+            Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][n].begin(), h_rayleigh_ptrs[lev][n].end(),
+                      d_rayleigh_ptrs[lev][n].begin());
         }
     }
 }
@@ -97,23 +97,23 @@ ERF::setRayleighRefFromSounding (bool restarting)
             h_rayleigh_ptrs[lev][Rayleigh::wbar][k]         = Real(0.0);
             h_rayleigh_ptrs[lev][Rayleigh::thetabar][k] = interpolate_1d(z_inp_sound, theta_inp_sound, zcc[k], inp_sound_size);
             if (h_rayleigh_ptrs[lev][Rayleigh::tau][k] > 0) {
-                                                  amrex::Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
-                if (solverChoice.rayleigh_damp_U) amrex::Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
-                if (solverChoice.rayleigh_damp_V) amrex::Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
-                if (solverChoice.rayleigh_damp_W) amrex::Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
-                if (solverChoice.rayleigh_damp_T) amrex::Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
-                amrex::Print() << std::endl;
+                                                  Print() << zcc[k] << ":" << " tau=" << h_rayleigh_ptrs[lev][Rayleigh::tau][k];
+                if (solverChoice.rayleigh_damp_U) Print() << " ubar    = " << h_rayleigh_ptrs[lev][Rayleigh::ubar][k];
+                if (solverChoice.rayleigh_damp_V) Print() << " vbar    = " << h_rayleigh_ptrs[lev][Rayleigh::vbar][k];
+                if (solverChoice.rayleigh_damp_W) Print() << " wbar    = " << h_rayleigh_ptrs[lev][Rayleigh::wbar][k];
+                if (solverChoice.rayleigh_damp_T) Print() << " thetabar= " << h_rayleigh_ptrs[lev][Rayleigh::thetabar][k];
+                Print() << std::endl;
             }
         }
 
         // Copy from host version to device version
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::ubar].begin(), h_rayleigh_ptrs[lev][Rayleigh::ubar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::ubar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::vbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::vbar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::vbar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::wbar].begin(), h_rayleigh_ptrs[lev][Rayleigh::wbar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::wbar].begin());
-        amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
+        Gpu::copy(Gpu::hostToDevice, h_rayleigh_ptrs[lev][Rayleigh::thetabar].begin(), h_rayleigh_ptrs[lev][Rayleigh::thetabar].end(),
                          d_rayleigh_ptrs[lev][Rayleigh::thetabar].begin());
     }
 }
@@ -168,7 +168,7 @@ ERF::erf_enforce_hse (int lev,
                       std::unique_ptr<MultiFab>& z_cc,
                       std::unique_ptr<MultiFab>& z_nd)
 {
-    amrex::Real l_gravity = solverChoice.gravity;
+    Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;
 
     const auto geomdata = geom[lev].data();
@@ -182,15 +182,15 @@ ERF::erf_enforce_hse (int lev,
         int  ncomp = 1;
         PhysBCFunctNoOp null_bc;
         Real time = 0.;
-        amrex::Interpolater* mapper = &cell_cons_interp;
+        Interpolater* mapper = &cell_cons_interp;
 
         MultiFab p_hse_crse (base_state[lev-1], make_alias, 1, 1); // p_0  is second component
 
-        amrex::InterpFromCoarseLevel(pres, time, p_hse_crse,
-                                     icomp, icomp, ncomp,
-                                     geom[lev-1], geom[lev],
-                                     null_bc, 0, null_bc, 0, refRatio(lev-1),
-                                     mapper, domain_bcs_type, bccomp);
+        InterpFromCoarseLevel(pres, time, p_hse_crse,
+                              icomp, icomp, ncomp,
+                              geom[lev-1], geom[lev],
+                              null_bc, 0, null_bc, 0, refRatio(lev-1),
+                              mapper, domain_bcs_type, bccomp);
     }
 
     for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
@@ -200,7 +200,7 @@ ERF::erf_enforce_hse (int lev,
         int klo = tbz.smallEnd(2);
         int khi = tbz.bigEnd(2);
 
-        amrex::Box b2d = tbz; // Copy constructor
+        Box b2d = tbz; // Copy constructor
         b2d.grow(0,1); b2d.grow(1,1); // Grow by one in the lateral directions
         b2d.setRange(2,0);
 

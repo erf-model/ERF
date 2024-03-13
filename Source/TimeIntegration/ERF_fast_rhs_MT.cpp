@@ -97,11 +97,11 @@ void erf_fast_rhs_MT (int step, int nrk,
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
 
-    MultiFab     coeff_A_mf(fast_coeffs, amrex::make_alias, 0, 1);
-    MultiFab inv_coeff_B_mf(fast_coeffs, amrex::make_alias, 1, 1);
-    MultiFab     coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
-    MultiFab     coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
-    MultiFab     coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
+    MultiFab     coeff_A_mf(fast_coeffs, make_alias, 0, 1);
+    MultiFab inv_coeff_B_mf(fast_coeffs, make_alias, 1, 1);
+    MultiFab     coeff_C_mf(fast_coeffs, make_alias, 2, 1);
+    MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
+    MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -114,7 +114,7 @@ void erf_fast_rhs_MT (int step, int nrk,
     // Define updates in the current RK stg
     // *************************************************************************
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
     FArrayBox temp_rhs_fab;
@@ -301,7 +301,7 @@ void erf_fast_rhs_MT (int step, int nrk,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -441,11 +441,11 @@ void erf_fast_rhs_MT (int step, int nrk,
         });
         } // end profile
 
-        amrex::Box b2d = tbz; // Copy constructor
+        Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
-        auto const lo = amrex::lbound(bx);
-        auto const hi = amrex::ubound(bx);
+        auto const lo = lbound(bx);
+        auto const hi = ubound(bx);
 
         {
         BL_PROFILE("fast_rhs_b2d_loop_t");
@@ -594,12 +594,12 @@ void erf_fast_rhs_MT (int step, int nrk,
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dtau, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
         } // two-way coupling
 

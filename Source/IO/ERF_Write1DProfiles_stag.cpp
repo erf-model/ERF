@@ -60,7 +60,7 @@ ERF::write_1D_profiles_stag(Real time)
         int unstag_size =  h_avg_w.size() - 1; // _un_staggered heights
 
         auto const& dx = geom[0].CellSizeArray();
-        if (amrex::ParallelDescriptor::IOProcessor()) {
+        if (ParallelDescriptor::IOProcessor()) {
             if (NumDataLogs() > 1) {
                 std::ostream& data_log1 = DataLog(1);
                 if (data_log1.good()) {

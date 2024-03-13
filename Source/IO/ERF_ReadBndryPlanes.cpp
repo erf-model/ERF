@@ -42,7 +42,7 @@ IntVect offset (const int face_dir, const int normal)
  */
 void ReadBndryPlanes::define_level_data (int /*lev*/)
 {
-    amrex::Print() << "ReadBndryPlanes::define_level_data" << std::endl;
+    Print() << "ReadBndryPlanes::define_level_data" << std::endl;
     // *********************************************************
     // Allocate space for all of the boundary planes we may need
     // *********************************************************
@@ -85,8 +85,8 @@ ReadBndryPlanes::interp_in_time (const Real& time)
 {
     AMREX_ALWAYS_ASSERT(m_tn <= time && time <= m_tnp2);
 
-    //amrex::Print() << "interp_in_time at time " << time << " given " << m_tn << " " << m_tnp1 << " " << m_tnp2 << std::endl;
-    //amrex::Print() << "m_tinterp " << m_tinterp << std::endl;
+    //Print() << "interp_in_time at time " << time << " given " << m_tn << " " << m_tnp1 << " " << m_tnp2 << std::endl;
+    //Print() << "m_tinterp " << m_tinterp << std::endl;
 
     if (time == m_tinterp) {
         // We have already interpolated to this time
@@ -254,7 +254,7 @@ void ReadBndryPlanes::read_time_file ()
     // Allocate data we will need -- for now just at one level
     int lev = 0;
     define_level_data(lev);
-    amrex::Print() << "Successfully read time file and allocated data" << std::endl;
+    Print() << "Successfully read time file and allocated data" << std::endl;
 }
 
 /**
@@ -421,7 +421,7 @@ void ReadBndryPlanes::read_file (const int idx,
         if (var_name == "qp")          n_offset = BCVars::RhoQ2_bc_comp;
         if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
 
-        // amrex::Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
+        // Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
 
         BndryRegister bndry(ba, dm, m_in_rad, m_out_rad, m_extent_rad, ncomp);
         bndry.setVal(1.0e13);

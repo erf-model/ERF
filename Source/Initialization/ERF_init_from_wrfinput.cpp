@@ -39,7 +39,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
                   Vector<Vector<FArrayBox>>& bdy_data_xhi,
                   Vector<Vector<FArrayBox>>& bdy_data_ylo,
                   Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                  int& width, amrex::Real& start_bdy_time);
+                  int& width, Real& start_bdy_time);
 
 void
 convert_wrfbdy_data (int which, const Box& domain,
@@ -132,7 +132,7 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_QCLOUD_fab; NC_QCLOUD_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_QRAIN_fab ; NC_QRAIN_fab.resize(num_boxes_at_level[lev]);
 
-    // amrex::Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
+    // Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
     if (nc_init_file.empty())
         amrex::Error("NetCDF initialization file name must be provided via input");
 
@@ -236,9 +236,9 @@ ERF::init_from_wrfinput (int lev)
                                              bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
                                              real_width, start_bdy_time);
 
-        amrex::Print() << "Read in boundary data with width "  << real_width << std::endl;
-        amrex::Print() << "Running with specification width: " << real_set_width
-                       << " and relaxation width: " << real_width - real_set_width << std::endl;
+        Print() << "Read in boundary data with width "  << real_width << std::endl;
+        Print() << "Running with specification width: " << real_set_width
+                << " and relaxation width: " << real_width - real_set_width << std::endl;
 
         convert_wrfbdy_data(0,domain,bdy_data_xlo,
                             NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,

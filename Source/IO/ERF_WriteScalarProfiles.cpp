@@ -90,14 +90,14 @@ ERF::sum_integrated_quantities(Real time)
         }
 
         const int nfoo = 6;
-        amrex::Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
+        Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
 #ifdef AMREX_LAZY
         Lazy::QueueReduction([=]() mutable {
 #endif
-        amrex::ParallelDescriptor::ReduceRealSum(
-            foo, nfoo, amrex::ParallelDescriptor::IOProcessorNumber());
+        ParallelDescriptor::ReduceRealSum(
+            foo, nfoo, ParallelDescriptor::IOProcessorNumber());
 
-          if (amrex::ParallelDescriptor::IOProcessor()) {
+          if (ParallelDescriptor::IOProcessor()) {
             int i = 0;
             mass_sl = foo[i++];
             rhth_sl = foo[i++];
@@ -106,23 +106,23 @@ ERF::sum_integrated_quantities(Real time)
             rhth_ml = foo[i++];
             scal_ml = foo[i++];
 
-            amrex::Print() << '\n';
+            Print() << '\n';
             if (finest_level ==  0) {
 #if 1
-               amrex::Print() << "TIME= " << time << "      MASS         = " << mass_sl << '\n';
+               Print() << "TIME= " << time << "      MASS         = " << mass_sl << '\n';
 #else
-               amrex::Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
+               Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
 #endif
-               amrex::Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
-               amrex::Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
+               Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
+               Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
             } else {
 #if 1
-               amrex::Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+               Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-               amrex::Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+               Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-               amrex::Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-               amrex::Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
+               Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+               Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
             }
 
             // The first data log only holds scalars
@@ -309,7 +309,7 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
  * @param local Boolean sets whether or not to reduce the sum over the domain (false) or compute sums local to each MPI rank (true)
  * @param finemask If a finer level is available, determines whether we mask fine data
  */
-amrex::Real
+Real
 ERF::volWgtSumMF(int lev,
   const MultiFab& mf, int comp,
   const MultiFab& mapfac, bool local, bool finemask)
@@ -333,7 +333,7 @@ ERF::volWgtSumMF(int lev,
     } // mfi
 
     if (lev < finest_level && finemask) {
-        const amrex::MultiFab& mask = build_fine_mask(lev+1);
+        const MultiFab& mask = build_fine_mask(lev+1);
         MultiFab::Multiply(tmp, mask, 0, 0, 1, 0);
     }
 
@@ -342,7 +342,7 @@ ERF::volWgtSumMF(int lev,
     Real cell_vol = dx[0]*dx[1]*dx[2];
     volume.setVal(cell_vol);
     if (solverChoice.use_terrain)
-        amrex::MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
+        MultiFab::Multiply(volume, *detJ_cc[lev], 0, 0, 1, 0);
     sum = MultiFab::Dot(tmp, 0, volume, 0, 1, 0, local);
 
     if (!local)
@@ -358,21 +358,21 @@ ERF::volWgtSumMF(int lev,
  *
  * @param level Fine level index which masks underlying coarser data
  */
-amrex::MultiFab&
+MultiFab&
 ERF::build_fine_mask(int level)
 {
     // Mask for zeroing covered cells
     AMREX_ASSERT(level > 0);
 
-    const amrex::BoxArray& cba = grids[level-1];
-    const amrex::DistributionMapping& cdm = dmap[level-1];
+    const BoxArray& cba = grids[level-1];
+    const DistributionMapping& cdm = dmap[level-1];
 
     // TODO -- we should make a vector of these a member of ERF class
-    fine_mask.define(cba, cdm, 1, 0, amrex::MFInfo());
+    fine_mask.define(cba, cdm, 1, 0, MFInfo());
     fine_mask.setVal(1.0);
 
-    amrex::BoxArray fba = grids[level];
-    amrex::iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
+    BoxArray fba = grids[level];
+    iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, ref_ratio[level-1], 1, 0);
 
     const auto  fma =  fine_mask.arrays();
     const auto ifma = ifine_mask.arrays();
@@ -396,7 +396,7 @@ ERF::build_fine_mask(int level)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action(int nstep, Real time, Real dtlev, int action_interval, amrex::Real action_per)
+ERF::is_it_time_for_action(int nstep, Real time, Real dtlev, int action_interval, Real action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 
