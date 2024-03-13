@@ -41,7 +41,6 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/ERFTracers.cpp
                    ${SRC_DIR}/Particles/ERFPCUtils.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCAdvection.cpp
-                   ${SRC_DIR}/Particles/SuperDropletPCEvolve.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCInitializations.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCMassChange.cpp
                    ${SRC_DIR}/Particles/SuperDropletPCUtils.cpp)

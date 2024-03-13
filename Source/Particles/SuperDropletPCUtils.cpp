@@ -42,7 +42,7 @@ void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multi
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     return num_par*inv_cell_volume;
@@ -76,7 +76,7 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto par_mass = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
@@ -110,7 +110,7 @@ void SuperDropletPC::velocityComp( MultiFab&  a_mf,  /*!< Mass density multifab 
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i]; });
         });
 
@@ -139,7 +139,7 @@ void SuperDropletPC::multiplicity ( MultiFab&  a_mf,  /*!< Number density multif
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; });
         });
 
@@ -168,7 +168,7 @@ void SuperDropletPC::radius ( MultiFab&  a_mf,  /*!< Number density multifab */
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; });
         });
 
@@ -200,7 +200,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab&  a_mf,  /*!< Number density 
             auto p = ptd.m_aos[i];
             ParticleInterpolator::Linear interp(p, plo, dxi);
             interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
-                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType& part, int)
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
                 {
                     auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
                     auto aero_mass = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+a_idx][i];
