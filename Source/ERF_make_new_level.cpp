@@ -534,8 +534,6 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
 void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
-    Print() << "init_stuff " << ba << std::endl;
-
     if (lev == 0) {
         min_k_at_level[lev] = 0;
         max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
@@ -549,7 +547,7 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
             max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
         }
     }
-    Print() << "MIN/MAX K AT LEVEL " << lev << " ARE " << min_k_at_level[lev] << " " << max_k_at_level[lev] << std::endl;
+    // Print() << "MIN/MAX K AT LEVEL " << lev << " ARE " << min_k_at_level[lev] << " " << max_k_at_level[lev] << std::endl;
 
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
