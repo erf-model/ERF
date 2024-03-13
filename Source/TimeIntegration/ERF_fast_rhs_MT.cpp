@@ -133,6 +133,9 @@ void erf_fast_rhs_MT (int step, int nrk,
         Box tby = surroundingNodes(bx,1);
         Box tbz = surroundingNodes(bx,2);
 
+        Box vbx = mfi.validbox();
+        const auto& vbx_hi = ubound(vbx);
+
         const Array4<const Real> & stg_cons = S_stg_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & stg_xmom = S_stg_data[IntVars::xmom].const_array(mfi);
         const Array4<const Real> & stg_ymom = S_stg_data[IntVars::ymom].const_array(mfi);
