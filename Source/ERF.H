@@ -378,6 +378,10 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
+	// This reads in the turbuine locations and thrust and power coefficients from the input text files
+    // and fills the associated multifabs with that data
+    void initializeWindFarmParametrization (const int&);
+
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
@@ -698,7 +702,7 @@ private:
 
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
                                                     // eddy viscosity
@@ -708,7 +712,7 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum",
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif

@@ -1062,6 +1062,22 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
+
+	// Initialize wind farm
+
+	std::cout << "Reaching inside here..........................................................." << "\n";
+        std::cout << "Reaching here" << "\n";
+        for ( MFIter mfi(Nturb[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx     = mfi.tilebox();
+            auto  Nturb_array = Nturb[lev].array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                Nturb_array(i,j,k,0) = 10;
+            });
+        }
+    std::cout << "Done filling" << "\n";
+
+	
+
 }
 
 // read in some parameters from inputs file
