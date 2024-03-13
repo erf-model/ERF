@@ -10,10 +10,12 @@
 
 namespace MicVar_SD {
     enum {
-        rho = 0, /*!< Density */
-        q_t,     /*!< Total (vapour + cloud) */
-        q_v,     /*!< Water vapour */
-        q_c,     /*!< Cloud condensate */
+        rho = 0,     /*!< Density */
+        temperature, /*!< Temperature */
+        pressure,    /*!< Pressure */
+        q_t,         /*!< Total (vapour + cloud) */
+        q_v,         /*!< Water vapour */
+        q_c,         /*!< Cloud condensate */
         NumVars
     };
 }
@@ -73,6 +75,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         inline virtual void Update_State_Vars (MultiFab& a_cons_vars) override
         {
             computeQc();
+            computeQt();
             Copy_Micro_to_State(a_cons_vars);
         }
 
@@ -116,7 +119,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             m_super_droplets->massDensity(*(m_mic_fab_vars[MicVar_SD::q_c]));
             densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
-            computeQt();
         }
 
         /*! \brief compute qt (total) */
@@ -124,13 +126,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
                 const auto& box = mfi.tilebox();
-                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
-                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
+                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
                 auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
                 ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
-                });
+                { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
             }
         }
 
@@ -141,6 +141,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
         /*! \brief Convert a multifab containing the mixing ratio of something to its density */
         void ratioToDensity ( MultiFab&, const int a_comp = 0 );
+
+        /*! \brief Compute phase changes (vapour <--> cloud water) */
+        virtual void phaseChange (  const Real&,
+                                    const Vector<std::unique_ptr<MultiFab>>& );
 
     protected:
 

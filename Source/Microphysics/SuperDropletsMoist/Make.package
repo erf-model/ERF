@@ -1,4 +1,5 @@
 CEXE_headers += SuperDroplets.H
 CEXE_sources += SuperDropletsMoistAdvance.cpp
 CEXE_sources += SuperDropletsMoistInit.cpp
+CEXE_sources += SuperDropletsMoistPhaseChange.cpp
 CEXE_sources += SuperDropletsMoistUtils.cpp

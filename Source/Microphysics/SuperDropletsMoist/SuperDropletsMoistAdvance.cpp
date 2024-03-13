@@ -8,7 +8,11 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                                    Vector<Vector<MultiFab>>& a_flow_vars, /*!< flow variables (*all*) */
                                    const Vector<std::unique_ptr<MultiFab>>& a_z /*!< terrain */)
 {
-    m_super_droplets->EvolveParticles (0, a_dt, a_flow_vars, a_z);
+    // Compute mass/size change due to evaporation/condensation
+    phaseChange ( a_dt, a_z );
+
+    // Advect particles
+    m_super_droplets->AdvectParticles (0, a_dt, a_flow_vars, a_z);
 }
 
 #endif

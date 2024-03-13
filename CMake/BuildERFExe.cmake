@@ -169,6 +169,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistInit.cpp
+       ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistPhaseChange.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistUtils.cpp
        ${SRC_DIR}/MaterialProperties/MaterialProperties.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp

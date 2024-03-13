@@ -94,6 +94,8 @@ void SuperDropletsMoist::FinishInit (MultiFab& a_cons_vars /*!< Conserved variab
     }
 
     computeQc();
+    computeQt();
+
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         const auto& box = mfi.tilebox();
         auto states_arr = a_cons_vars.array(mfi);
