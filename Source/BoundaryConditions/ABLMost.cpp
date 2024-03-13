@@ -302,6 +302,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                               umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
 #endif
+                        amrex::ignore_unused(Qflux);
                     });
                 }
 
@@ -330,6 +331,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
 #endif
+                    amrex::ignore_unused(stressx);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -357,6 +359,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
 #endif
+                    amrex::ignore_unused(stressy);
                 });
             }
         } // var_idx

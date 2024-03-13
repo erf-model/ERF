@@ -129,10 +129,11 @@ ERF::write_1D_profiles_stag(Real time)
                       Real uuface = 0.5*(h_avg_uu[k] + h_avg_uu[k-1]);
                       Real uvface = 0.5*(h_avg_uv[k] + h_avg_uv[k-1]);
                       Real vvface = 0.5*(h_avg_vv[k] + h_avg_vv[k-1]);
-                      Real w_cc   = 0.5*(h_avg_w[k-1]  + h_avg_w[k]);
-                      Real uw_cc  = 0.5*(h_avg_uw[k-1] + h_avg_uw[k]);
-                      Real vw_cc  = 0.5*(h_avg_vw[k-1] + h_avg_vw[k]);
-                      Real ww_cc  = 0.5*(h_avg_ww[k-1] + h_avg_ww[k]);
+                      w_cc   = 0.5*(h_avg_w[k-1]  + h_avg_w[k]);
+                      uw_cc  = 0.5*(h_avg_uw[k-1] + h_avg_uw[k]);
+                      vw_cc  = 0.5*(h_avg_vw[k-1] + h_avg_vw[k]);
+                      ww_cc  = 0.5*(h_avg_ww[k-1] + h_avg_ww[k]);
+                      amrex::ignore_unused(uvface);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
@@ -179,6 +180,7 @@ ERF::write_1D_profiles_stag(Real time)
                   Real uuface = 1.5*h_avg_uu[k-1] - 0.5*h_avg_uu[k-2];
                   Real uvface = 1.5*h_avg_uv[k-1] - 0.5*h_avg_uv[k-2];
                   Real vvface = 1.5*h_avg_vv[k-1] - 0.5*h_avg_vv[k-2];
+                  amrex::ignore_unused(uvface);
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << k * dx[2] << " "
                             << 0                                     << " " // u'u'
