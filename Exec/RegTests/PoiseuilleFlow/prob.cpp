@@ -28,15 +28,16 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    amrex::Array4<Real> const& state,
-    amrex::Array4<Real> const& x_vel,
-    amrex::Array4<Real> const& y_vel,
-    amrex::Array4<Real> const& z_vel,
-    amrex::Array4<Real> const&,
-    amrex::Array4<Real> const&,
-    amrex::Array4<Real const> const&,
-    amrex::Array4<Real const> const&,
-    amrex::GeometryData const& geomdata,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
+    GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
     Array4<Real const> const& /*mf_v*/,
@@ -49,11 +50,11 @@ Problem::init_custom_pert(
     // Arbitrarily choose the radius of the bubble to be 0.05 times the length of the domain
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
 
   });
@@ -65,10 +66,11 @@ Problem::init_custom_pert(
       const Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
 
       // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
-      if (parms.prob_type == 10)
-          x_vel(i, j, k) = 1.0 - z_h * z_h;
-      else
-          x_vel(i, j, k) = 0.0;
+      if (parms.prob_type == 10) {
+          x_vel_pert(i, j, k) = 1.0 - z_h * z_h;
+      } else {
+          x_vel_pert(i, j, k) = 0.0;
+      }
   });
 
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -78,14 +80,15 @@ Problem::init_custom_pert(
       const Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
 
       // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
-      if (parms.prob_type == 11)
-         y_vel(i, j, k) = 1.0 - z_h * z_h;
-      else
-         y_vel(i, j, k) = 0.0;
+      if (parms.prob_type == 11) {
+         y_vel_pert(i, j, k) = 1.0 - z_h * z_h;
+      } else {
+         y_vel_pert(i, j, k) = 0.0;
+      }
   });
 
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-    z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 }

@@ -39,15 +39,16 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real> const& state,
-    Array4<Real> const& x_vel,
-    Array4<Real> const& y_vel,
-    Array4<Real> const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real> const& r_hse,
     Array4<Real> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
-    amrex::GeometryData const& geomdata,
+    GeometryData const& geomdata,
     Array4<Real const> const&,
     Array4<Real const> const&,
     Array4<Real const> const&,
@@ -59,7 +60,7 @@ Problem::init_custom_pert(
   Real QKE_0 = parms.QKE_0;
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      state(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * QKE_0;
+      state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * QKE_0;
       // uncomment for CPU, not allowed for GPU
       //amrex::Print() <<"QKE="<<state(i, j, k, RhoQKE_comp)<< std::endl;
   });
@@ -85,14 +86,14 @@ Problem::init_custom_pert(
       const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
 
       // Zero-out the velocity
-      x_vel(i, j, k) = 0;
+      x_vel_pert(i, j, k) = 0;
 
       if (z > z_0) {
-          x_vel(i, j, k) = 0.0;
+          x_vel_pert(i, j, k) = 0.0;
       } else {
             const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
             if (rr > R_0) {
-                  x_vel(i, j, k) = 0.0;
+                  x_vel_pert(i, j, k) = 0.0;
             } else {
                   const Real II = (z_0-z)/z_0;
                   const Real term1 = (v_max*v_max)*(rr/R_max)*(rr/R_max);
@@ -101,7 +102,7 @@ Problem::init_custom_pert(
                   const Real term4 = 2*7.2921*std::pow(10,-5)*std::sin(20*3.1415/180)*rr/2 ;
                   const Real v_tang = II*(std::pow(term1*term2 + term3,0.5) - term4);
                   const Real thet_angl = std::atan2(y-Yc,x-Xc);
-                  x_vel(i, j, k) = -1*std::abs(v_tang)*std::sin(thet_angl);
+                  x_vel_pert(i, j, k) = -1*std::abs(v_tang)*std::sin(thet_angl);
             }
       }
   });
@@ -117,23 +118,23 @@ Problem::init_custom_pert(
       const Real z = prob_lo[2] + (k + 0.5) * dx[2]; // cell center
 
       // Zero-out the velocity
-      y_vel(i, j, k) = 0;
+      y_vel_pert(i, j, k) = 0;
 
       if (z > z_0) {
-          y_vel(i, j, k) = 0.0;
+          y_vel_pert(i, j, k) = 0.0;
       } else {
             const Real rr = std::pow((x-Xc)*(x-Xc) + (y-Yc)*(y-Yc),0.5); // Radius from the center
             if (rr > R_0) {
-                  y_vel(i, j, k) = 0.0;
+                y_vel_pert(i, j, k) = 0.0;
             } else {
-                  const Real II = (z_0-z)/z_0;
-                  const Real term1 = (v_max*v_max)*(rr/R_max)*(rr/R_max);
-                  const Real term2 = std::pow(2*R_max/(rr+R_max),3) - std::pow(2*R_max/(R_0+R_max),3);
-                  const Real term3 = std::pow(2*7.2921*std::pow(10,-5)*std::sin(20*3.1415/180),2)*(rr*rr)/4;
-                  const Real term4 = 2*7.2921*std::pow(10,-5)*std::sin(20*3.1415/180)*rr/2 ;
-                  const Real v_tang = II*(std::pow(term1*term2 + term3,0.5) - term4);
-                  const Real thet_angl = std::atan2(y-Yc,x-Xc);
-                  y_vel(i, j, k) = std::abs(v_tang)*std::cos(thet_angl);
+                const Real II = (z_0-z)/z_0;
+                const Real term1 = (v_max*v_max)*(rr/R_max)*(rr/R_max);
+                const Real term2 = std::pow(2*R_max/(rr+R_max),3) - std::pow(2*R_max/(R_0+R_max),3);
+                const Real term3 = std::pow(2*7.2921*std::pow(10,-5)*std::sin(20*3.1415/180),2)*(rr*rr)/4;
+                const Real term4 = 2*7.2921*std::pow(10,-5)*std::sin(20*3.1415/180)*rr/2 ;
+                const Real v_tang = II*(std::pow(term1*term2 + term3,0.5) - term4);
+                const Real thet_angl = std::atan2(y-Yc,x-Xc);
+                y_vel_pert(i, j, k) = std::abs(v_tang)*std::cos(thet_angl);
             }
       }
 

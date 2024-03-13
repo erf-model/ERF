@@ -28,10 +28,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const& z_nd,
@@ -70,14 +71,14 @@ Problem::init_custom_pert(
       Real p_total = p_hse(i,j,k) + p_prime;
 
       // Define (rho theta) given pprime
-      state(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
+      state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
       // Set scalar = 0 everywhere
-      state(i, j, k, RhoScalar_comp) = state(i,j,k,Rho_comp);
+      state_pert(i, j, k, RhoScalar_comp) = state_pert(i,j,k,Rho_comp);
 
       if (use_moisture) {
-          state(i, j, k, RhoQ1_comp) = 0.0;
-          state(i, j, k, RhoQ2_comp) = 0.0;
+          state_pert(i, j, k, RhoQ1_comp) = 0.0;
+          state_pert(i, j, k, RhoQ2_comp) = 0.0;
       }
   });
 
@@ -95,13 +96,13 @@ Problem::init_custom_pert(
 
       Real fac     = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
 
-      x_vel(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
+      x_vel_pert(i, j, k) = -Ampl * omega * fac * std::sin(kp * x);
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = 0.0;
+      y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity from impenetrable condition
@@ -116,7 +117,7 @@ Problem::init_custom_pert(
       z -= z_base;
       Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
 
-      z_vel(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
+      z_vel_pert(i, j, k) = Ampl * omega * fac * std::cos(kp * x);
   });
 
   amrex::Gpu::streamSynchronize();

@@ -35,12 +35,13 @@ Problem::init_custom_pert (
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
@@ -60,11 +61,11 @@ Problem::init_custom_pert (
     ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
+        state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
         if (use_moisture) {
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
+            state_pert(i, j, k, RhoQ1_comp) = 0.0;
+            state_pert(i, j, k, RhoQ2_comp) = 0.0;
         }
     });
 
@@ -82,7 +83,7 @@ Problem::init_custom_pert (
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
             Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
-            x_vel(i, j, k) += x_vel_prime;
+            x_vel_pert(i, j, k) += x_vel_prime;
         }
     });
 
@@ -97,19 +98,19 @@ Problem::init_custom_pert (
             : prob_lo[2] + (k + 0.5) * dx[2];
 
         // Set the y-velocity
-        y_vel(i, j, k) = 0.0;
+        y_vel_pert(i, j, k) = 0.0;
         if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
             Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
-            y_vel(i, j, k) += y_vel_prime;
+            y_vel_pert(i, j, k) += y_vel_prime;
         }
         if (parms.pert_deltaV != 0.0)
         {
             const amrex::Real xl = x - prob_lo[0];
             const amrex::Real zl = z / parms.pert_ref_height;
             const amrex::Real damp = std::exp(-0.5 * zl * zl);
-            y_vel(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+            y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
         }
     });
 
@@ -128,13 +129,13 @@ Problem::init_custom_pert (
         // Set the z-velocity
         if (k == dom_lo_z || k == dom_hi_z+1)
         {
-            z_vel(i, j, k) = 0.0;
+            z_vel_pert(i, j, k) = 0.0;
         }
         else if (parms.W_0_Pert_Mag != 0.0)
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
             Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-            z_vel(i, j, k) = z_vel_prime;
+            z_vel_pert(i, j, k) = z_vel_prime;
         }
     });
 
