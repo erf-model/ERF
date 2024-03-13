@@ -32,10 +32,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& r_hse,
     Array4<Real      > const& p_hse,
     Array4<Real const> const&,
@@ -79,34 +80,34 @@ Problem::init_custom_pert(
         Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
 
         // This version perturbs rho but not p
-        state(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
+        state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
     }
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
       if (use_moisture) {
-          state(i, j, k, RhoQ1_comp) = 0.0;
-          state(i, j, k, RhoQ2_comp) = 0.0;
+          state_pert(i, j, k, RhoQ1_comp) = 0.0;
+          state_pert(i, j, k, RhoQ2_comp) = 0.0;
       }
   });
 
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.U_0;
+      x_vel_pert(i, j, k) = parms.U_0;
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = 0.0;
+      y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 
   amrex::Gpu::streamSynchronize();

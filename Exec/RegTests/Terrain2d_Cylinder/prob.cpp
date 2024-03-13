@@ -28,12 +28,13 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
     GeometryData const& geomdata,
@@ -53,30 +54,30 @@ Problem::init_custom_pert(
         const Real z = z_cc(i,j,k);
 
         // Set scalar = 0 everywhere
-        state(i, j, k, RhoScalar_comp) = 0.0;
+        state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
         if (use_moisture) {
-            state(i, j, k, RhoQ1_comp) = 0.0;
-            state(i, j, k, RhoQ2_comp) = 0.0;
+            state_pert(i, j, k, RhoQ1_comp) = 0.0;
+            state_pert(i, j, k, RhoQ2_comp) = 0.0;
         }
     });
 
     // Set the x-velocity
     ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel(i, j, k) = 10.0;
+        x_vel_pert(i, j, k) = 10.0;
     });
 
     // Set the y-velocity
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        y_vel(i, j, k) = 0.0;
+        y_vel_pert(i, j, k) = 0.0;
     });
 
     // Set the z-velocity from impenetrable condition
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        z_vel(i, j, k) = 0.0;
+        z_vel_pert(i, j, k) = 0.0;
     });
 
     amrex::Gpu::streamSynchronize();

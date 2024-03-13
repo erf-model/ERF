@@ -47,10 +47,11 @@ Problem::init_custom_pert(
     const amrex::Box& xbx,
     const amrex::Box& ybx,
     const amrex::Box& zbx,
-    amrex::Array4<amrex::Real      > const& state,
-    amrex::Array4<amrex::Real      > const& x_vel,
-    amrex::Array4<amrex::Real      > const& y_vel,
-    amrex::Array4<amrex::Real      > const& z_vel,
+    amrex::Array4<amrex::Real const> const& /*state*/,
+    amrex::Array4<amrex::Real      > const& state_pert,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
     amrex::Array4<amrex::Real      > const& /*r_hse*/,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
     amrex::Array4<amrex::Real const> const& /*z_nd*/,
@@ -80,14 +81,14 @@ Problem::init_custom_pert(
     const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+    state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
     // Set an initial value for QKE
-    state(i, j, k, RhoQKE_comp) = parms.QKE_0;
+    state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
@@ -99,19 +100,19 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    x_vel(i, j, k) = parms.U_0;
+    x_vel_pert(i, j, k) = parms.U_0;
     if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
-        x_vel(i, j, k) += x_vel_prime;
+        x_vel_pert(i, j, k) += x_vel_prime;
     }
     if (parms.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        x_vel(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
+        x_vel_pert(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
     }
   });
 
@@ -123,19 +124,19 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel(i, j, k) = parms.V_0;
+    y_vel_pert(i, j, k) = parms.V_0;
     if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
-        y_vel(i, j, k) += y_vel_prime;
+        y_vel_pert(i, j, k) += y_vel_prime;
     }
     if (parms.pert_deltaV != 0.0)
     {
         const amrex::Real xl = x - prob_lo[0];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        y_vel(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+        y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
     }
   });
 
@@ -148,13 +149,13 @@ Problem::init_custom_pert(
     // Set the z-velocity
     if (k == dom_lo_z || k == dom_hi_z+1)
     {
-        z_vel(i, j, k) = 0.0;
+        z_vel_pert(i, j, k) = 0.0;
     }
     else if (parms.W_0_Pert_Mag != 0.0)
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-        z_vel(i, j, k) = parms.W_0 + z_vel_prime;
+        z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
     }
   });
 }
