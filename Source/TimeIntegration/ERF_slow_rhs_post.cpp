@@ -472,7 +472,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             //       cell here if it is present.
 
             // The width to do RHS augmentation
-            if (width > set_width+1) width -= 1;
+            if (width > set_width+1) width -= 2;
 
             // Relaxation constants
             Real F1 = 1./(10.*dt);
@@ -571,12 +571,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                                + alpha * bdatyhi_np1(ii,jj,k);
             });
 
+
             // NOTE: We pass 'old_cons' here since the tendencies are with
             //       respect to the start of the RK integration.
 
             // Compute RHS in specified region
             //==========================================================
-            if (set_width > 0 ) {
+            if (set_width > 0) {
                 compute_interior_ghost_bxs_xy(tbx, domain, width, 0,
                                               bx_xlo, bx_xhi,
                                               bx_ylo, bx_yhi);
