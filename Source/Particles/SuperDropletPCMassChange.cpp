@@ -129,7 +129,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                 radius_ptr[i] = std::sqrt(r_sq);
 
                 // update mass of particle
-                mass_ptr[i] = solute_mass + (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
+                mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
 
                 // update superdroplet total mass
                 supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
