@@ -31,7 +31,12 @@ read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
                     FArrayBox& NC_PHB_fab,
                     FArrayBox& NC_ALB_fab,
                     FArrayBox& NC_PB_fab,
-                    MoistureType moisture_type);
+                    FArrayBox& NC_LAT_fab,
+                    FArrayBox& NC_LON_fab,
+                    MoistureType moisture_type,
+                    Real& Latitude,
+                    Real& Longitude,
+                    Geometry& geom);
 
 Real
 read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
@@ -79,6 +84,12 @@ init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
                          const Vector<FArrayBox>& NC_MSFU_fab,
                          const Vector<FArrayBox>& NC_MSFV_fab,
                          const Vector<FArrayBox>& NC_MSFM_fab);
+
+void
+verify_terrain_top_boundary (const Real& z_top,
+                             const Vector<FArrayBox>& NC_PH_fab,
+                             const Vector<FArrayBox>& NC_PHB_fab);
+
 void
 init_terrain_from_wrfinput (int lev, const Real& z_top,
                             const Box& domain, FArrayBox& z_phys,
@@ -109,28 +120,30 @@ void
 ERF::init_from_wrfinput (int lev)
 {
     // *** FArrayBox's at this level for holding the INITIAL data
-    Vector<FArrayBox> NC_xvel_fab ; NC_xvel_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_yvel_fab ; NC_yvel_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_zvel_fab ; NC_zvel_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_rho_fab  ; NC_rho_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_rhop_fab ; NC_rhop_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_rhoth_fab; NC_rhoth_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MUB_fab  ; NC_MUB_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MSFU_fab ; NC_MSFU_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MSFV_fab ; NC_MSFV_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_MSFM_fab ; NC_MSFM_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_SST_fab  ; NC_SST_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_C1H_fab  ; NC_C1H_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_C2H_fab  ; NC_C2H_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_RDNW_fab ; NC_RDNW_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_PH_fab   ; NC_PH_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_P_fab    ; NC_P_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_PHB_fab  ; NC_PHB_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_ALB_fab  ; NC_ALB_fab.resize(num_boxes_at_level[lev]);
-    Vector<FArrayBox> NC_PB_fab   ; NC_PB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_xvel_fab;   NC_xvel_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_yvel_fab;   NC_yvel_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_zvel_fab;   NC_zvel_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_rho_fab;    NC_rho_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_rhop_fab;   NC_rhop_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_rhoth_fab;  NC_rhoth_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_MUB_fab;    NC_MUB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_MSFU_fab;   NC_MSFU_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_SST_fab;    NC_SST_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_C1H_fab;    NC_C1H_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_C2H_fab;    NC_C2H_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_RDNW_fab;   NC_RDNW_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_PH_fab;     NC_PH_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_P_fab;      NC_P_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_PHB_fab;    NC_PHB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_ALB_fab;    NC_ALB_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_PB_fab;     NC_PB_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_QVAPOR_fab; NC_QVAPOR_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_QCLOUD_fab; NC_QCLOUD_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_QRAIN_fab ; NC_QRAIN_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_LAT_fab;    NC_LAT_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize(num_boxes_at_level[lev]);
 
     // Print() << "Building initial FABS from file " << nc_init_file[lev][idx] << std::endl;
     if (nc_init_file.empty())
@@ -146,7 +159,8 @@ ERF::init_from_wrfinput (int lev)
                            NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
                            NC_PH_fab[idx]    , NC_P_fab[idx]     , NC_PHB_fab[idx]  ,
                            NC_ALB_fab[idx]   , NC_PB_fab[idx]    ,
-                           solverChoice.moisture_type);
+                           NC_LAT_fab[idx]   , NC_LON_fab[idx],
+                           solverChoice.moisture_type, Latitude, Longitude, geom[lev]);
     }
 
     auto& lev_new = vars_new[lev];
@@ -190,6 +204,10 @@ ERF::init_from_wrfinput (int lev)
     const Real& z_top = geom[lev].ProbHi(2);
     if (solverChoice.use_terrain)
     {
+        if (ParallelDescriptor::IOProcessor()) {
+            verify_terrain_top_boundary(z_top, NC_PH_fab, NC_PHB_fab);
+        }
+
         std::unique_ptr<MultiFab>& z_phys = z_phys_nd[lev];
         for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
@@ -452,6 +470,56 @@ init_base_state_from_wrfinput (int lev,
 }
 
 /**
+ * Helper function for verifying the top boundary is valid.
+ *
+ * @param z_top Real user specified top boundary
+ * @param NC_PH_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PH)
+ * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
+ */
+void
+verify_terrain_top_boundary (const Real& z_top,
+                             const Vector<FArrayBox>& NC_PH_fab,
+                             const Vector<FArrayBox>& NC_PHB_fab)
+{
+    int nboxes = NC_PH_fab.size();
+    for (int idx = 0; idx < nboxes; idx++) {
+        Real zmin =  1.0e16;
+        Real zmax = -1.0e16;
+
+        Box Fab2dBox (NC_PHB_fab[idx].box()); Fab2dBox.setSmall(2,Fab2dBox.bigEnd(2));
+
+        Box nodal_box = amrex::surroundingNodes(NC_PHB_fab[idx].box());
+        int ilo = nodal_box.smallEnd()[0];
+        int ihi = nodal_box.bigEnd()[0];
+        int jlo = nodal_box.smallEnd()[1];
+        int jhi = nodal_box.bigEnd()[1];
+
+        auto const& phb = NC_PHB_fab[idx].const_array();
+        auto const& ph  = NC_PH_fab[idx].const_array();
+
+        ParallelFor(Fab2dBox, [=,&zmin,&zmax] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            Real z_calc = 0.25 * ( ph (ii,jj  ,k) + ph (ii-1,jj  ,k) +
+                                   ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
+                                   phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
+                                   phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
+            zmin = amrex::min(zmin,z_calc);
+            zmax = amrex::max(zmax,z_calc);
+        });
+
+        Real tol = 1.0e-2;
+        if (std::fabs((z_top-zmin)/zmin) > tol &&
+            std::fabs((z_top-zmax)/zmax) > tol  ) {
+            Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
+                    << zmin << " and max " << zmax << "!\n";
+            Abort("Domain specification error");
+        }
+    }
+}
+
+/**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
  * @param lev Integer specifying the current level
@@ -466,8 +534,7 @@ init_terrain_from_wrfinput (int lev, const Real& z_top,
                             const Vector<FArrayBox>& NC_PHB_fab)
 {
     int nboxes = NC_PH_fab.size();
-    for (int idx = 0; idx < nboxes; idx++)
-    {
+    for (int idx = 0; idx < nboxes; idx++) {
         // This copies from NC_zphys on z-faces to z_phys_nd on nodes
         const Array4<Real      >&      z_arr = z_phys.array();
         const Array4<Real const>& nc_phb_arr = NC_PHB_fab[idx].const_array();

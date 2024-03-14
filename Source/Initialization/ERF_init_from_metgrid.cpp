@@ -51,6 +51,8 @@ ERF::init_from_metgrid (int lev)
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(ntimes);
     Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(ntimes);
     Vector<FArrayBox> NC_sst_fab;    NC_sst_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LAT_fab;    NC_LAT_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize (ntimes);
 
     // *** IArrayBox's at this level for holding mask data
     Vector<IArrayBox> NC_lmask_iab; NC_lmask_iab.resize(ntimes);
@@ -87,7 +89,8 @@ ERF::init_from_metgrid (int lev)
                           NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
                           NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
-                          NC_sst_fab[it],  NC_lmask_iab[it]);
+                          NC_sst_fab[it],  NC_LAT_fab[it],  NC_LON_fab[it],
+                          NC_lmask_iab[it], Latitude,       Longitude,       geom[lev]);
     } // it
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
