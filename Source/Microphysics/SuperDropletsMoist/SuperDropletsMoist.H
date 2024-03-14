@@ -117,7 +117,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief compute condensate mixing ratio */
         inline virtual void computeQc ()
         {
-            m_super_droplets->massDensity(*(m_mic_fab_vars[MicVar_SD::q_c]));
+            m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]));
             densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
         }
 
