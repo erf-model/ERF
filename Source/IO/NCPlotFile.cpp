@@ -44,7 +44,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
          FullPath += extension + ".nc";
      }
 
-     amrex::Print() << "Writing level " << lev << " NetCDF plot file " << FullPath << std::endl;
+     Print() << "Writing level " << lev << " NetCDF plot file " << FullPath << std::endl;
 
      // open netcdf file to write data
      auto ncf = ncutils::NCFile::create_par(FullPath, NC_NETCDF4 | NC_MPIIO,
@@ -229,7 +229,7 @@ ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
    long unsigned numpts = 0;
    const int ncomp = plotMF[lev]->nComp();
 
-   for (amrex::MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
+   for (MFIter fai(*plotMF[lev]); fai.isValid(); ++fai) {
        auto box = fai.validbox();
        if (subdomain.contains(box)) {
            long unsigned diff = nfai*numpts;

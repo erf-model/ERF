@@ -820,7 +820,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
         // Enforce no forcing term at top and bottom boundaries
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,        0) = 0.;
-            rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
+            rho_w_rhs(i,j,domhi_z+1) = 0.;
         });
         } // end profile
 

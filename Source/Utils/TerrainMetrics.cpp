@@ -6,14 +6,14 @@
 using namespace amrex;
 
 void
-init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
-              const amrex::Geometry& geom,
-              const amrex::Real grid_stretching_ratio,
-              const amrex::Real zsurf,
-              const amrex::Real dz0)
+init_zlevels (Vector<Real>& zlevels_stag,
+              const Geometry& geom,
+              const Real grid_stretching_ratio,
+              const Real zsurf,
+              const Real dz0)
 {
     auto dx = geom.CellSizeArray();
-    const amrex::Box& domain = geom.Domain();
+    const Box& domain = geom.Domain();
     int nz = domain.length(2)+1; // staggered
     zlevels_stag.resize(nz);
 
@@ -26,15 +26,15 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
     } else {
         // Create stretched grid based on initial dz and stretching ratio
         zlevels_stag[0] = zsurf;
-        amrex::Real dz = dz0;
-        amrex::Print() << "Stretched grid levels: " << zsurf;
+        Real dz = dz0;
+        Print() << "Stretched grid levels: " << zsurf;
         for (int k = 1; k < nz; k++)
         {
             zlevels_stag[k] = zlevels_stag[k-1] + dz;
-            amrex::Print() << " " << zlevels_stag[k];
+            Print() << " " << zlevels_stag[k];
             dz *= grid_stretching_ratio;
         }
-        amrex::Print() << std::endl;
+        Print() << std::endl;
     }
 
     // Try reading in terrain_z_levels, which allows arbitrarily spaced grid
@@ -45,13 +45,13 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
     if (n_zlevels > 0)
     {
         if (n_zlevels != nz) {
-            amrex::Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
-            amrex::Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
-            amrex::Abort("You must specify a z_level for every value of k");
+            Print() << "You supplied " << n_zlevels << " staggered terrain_z_levels " << std::endl;
+            Print() << "but n_cell+1 in the z-direction is " <<  nz << std::endl;
+            Abort("You must specify a z_level for every value of k");
         }
 
         if (grid_stretching_ratio > 0) {
-            amrex::Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
+            Print() << "Note: Found terrain_z_levels, ignoring grid_stretching_ratio" << std::endl;
         }
 
         pp.queryarr("terrain_z_levels", zlevels_stag, 0, nz);
@@ -72,10 +72,10 @@ init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
  */
 
 void
-init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real> const& z_levels_h)
+init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const& z_levels_h)
 {
   // z_nd is nodal in all directions
-  const amrex::Box& domain = geom.Domain();
+  const Box& domain = geom.Domain();
   int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
   int domlo_y = domain.smallEnd(1); int domhi_y = domain.bigEnd(1) + 1;
   int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
@@ -88,7 +88,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
-   amrex::Gpu::DeviceVector<Real> z_levels_d;
+   Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy_async(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
@@ -110,7 +110,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     {
       int k0    = 0;
 
-      for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+      for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
           // Grown box with corrected ghost cells at top
           Box gbx = mfi.growntilebox(ngrow);
@@ -158,7 +158,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
                 b.setRange(2,0);
             }
             BoxArray ba2d(std::move(bl2d));
-            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, amrex::MFInfo().SetAlloc(false));
+            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
@@ -170,9 +170,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
         int k0 = domlo_z;
 
         // Get max value
-        max_h = ParReduce(amrex::TypeList<amrex::ReduceOpMax>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
+        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                        -> amrex::GpuTuple<Real>
+                        -> GpuTuple<Real>
                 {
                   // Get Array4s
                   const auto & h     = ma_h_s[box_no];
@@ -224,9 +224,9 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
             while (iter < maxIter && diff > threshold)
             {
 
-                diff = ParReduce(amrex::TypeList<amrex::ReduceOpMin>{}, amrex::TypeList<Real>{}, mf2d, amrex::IntVect(ngrow,ngrow,0),
+                diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
-                        -> amrex::GpuTuple<Real>
+                        -> GpuTuple<Real>
                 {
                     const auto & h_s     = ma_h_s[box_no];
                     const auto & h_s_old = ma_h_s_old[box_no];
@@ -257,7 +257,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
 
                 MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
-                amrex::ParallelDescriptor::ReduceRealMin(diff);
+                ParallelDescriptor::ReduceRealMin(diff);
 
                 iter++;
 
@@ -269,7 +269,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
             auto const& z_lev_d = z_levels_d.data();
 
             //Populate z_phys_nd by solving z_arr(i,j,k) = z + A*h_s(i,j,k)
-            for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+            for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Grown box with no z range
                 Box xybx = mfi.growntilebox(ngrow);
@@ -293,7 +293,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
             }//mfi
         } //k
 
-        amrex::Gpu::streamSynchronize();
+        Gpu::streamSynchronize();
 
         break;
     }
@@ -302,7 +302,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     {
         int k0    = 0;
 
-        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
             Box gbx = mfi.growntilebox(ngrow);
@@ -337,7 +337,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
     {
         int k0    = 0;
 
-        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
             Box gbx = mfi.growntilebox(ngrow);
@@ -406,15 +406,15 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
        Array4<Real> z_arr = z_phys_nd.array(mfi);
 
        int rank = 0;
-       amrex::Print(rank) << "Debugging init_terrain_grid" << "\n";
-       amrex::Print(rank) << gbx << "\n";
+       Print(rank) << "Debugging init_terrain_grid" << "\n";
+       Print(rank) << gbx << "\n";
 
        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-           amrex::Print(rank) << amrex::IntVect(i,j,k) << "\n";
-           amrex::Print(rank) << z_arr(i,j,k) << "\n";
-           amrex::Print(rank) << "\n";
+           Print(rank) << IntVect(i,j,k) << "\n";
+           Print(rank) << z_arr(i,j,k) << "\n";
+           Print(rank) << "\n";
        });
-       amrex::Print(rank) << "Cleared..." << "\n";
+       Print(rank) << "Cleared..." << "\n";
    }
   */
 }
@@ -423,29 +423,29 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, amrex::Vector<Real
  * Computation of detJ at cell-center
  */
 void
-make_J (const amrex::Geometry& geom,
-        amrex::MultiFab& z_phys_nd,
-        amrex::MultiFab& detJ_cc)
+make_J (const Geometry& geom,
+        MultiFab& z_phys_nd,
+        MultiFab& detJ_cc)
 {
     const auto *dx = geom.CellSize();
-    amrex::Real dzInv = 1.0/dx[2];
+    Real dzInv = 1.0/dx[2];
 
     // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
+    const Box& domain = geom.Domain();
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
     int ngrow = detJ_cc.nGrow();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( amrex::MFIter mfi(detJ_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(detJ_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        amrex::Box gbx = mfi.growntilebox(ngrow);
+        Box gbx = mfi.growntilebox(ngrow);
         gbx.setSmall(2,domlo_z);
-        amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
-        amrex::Array4<amrex::Real      > detJ = detJ_cc.array(mfi);
+        Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
+        Array4<Real      > detJ = detJ_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                detJ(i, j, k) = .25 * dzInv * (
                        z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1)
@@ -459,26 +459,26 @@ make_J (const amrex::Geometry& geom,
  * Computation of z_phys at cell-center
  */
 void
-make_zcc (const amrex::Geometry& geom,
-          amrex::MultiFab& z_phys_nd,
-          amrex::MultiFab& z_phys_cc)
+make_zcc (const Geometry& geom,
+          MultiFab& z_phys_nd,
+          MultiFab& z_phys_cc)
 {
     // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
+    const Box& domain = geom.Domain();
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
     int ngrow = z_phys_cc.nGrow();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( amrex::MFIter mfi(z_phys_cc, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    for ( MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        amrex::Box gbx = mfi.growntilebox(ngrow);
+        Box gbx = mfi.growntilebox(ngrow);
         gbx.setSmall(2,domlo_z);
-        amrex::Array4<amrex::Real const> z_nd = z_phys_nd.const_array(mfi);
-        amrex::Array4<amrex::Real      > z_cc = z_phys_cc.array(mfi);
+        Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
+        Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
            z_cc(i, j, k) = .125 * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
                                    +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );

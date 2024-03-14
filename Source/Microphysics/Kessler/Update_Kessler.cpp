@@ -2,6 +2,8 @@
 #include "IndexDefines.H"
 #include "TileNoZ.H"
 
+using namespace amrex;
+
 /**
  * Updates conserved and microphysics variables in the provided MultiFabs from
  * the internal MultiFabs that store Microphysics module data.
@@ -9,10 +11,10 @@
  * @param[out] cons Conserved variables
  * @param[out] qmoist: qv, qc, qi, qr, qs, qg
  */
-void Kessler::Copy_Micro_to_State (amrex::MultiFab& cons)
+void Kessler::Copy_Micro_to_State (MultiFab& cons)
 {
     // Get the temperature, density, theta, qt and qp from input
-    for ( amrex::MFIter mfi(cons,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(cons,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
 
         auto states_arr = cons.array(mfi);

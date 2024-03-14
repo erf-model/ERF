@@ -59,14 +59,15 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
-    Array4<Real      > const&,
-    Array4<Real      > const&,
-    Array4<Real const> const&,
-    Array4<Real const> const&,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
     GeometryData const& geomdata,
     Array4<Real const> const& /*mf_m*/,
     Array4<Real const> const& /*mf_u*/,
@@ -101,61 +102,61 @@ Problem::init_custom_pert(
     {
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain,
         //            + B_0*sin(x)
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
+        state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r3d*r3d) + parms.B_0*sin(x);
 
     } else if (parms.prob_type == 11) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
+        state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, r0) / r0));
     } else if (parms.prob_type == 12) {
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
+        state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz, r0) / r0));
     } else if (parms.prob_type == 13) {
         const Real r0_z = parms.rad_0 * (prob_hi[2] - prob_lo[2]);
         //ellipse for mapfac shear validation
         const Real r2d_xz_ell = std::sqrt((x-xc)*(x-xc)/(r0*r0) + (z-zc)*(z-zc)/(r0_z*r0_z));
-        state(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
+        state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * 0.25 * (1.0 + std::cos(PI * std::min(r2d_xz_ell, r0_z) / r0_z));
     } else if (parms.prob_type == 14) {
-        state(i, j, k, RhoScalar_comp) = std::cos(PI*x);
+        state_pert(i, j, k, RhoScalar_comp) = std::cos(PI*x);
     } else {
         // Set scalar = A_0 in a ball of radius r0 and 0 elsewhere
         if (r3d < r0) {
-           state(i, j, k, RhoScalar_comp) = parms.A_0;
+           state_pert(i, j, k, RhoScalar_comp) = parms.A_0;
         } else {
-           state(i, j, k, RhoScalar_comp) = 0.0;
+           state_pert(i, j, k, RhoScalar_comp) = 0.0;
         }
     }
 
-    state(i, j, k, RhoScalar_comp) *= parms.rho_0;
+    state_pert(i, j, k, RhoScalar_comp) *= parms.rho_0;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel(i, j, k) = parms.u_0;
+      x_vel_pert(i, j, k) = parms.u_0;
 
       const Real* prob_lo = geomdata.ProbLo();
       const Real*      dx = geomdata.CellSize();
       const Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
       // Set the x-velocity
-      x_vel(i, j, k) = parms.u_0 + parms.uRef *
-                       std::log((z + parms.z0)/parms.z0)/
-                       std::log((parms.zRef +parms.z0)/parms.z0);
+      x_vel_pert(i, j, k) = parms.u_0 + parms.uRef *
+                            std::log((z + parms.z0)/parms.z0)/
+                            std::log((parms.zRef +parms.z0)/parms.z0);
   });
 
   // Set the y-velocity
   amrex::ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      y_vel(i, j, k) = parms.v_0;
+      y_vel_pert(i, j, k) = parms.v_0;
   });
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 }
 
