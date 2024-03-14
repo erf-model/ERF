@@ -31,7 +31,7 @@ void SuperDropletPC::numberDensity ( MultiFab&  a_mf,  /*!< Number density multi
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
     a_mf.setVal(0.0);
 
@@ -66,7 +66,7 @@ void SuperDropletPC::massDensity ( MultiFab&  a_mf,  /*!< Mass density multifab 
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     a_mf.setVal(0.0);
 
     ParticleToMesh( *this, a_mf, m_lev,
@@ -101,7 +101,7 @@ void SuperDropletPC::massDensityCondensate ( MultiFab&  a_mf,  /*!< Mass density
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     a_mf.setVal(0.0);
     const int num_aerosols = m_num_aerosols;
 
@@ -120,7 +120,8 @@ void SuperDropletPC::massDensityCondensate ( MultiFab&  a_mf,  /*!< Mass density
                     for (int ai = 0; ai < num_aerosols; ai++) {
                         solute_mass += (ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ai][i]);
                     }
-                    return num_par*(par_mass-solute_mass)*inv_cell_volume;
+                    ParticleReal condensate_mass = std::max(0.0, par_mass-solute_mass);
+                    return num_par*condensate_mass*inv_cell_volume;
                 });
         });
 
@@ -141,7 +142,7 @@ void SuperDropletPC::massFlux ( MultiFab&  a_mf,  /*!< Mass flux multifab */
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     a_mf.setVal(0.0);
 
     ParticleToMesh( *this, a_mf, m_lev,
@@ -177,7 +178,7 @@ void SuperDropletPC::massFluxCondensate ( MultiFab&  a_mf,  /*!< Condensate Mass
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     a_mf.setVal(0.0);
     const int num_aerosols = m_num_aerosols;
 
@@ -197,7 +198,8 @@ void SuperDropletPC::massFluxCondensate ( MultiFab&  a_mf,  /*!< Condensate Mass
                         solute_mass += (ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ai][i]);
                     }
                     auto par_velocity = ptd.m_rdata[SuperDropletsRealIdxSoA::vx+a_dim][i];
-                    return num_par * (par_mass-solute_mass) * par_velocity * inv_cell_volume;
+                    ParticleReal condensate_mass = std::max(0.0, par_mass-solute_mass);
+                    return num_par * condensate_mass * par_velocity * inv_cell_volume;
                 });
         });
 
@@ -218,7 +220,7 @@ void SuperDropletPC::aerosolMassDensity ( MultiFab&  a_mf,  /*!< Aerosol mass de
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
     a_mf.setVal(0.0);
 
@@ -255,7 +257,7 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab&  a_mf,  /*!< Aerosol mass densi
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
 
-    const Real inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
 
     a_mf.setVal(0.0);
 
