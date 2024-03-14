@@ -29,7 +29,7 @@ void ERFPC::readInputs ()
 }
 
 /*! Initialize particles in domain */
-void ERFPC::InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::InitializeParticles (const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticles");
 
@@ -38,16 +38,16 @@ void ERFPC::InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_heigh
     } else if (m_initialization_type == ERFParticleInitializations::init_uniform) {
         initializeParticlesUniformDistribution( a_height_ptr );
     } else {
-        amrex::Print() << "Error: " << m_initialization_type
-                        << " is not a valid initialization for "
-                        << m_name << " particle species.\n";
-        amrex::Error("See error message!");
+        Print() << "Error: " << m_initialization_type
+                << " is not a valid initialization for "
+                << m_name << " particle species.\n";
+        Error("See error message!");
     }
     return;
 }
 
 /*! Default particle initialization */
-void ERFPC::initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefault (const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE(" ERFPC::initializeParticlesDefault");
 
@@ -59,7 +59,7 @@ void ERFPC::initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& 
 }
 
 /*! Default initialization for tracer particles for WoA case (ref: AA) */
-void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesDefaultTracersWoA");
 
@@ -190,7 +190,7 @@ void ERFPC::initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::M
 }
 
 /*! Default initialization for hydro particles (ref: AA) */
-void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesDefaultHydro");
 
@@ -323,7 +323,7 @@ void ERFPC::initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiF
 
 /*! Uniform distribution: the number of particles per grid cell is specified
  *  by "initial_particles_per_cell", and they are randomly distributed. */
-void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr)
+void ERFPC::initializeParticlesUniformDistribution (const std::unique_ptr<MultiFab>& a_height_ptr)
 {
     BL_PROFILE("ERFPC::initializeParticlesUniformDistribution");
 

@@ -95,7 +95,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
-                       const Vector<amrex::BCRec>& domain_bcs_type,
+                       const Vector<BCRec>& domain_bcs_type,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -142,8 +142,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_most     = (most != nullptr);
 
-    const amrex::BCRec* bc_ptr   = domain_bcs_type_d.data();
-    const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
+    const BCRec* bc_ptr   = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type.data();
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -256,7 +256,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                          : 2.0 * dc.dynamicViscosity;
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
@@ -576,7 +576,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // Define updates and fluxes in the current RK stage
     // *************************************************************************
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     {
     std::array<FArrayBox,AMREX_SPACEDIM> flux;
@@ -639,7 +639,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(amrex::surroundingNodes(bx,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -804,12 +804,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #ifdef ERF_USE_RRTMGP
             auto const& qheating_arr = qheating_rates.const_array(mfi);
             if (l_use_terrain && l_moving_terrain) {
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i,j,k,RhoTheta_comp) += (qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1)) / detJ_arr(i,j,k);
                 });
             } else {
-                amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
                 });
@@ -869,13 +869,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *********************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
         // *********************************************************************
+        int lo_z_face;
+        int hi_z_face;
+        if (level == 0) {
+            lo_z_face = domain.smallEnd(2);
+            hi_z_face = domain.bigEnd(2)+1;
+        } else {
+            lo_z_face = mfi.validbox().smallEnd(2);
+            hi_z_face = mfi.validbox().bigEnd(2)+1;
+        }
         AdvectionSrcForMom(tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs, u, v, w,
                            rho_u    , rho_v    , omega_arr,
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
-                           l_use_terrain, domhi_z);
+                           l_use_terrain, lo_z_face, hi_z_face);
 
         if (l_use_diff) {
             // Note: tau** were calculated with calls to
@@ -1138,13 +1147,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_zmom_2d");
-        amrex::Box b2d = tbz;
-        b2d.setSmall(2,0);
-        b2d.setBig(2,0);
+        Box b2d = tbz;
+        b2d.setSmall(2,lo_z_face);
+        b2d.setBig(2,lo_z_face);
         // Enforce no forcing term at top and bottom boundaries
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            rho_w_rhs(i,j,        0) = 0.;
-            rho_w_rhs(i,j,domhi_z+1) = 0.; // TODO: generalize this
+            rho_w_rhs(i,j,lo_z_face) = 0.;
+            rho_w_rhs(i,j,hi_z_face) = 0.;
         });
         } // end profile
 
@@ -1229,18 +1238,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");
         // We only add to the flux registers in the final RK step
+        // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
+        //       a problem at top and bottom boundaries
         if (l_reflux && nrk == 2) {
             int strt_comp_reflux = 0;
-            int  num_comp_reflux = 2;
+            int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, amrex::RunOn::Device);
+                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
         } // two-way coupling
         } // end profile

@@ -27,7 +27,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_PB_fab,
                     MoistureType moisture_type)
 {
-    amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
+    Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
     Vector<FArrayBox*> NC_fabs;
     Vector<std::string> NC_names;
@@ -60,7 +60,7 @@ read_from_wrfinput (int lev,
     }
 
     // Read the netcdf file and fill these FABs
-    amrex::Print() << "Building initial FABS from file " << fname << std::endl;
+    Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs);
 
     //

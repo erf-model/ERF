@@ -37,8 +37,7 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
     m_crse_times.resize(2);
 
     // Define the coarse and fine MFs
-    Define(fba, fdm, fgeom, cba, cdm, cgeom,
-           nghost, nghost_set, ncomp, interp);
+    Define(fba, fdm, fgeom, cba, cdm, cgeom,nghost, nghost_set, ncomp, interp);
 }
 
 
@@ -87,22 +86,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     }
 
     // Coarse box list
+    // NOTE: if we use face_cons_linear_interp then CoarseBox returns the grown box
+    //       so we don't need to manually grow it here
     BoxList cbl;
     cbl.set(m_ixt);
     cbl.reserve(fba.size());
     for (int i(0); i < fba.size(); ++i) {
         Box coarse_box(interp->CoarseBox(fba[i], m_ratio));
-        if (m_ixt[0] > 0) {
-            coarse_box.grow(1,1);
-            if (coarse_box.smallEnd(2) > m_cgeom.Domain().smallEnd(2)) coarse_box.growLo(2,1);
-            if (coarse_box.bigEnd(2)   > m_cgeom.Domain().bigEnd(2))   coarse_box.growHi(2,1);
-        } else if (m_ixt[1] > 0) {
-            coarse_box.grow(0,1);
-            if (coarse_box.smallEnd(2) > m_cgeom.Domain().smallEnd(2)) coarse_box.growLo(2,1);
-            if (coarse_box.bigEnd(2)   > m_cgeom.Domain().bigEnd(2))   coarse_box.growHi(2,1);
-        } else if (m_ixt[2] > 0) {
-            coarse_box.grow(0,1); coarse_box.grow(1,1);
-        }
         cbl.push_back(coarse_box);
     }
 
@@ -131,7 +121,7 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
                                 int mask_val)
 {
     // Minimal bounding box of fine BA plus a halo cell
-    Box fba_bnd = amrex::grow(fba.minimalBox(), IntVect(1,1,0));
+    Box fba_bnd = grow(fba.minimalBox(), IntVect(1,1,1));
 
     // BoxList and BoxArray to store complement
     BoxList com_bl; BoxArray com_ba;
@@ -231,8 +221,16 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
     //     the domain for computing the slopes in the interpolation
     // We need it to be of the type of the faces being filled
     //
-    IndexType ixt = fine.boxArray().ixType();
-    Box const& domface = amrex::convert(m_cgeom.Domain(), ixt);
+    // IndexType ixt = fine.boxArray().ixType();
+    // Box const& domface = convert(m_cgeom.Domain(), ixt);
+
+    // We don't need to worry about face-based domain because this is only used in the tangential interpolation
+    Box per_grown_domain = m_cgeom.Domain();
+    for (int dim = 0; dim < AMREX_SPACEDIM; dim++) {
+        if (m_cgeom.isPeriodic(dim)) {
+            per_grown_domain.grow(dim,1);
+        }
+    }
 
     for (MFIter mfi(fine); mfi.isValid(); ++mfi)
     {
@@ -251,9 +249,9 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) { // x-faces
-                    const int ii = amrex::coarsen(i,ratio[0]);
+                    const int ii = coarsen(i,ratio[0]);
                     if (i-ii*ratio[0] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,domface,0);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,per_grown_domain,0);
                     }
                 }
             });
@@ -263,7 +261,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) {
-                    const int ii = amrex::coarsen(i,ratio[0]);
+                    const int ii = coarsen(i,ratio[0]);
                     if (i-ii*ratio[0] != 0) {
                         Real const w = static_cast<Real>(i-ii*ratio[0]) * (Real(1.)/Real(ratio[0]));
                         fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(ii*ratio[0],j,k,0) + w * fine_arr((ii+1)*ratio[0],j,k,0);
@@ -278,9 +276,9 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) {
-                    const int jj = amrex::coarsen(j,ratio[1]);
+                    const int jj = coarsen(j,ratio[1]);
                     if (j-jj*ratio[1] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,domface,1);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,ncomp,per_grown_domain,1);
                     }
                 }
             });
@@ -290,7 +288,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) {
-                    const int jj = amrex::coarsen(j,ratio[1]);
+                    const int jj = coarsen(j,ratio[1]);
                     if (j-jj*ratio[1] != 0) {
                         Real const w = static_cast<Real>(j-jj*ratio[1]) * (Real(1.)/Real(ratio[1]));
                         fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,jj*ratio[1],k,0) + w * fine_arr(i,(jj+1)*ratio[1],k,0);
@@ -304,9 +302,9 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) {
-                    const int kk = amrex::coarsen(k,ratio[2]);
+                    const int kk = coarsen(k,ratio[2]);
                     if (k-kk*ratio[2] == 0) {
-                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,1,domface,2);
+                        interp_face_reg(i,j,k,ratio,fine_arr,0,crse_arr,slope_arr,1,per_grown_domain,2);
                     }
                 }
             });
@@ -316,7 +314,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             AMREX_HOST_DEVICE_PARALLEL_FOR_3D_FLAG(RunOn::Gpu,fbx,i,j,k,
             {
                 if (mask_arr(i,j,k) == mask_val) {
-                    const int kk = amrex::coarsen(k,ratio[2]);
+                    const int kk = coarsen(k,ratio[2]);
                     if (k-kk*ratio[2] != 0) {
                         Real const w = static_cast<Real>(k-kk*ratio[2]) * (Real(1.)/Real(ratio[2]));
                         fine_arr(i,j,k,0) = (Real(1.)-w) * fine_arr(i,j,kk*ratio[2],0) + w * fine_arr(i,j,(kk+1)*ratio[2],0);
@@ -335,7 +333,7 @@ void ERFFillPatcher::InterpCell (MultiFab& fine,
     int ncomp = m_ncomp;
     IntVect ratio = m_ratio;
     IndexType m_ixt = fine.boxArray().ixType();
-    Box const& cdomain = amrex::convert(m_cgeom.Domain(), m_ixt);
+    Box const& cdomain = convert(m_cgeom.Domain(), m_ixt);
 
     for (MFIter mfi(fine); mfi.isValid(); ++mfi) {
         Box const& fbx = mfi.validbox();

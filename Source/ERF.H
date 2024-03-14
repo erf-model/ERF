@@ -76,7 +76,9 @@ namespace InterpType {
         CellBilinear,
         CellQuadratic,
         CellConservativeProtected,
-        CellConservativeQuartic
+        CellConservativeQuartic,
+        FaceLinear,
+        FaceConserativeLinear
     };
 }
 
@@ -519,6 +521,10 @@ private:
 
     ////////////////
     // private data members
+
+    // These are the minimum and maximum values of k in valid boxes *at this level*
+    amrex::Vector<int> min_k_at_level;
+    amrex::Vector<int> max_k_at_level;
 
     std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 

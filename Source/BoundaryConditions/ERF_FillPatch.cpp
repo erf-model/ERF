@@ -26,7 +26,7 @@ ERF::FillPatch (int lev, Real time,
 {
     BL_PROFILE_VAR("ERF::FillPatch()",ERF_FillPatch);
     int bccomp;
-    amrex::Interpolater* mapper = nullptr;
+    Interpolater* mapper = nullptr;
 
     //
     // ***************************************************************************
@@ -53,6 +53,7 @@ ERF::FillPatch (int lev, Real time,
             FPr_u[lev-1].FillSet(*mfs_mom[Vars::xvel], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[Vars::yvel], time, null_bc, domain_bcs_type);
             FPr_w[lev-1].FillSet(*mfs_mom[Vars::zvel], time, null_bc, domain_bcs_type);
+
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
                                *mfs_mom[Vars::xvel], *mfs_mom[Vars::yvel], *mfs_mom[Vars::zvel]);
@@ -75,26 +76,26 @@ ERF::FillPatch (int lev, Real time,
         else if (var_idx == Vars::xvel)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::yvel)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         }
         else if (var_idx == Vars::zvel)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
         } else {
-          amrex::Abort("Dont recognize this variable type in ERF_Fillpatch");
+            Abort("Dont recognize this variable type in ERF_Fillpatch");
         }
 
         if (lev == 0)
         {
             Vector<MultiFab*> fmf = {&vars_old[lev][var_idx], &vars_new[lev][var_idx]};
             Vector<Real> ftime    = {t_old[lev], t_new[lev]};
-            amrex::FillPatchSingleLevel(mf, time, fmf, ftime, icomp, icomp, ncomp,
+            FillPatchSingleLevel(mf, time, fmf, ftime, icomp, icomp, ncomp,
                                         geom[lev], null_bc, bccomp);
         }
         else
@@ -104,7 +105,7 @@ ERF::FillPatch (int lev, Real time,
             Vector<MultiFab*> cmf = {&vars_old[lev-1][var_idx], &vars_new[lev-1][var_idx]};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-            amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
+            FillPatchTwoLevels(mf, time, cmf, ctime, fmf, ftime,
                                       0, icomp, ncomp, geom[lev-1], geom[lev],
                                       null_bc, bccomp, null_bc, bccomp, refRatio(lev-1),
                                       mapper, domain_bcs_type, bccomp);
@@ -193,7 +194,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 {
     BL_PROFILE_VAR("FillIntermediatePatch()",FillIntermediatePatch);
     int bccomp;
-    amrex::Interpolater* mapper;
+    Interpolater* mapper;
 
     //
     // ***************************************************************************
@@ -251,7 +252,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::xmom)
         {
             bccomp = BCVars::xvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -259,7 +260,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::ymom)
         {
             bccomp = BCVars::yvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,ng_vel);
             icomp  = 0;
             ncomp  = 1;
@@ -267,7 +268,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         else if (var_idx == IntVars::zmom)
         {
             bccomp = BCVars::zvel_bc;
-            mapper = &face_linear_interp;
+            mapper = &face_cons_linear_interp;
             ngvect = IntVect(ng_vel,ng_vel,0);
             icomp  = 0;
             ncomp  = 1;
@@ -292,10 +293,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
             Vector<MultiFab*> cmf = {&vars_old[lev-1][var_idx], &vars_new[lev-1][var_idx]};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-            amrex::FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                                      icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                                      null_bc, 0, null_bc, 0, refRatio(lev-1),
-                                      mapper, domain_bcs_type, bccomp);
+            FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
+                               icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                               null_bc, 0, null_bc, 0, refRatio(lev-1),
+                               mapper, domain_bcs_type, bccomp);
         } // lev > 0
     } // var_idx
 
@@ -363,15 +364,15 @@ ERF::FillCoarsePatch (int lev, Real time)
     int icomp = 0;
 
     int bccomp = 0;
-    amrex::Interpolater* mapper = &cell_cons_interp;
-    amrex::InterpFromCoarseLevel(vars_new[lev][Vars::cons], time, vars_new[lev-1][Vars::cons],
+    Interpolater* mapper = &cell_cons_interp;
+    InterpFromCoarseLevel(vars_new[lev][Vars::cons], time, vars_new[lev-1][Vars::cons],
                                  icomp, icomp, vars_new[lev][Vars::cons].nComp(),
                                  geom[lev-1], geom[lev],
                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
                                  mapper, domain_bcs_type, bccomp);
 
 
-    mapper = &face_linear_interp;
+    mapper = &face_cons_linear_interp;
 
     for (int which_lev = lev-1; which_lev <= lev; which_lev++)
     {
@@ -395,19 +396,19 @@ ERF::FillCoarsePatch (int lev, Real time)
     }
 
     bccomp = BCVars::xvel_bc;
-    amrex::InterpFromCoarseLevel(rU_new[lev], time, rU_new[lev-1],
+    InterpFromCoarseLevel(rU_new[lev], time, rU_new[lev-1],
                                  0, 0, 1, geom[lev-1], geom[lev],
                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
                                  mapper, domain_bcs_type, bccomp);
 
     bccomp = BCVars::yvel_bc;
-    amrex::InterpFromCoarseLevel(rV_new[lev], time, rV_new[lev-1],
+    InterpFromCoarseLevel(rV_new[lev], time, rV_new[lev-1],
                                  0, 0, 1, geom[lev-1], geom[lev],
                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
                                  mapper, domain_bcs_type, bccomp);
 
     bccomp = BCVars::zvel_bc;
-    amrex::InterpFromCoarseLevel(rW_new[lev], time, rW_new[lev-1],
+    InterpFromCoarseLevel(rW_new[lev], time, rW_new[lev-1],
                                  0, 0, 1, geom[lev-1], geom[lev],
                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
                                  mapper, domain_bcs_type, bccomp);

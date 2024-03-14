@@ -39,7 +39,7 @@ ERF::init_from_hse (int lev)
     MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
 
 //    const int khi = geom[0].Domain().bigEnd()[2];
-//    amrex::Print() << "khi="<<khi << std::endl;
+//    Print() << "khi="<<khi << std::endl;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

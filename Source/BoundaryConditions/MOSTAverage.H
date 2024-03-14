@@ -131,6 +131,7 @@ public:
             }
         }
 
+        amrex::ignore_unused(found);
         AMREX_ASSERT_WITH_MESSAGE(found, "MOSTAverage: Height above terrain not found, try increasing z_ref!");
 
         const amrex::RealVect lx((xp - plo[0])*dxi[0] + 0.5,

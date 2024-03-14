@@ -21,9 +21,9 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
                    FArrayBox& NC_msfm_fab, FArrayBox& NC_sst_fab,
                    IArrayBox& NC_lmask_iab)
 {
-    amrex::Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
+    Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
-    if (amrex::ParallelDescriptor::IOProcessor()) {
+    if (ParallelDescriptor::IOProcessor()) {
         auto ncf = ncutils::NCFile::open(fname, NC_CLOBBER | NC_NETCDF4);
         { // Global Attributes (int)
             std::vector<int> attr;
@@ -99,11 +99,11 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     if (flag_lmask) { NC_iabs.push_back(&NC_lmask_iab);     NC_inames.push_back("LANDMASK");   NC_idim_types.push_back(NC_Data_Dims_Type::Time_SN_WE); }
 
     // Read the netcdf file and fill these FABs
-    amrex::Print() << "Building initial FABS from file " << fname << std::endl;
+    Print() << "Building initial FABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_fnames, NC_fdim_types, NC_fabs);
 
     // Read the netcdf file and fill these IABs
-    amrex::Print() << "Building initial IABS from file " << fname << std::endl;
+    Print() << "Building initial IABS from file " << fname << std::endl;
     BuildFABsFromNetCDFFile<IArrayBox,int>(domain, fname, NC_inames, NC_idim_types, NC_iabs);
 
     // TODO: FIND OUT IF WE NEED TO DIVIDE VELS BY MAPFAC
