@@ -174,6 +174,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! moisture model variables */
         Array<FabPtr, MicVar_SD::NumVars> m_mic_fab_vars;
 
+        /*! names of aerosols */
+        std::vector<std::string> m_aerosols;
+
         /*! \brief read inputs */
         virtual void readInputs();
 

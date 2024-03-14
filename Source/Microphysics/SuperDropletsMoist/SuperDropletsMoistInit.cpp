@@ -18,6 +18,17 @@ void SuperDropletsMoist::readInputs ()
     m_init_type = ERFParticleInitializations::init_default;
     pp.query("initial_distribution_type", m_init_type);
 
+    m_aerosols.clear();
+    std::string aerosol_input = "aerosols";
+    if (pp.contains(aerosol_input.c_str())) {
+        int num_aerosols = pp.countval(aerosol_input.c_str());
+        std::string aero_name;
+        for (int i = 0; i < num_aerosols; i++) {
+            pp.get(aerosol_input.c_str(), aero_name, i);
+            m_aerosols.push_back(aero_name);
+        }
+    }
+
     return;
 }
 
@@ -46,11 +57,10 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     /* create the super-droplet particle container */
     std::string vapour_mat = MaterialNames::h2o; // water
-    std::vector<std::string> aerosol_mat( 1, MaterialNames::nacl ); // salt
     m_super_droplets = new SuperDropletPC ( a_geom,
                                             a_cons_vars.DistributionMap(),
                                             a_cons_vars.boxArray(),
-                                            vapour_mat, aerosol_mat,
+                                            vapour_mat, m_aerosols,
                                             m_name );
 
     if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
