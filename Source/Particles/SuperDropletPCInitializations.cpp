@@ -36,6 +36,14 @@ void SuperDropletPC::readInputs ()
     m_numdens_init = -1;
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_mass_condensate_init = 0.0;
+    m_advect_w_flow = true;
+    m_advect_w_gravity = true;
+
+    /* Newton solver parameters */
+    m_newton_rtol = 1.0e-6;
+    m_newton_atol = 1.0e-99;
+    m_newton_stol = 1.0e-99;
+    m_newton_maxits = 10;
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
@@ -43,6 +51,13 @@ void SuperDropletPC::readInputs ()
     pp.query("initial_super_droplet_density", m_numdens_sd_init);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("initial_condensate_mass", m_mass_condensate_init);
+    pp.query("advect_with_flow", m_advect_w_flow);
+    pp.query("advect_with_gravity", m_advect_w_gravity);
+    pp.query("newton_solver_rtol", m_newton_rtol);
+    pp.query("newton_solver_atol", m_newton_atol);
+    pp.query("newton_solver_stol", m_newton_stol);
+    pp.query("newton_solver_maxits", m_newton_maxits);
+
 
     for (int i = 0; i < m_num_aerosols; i++) {
         m_mass_aerosol_init[i] = 0.0;
@@ -280,7 +295,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     random amount for each super-droplet. The mass per physical particle is then computed from the
     mass per super-droplet and the multiplicity. The equivalent radius is then comptued from the
     particle mass and the density of condensate. */
-void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density of condensate */)
+void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of condensate */)
 {
     BL_PROFILE("SuperDropletPC::SetAttributes");
 
@@ -319,7 +334,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
-        auto mass_density = a_mass_density[pti.index()].array();
+        auto condensate_mass_density = a_rhoc[pti.index()].array();
 
         ParallelForRNG(n, [=] AMREX_GPU_DEVICE (int i, RandomEngine const& rnd_engine)
         {
@@ -327,17 +342,17 @@ void SuperDropletPC::SetAttributes (MultiFab& a_mass_density /*!< mass density o
             if (p.id() <= 0) { return; }
             auto iv = getParticleCell(p, plo, dxi, domain);
 
-            const Real mass_cell = mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
-            const Real mass_sd = mass_cell / num_sd_per_cell;
+            const Real mass_condensate_cell = condensate_mass_density(iv[0],iv[1],iv[2],0) * cell_volume;
+            const Real mass_condensate_sd = mass_condensate_cell / num_sd_per_cell;
 
             Real mult_rnd = -mult_ptr[i]/3 + 2*mult_ptr[i]/3*Random(rnd_engine);
             mult_ptr[i] += mult_rnd;
 
-            const Real mass_particle = mass_sd / mult_ptr[i] + mass_aerosol;
+            const Real mass_particle = mass_condensate_sd / mult_ptr[i] + mass_aerosol;
             mass_ptr[i] = mass_particle;
 
             Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);
-            Real radius = std::exp( std::log(radius_cubed) / 3.0 );
+            Real radius = (radius_cubed == 0.0 ? 0.0 : std::exp(std::log(radius_cubed)/3.0) );
             radius_ptr[i] = radius;
             supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
         });
