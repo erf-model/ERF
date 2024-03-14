@@ -399,6 +399,12 @@ class SuperDropletPC : public ERFPC
         std::unique_ptr<MaterialProperties> m_vapour_mat; /*!< Vapour material */
         std::vector<std::unique_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
 
+        /* Newton solver parameters */
+        amrex::Real m_newton_rtol;  /*!< Newton solver - relative tolerance */
+        amrex::Real m_newton_atol;  /*!< Newton solver - absolute tolerance */
+        amrex::Real m_newton_stol;  /*!< Newton solver - step tolerance */
+        int m_newton_maxits;        /*!< Newton solver - maximum iterations */
+
         /*! \brief read inputs from file */
         virtual void readInputs ();
 

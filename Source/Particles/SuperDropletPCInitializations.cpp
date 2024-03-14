@@ -36,6 +36,14 @@ void SuperDropletPC::readInputs ()
     m_numdens_init = -1;
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_mass_condensate_init = 0.0;
+    m_advect_w_flow = true;
+    m_advect_w_gravity = true;
+
+    /* Newton solver parameters */
+    m_newton_rtol = 1.0e-6;
+    m_newton_atol = 1.0e-99;
+    m_newton_stol = 1.0e-99;
+    m_newton_maxits = 10;
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
@@ -43,6 +51,13 @@ void SuperDropletPC::readInputs ()
     pp.query("initial_super_droplet_density", m_numdens_sd_init);
     pp.query("maximum_multiplicity", m_max_multiplicity);
     pp.query("initial_condensate_mass", m_mass_condensate_init);
+    pp.query("advect_with_flow", m_advect_w_flow);
+    pp.query("advect_with_gravity", m_advect_w_gravity);
+    pp.query("newton_solver_rtol", m_newton_rtol);
+    pp.query("newton_solver_atol", m_newton_atol);
+    pp.query("newton_solver_stol", m_newton_stol);
+    pp.query("newton_solver_maxits", m_newton_maxits);
+
 
     for (int i = 0; i < m_num_aerosols; i++) {
         m_mass_aerosol_init[i] = 0.0;
