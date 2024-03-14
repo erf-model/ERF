@@ -30,6 +30,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 {
     BL_PROFILE("SuperDropletsMoist::Init()");
     m_dt = a_dt;
+    m_geom = a_geom;
 
     m_mic_var_map.resize(m_qmoist_size);
     m_mic_var_map = {MicVar_SD::q_t, MicVar_SD::q_v, MicVar_SD::q_c};
@@ -51,7 +52,6 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                             a_cons_vars.boxArray(),
                                             vapour_mat, aerosol_mat,
                                             m_name );
-
 
     if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
         /* The conserved variables are not set up yet; the initial condensate

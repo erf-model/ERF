@@ -4,7 +4,7 @@
 #ifdef ERF_USE_PARTICLES
 
 #include <string>
-
+#include <AMReX_Geometry.H>
 #include "NullMoistLagrangian.H"
 #include "SuperDropletPC.H"
 
@@ -125,11 +125,15 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         inline virtual void computeQt ()
         {
             for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
-                const auto& box = mfi.tilebox();
+
+                Box bx = mfi.tilebox();
+                bx.grow(m_mic_fab_vars[MicVar_SD::q_t]->nGrowVect());
+
                 auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
                 auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
                 auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
-                ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+
+                ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
             }
         }
@@ -155,6 +159,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         const std::string m_name = "super_droplets_moisture";
         /*! particle container for super-droplets */
         SuperDropletPC* m_super_droplets;
+
+        /*! Geometry object */
+        amrex::Geometry m_geom;
 
         /*! vapour and condensed water density */
         const int m_qmoist_size = 3;

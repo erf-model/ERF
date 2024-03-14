@@ -11,13 +11,12 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     const auto& gvec = a_cons_vars.nGrowVect();
 
     // Copy density and vapour mixing ratio from state variables
-    // Note: do *not* copy condensate mixing ratio
+    // Note: do *not* copy qc
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         bx.grow(gvec);
 
-        auto states_arr = a_cons_vars.array(mfi);
-
+        auto states_arr = a_cons_vars.const_array(mfi);
         auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->array(mfi);
         auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
@@ -49,6 +48,10 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         });
     }
 
+    for (auto i(0); i < MicVar_SD::NumVars; i++) {
+        m_mic_fab_vars[i]->FillBoundary(m_geom.periodicity());
+    }
+
     AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::pressure]->contains_nan() );
     AMREX_ASSERT( !m_mic_fab_vars[MicVar_SD::temperature]->contains_nan() );
 }
@@ -57,53 +60,67 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
     member multifabs in this object */
 void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conserved variables */)
 {
+    const auto& gvec = a_cons_vars.nGrowVect();
+
     for ( MFIter mfi(a_cons_vars); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
+
+        Box bx = mfi.tilebox();
+        bx.grow(gvec);
+
         auto states_arr = a_cons_vars.array(mfi);
+        auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+        auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
 
-        auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
-        auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
-
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             states_arr(i,j,k,RhoQ1_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
         });
     }
+
+    a_cons_vars.FillBoundary(m_geom.periodicity());
 }
 
 /*! Convert a multifab containing density of something to its mixing ratio */
 void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
                                            const int a_comp /*!< Component */ )
 {
-    for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
+    const auto& gvec = a_var.nGrowVect();
 
-        auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->array(mfi);
+    for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        bx.grow(gvec);
+
+        auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
         auto fab_arr = a_var.array(mfi);
 
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            fab_arr(i,j,k,a_comp) /= rho_arr(i,j,k);
-        });
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { fab_arr(i,j,k,a_comp) /= rho_arr(i,j,k); });
     }
+
+    a_var.FillBoundary(m_geom.periodicity());
 }
 
 /*! Convert a multifab containing the mixing ratio of something to its density */
 void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
                                            const int a_comp /*!< Component */ )
 {
-    for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
+    const auto& gvec = a_var.nGrowVect();
 
-        auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->array(mfi);
+    for ( MFIter mfi(a_var); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        bx.grow(gvec);
+
+        auto rho_arr = m_mic_fab_vars[MicVar_SD::rho]->const_array(mfi);
         auto fab_arr = a_var.array(mfi);
 
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            fab_arr(i,j,k,a_comp) *= rho_arr(i,j,k);
-        });
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { fab_arr(i,j,k,a_comp) *= rho_arr(i,j,k); });
     }
+
+    a_var.FillBoundary(m_geom.periodicity());
 }
 
 #endif

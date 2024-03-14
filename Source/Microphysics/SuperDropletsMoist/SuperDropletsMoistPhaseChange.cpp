@@ -19,6 +19,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                 1,
                                 m_mic_fab_vars[MicVar_SD::pressure]->nGrowVect() );
     vapour_mat.computeSaturationPressure( mf_sat_pressure, (*m_mic_fab_vars[MicVar_SD::temperature]) );
+    mf_sat_pressure.FillBoundary();
 
     // Compute saturation ratio
     MultiFab mf_sat_ratio(  m_mic_fab_vars[MicVar_SD::pressure]->boxArray(),
@@ -28,13 +29,21 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
     vapour_mat.computeSaturationVapFrac(    mf_sat_ratio,
                                             (*m_mic_fab_vars[MicVar_SD::temperature]),
                                             (*m_mic_fab_vars[MicVar_SD::pressure]) );
+
     for (MFIter mfi(mf_sat_ratio, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.tilebox();
+
+        Box bx = mfi.tilebox();
+        bx.grow( mf_sat_ratio.nGrowVect() );
+
         const Array4<Real>& sr_arr = mf_sat_ratio.array(mfi);
         const Array4<Real const>& qv_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         { sr_arr(i,j,k,0) = qv_arr(i,j,k,0) / sr_arr(i,j,k,0); });
+
     }
+
+    mf_sat_ratio.FillBoundary();
 
     // Compute total water content qt
     computeQt();
@@ -52,12 +61,17 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
 
     // Update vapour mixing ratio
     for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
-        const auto& box = mfi.tilebox();
+
+        Box bx = mfi.tilebox();
+        bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
+
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
         auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
-        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { q_v_arr(i,j,k) = std::max(0.0, q_t_arr(i,j,k) - q_c_arr(i,j,k)); });
+
     }
 
 }
