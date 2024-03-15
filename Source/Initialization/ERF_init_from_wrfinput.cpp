@@ -483,10 +483,14 @@ verify_terrain_top_boundary (const Real& z_top,
 {
     int nboxes = NC_PH_fab.size();
     for (int idx = 0; idx < nboxes; idx++) {
-        Real zmin =  1.0e16;
-        Real zmax = -1.0e16;
+        Gpu::HostVector  <Real> MaxMax_h(2);
+        Gpu::DeviceVector<Real> MaxMax_d;
+        MaxMax_d.push_back(-1.0e16);
+        MaxMax_d.push_back(-1.0e16);
+        Real* mm_d = MaxMax_d.data();
 
-        Box Fab2dBox (NC_PHB_fab[idx].box()); Fab2dBox.setSmall(2,Fab2dBox.bigEnd(2));
+        Box Fab2dBox_hi (NC_PHB_fab[idx].box()); Fab2dBox_hi.makeSlab(2,Fab2dBox_hi.bigEnd(2));
+        Box Fab2dBox_lo (NC_PHB_fab[idx].box()); Fab2dBox_lo.makeSlab(2,Fab2dBox_lo.bigEnd(2)-1);
 
         Box nodal_box = amrex::surroundingNodes(NC_PHB_fab[idx].box());
         int ilo = nodal_box.smallEnd()[0];
@@ -497,7 +501,8 @@ verify_terrain_top_boundary (const Real& z_top,
         auto const& phb = NC_PHB_fab[idx].const_array();
         auto const& ph  = NC_PH_fab[idx].const_array();
 
-        ParallelFor(Fab2dBox, [=,&zmin,&zmax] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(Fab2dBox_hi, Fab2dBox_lo,
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             int ii = std::max(std::min(i,ihi-1),ilo+1);
             int jj = std::max(std::min(j,jhi-1),jlo+1);
@@ -505,15 +510,23 @@ verify_terrain_top_boundary (const Real& z_top,
                                    ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
                                    phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
                                    phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            zmin = amrex::min(zmin,z_calc);
-            zmax = amrex::max(zmax,z_calc);
+            mm_d[0] = amrex::max(mm_d[0],z_calc);
+        },
+        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            int ii = std::max(std::min(i,ihi-1),ilo+1);
+            int jj = std::max(std::min(j,jhi-1),jlo+1);
+            Real z_calc = 0.25 * ( ph (ii,jj  ,k) + ph (ii-1,jj  ,k) +
+                                   ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
+                                   phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
+                                   phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
+            mm_d[1] = amrex::max(mm_d[1],z_calc);
         });
 
-        Real tol = 1.0e-2;
-        if (std::fabs((z_top-zmin)/zmin) > tol &&
-            std::fabs((z_top-zmax)/zmax) > tol  ) {
+        Gpu::copy(Gpu::deviceToHost, MaxMax_d.begin(), MaxMax_d.end(), MaxMax_h.begin());
+        if ((z_top > MaxMax_h[0]) || (z_top < MaxMax_h[1])) {
             Print() << "Z problem extent " << z_top << " does not match NETCDF file min "
-                    << zmin << " and max " << zmax << "!\n";
+                    << MaxMax_h[1] << " and max " << MaxMax_h[0] << "!\n";
             Abort("Domain specification error");
         }
     }
