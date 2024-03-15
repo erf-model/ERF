@@ -46,7 +46,8 @@ Large-Eddy Simulations
 
   - Split timestepping offers some computational cost savings but still does
     not allow you to run with an incompressible time-step size.
-  - The acoustic CFL should be less than 0.5, with 4--6 substeps. E.g.,:
+  - The acoustic CFL should be less than 0.5, with 4--6 fast timesteps
+    (substeps) according to WRF best practices.
 
     .. code-block:: python
 
@@ -60,4 +61,22 @@ Large-Eddy Simulations
        # Alternatively, let ERF chose the fast timestep
        #erf.cfl                = 0.5
 
+  - We note that ERF LESs with up to 10 fast timesteps have successfully been
+    run but your mileage may vary.
 
+
+Single-Column Model
+-------------------
+
+* Currently, ERF does not have the ability to run a true single-column model
+  (SCM). The grid size in the lateral directions must have a minimum number of
+  cells. This will give comparable results, e.g.:
+
+  .. code-block:: python
+
+     geometry.prob_extent = 25  25  400
+     amr.n_cell           =  4   4   64
+     geometry.is_periodic =  1   1    0
+
+* An SCM was successfully run with third-order advection in the horizontal and
+  vertical.
