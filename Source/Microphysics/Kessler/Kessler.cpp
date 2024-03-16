@@ -11,7 +11,7 @@ using namespace amrex;
 void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
 
-if(solverChoice.moisture_type == MoistureType::Kessler){
+if (solverChoice.moisture_type == MoistureType::Kessler){
     auto qv    = mic_fab_vars[MicVar_Kess::qv];
     auto qc    = mic_fab_vars[MicVar_Kess::qcl];
     auto qp    = mic_fab_vars[MicVar_Kess::qp];

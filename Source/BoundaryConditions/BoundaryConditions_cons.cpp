@@ -15,8 +15,8 @@ using namespace amrex;
  * @param[in]     bccomp   index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                              int icomp, int ncomp, int bccomp)
+void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                   int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -99,8 +99,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1); bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
-        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
+        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = dom_lo.x - 1 - i;
@@ -128,8 +128,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_y)
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1); bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
+        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;
@@ -170,10 +170,10 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
  * @param[in] bccomp    index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_phys_nd,
-                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int icomp, int ncomp, int bccomp)
+void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                    const Array4<Real const>& z_phys_nd,
+                                                    const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                                    int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -308,25 +308,27 @@ void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, con
                     // GradX at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
                     Real GradVarx, GradVary;
-                    if (i < dom_lo.x-1 || i > dom_hi.x+1)
+                    if (i < dom_lo.x-1 || i > dom_hi.x+1) {
                         GradVarx = 0.0;
-                    else if (i+1 > bx_hi.x)
+                    } else if (i+1 > bx_hi.x) {
                         GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,n) - dest_arr(i-1,j,k0,n));
-                    else if (i-1 < bx_lo.x)
+                    } else if (i-1 < bx_lo.x) {
                         GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i  ,j,k0,n));
-                    else
+                    } else {
                         GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i-1,j,k0,n));
+                    }
 
                     // GradY at IJK location inside domain -- this relies on the assumption that we have
                     // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                    if (j < dom_lo.y-1 || j > dom_hi.y+1)
+                    if (j < dom_lo.y-1 || j > dom_hi.y+1) {
                         GradVary = 0.0;
-                    else if (j+1 > bx_hi.y)
+                    } else if (j+1 > bx_hi.y) {
                         GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,n) - dest_arr(i,j-1,k0,n));
-                    else if (j-1 < bx_lo.y)
+                    } else if (j-1 < bx_lo.y) {
                         GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j  ,k0,n));
-                    else
+                    } else {
                         GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
+                    }
 
                     // Prefactor
                     Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
