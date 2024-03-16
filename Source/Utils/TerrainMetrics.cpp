@@ -101,6 +101,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
 #endif
 
   // Number of ghost cells
+  int     ngrow     = z_phys_nd.nGrow();
   IntVect ngrowVect = z_phys_nd.nGrowVect();
 
   int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
@@ -162,8 +163,8 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
-        MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrowVect+IntVect(1,1,0));
-        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrowVect+IntVect(1,1,0));
+        MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
+        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
 
         // Save max height for smoothing
         Real max_h;
@@ -176,7 +177,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
                 b.setRange(2,0);
             }
             BoxArray ba2d(std::move(bl2d));
-            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrowVect, MFInfo().SetAlloc(false));
+            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
@@ -188,7 +189,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
         int k0 = domlo_z;
 
         // Get max value
-        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrowVect[0],ngrowVect[1],0),
+        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> GpuTuple<Real>
                 {
@@ -242,7 +243,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
             while (iter < maxIter && diff > threshold)
             {
 
-                diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrowVect[0],ngrowVect[1],0),
+                diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> GpuTuple<Real>
                 {
@@ -290,7 +291,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
             for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Grown box with no z range
-                Box xybx = mfi.growntilebox(ngrowVect);
+                Box xybx = mfi.growntilebox(ngrow);
                 xybx.setRange(2,0);
 
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
@@ -323,7 +324,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
         for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrowVect);
+            Box gbx = mfi.growntilebox(ngrow);
             gbx.setRange(2,domlo_z,domhi_z+1);
 
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
@@ -358,7 +359,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
         for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrowVect);
+            Box gbx = mfi.growntilebox(ngrow);
             gbx.setRange(2,domlo_z,domhi_z+1);
 
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
@@ -402,14 +403,17 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
   //********************************************************************************
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
-      // Grown box with no z range
-      Box xybx = mfi.growntilebox(ngrowVect);
-      xybx.setRange(2,0);
+      // Only set values above top of domain if this box reaches that far
+      Box nd_bx = mfi.tilebox();
 
-      Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+      // Note that domhi_z is already nodal in the z-direction
+      if (nd_bx.bigEnd(2) >= domhi_z) {
+          // Grown box with no z range
+          Box xybx = mfi.growntilebox(ngrow);
+          xybx.setRange(2,0);
+          Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
-      // Extrapolate top layer
-      if (xybx.bigEnd(2) >= domhi_z+1) {
+          // Extrapolate top layer
           ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
               z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
           });
@@ -420,7 +424,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
   // Debug
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
-       Box gbx = mfi.growntilebox(ngrowVect);
+       Box gbx = mfi.growntilebox(ngrow);
        gbx.setRange(2,domlo_z,domhi_z+1);
 
        Array4<Real> z_arr = z_phys_nd.array(mfi);
@@ -455,14 +459,14 @@ make_J (const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
-    IntVect ngrowVect = detJ_cc.nGrowVect();
+    int ngrow= detJ_cc.nGrow();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(detJ_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrowVect);
+        Box gbx = mfi.growntilebox(ngrow);
         if (gbx.smallEnd(2) < domlo_z) {
             gbx.setSmall(2,domlo_z);
         }
@@ -490,14 +494,14 @@ make_zcc (const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
-    IntVect ngrowVect = z_phys_cc.nGrowVect();
+    int ngrow= z_phys_cc.nGrow();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrowVect);
+        Box gbx = mfi.growntilebox(ngrow);
         if (gbx.smallEnd(2) < domlo_z) {
             gbx.setSmall(2,domlo_z);
         }

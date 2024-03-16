@@ -59,12 +59,12 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
             {
                 const Array4<Real> cons_arr = mf.array(mfi);;
 
-                impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);
-
                 if (!m_use_real_bcs)
                 {
                     impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp,ncomp,bccomp);
                 }
+
+                impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);
             }
 
         } // MFIter
