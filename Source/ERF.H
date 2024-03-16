@@ -548,7 +548,13 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
+
+    // Vector over levels of routines to impose physical boundary conditions
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
 
     // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;

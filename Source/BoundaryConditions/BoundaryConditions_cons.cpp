@@ -15,8 +15,8 @@ using namespace amrex;
  * @param[in]     bccomp   index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                              int icomp, int ncomp, int bccomp)
+void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                   int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);
@@ -99,8 +99,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1); bx_xlo.setSmall(2,dom_lo.z); bx_xlo.setBig(2,dom_hi.z);
-        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1); bx_xhi.setSmall(2,dom_lo.z); bx_xhi.setBig(2,dom_hi.z);
+        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+        Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = dom_lo.x - 1 - i;
@@ -128,8 +128,8 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
     if (!is_periodic_in_y)
     {
         // Populate ghost cells on lo-y and hi-y domain boundaries
-        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1); bx_ylo.setSmall(2,dom_lo.z); bx_ylo.setBig(2,dom_hi.z);
-        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1); bx_yhi.setSmall(2,dom_lo.z); bx_yhi.setBig(2,dom_hi.z);
+        Box bx_ylo(bx);  bx_ylo.setBig  (1,dom_lo.y-1);
+        Box bx_yhi(bx);  bx_yhi.setSmall(1,dom_hi.y+1);
         ParallelFor(
             bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip = dom_lo.y - 1 - j;
@@ -170,10 +170,10 @@ void ERFPhysBCFunct::impose_lateral_cons_bcs (const Array4<Real>& dest_arr, cons
  * @param[in] bccomp    index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_phys_nd,
-                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int icomp, int ncomp, int bccomp)
+void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr, const Box& bx, const Box& domain,
+                                                    const Array4<Real const>& z_phys_nd,
+                                                    const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                                    int icomp, int ncomp, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_cons_bcs()",impose_lateral_cons_bcs);
     const auto& dom_lo = lbound(domain);

@@ -72,7 +72,7 @@ init_zlevels (Vector<Real>& zlevels_stag,
  */
 
 void
-init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const& z_levels_h)
+init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const& z_levels_h)
 {
   // z_nd is nodal in all directions
   const Box& domain = geom.Domain();
@@ -88,6 +88,10 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
   int terrain_smoothing = 0;
   pp.query("terrain_smoothing", terrain_smoothing);
 
+  if (lev > 0 && terrain_smoothing != 0) {
+      Abort("Must use terrain_smoothing = 0 when doing multilevel");
+  }
+
    Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
 #ifdef AMREX_USE_GPU
@@ -97,7 +101,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
 #endif
 
   // Number of ghost cells
-  int ngrow = z_phys_nd.nGrow();
+  IntVect ngrowVect = z_phys_nd.nGrowVect();
 
   int imin = domlo_x; if (geom.isPeriodic(0)) imin -= z_phys_nd.nGrowVect()[0];
   int jmin = domlo_y; if (geom.isPeriodic(1)) jmin -= z_phys_nd.nGrowVect()[1];
@@ -108,13 +112,14 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
   switch(terrain_smoothing) {
     case 0: // BTF Method
     {
-      int k0    = 0;
-
       for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
+          // Note that this box is nodal because it is based on z_phys_nd
+          const Box& bx = mfi.validbox();
+          int k0 = bx.smallEnd()[2];
+
           // Grown box with corrected ghost cells at top
-          Box gbx = mfi.growntilebox(ngrow);
-          gbx.setRange(2,domlo_z,domhi_z+1);
+          Box gbx = mfi.growntilebox(ngrowVect);
 
           Array4<Real> const& z_arr = z_phys_nd.array(mfi);
           auto const&         z_lev = z_levels_d.data();
@@ -127,14 +132,27 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
               int ii = amrex::max(amrex::min(i,imax),imin);
               int jj = amrex::max(amrex::min(j,jmax),jmin);
 
+              //
               // Fill levels using BTF model from p2163 of Klemp2011
-              z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(ii,jj,k0);
+              //
+              // z_arr(i,j,k) = z_arr(ii,jj,k0) + (1. - z_arr(ii,jj,k0)/ztop) * z;
+              // is equivalent to
+              // z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(ii,jj,k0);
+              // This formulation allows us to start from k0 != 0
+              //
+              // If k0 = 0 then z_arr has already been filled from the terrain data
+              // If k0 > 0 then z_arr has already been filled from interpolation
+              //
+              if (k == k0) {
+                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
+              } else {
+                  z_arr(i,j,k) = z_arr(ii,jj,k0) + (1. - z_arr(ii,jj,k0)/ztop) * (z - z_lev[k0]);
+              }
 
               // Fill lateral boundaries and below the bottom surface
-              if (k == k0)
-                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-              if (k == 1)
+              if (k == 1) {
                   z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
+              }
           });
         }
 
@@ -144,8 +162,8 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
     case 1: // STF Method
     {
         // Get Multifab spanning domain with 1 level of ghost cells
-        MultiFab h_mf(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
-        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrow+1);
+        MultiFab h_mf(    z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrowVect+IntVect(1,1,0));
+        MultiFab h_mf_old(z_phys_nd.boxArray(), z_phys_nd.DistributionMap(), 1, ngrowVect+IntVect(1,1,0));
 
         // Save max height for smoothing
         Real max_h;
@@ -158,7 +176,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
                 b.setRange(2,0);
             }
             BoxArray ba2d(std::move(bl2d));
-            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrow, MFInfo().SetAlloc(false));
+            mf2d = MultiFab(ba2d, h_mf.DistributionMap(), 1, ngrowVect, MFInfo().SetAlloc(false));
         }
 
         // Get MultiArray4s from the multifabs
@@ -170,7 +188,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
         int k0 = domlo_z;
 
         // Get max value
-        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
+        max_h = ParReduce(TypeList<ReduceOpMax>{}, TypeList<Real>{}, mf2d, IntVect(ngrowVect[0],ngrowVect[1],0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> GpuTuple<Real>
                 {
@@ -224,7 +242,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
             while (iter < maxIter && diff > threshold)
             {
 
-                diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
+                diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrowVect[0],ngrowVect[1],0),
                     [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int) noexcept
                         -> GpuTuple<Real>
                 {
@@ -272,7 +290,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
             for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
             {
                 // Grown box with no z range
-                Box xybx = mfi.growntilebox(ngrow);
+                Box xybx = mfi.growntilebox(ngrowVect);
                 xybx.setRange(2,0);
 
                 Array4<Real> const& h_s   = h_mf_old.array(mfi);
@@ -305,7 +323,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
         for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrow);
+            Box gbx = mfi.growntilebox(ngrowVect);
             gbx.setRange(2,domlo_z,domhi_z+1);
 
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
@@ -340,7 +358,7 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
         for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with corrected ghost cells at top
-            Box gbx = mfi.growntilebox(ngrow);
+            Box gbx = mfi.growntilebox(ngrowVect);
             gbx.setRange(2,domlo_z,domhi_z+1);
 
             Array4<Real> const& z_arr = z_phys_nd.array(mfi);
@@ -385,22 +403,24 @@ init_terrain_grid (const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
       // Grown box with no z range
-      Box xybx = mfi.growntilebox(ngrow);
+      Box xybx = mfi.growntilebox(ngrowVect);
       xybx.setRange(2,0);
 
       Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
       // Extrapolate top layer
-      ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
-          z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
-      });
+      if (xybx.bigEnd(2) >= domhi_z+1) {
+          ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int ) {
+              z_arr(i,j,domhi_z+1) = 2.0*z_arr(i,j,domhi_z) - z_arr(i,j,domhi_z-1);
+          });
+      }
   }
 
   /*
   // Debug
   for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
   {
-       Box gbx = mfi.growntilebox(ngrow);
+       Box gbx = mfi.growntilebox(ngrowVect);
        gbx.setRange(2,domlo_z,domhi_z+1);
 
        Array4<Real> z_arr = z_phys_nd.array(mfi);
@@ -435,15 +455,17 @@ make_J (const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
-    int ngrow = detJ_cc.nGrow();
+    IntVect ngrowVect = detJ_cc.nGrowVect();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(detJ_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrow);
-        gbx.setSmall(2,domlo_z);
+        Box gbx = mfi.growntilebox(ngrowVect);
+        if (gbx.smallEnd(2) < domlo_z) {
+            gbx.setSmall(2,domlo_z);
+        }
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > detJ = detJ_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -468,15 +490,17 @@ make_zcc (const Geometry& geom,
     int domlo_z = domain.smallEnd(2);
 
     // Number of ghost cells
-    int ngrow = z_phys_cc.nGrow();
+    IntVect ngrowVect = z_phys_cc.nGrowVect();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for ( MFIter mfi(z_phys_cc, TilingIfNotGPU()); mfi.isValid(); ++mfi )
     {
-        Box gbx = mfi.growntilebox(ngrow);
-        gbx.setSmall(2,domlo_z);
+        Box gbx = mfi.growntilebox(ngrowVect);
+        if (gbx.smallEnd(2) < domlo_z) {
+            gbx.setSmall(2,domlo_z);
+        }
         Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
         Array4<Real      > z_cc = z_phys_cc.array(mfi);
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
