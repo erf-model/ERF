@@ -205,6 +205,8 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             gdomainz.grow(i, nghost[i]);
         }
     }
+    // We want to make sure we impose the z-vels at k=0  if the box includes k=0
+    if (gdomainz.smallEnd(2) == 0) gdomainz.setSmall(2,1);
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -230,9 +232,9 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            const Array4<const Real> velx_arr = xvel.array(mfi);;
-            const Array4<const Real> vely_arr = yvel.array(mfi);;
-            const Array4<      Real> velz_arr = mf.array(mfi);;
+            Array4<const Real> const& velx_arr = xvel.const_array(mfi);;
+            Array4<const Real> const& vely_arr = yvel.const_array(mfi);;
+            Array4<      Real> const& velz_arr = mf.array(mfi);;
 
             if (!m_use_real_bcs)
             {
@@ -246,7 +248,6 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                 impose_vertical_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,
                                          bccomp_u, bccomp_v, bccomp_w, m_terrain_type);
             }
-
         } // MFIter
     } // OpenMP
 } // operator()
@@ -288,7 +289,7 @@ void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /
 
             if (!m_use_real_bcs)
             {
-                const Array4<      Real> velz_arr = mf.array(mfi);;
+                Array4<      Real> const& velz_arr = mf.array(mfi);;
                 if (!gdomainz.contains(zbx))
                 {
                     impose_lateral_zvel_bcs(velz_arr,zbx,domain,bccomp);

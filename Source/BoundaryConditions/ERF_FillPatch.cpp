@@ -47,15 +47,19 @@ ERF::FillPatch (int lev, Real time,
                                *mfs_vel[Vars::yvel], mfs_vel[Vars::yvel]->nGrowVect(),
                                *mfs_vel[Vars::zvel], mfs_vel[Vars::zvel]->nGrowVect(),
                                *mfs_vel[Vars::cons],
-                               *mfs_mom[Vars::xvel], *mfs_mom[Vars::yvel], *mfs_mom[Vars::zvel],
+                               *mfs_mom[IntVars::xmom],
+                               *mfs_mom[IntVars::ymom],
+                               *mfs_mom[IntVars::zmom],
                                solverChoice.use_NumDiff);
-            FPr_u[lev-1].FillSet(*mfs_mom[Vars::xvel], time, null_bc, domain_bcs_type);
-            FPr_v[lev-1].FillSet(*mfs_mom[Vars::yvel], time, null_bc, domain_bcs_type);
-            FPr_w[lev-1].FillSet(*mfs_mom[Vars::zvel], time, null_bc, domain_bcs_type);
+            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time, null_bc, domain_bcs_type);
+            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time, null_bc, domain_bcs_type);
+            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time, null_bc, domain_bcs_type);
 
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],
-                               *mfs_mom[Vars::xvel], *mfs_mom[Vars::yvel], *mfs_mom[Vars::zvel]);
+                               *mfs_mom[IntVars::xmom],
+                               *mfs_mom[IntVars::ymom],
+                               *mfs_mom[IntVars::zmom]);
         }
     }
 
