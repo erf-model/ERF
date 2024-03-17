@@ -158,15 +158,15 @@ void erf_slow_rhs_pre (int level, int finest_level,
     Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
-    // *************************************************************************
+    // *****************************************************************************
     // Combine external forcing terms
-    // *************************************************************************
+    // *****************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
-    // *************************************************************************
+    // *****************************************************************************
     // Planar averages for subsidence terms
-    // *************************************************************************
+    // *****************************************************************************
     Table1D<Real> dptr_t_plane;
     Table1D<Real> dptr_u_plane;
     Table1D<Real> dptr_v_plane;
@@ -230,10 +230,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         });
     }
 
-
-    // *************************************************************************
+    // *****************************************************************************
     // Pre-computed quantities
-    // *************************************************************************
+    // *****************************************************************************
     int nvars                     = S_data[IntVars::cons].nComp();
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
     const DistributionMapping& dm = S_data[IntVars::cons].DistributionMap();
@@ -337,9 +336,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Array4<Real> s21   = S21.array();       Array4<Real> s31   = S31.array();       Array4<Real> s32   = S32.array();
                 Array4<Real> tau21 = Tau21->array(mfi); Array4<Real> tau31 = Tau31->array(mfi); Array4<Real> tau32 = Tau32->array(mfi);
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Expansion rate compute terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_er_T");
                 // First create Omega using velocity (not momentum)
@@ -371,9 +370,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 });
                 } // end profile
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Strain tensor compute terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_T");
                 ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
@@ -408,9 +407,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 }
 #endif
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Stress tensor compute terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_stress_T");
 
@@ -469,9 +468,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             } else {
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Expansion rate compute no terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_er_N");
                 ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -483,9 +482,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 } // end profile
 
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Strain tensor compute no terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
@@ -518,9 +517,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 }
 #endif
 
-                //-----------------------------------------
+                // *****************************************************************************
                 // Stress tensor compute no terrain
-                //-----------------------------------------
+                // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_stress_N");
 
@@ -572,9 +571,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // MFIter
     } // l_use_diff
 
-    // *************************************************************************
+    // *****************************************************************************
     // Define updates and fluxes in the current RK stage
-    // *************************************************************************
+    // *****************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -635,9 +634,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-        // *************************************************************************
+        // *****************************************************************************
+        // *****************************************************************************
         // Define flux arrays for use in advection
-        // *************************************************************************
+        // *****************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
@@ -645,9 +645,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
-        //-----------------------------------------
+        // *****************************************************************************
         // Perturbational pressure field
-        //-----------------------------------------
+        // *****************************************************************************
         Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
         FArrayBox pprime; pprime.resize(gbx,1,The_Async_Arena());
         const Array4<Real      > & pp_arr = pprime.array();
@@ -663,9 +663,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         });
         } // end profile
 
-        //-----------------------------------------
+        // *****************************************************************************
         // Contravariant flux field
-        //-----------------------------------------
+        // *****************************************************************************
         {
         BL_PROFILE("slow_rhs_making_omega");
             Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
@@ -703,9 +703,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // end profile
 
 
-        //-----------------------------------------
+        // *****************************************************************************
         // Diffusive terms (pre-computed above)
-        //-----------------------------------------
+        // *****************************************************************************
         // No terrain diffusion
         Array4<Real> tau11,tau22,tau33;
         Array4<Real> tau12,tau13,tau23;
@@ -732,9 +732,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             SmnSmn_a = Array4<Real>{};
         }
 
-        // **************************************************************************
+        // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
-        // **************************************************************************
+        // *****************************************************************************
         AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
@@ -866,9 +866,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 
-        // *********************************************************************
+        // *****************************************************************************
         // Define updates in the RHS of {x, y, z}-momentum equations
-        // *********************************************************************
+        // *****************************************************************************
         int lo_z_face;
         int hi_z_face;
         if (level == 0) {
@@ -931,9 +931,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_pre_xmom");
         auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
-        // ******************************************************************
+        // *****************************************************************************
         // TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
         if (l_use_terrain) {
           ParallelFor(tbx,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -993,9 +993,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         });
 
         } else {
-        // ******************************************************************
+        // *****************************************************************************
         // NON-TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
           ParallelFor(tbx,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // x-momentum equation
@@ -1034,9 +1034,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         {
         BL_PROFILE("slow_rhs_pre_ymom");
         auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
-        // ******************************************************************
+        // *****************************************************************************
         // TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
         if (l_use_terrain) {
           ParallelFor(tby,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -1093,9 +1093,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               }
           });
 
-        // ******************************************************************
+        // *****************************************************************************
         // NON-TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
         } else {
           ParallelFor(tby,
           [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -1145,12 +1145,53 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
 
+        // *****************************************************************************
+        // Zero out source terms for x- and y- momenta if at walls or inflow
+        // We need to do this -- even though we call the boundary conditions later --
+        // because the slow source is used to update the state in the fast interpolater.
+        // *****************************************************************************
         {
-        BL_PROFILE("slow_rhs_pre_zmom_2d");
+        if ( (bx.smallEnd(0) == domain.smallEnd(0)) && 
+             (bc_ptr[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
+            Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
+            ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_u_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) && 
+             (bc_ptr[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) ) {
+            Box hi_x_dom_face(bx); hi_x_dom_face.setSmall(0,bx.bigEnd(0)+1); hi_x_dom_face.setBig(0,bx.bigEnd(0)+1);
+            ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_u_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.smallEnd(1) == domain.smallEnd(1)) && 
+             (bc_ptr[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) ) {
+            Box lo_y_dom_face(bx); lo_y_dom_face.setBig(1,bx.smallEnd(1));
+            ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_v_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.bigEnd(1) == domain.bigEnd(1)) && 
+             (bc_ptr[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
+            Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);;
+            ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_v_rhs(i,j,k) = 0.;
+            });
+        }
+        }
+         
+        // *****************************************************************************
+        // Zero out source term for z-momentum at top and bottom of grid
+        // *****************************************************************************
+        {
         Box b2d = tbz;
         b2d.setSmall(2,lo_z_face);
         b2d.setBig(2,lo_z_face);
-        // Enforce no forcing term at top and bottom boundaries
+        // Enforce no forcing term at top and bottom boundaries of this grid
+        // We do this even when not at top or bottom of the domain because
+        //    z-vel on the coarse/fine boundary is given by the coarse value
+        //    (suitably interpolated tangentially and in time)
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
             rho_w_rhs(i,j,lo_z_face) = 0.;
             rho_w_rhs(i,j,hi_z_face) = 0.;
@@ -1161,9 +1202,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
         BL_PROFILE("slow_rhs_pre_zmom");
         auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
 
-        // ******************************************************************
+        // *****************************************************************************
         // TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
         if (l_use_terrain) {
           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
@@ -1198,9 +1239,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 }
           });
 
-        // ******************************************************************
+        // *****************************************************************************
         // NON-TERRAIN VERSION
-        // ******************************************************************
+        // *****************************************************************************
         } else {
           ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
           { // z-momentum equation
