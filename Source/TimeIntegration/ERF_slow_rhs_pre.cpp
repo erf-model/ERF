@@ -1151,28 +1151,28 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // because the slow source is used to update the state in the fast interpolater.
         // *****************************************************************************
         {
-        if ( (bx.smallEnd(0) == domain.smallEnd(0)) && 
+        if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              (bc_ptr[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
             Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
             ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_u_rhs(i,j,k) = 0.;
             });
         }
-        if ( (bx.bigEnd(0) == domain.bigEnd(0)) && 
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
              (bc_ptr[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) ) {
             Box hi_x_dom_face(bx); hi_x_dom_face.setSmall(0,bx.bigEnd(0)+1); hi_x_dom_face.setBig(0,bx.bigEnd(0)+1);
             ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_u_rhs(i,j,k) = 0.;
             });
         }
-        if ( (bx.smallEnd(1) == domain.smallEnd(1)) && 
+        if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
              (bc_ptr[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) ) {
             Box lo_y_dom_face(bx); lo_y_dom_face.setBig(1,bx.smallEnd(1));
             ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_v_rhs(i,j,k) = 0.;
             });
         }
-        if ( (bx.bigEnd(1) == domain.bigEnd(1)) && 
+        if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
              (bc_ptr[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
             Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);;
             ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
@@ -1180,7 +1180,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             });
         }
         }
-         
+
         // *****************************************************************************
         // Zero out source term for z-momentum at top and bottom of grid
         // *****************************************************************************
