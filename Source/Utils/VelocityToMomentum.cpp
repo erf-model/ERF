@@ -67,13 +67,16 @@ void VelocityToMomentum (const MultiFab& xvel_in,
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momx(i,j,k) = velx(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
+            Real rho_x_face = 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
+            momx(i,j,k) = velx(i,j,k) * rho_x_face;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momy(i,j,k) = vely(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
+            Real rho_y_face = 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
+            momy(i,j,k) = vely(i,j,k) * rho_y_face;
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            momz(i,j,k) = velz(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
+            Real rho_z_face = 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
+            momz(i,j,k) = velz(i,j,k) * rho_z_face;
         });
     } // end MFIter
 }
