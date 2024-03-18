@@ -87,7 +87,7 @@ ERF::init_windfarm (int lev)
             for(int it=0; it<xloc.size(); it++){
                 if( xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2 and
                     yloc[it]+1e-12 > y1 and yloc[it]+1e-12 < y2){
-                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0)    + 1;
+                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                 }
             }
         });
