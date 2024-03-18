@@ -199,8 +199,10 @@ ABLMost::compute_most_bcs (const int& lev,
         // Valid CC box
         Box vbx = mfi.validbox(); vbx.makeSlab(2,klo-1);
 
+#ifdef ERF_EXPLICIT_MOST_STRESS
         Box vbxx = surroundingNodes(vbx,0);
         Box vbxy = surroundingNodes(vbx,1);
+#endif
 
         // Get field arrays
         const auto cons_arr  = mfs[Vars::cons]->array(mfi);
@@ -221,7 +223,7 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto *const u_mean     = m_ma.get_average(lev,0);
         const auto *const v_mean     = m_ma.get_average(lev,1);
         const auto *const t_mean     = m_ma.get_average(lev,2);
-        const auto *const q_mean     = m_ma.get_average(lev,3);
+        // const auto *const q_mean     = m_ma.get_average(lev,3);
         const auto *const u_mag_mean = m_ma.get_average(lev,4);
 
         const auto um_arr  = u_mean->array(mfi);
@@ -256,8 +258,6 @@ ABLMost::compute_most_bcs (const int& lev,
 
 #ifdef ERF_EXPLICIT_MOST_STRESS
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo) ) : dz_no_terrain;
-
-                    // This is the _kinematic_ heat flux [K m/s]
                     Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1,
                                                           cons_arr, velx_arr, vely_arr,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
@@ -302,6 +302,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                               umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
 #endif
+                        amrex::ignore_unused(Qflux);
                     });
                 }
 
@@ -330,6 +331,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
 #endif
+                    amrex::ignore_unused(stressx);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -357,6 +359,7 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
 #endif
+                    amrex::ignore_unused(stressy);
                 });
             }
         } // var_idx
@@ -371,9 +374,9 @@ ABLMost::time_interp_sst (const int& lev,
     Real dT = m_bdy_time_interval;
     Real time_since_start = time - m_start_bdy_time;
     int n_time = static_cast<int>( time_since_start /  dT);
-    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    amrex::Real oma   = 1.0 - alpha;
+    Real oma   = 1.0 - alpha;
     AMREX_ALWAYS_ASSERT( (n_time >= 0) && (n_time < (m_sst_lev[lev].size()-1)));
 
     // Populate t_surf

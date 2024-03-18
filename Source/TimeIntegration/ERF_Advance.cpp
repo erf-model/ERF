@@ -92,8 +92,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
-    amrex::Vector<amrex::MultiFab> state_old;
-    amrex::Vector<amrex::MultiFab> state_new;
+    amrex::Vector<MultiFab> state_old;
+    amrex::Vector<MultiFab> state_new;
 
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced

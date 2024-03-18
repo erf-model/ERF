@@ -17,9 +17,9 @@ ERF::init_from_metgrid (int lev)
 {
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     if (use_moisture) {
-        amrex::Print() << "Init with met_em with valid moisture model." << std::endl;
+        Print() << "Init with met_em with valid moisture model." << std::endl;
     } else {
-        amrex::Print() << "Init with met_em without moisture model." << std::endl;
+        Print() << "Init with met_em without moisture model." << std::endl;
     }
 
     int nboxes = num_boxes_at_level[lev];
@@ -51,6 +51,8 @@ ERF::init_from_metgrid (int lev)
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(ntimes);
     Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(ntimes);
     Vector<FArrayBox> NC_sst_fab;    NC_sst_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LAT_fab;    NC_LAT_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize (ntimes);
 
     // *** IArrayBox's at this level for holding mask data
     Vector<IArrayBox> NC_lmask_iab; NC_lmask_iab.resize(ntimes);
@@ -87,7 +89,8 @@ ERF::init_from_metgrid (int lev)
                           NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
                           NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
-                          NC_sst_fab[it],  NC_lmask_iab[it]);
+                          NC_sst_fab[it],  NC_LAT_fab[it],  NC_LON_fab[it],
+                          NC_lmask_iab[it], Latitude,       Longitude,       geom[lev]);
     } // it
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -132,11 +135,12 @@ ERF::init_from_metgrid (int lev)
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
+        int lev = 0;
         init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
 
     // Copy SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
@@ -345,7 +349,7 @@ ERF::init_from_metgrid (int lev)
     // NOTE: We must guarantee one halo cell in the bdy file.
     //       Otherwise, we make the total width match the set width.
     if (real_width-1 <= real_set_width) real_width = real_set_width;
-    amrex::Print() << "Running with specification width: " << real_set_width
+    Print() << "Running with specification width: " << real_set_width
                    << " and relaxation width: " << real_width - real_set_width << std::endl;
 
     // Set up boxes for lateral boundary arrays.
@@ -416,7 +420,7 @@ ERF::init_from_metgrid (int lev)
                 bdy_data_yhi[it].push_back(FArrayBox(yhi_plane_no_stag, 1));
             } else {
 #ifndef AMREX_USE_GPU
-                amrex::Print() << "Unexpected ivar " << ivar << std::endl;
+                Print() << "Unexpected ivar " << ivar << std::endl;
 #endif
                 amrex::Abort("See Initialization/ERF_init_from_metgrid.cpp");
             }
@@ -466,25 +470,25 @@ ERF::init_from_metgrid (int lev)
             // west boundary
             ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at east boundary
             ParallelFor(xhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 xhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at south boundary
             ParallelFor(ylo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 ylo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
             // xvel at north boundary
             ParallelFor(yhi_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                amrex::Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
+                Real Factor = (multiply_rho) ? R_bcs_arr(i,j,k) : 1.0;
                 yhi_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
             });
 
@@ -995,7 +999,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfm_fab.template copy<RunOn::Device>(NC_MSFM_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_M not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfm_fab.template setVal<RunOn::Device>(1.0);
         }
@@ -1005,7 +1009,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfu_fab.template copy<RunOn::Device>(NC_MSFU_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_U not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfu_fab.template setVal<RunOn::Device>(1.0);
         }
@@ -1015,7 +1019,7 @@ init_msfs_from_metgrid (FArrayBox& msfu_fab,
             msfv_fab.template copy<RunOn::Device>(NC_MSFV_fab[it]);
         } else {
 #ifndef AMREX_USE_GPU
-            amrex::Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
+            Print() << " MAPFAC_V not present in met_em files. Setting to 1.0" << std::endl;
 #endif
             msfv_fab.template setVal<RunOn::Device>(1.0);
         }

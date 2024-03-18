@@ -9,16 +9,16 @@
 using namespace amrex;
 
 void
-ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
-                              const amrex::MultiFab& yvel,
-                              const amrex::MultiFab& cons_in,
-                              amrex::MultiFab& eddyViscosity,
-                              const amrex::Geometry& geom,
+ComputeTurbulentViscosityPBL (const MultiFab& xvel,
+                              const MultiFab& yvel,
+                              const MultiFab& cons_in,
+                              MultiFab& eddyViscosity,
+                              const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
-                              const amrex::BCRec* bc_ptr,
+                              const BCRec* bc_ptr,
                               bool /*vert_only*/,
-                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+                              const std::unique_ptr<MultiFab>& z_phys_nd);
 
 /**
  * Function for computing the turbulent viscosity with LES.
@@ -40,16 +40,16 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
  * @param[in]  mapfac_v map factor at y-face
  * @param[in]  turbChoice container with turbulence parameters
  */
-void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
-                                   const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
-                                   const amrex::MultiFab& cons_in, amrex::MultiFab& eddyViscosity,
-                                   amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
-                                   const amrex::Geometry& geom,
-                                   const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
-                                   const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
+                                   const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
+                                   const MultiFab& cons_in, MultiFab& eddyViscosity,
+                                   MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
+                                   const Geometry& geom,
+                                   const MultiFab& mapfac_u, const MultiFab& mapfac_v,
+                                   const std::unique_ptr<MultiFab>& z_phys_nd,
                                    const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
 {
-    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
+    const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
     const int& klo    = domain.smallEnd(2);
     const bool use_most = (most != nullptr);
@@ -62,16 +62,16 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
       Real Cs = turbChoice.Cs;
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for (amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      for (MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           // NOTE: This gets us the lateral ghost cells for lev>0; which
           //       have been filled from FP Two Levels.
           Box bxcc  = mfi.growntilebox() & domain;
 
           const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-          const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+          const Array4<Real const > &cell_data = cons_in.array(mfi);
 
           Array4<Real const> tau11 = Tau11.array(mfi);
           Array4<Real const> tau22 = Tau22.array(mfi);
@@ -108,17 +108,17 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     //***********************************************************************************
     else if (turbChoice.les_type == LESType::Deardorff)
     {
-      const amrex::Real l_C_k        = turbChoice.Ck;
-      const amrex::Real l_C_e        = turbChoice.Ce;
-      const amrex::Real l_C_e_wall   = turbChoice.Ce_wall;
-      const amrex::Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
-      const amrex::Real l_abs_g      = const_grav;
-      const amrex::Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+      const Real l_C_k        = turbChoice.Ck;
+      const Real l_C_e        = turbChoice.Ce;
+      const Real l_C_e_wall   = turbChoice.Ce_wall;
+      const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+      const Real l_abs_g      = const_grav;
+      const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
       {
           Box bxcc  = mfi.tilebox();
 
@@ -128,7 +128,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
         const Array4<Real>& hfx_z   = Hfx3.array(mfi);
         const Array4<Real>& diss    = Diss.array(mfi);
 
-        const amrex::Array4<amrex::Real const > &cell_data = cons_in.array(mfi);
+        const Array4<Real const > &cell_data = cons_in.array(mfi);
 
         Array4<Real const> mf_u = mapfac_u.array(mfi);
         Array4<Real const> mf_v = mapfac_v.array(mfi);
@@ -188,7 +188,7 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
 
           // Calculate SFS quantities
           // - dissipation
-          amrex::Real Ce;
+          Real Ce;
           if ((l_C_e_wall > 0) && (k==0))
               Ce = l_C_e_wall;
           else
@@ -220,9 +220,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     bool use_QKE = (turbChoice.use_QKE && turbChoice.diffuse_QKE_3D);
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         Box bxcc   = mfi.tilebox();
         Box planex = bxcc; planex.setSmall(0, 1); planex.setBig(0, ngc); planex.grow(1,1);
@@ -317,9 +317,9 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
     // Extrapolate top & bottom
     //***********************************************************************************
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-    for ( amrex::MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(eddyViscosity,TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bxcc   = mfi.tilebox();
         Box planez = bxcc; planez.setSmall(2, 1); planez.setBig(2, ngc);
@@ -401,18 +401,18 @@ void ComputeTurbulentViscosityLES (const amrex::MultiFab& Tau11, const amrex::Mu
  * @param[in]  most pointer to Monin-Obukhov class if instantiated
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  */
-void ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& yvel ,
-                                const amrex::MultiFab& Tau11, const amrex::MultiFab& Tau22, const amrex::MultiFab& Tau33,
-                                const amrex::MultiFab& Tau12, const amrex::MultiFab& Tau13, const amrex::MultiFab& Tau23,
-                                const amrex::MultiFab& cons_in,
-                                amrex::MultiFab& eddyViscosity,
-                                amrex::MultiFab& Hfx1, amrex::MultiFab& Hfx2, amrex::MultiFab& Hfx3, amrex::MultiFab& Diss,
-                                const amrex::Geometry& geom,
-                                const amrex::MultiFab& mapfac_u, const amrex::MultiFab& mapfac_v,
-                                const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
+                                const MultiFab& Tau11, const MultiFab& Tau22, const MultiFab& Tau33,
+                                const MultiFab& Tau12, const MultiFab& Tau13, const MultiFab& Tau23,
+                                const MultiFab& cons_in,
+                                MultiFab& eddyViscosity,
+                                MultiFab& Hfx1, MultiFab& Hfx2, MultiFab& Hfx3, MultiFab& Diss,
+                                const Geometry& geom,
+                                const MultiFab& mapfac_u, const MultiFab& mapfac_v,
+                                const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
-                                const amrex::BCRec* bc_ptr,
+                                const BCRec* bc_ptr,
                                 bool vert_only)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);

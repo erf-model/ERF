@@ -24,9 +24,9 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real dT = bdy_time_interval;
     Real time_since_start = time - start_bdy_time;
     int n_time = static_cast<int>( time_since_start /  dT);
-    amrex::Real alpha = (time_since_start - n_time * dT) / dT;
+    Real alpha = (time_since_start - n_time * dT) / dT;
     AMREX_ALWAYS_ASSERT( alpha >= 0. && alpha <= 1.0);
-    amrex::Real oma   = 1.0 - alpha;
+    Real oma   = 1.0 - alpha;
 
     // Flags for read vars and index mapping
     Vector<int> cons_read = {1, 1, 0, 0, 0, 1, 0, 0, 0};
@@ -60,8 +60,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         //
         Box domain = geom[lev].Domain();
         domain.convert(mf.boxArray().ixType());
-        const auto& dom_lo = amrex::lbound(domain);
-        const auto& dom_hi = amrex::ubound(domain);
+        const auto& dom_lo = lbound(domain);
+        const auto& dom_hi = ubound(domain);
 
         // Offset only applys to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;

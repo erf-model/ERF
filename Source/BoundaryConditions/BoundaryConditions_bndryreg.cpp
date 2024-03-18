@@ -20,10 +20,10 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const Real time)
     int lev = 0;
     const Box& domain = geom[lev].Domain();
 
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
-    amrex::Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
+    Vector<std::unique_ptr<PlaneVector>>& bndry_data = m_r2d->interp_in_time(time);
 
     // xlo: ori = 0
     // ylo: ori = 1

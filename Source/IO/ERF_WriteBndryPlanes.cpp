@@ -128,7 +128,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);
 
-    //amrex::Print() << "Writing boundary planes at time " << time << std::endl;
+    //Print() << "Writing boundary planes at time " << time << std::endl;
 
     const std::string level_prefix = "Level_";
     PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
@@ -180,7 +180,7 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else {
-            //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
+            //Print() << "Trying to write planar output for " << var_name << std::endl;
             Error("Don't know how to output this variable");
         }
 

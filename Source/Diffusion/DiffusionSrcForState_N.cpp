@@ -35,7 +35,7 @@ using namespace amrex;
  * @param[in]  use_most whether we have turned on MOST BCs
  */
 void
-DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
+DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         int start_comp, int num_comp,
                         const Array4<const Real>& u,
                         const Array4<const Real>& v,
@@ -45,7 +45,7 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                         const Array4<Real>& xflux,
                         const Array4<Real>& yflux,
                         const Array4<Real>& zflux,
-                        const amrex::GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& SmnSmn_a,
                         const Array4<const Real>& mf_m,
                         const Array4<const Real>& mf_u,
@@ -56,17 +56,19 @@ DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                         const DiffChoice &diffChoice,
                         const TurbChoice &turbChoice,
                         const Array4<const Real>& tm_arr,
-                        const amrex::GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
-                        const amrex::BCRec* bc_ptr,
+                        const GpuArray<Real,AMREX_SPACEDIM> grav_gpu,
+                        const BCRec* bc_ptr,
                         const bool use_most)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
+
+    amrex::ignore_unused(use_most);
 
     const Real dx_inv = cellSizeInv[0];
     const Real dy_inv = cellSizeInv[1];
     const Real dz_inv = cellSizeInv[2];
 
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_hi = ubound(domain);
 
     bool l_use_QKE       = turbChoice.use_QKE && turbChoice.advect_QKE;
     bool l_use_deardorff = (turbChoice.les_type == LESType::Deardorff);

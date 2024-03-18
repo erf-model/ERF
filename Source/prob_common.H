@@ -85,10 +85,11 @@ public:
                       const amrex::Box& /*xbx*/,
                       const amrex::Box& /*ybx*/,
                       const amrex::Box& /*zbx*/,
-                      amrex::Array4<amrex::Real      > const& /*state*/,
-                      amrex::Array4<amrex::Real      > const& /*x_vel*/,
-                      amrex::Array4<amrex::Real      > const& /*y_vel*/,
-                      amrex::Array4<amrex::Real      > const& /*z_vel*/,
+                      amrex::Array4<amrex::Real const> const& /*state*/,
+                      amrex::Array4<amrex::Real      > const& /*state_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                       amrex::Array4<amrex::Real      > const& /*r_hse*/,
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
@@ -97,8 +98,7 @@ public:
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       amrex::Array4<amrex::Real const> const& /*mf_u*/,
                       amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/
-    )
+                      const SolverChoice& /*sc*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;;
@@ -229,6 +229,7 @@ public:
                          amrex::MultiFab& z_phys_nd,
                          const amrex::Real& /*time*/)
     {
+        // Note that this only sets the terrain value at the ground IF k=0 is in the box
         amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
 
         // Number of ghost cells
@@ -240,14 +241,17 @@ public:
         for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with no z range
-            amrex::Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            amrex::Box  zbx = mfi.nodaltilebox(2);
+            if (zbx.smallEnd(2) <= 0) {
+                amrex::Box xybx = mfi.growntilebox(ngrow);
+                xybx.setRange(2,0);
 
-            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
 
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                z_arr(i,j,k0) = 0.0;
-            });
+                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                    z_arr(i,j,k0) = 0.0;
+                });
+            }
         }
     }
 
