@@ -1,23 +1,23 @@
 ===============================================================================
  ERF Job Information
 ===============================================================================
-inputs file: inputs_most
+inputs file: ../../Tests/test_files/ABL_MOST/ABL_MOST.i
 
-number of MPI processes: 2
+number of MPI processes: 1
 
-CPU time used since start of simulation (CPU-hours): 0.00363019
+CPU time used since start of simulation (CPU-hours): 0.0512243
 
 ===============================================================================
  Plotfile Information
 ===============================================================================
-output data / time: Mon Mar 18 13:54:50 2024
+output data / time: Mon Mar 18 16:07:42 2024
 output dir:         /home/alattanz/git/ERF/Exec/ABL
 
 
 ===============================================================================
  Build Information
 ===============================================================================
-build date:    2024-03-18 13:34:16.973907
+build date:    2024-03-18 16:04:05.793737
 build machine: Linux LAPTOP-PO22H9R0 4.4.0-22621-Microsoft #2506-Microsoft Fri Jan 01 08:00:00 PST 2016 x86_64 x86_64 x86_64 GNU/Linux
 build dir:     /home/alattanz/git/ERF/Exec/ABL
 AMReX dir:     /home/alattanz/git/amrex
@@ -26,7 +26,7 @@ COMP:          gnu
 COMP version:  9.4.0
 
 
-ERF       git hash: 057fe5f2-dirty
+ERF       git hash: 66666785-dirty
 AMReX       git hash: 22.05-774-ga5720c951
 
 
@@ -34,7 +34,7 @@ AMReX       git hash: 22.05-774-ga5720c951
  Grid Information
 ===============================================================================
  level: 0
-   number of boxes = 2
+   number of boxes = 1
    maximum zones   = 64 64 64 
 
  Boundary conditions
@@ -49,7 +49,7 @@ AMReX       git hash: 22.05-774-ga5720c951
 ===============================================================================
  Inputs File Parameters
 ===============================================================================
-max_step = 4000
+max_step = 10
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_extent = 1024 1024 1024
@@ -73,8 +73,11 @@ erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 erf.use_gravity = false
 erf.molec_diff_type = None
-erf.les_type = Smagorinsky
-erf.Cs = 0.1
+erf.les_type = Deardorff
+erf.Ck = 0.1
+erf.sigma_k = 1.0
+erf.Ce = 0.1
+erf.KE_0 = 0.1
 erf.init_type = uniform
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
@@ -82,10 +85,9 @@ prob.U_0 = 10.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
 prob.T_0 = 300.0
-prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
 prob.W_0_Pert_Mag = 0.0
-max_step = 10
 amr.refine_grid_layout_x = 1
 amr.refine_grid_layout_y = 1
 amr.refine_grid_layout_z = 0

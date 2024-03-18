@@ -19,12 +19,12 @@ erf.most.zref = 8.0
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 0.1  # fixed time step depending on grid resolution
+erf.fixed_dt = 0.1  # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
+amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -44,8 +44,11 @@ erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.molec_diff_type = "None"
-erf.les_type        = "Smagorinsky"
-erf.Cs              = 0.1
+erf.les_type = "Deardorff"
+erf.Ck       = 0.1
+erf.sigma_k  = 1.0
+erf.Ce       = 0.1
+erf.KE_0     = 0.1
 
 erf.init_type = "uniform"
 
@@ -60,6 +63,6 @@ prob.T_0 = 300.0
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC
-prob.U_0_Pert_Mag = 0.08
-prob.V_0_Pert_Mag = 0.08 #
+prob.U_0_Pert_Mag = 0.0
+prob.V_0_Pert_Mag = 0.0
 prob.W_0_Pert_Mag = 0.0
