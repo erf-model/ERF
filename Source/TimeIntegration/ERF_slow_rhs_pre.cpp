@@ -53,8 +53,7 @@ using namespace amrex;
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
- * @param[in]  domain_bcs_type     host vector for domain boundary conditions
- * @param[in]  domain_bcs_type     host vector for domain boundary conditions
+ * @param[in]  domain_bcs_type_h   host vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
@@ -95,7 +94,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
-                       const Vector<BCRec>& domain_bcs_type,
+                       const Vector<BCRec>& domain_bcs_type_h,
                        std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
@@ -142,8 +141,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_most     = (most != nullptr);
 
-    const BCRec* bc_ptr   = domain_bcs_type_d.data();
-    const BCRec* bc_ptr_h = domain_bcs_type.data();
+    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -769,7 +768,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss, mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr, use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, use_most);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -777,7 +776,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
                                        mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr, use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, use_most);
             }
         }
 
@@ -1152,28 +1151,28 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         {
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
-             (bc_ptr[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
+             (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
             Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
             ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_u_rhs(i,j,k) = 0.;
             });
         }
         if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
-             (bc_ptr[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) ) {
+             (bc_ptr_h[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) ) {
             Box hi_x_dom_face(bx); hi_x_dom_face.setSmall(0,bx.bigEnd(0)+1); hi_x_dom_face.setBig(0,bx.bigEnd(0)+1);
             ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_u_rhs(i,j,k) = 0.;
             });
         }
         if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
-             (bc_ptr[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) ) {
+             (bc_ptr_h[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) ) {
             Box lo_y_dom_face(bx); lo_y_dom_face.setBig(1,bx.smallEnd(1));
             ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_v_rhs(i,j,k) = 0.;
             });
         }
         if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
-             (bc_ptr[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
+             (bc_ptr_h[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
             Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);;
             ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 rho_v_rhs(i,j,k) = 0.;
