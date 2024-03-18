@@ -483,11 +483,8 @@ verify_terrain_top_boundary (const Real& z_top,
 {
     int nboxes = NC_PH_fab.size();
     for (int idx = 0; idx < nboxes; idx++) {
-        Gpu::HostVector  <Real> MaxMax_h(2);
-        Gpu::DeviceVector<Real> MaxMax_d;
-        MaxMax_d.resize(2);
-        MaxMax_h.push_back(-1.0e16);
-        MaxMax_h.push_back(-1.0e16);
+        Gpu::HostVector  <Real> MaxMax_h(2,-1.0e16);
+        Gpu::DeviceVector<Real> MaxMax_d(2);
 #ifdef AMREX_USE_GPU
         Gpu::htod_memcpy_async(MaxMax_d.data(), MaxMax_h.data(), sizeof(Real)*2);
 #else
