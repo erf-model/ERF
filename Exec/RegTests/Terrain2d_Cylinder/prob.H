@@ -19,7 +19,7 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/init_density_hse_dry_terrain.H"
+#include "Prob/init_density_hse_dry.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,

@@ -36,7 +36,7 @@ public:
             amrex::Print() << "Kessler moisture model!\n";
         } else if (a_model_type == MoistureType::None) {
             SetModel<NullMoist>();
-            amrex::Print() << "WARNING: Compiled with moisture but using NullMoist model!\n";
+            amrex::Print() << "No moisture model!\n";
         } else {
             amrex::Abort("EulerianMicrophysics: Dont know this moisture_type!") ;
         }

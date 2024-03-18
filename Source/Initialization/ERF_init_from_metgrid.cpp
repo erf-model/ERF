@@ -51,6 +51,8 @@ ERF::init_from_metgrid (int lev)
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(ntimes);
     Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(ntimes);
     Vector<FArrayBox> NC_sst_fab;    NC_sst_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LAT_fab;    NC_LAT_fab.resize (ntimes);
+    Vector<FArrayBox> NC_LON_fab;    NC_LON_fab.resize (ntimes);
 
     // *** IArrayBox's at this level for holding mask data
     Vector<IArrayBox> NC_lmask_iab; NC_lmask_iab.resize(ntimes);
@@ -87,7 +89,8 @@ ERF::init_from_metgrid (int lev)
                           NC_temp_fab[it], NC_rhum_fab[it], NC_pres_fab[it],
                           NC_ght_fab[it],  NC_hgt_fab[it],  NC_psfc_fab[it],
                           NC_MSFU_fab[it], NC_MSFV_fab[it], NC_MSFM_fab[it],
-                          NC_sst_fab[it],  NC_lmask_iab[it]);
+                          NC_sst_fab[it],  NC_LAT_fab[it],  NC_LON_fab[it],
+                          NC_lmask_iab[it], Latitude,       Longitude,       geom[lev]);
     } // it
 
     // Verify that files in nc_init_file[lev] are ordered from earliest to latest.
@@ -132,11 +135,12 @@ ERF::init_from_metgrid (int lev)
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
+        int lev = 0;
         init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
 
     // Copy SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
