@@ -340,6 +340,10 @@ public:
     void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
+#ifdef ERF_USE_WINDFARM
+    void init_windfarm(int lev);
+#endif
+
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
@@ -378,7 +382,7 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
-	// This reads in the turbuine locations and thrust and power coefficients from the input text files
+    // This reads in the turbuine locations and thrust and power coefficients from the input text files
     // and fills the associated multifabs with that data
     void initializeWindFarmParametrization (const int&);
 

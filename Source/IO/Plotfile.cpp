@@ -336,9 +336,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
-		if (containerHasElement(plot_var_names, "num_turb"))
+        if (containerHasElement(plot_var_names, "num_turb"))
         {
-		std::cout << "Plotting num_turb" << "\n";
+        std::cout << "Plotting num_turb" << "\n";
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -346,10 +346,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             {
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
-				const Array4<Real const>& Nturb_array = Nturb[lev].const_array(mfi);
+                const Array4<Real const>& Nturb_array = Nturb[lev].const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-					std::cout << "Value of Nturb is " << Nturb_array(i,j,k,0) << "\n";
-				
                     derdat(i, j, k, mf_comp) = Nturb_array(i,j,k,0);
                 });
             }
