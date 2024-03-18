@@ -191,8 +191,15 @@ ERF::ERF ()
         vars_old[lev].resize(Vars::NumTypes);
     }
 
+    // Time integrator
     mri_integrator_mem.resize(nlevs_max);
-    physbcs.resize(nlevs_max);
+
+    // Physical boundary conditions
+    physbcs_cons.resize(nlevs_max);
+    physbcs_u.resize(nlevs_max);
+    physbcs_v.resize(nlevs_max);
+    physbcs_w.resize(nlevs_max);
+    physbcs_w_no_terrain.resize(nlevs_max);
 
     advflux_reg.resize(nlevs_max);
 
@@ -521,6 +528,16 @@ ERF::InitData ()
         if (solverChoice.use_terrain) {
             if (init_type == "ideal") {
                 Abort("We do not currently support init_type = ideal with terrain");
+            }
+        }
+
+        //
+        // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+        //
+        if (solverChoice.use_terrain != 0) {
+            for (int crse_lev = finest_level-1; crse_lev >= 0; crse_lev--) {
+                average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+                average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
             }
         }
 
@@ -1580,8 +1597,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
 void
 ERF::Construct_ERFFillPatchers (int lev)
 {
-    Print() << ":::Construct_ERFFillPatchers " << lev << std::endl;
-
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();
@@ -1608,8 +1623,6 @@ ERF::Construct_ERFFillPatchers (int lev)
 void
 ERF::Define_ERFFillPatchers (int lev)
 {
-    Print() << ":::Define_ERFFillPatchers " << lev << std::endl;
-
     auto& fine_new = vars_new[lev];
     auto& crse_new = vars_new[lev-1];
     auto& ba_fine  = fine_new[Vars::cons].boxArray();

@@ -248,7 +248,6 @@ ERF::erf_enforce_hse (int lev,
             } else {
                 // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
-                AMREX_ALWAYS_ASSERT(!l_use_terrain);
                 Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
                 pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz * dens_interp * l_gravity;
 

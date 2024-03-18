@@ -36,7 +36,12 @@ read_from_metgrid (int lev,
                    amrex::FArrayBox& NC_msfv_fab,
                    amrex::FArrayBox& NC_msfm_fab,
                    amrex::FArrayBox& NC_sst_fab,
-                   amrex::IArrayBox& NC_lmask_iab);
+                   amrex::FArrayBox& NC_LAT_fab,
+                   amrex::FArrayBox& NC_LON_fab,
+                   amrex::IArrayBox& NC_lmask_iab,
+                   amrex::Real& Latitude,
+                   amrex::Real& Longitude,
+                   amrex::Geometry& geom);
 
 
 

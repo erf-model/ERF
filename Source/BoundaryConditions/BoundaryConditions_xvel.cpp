@@ -14,9 +14,8 @@ using namespace amrex;
  * @param[in] bccomp   index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
-                                              const Box& bx, const Box& domain,
-                                              int bccomp)
+void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
+                                                const Box& bx, const Box& domain, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_xvel_bcs()",impose_lateral_xvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -161,11 +160,11 @@ void ERFPhysBCFunct::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
  * @param[in] dxInv     inverse cell size array
  * @param[in] bccomp    index into m_domain_bcs_type
  */
-void ERFPhysBCFunct::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
-                                               const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_phys_nd,
-                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int bccomp,
+void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
+                                                 const Box& bx, const Box& domain,
+                                                 const Array4<Real const>& z_phys_nd,
+                                                 const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                                 int bccomp,
 #ifdef ERF_USE_TERRAIN_VELOCITY
                                                const Real time)
 #else
