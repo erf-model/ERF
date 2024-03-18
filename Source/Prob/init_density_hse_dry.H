@@ -37,7 +37,7 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
             b2d.setRange(2,0);
 
             const int klo = tbz.smallEnd(2);
-            const int khi = tbz.bigEnd(2);
+            const int khi = tbz.bigEnd(2)-1;
 
             amrex::ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
               amrex::Array1D<amrex::Real,0,255> r;;
