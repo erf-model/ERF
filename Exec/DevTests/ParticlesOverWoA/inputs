@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 200
+max_step =  40
 
 amrex.fpe_trap_invalid = 1
 
@@ -27,7 +27,7 @@ zhi.type = "SlipWall"
 erf.use_tracer_particles = 1
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 2E-4
+erf.fixed_dt           = 1E-3
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -81,5 +81,5 @@ erf.alpha_T = 0.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
 prob.T_0   = 300.0
-prob.U_0   = 0.0
+prob.U_0   = 10.0
 prob.rho_0 = 1.16

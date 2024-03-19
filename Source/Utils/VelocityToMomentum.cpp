@@ -4,6 +4,7 @@
 #include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <Utils.H>
+#include <AMReX_MultiFabUtil.H>
 
 using namespace amrex;
 
@@ -19,6 +20,8 @@ using namespace amrex;
  * @param[out] xmom x-component of momentum
  * @param[out] ymom y-component of momentum
  * @param[out] zmom z-component of momentum
+ * @param[in] domain  Domain at this level
+ * @param[in] domain_bcs_type_h   host vector for domain boundary conditions
  * @param[in] l_use_ndiff flag describing whether we will later add explicit numerical diffusion
  */
 
@@ -30,9 +33,13 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                          const  IntVect& zvel_ngrow,
                          const MultiFab& density,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
+                         const Box& domain,
+                         const Vector<BCRec>& domain_bcs_type_h,
                          bool l_use_ndiff)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
+
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     // Loop over boxes = valid boxes grown by ngrow
 #ifdef _OPENMP
@@ -41,6 +48,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
     for ( MFIter mfi(density,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         // We need momentum in the interior ghost cells (init == real)
+        const Box& bx = mfi.tilebox();
         Box tbx, tby, tbz;
         if (l_use_ndiff) {
             tbx = mfi.tilebox(IntVect(1,0,0),xvel_ngrow);
@@ -78,5 +86,34 @@ void VelocityToMomentum (const MultiFab& xvel_in,
             Real rho_z_face = 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
             momz(i,j,k) = velz(i,j,k) * rho_z_face;
         });
+
+        if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rho_x_face = dens_arr(i-1,j,k,Rho_comp);
+                momx(i,j,k) = velx(i,j,k) * rho_x_face;
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rho_x_face = dens_arr(i,j,k,Rho_comp);
+                momx(i,j,k) = velx(i,j,k) * rho_x_face;
+            });
+        }
+        if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
+             (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rho_y_face = dens_arr(i,j-1,k,Rho_comp);
+                momy(i,j,k) = vely(i,j,k) * rho_y_face;
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                Real rho_y_face = dens_arr(i,j,k,Rho_comp);
+                momy(i,j,k) = vely(i,j,k) * rho_y_face;
+            });
+        }
     } // end MFIter
 }
