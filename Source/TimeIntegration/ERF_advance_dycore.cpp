@@ -43,7 +43,6 @@ void ERF::advance_dycore(int level,
                          const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
-    if (verbose) Print() << "Starting advance_dycore at level " << level << std::endl;
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -222,14 +221,15 @@ void ERF::advance_dycore(int level,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
                        state_old[IntVars::zmom],
+                       Geom(level).Domain(), domain_bcs_type,
                        solverChoice.use_NumDiff);
-
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
     MultiFab::Copy(zvel_new,zvel_old,0,0,1,zvel_old.nGrowVect());
 
     bool fast_only = false;
     bool vel_and_mom_synced = true;
+
     apply_bcs(state_old, old_time,
               state_old[IntVars::cons].nGrow(), state_old[IntVars::xmom].nGrow(),
               fast_only, vel_and_mom_synced);
