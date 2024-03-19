@@ -100,8 +100,6 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
-DEFINES += -DERF_USE_MOISTURE
-
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
@@ -162,6 +160,11 @@ include $(ERF_MATPROP_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MATPROP_DIR)
 INCLUDE_LOCATIONS += $(ERF_MATPROP_DIR)
 
+
+ifeq ($(USE_EXPLICIT_MOST_STRESS), TRUE)
+    DEFINES += -DERF_EXPLICIT_MOST_STRESS
+endif
+        
 ifeq ($(COMPUTE_ERROR), TRUE)
   DEFINES += -DERF_COMPUTE_ERROR
 endif

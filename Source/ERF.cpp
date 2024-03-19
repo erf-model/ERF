@@ -1576,6 +1576,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rU_new[lev],
                              rV_new[lev],
                              rW_new[lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type,
                            true);
     }
 
@@ -1590,7 +1592,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            vars_new[lev][Vars::cons],
                              rU_new[lev],
                              rV_new[lev],
-                             rW_new[lev]);
+                             rW_new[lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type);
     }
 }
 

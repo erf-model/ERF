@@ -50,6 +50,8 @@ ERF::FillPatch (int lev, Real time,
                                *mfs_mom[IntVars::xmom],
                                *mfs_mom[IntVars::ymom],
                                *mfs_mom[IntVars::zmom],
+                               Geom(lev).Domain(),
+                               domain_bcs_type,
                                solverChoice.use_NumDiff);
             FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time, null_bc, domain_bcs_type);
@@ -59,7 +61,9 @@ ERF::FillPatch (int lev, Real time,
                                *mfs_vel[Vars::cons],
                                *mfs_mom[IntVars::xmom],
                                *mfs_mom[IntVars::ymom],
-                               *mfs_mom[IntVars::zmom]);
+                               *mfs_mom[IntVars::zmom],
+                               Geom(lev).Domain(),
+                               domain_bcs_type);
         }
     }
 
@@ -257,7 +261,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
         // This only fills VALID region of velocity
         MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                            *mfs_vel[Vars::cons],
-                           *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom]);
+                           *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
+                            Geom(lev).Domain(), domain_bcs_type);
     }
 
     // We now start working on VELOCITY
@@ -366,6 +371,8 @@ ERF::FillIntermediatePatch (int lev, Real time,
                            *mfs_vel[Vars::zvel], mfs_vel[Vars::zvel]->nGrowVect(),
                            *mfs_vel[Vars::cons],
                            *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
+                           Geom(lev).Domain(),
+                           domain_bcs_type,
                            solverChoice.use_NumDiff);
     }
 }
@@ -417,6 +424,8 @@ ERF::FillCoarsePatch (int lev, Real time)
                              rU_new[which_lev],
                              rV_new[which_lev],
                              rW_new[which_lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type,
                            true);
     }
 
@@ -446,7 +455,9 @@ ERF::FillCoarsePatch (int lev, Real time)
                            vars_new[which_lev][Vars::cons],
                              rU_new[which_lev],
                              rV_new[which_lev],
-                             rW_new[which_lev]);
+                             rW_new[which_lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type);
     }
 
     vars_new[lev][Vars::cons].FillBoundary(geom[lev].periodicity());

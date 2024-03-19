@@ -1,4 +1,4 @@
-set(erf_exe_name erf_witch_of_agnesi)
+set(erf_exe_name erf_3d_hemisphere)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}
