@@ -1,0 +1,6 @@
+This problem setup is for flow over an idealized hill with a "Witch of Agnesi" profile.   
+The domain is periodic in the y-direction, with inflow at low x and outflow at high x.
+The terrain-fitted coordinates follow the contour of the hill.
+
+This problem is primarily designed to test the implementation of the terrain-fitted coordinates.
+

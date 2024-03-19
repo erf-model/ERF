@@ -22,11 +22,16 @@ using namespace amrex;
 void Kessler::Init (const MultiFab& cons_in,
                     const BoxArray& grids,
                     const Geometry& geom,
-                    const Real& dt_advance)
+                    const Real& dt_advance,
+                    std::unique_ptr<MultiFab>& z_phys_nd,
+                    std::unique_ptr<MultiFab>& detJ_cc)
 {
     dt = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
+
+    m_z_phys_nd = z_phys_nd.get();
+    m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_Kess::rain_accum, MicVar_Kess::qt, MicVar_Kess::qv, MicVar_Kess::qcl, MicVar_Kess::qp};
