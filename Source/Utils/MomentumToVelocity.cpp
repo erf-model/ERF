@@ -59,44 +59,37 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real rho_x_inv = 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
-            velx(i,j,k) = momx(i,j,k) * rho_x_inv;
+            velx(i,j,k) = momx(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real rho_y_inv = 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
-            vely(i,j,k) = momy(i,j,k) * rho_y_inv;
+            vely(i,j,k) = momy(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real rho_z_inv = 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
-            velz(i,j,k) = momz(i,j,k) * rho_z_inv;
+            velz(i,j,k) = momz(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
         });
 
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ) {
             ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_x_inv = 1.0 / dens_arr(i-1,j,k,Rho_comp);
-                velx(i,j,k) = momx(i,j,k) * rho_x_inv;
+                velx(i,j,k) = momx(i,j,k) / dens_arr(i-1,j,k,Rho_comp);
             });
         }
         if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
              (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
             ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_x_inv = 1.0 / dens_arr(i,j,k,Rho_comp);
-                velx(i,j,k) = momx(i,j,k) * rho_x_inv;
+                velx(i,j,k) = momx(i,j,k) / dens_arr(i,j,k,Rho_comp);
             });
         }
         if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
              (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir) ) {
             ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_y_inv = 1.0 / dens_arr(i,j-1,k,Rho_comp);
-                vely(i,j,k) = momy(i,j,k) * rho_y_inv;
+                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
             });
         }
         if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
              (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
             ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                Real rho_y_inv = 1.0 / dens_arr(i,j,k,Rho_comp);
-                vely(i,j,k) = momy(i,j,k) * rho_y_inv;
+                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
             });
         }
     } // end MFIter
