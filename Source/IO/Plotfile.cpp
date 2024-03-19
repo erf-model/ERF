@@ -336,6 +336,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+#ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb"))
         {
         std::cout << "Plotting num_turb" << "\n";
@@ -353,6 +354,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp ++;
         }
+#endif
 
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);
