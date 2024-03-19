@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 20
+max_step = 200
 
 amrex.fpe_trap_invalid = 1
 
@@ -27,7 +27,7 @@ zhi.type = "SlipWall"
 erf.use_tracer_particles = 1
 
 # TIME STEP CONTROL
-erf.fixed_dt           = 2E-3
+erf.fixed_dt           = 2E-4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1        # timesteps between computing mass
@@ -39,11 +39,11 @@ amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
 erf.check_file      = chk     # root name of checkpoint file
-erf.check_int       = 10  # number of timesteps between checkpoints
+erf.check_int       = 100 # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt     # prefix of plotfile name
-erf.plot_int_1      = 5       # number of timesteps between plotfiles
+erf.plot_int_1      = 50      # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta pres_hse dens_hse pert_pres pert_dens z_phys detJ dpdx dpdy pres_hse_x pres_hse_y tracer_particles_count tracer_particles_mass_density
 
 # SOLVER CHOICE
