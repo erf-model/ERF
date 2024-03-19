@@ -13,7 +13,6 @@ using namespace amrex;
  */
 void SAM::PrecipFall ()
 {
-    Real eps = std::numeric_limits<Real>::epsilon();
     Real rho_0 = 1.29;
 
     Real gamr3 = erf_gammafff(4.0+b_rain);
@@ -84,6 +83,13 @@ void SAM::PrecipFall ()
                         + (1.0-omp)*( (1.0-omg)*vsnow*std::pow(rho_avg*qss,1.0+csnow)
                                     +      omg *vgrau*std::pow(rho_avg*qgg,1.0+cgrau) );
             }
+
+            // NOTE: Fz is the sedimentation flux from the advective operator.
+            //       In the terrain-following coordinate system, the z-deriv in
+            //       the divergence uses the normal velocity (Omega). However,
+            //       there are no u/v components to the sedimentation velocity.
+            //       Therefore, we simply end up with a division by detJ when
+            //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
             fz_array(i,j,k) = Pprecip * std::sqrt(rho_0/rho_avg);
         });
     }
@@ -97,16 +103,21 @@ void SAM::PrecipFall ()
         auto tabs_array   = tabs->array(mfi);
         auto fz_array     = fz.array(mfi);
 
+        const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
+
         const auto& box3d = mfi.tilebox();
 
         // Update precipitation mass fraction and liquid-ice static
         // energy using precipitation fluxes computed in this column.
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            // Jacobian determinant
+            Real dJinv = (dJ_array) ? 1.0/dJ_array(i,j,k) : 1.0;
+
             //==================================================
             // Precipitating sedimentation (A19)
             //==================================================
-            Real dqp = (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
+            Real dqp = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
             Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
             Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
 
