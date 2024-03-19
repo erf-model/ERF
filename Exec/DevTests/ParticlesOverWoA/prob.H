@@ -25,17 +25,18 @@ class Problem : public ProblemBase
 public:
     Problem();
 
-#include "Prob/init_density_hse_dry_terrain.H"
+#include "Prob/init_density_hse_dry.H"
 
     void init_custom_pert (
         const amrex::Box&  bx,
         const amrex::Box& xbx,
         const amrex::Box& ybx,
         const amrex::Box& zbx,
-        amrex::Array4<amrex::Real      > const& state,
-        amrex::Array4<amrex::Real      > const& x_vel,
-        amrex::Array4<amrex::Real      > const& y_vel,
-        amrex::Array4<amrex::Real      > const& z_vel,
+        amrex::Array4<amrex::Real const> const& state,
+        amrex::Array4<amrex::Real      > const& state_pert,
+        amrex::Array4<amrex::Real      > const& x_vel_pert,
+        amrex::Array4<amrex::Real      > const& y_vel_pert,
+        amrex::Array4<amrex::Real      > const& z_vel_pert,
         amrex::Array4<amrex::Real      > const& r_hse,
         amrex::Array4<amrex::Real      > const& p_hse,
         amrex::Array4<amrex::Real const> const& z_nd,

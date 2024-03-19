@@ -43,7 +43,8 @@
 #include "ParticleData.H"
 #endif
 
-#include "Microphysics.H"
+#include "EulerianMicrophysics.H"
+#include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
 
 #ifdef ERF_USE_RRTMGP
@@ -75,7 +76,9 @@ namespace InterpType {
         CellBilinear,
         CellQuadratic,
         CellConservativeProtected,
-        CellConservativeQuartic
+        CellConservativeQuartic,
+        FaceLinear,
+        FaceConserativeLinear
     };
 }
 
@@ -374,6 +377,9 @@ private:
 
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
+    // Initialize the microphysics object
+    void initializeMicrophysics (const int&);
+
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
@@ -487,6 +493,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
+    amrex::Real Latitude;
+    amrex::Real Longitude;
 #endif // ERF_USE_NETCDF
 
     // Struct for working with the sounding data we take as an input
@@ -516,6 +524,10 @@ private:
     ////////////////
     // private data members
 
+    // These are the minimum and maximum values of k in valid boxes *at this level*
+    amrex::Vector<int> min_k_at_level;
+    amrex::Vector<int> max_k_at_level;
+
     std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
@@ -538,10 +550,17 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
 
-    // Store Theta variable for MOST BC
+    // Vector over levels of routines to impose physical boundary conditions
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+
+    // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qv_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
@@ -551,7 +570,7 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    Microphysics micro;
+    std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
 //#if defined(ERF_USE_WINDFARM)
@@ -703,7 +722,7 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
@@ -788,6 +807,12 @@ private:
     // Custom source terms
     amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;

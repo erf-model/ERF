@@ -1,4 +1,4 @@
-set(erf_exe_name erf_gabls1)
+set(erf_exe_name erf_bomex)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

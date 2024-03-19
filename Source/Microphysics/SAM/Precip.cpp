@@ -27,7 +27,6 @@ void SAM::Precip () {
     auto evaps2_t  = evaps2.table();
     auto evapg1_t  = evapg1.table();
     auto evapg2_t  = evapg2.table();
-    auto pres1d_t  = pres1d.table();
 
     Real fac_cond = m_fac_cond;
     Real fac_sub  = m_fac_sub;
@@ -63,7 +62,6 @@ void SAM::Precip () {
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             //------- Autoconversion/accretion
-            Real tmp;
             Real omn, omp, omg;
             Real qsat, qsatw, qsati;
 
@@ -71,14 +69,16 @@ void SAM::Precip () {
             Real dprc, dpsc, dpgc;
             Real dpsi, dpgi;
 
-            Real dqc, dqi, dqp;
+            Real dqc, dqca, dqi, dqia, dqp;
             Real dqpr, dqps, dqpg;
 
             Real autor, autos;
             Real accrcr, accrcs, accris, accrcg, accrig;
 
+            //==================================================
+            // Autoconversion (A30/A31) and accretion (A27)
+            //==================================================
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
-
                 omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
@@ -90,9 +90,6 @@ void SAM::Precip () {
                 qps = qps_array(i,j,k);
                 qpg = qpg_array(i,j,k);
 
-                // TODO: List
-                //       1. Are these IF conditions correct?
-                //       2. Does autoconversion and accretion affect theta?
                 if (qn_array(i,j,k) > 0.0) {
                     accrcr = 0.0;
                     accrcs = 0.0;
@@ -127,37 +124,35 @@ void SAM::Precip () {
                     }
 
                     // Autoconversion & accretion (sink for cloud comps)
-                    dprc  = dtn * autor  * (qcc-qcw0);
-                    dprc += dtn * accrcr * qcc * std::pow(qpr, powr1);
-                    dpsc  = dtn * accrcs * qcc * std::pow(qps, pows1);
-                    dpgc  = dtn * accrcg * qcc * std::pow(qpg, powg1);
+                    dqca = dtn * autor  * (qcc-qcw0);
+                    dprc = dtn * accrcr * qcc * std::pow(qpr, powr1);
+                    dpsc = dtn * accrcs * qcc * std::pow(qps, pows1);
+                    dpgc = dtn * accrcg * qcc * std::pow(qpg, powg1);
 
-                    dpsi  = dtn * autos  * (qii-qci0);
-                    dpsi += dtn * accris * qii * std::pow(qps, pows1);
-                    dpgi  = dtn * accrig * qii * std::pow(qpg, powg1);
+                    dqia = dtn * autos  * (qii-qci0);
+                    dpsi = dtn * accris * qii * std::pow(qps, pows1);
+                    dpgi = dtn * accrig * qii * std::pow(qpg, powg1);
 
                     // Rescale sinks to avoid negative cloud fractions
-                    dqc  = dprc + dpsc + dpgc;
-                    dqi  = dpsi + dpgi;
+                    dqc  = dqca + dprc + dpsc + dpgc;
+                    dqi  = dqia + dpsi + dpgi;
                     Real scalec = std::min(qcl_array(i,j,k),dqc) / (dqc + eps);
                     Real scalei = std::min(qci_array(i,j,k),dqi) / (dqi + eps);
-                    dprc *= scalec; dpsc *= scalec; dpgc *= scalec;
-                    dpsi *= scalei; dpgi *= scalei;
-                    dqc  = dprc + dpsc + dpgc;
-                    dqi  = dpsi + dpgi;
+                    dqca *= scalec; dprc *= scalec; dpsc *= scalec; dpgc *= scalec;
+                    dqia *= scalei; dpsi *= scalei; dpgi *= scalei;
+                    dqc   = dqca + dprc + dpsc + dpgc;
+                    dqi   = dqia + dpsi + dpgi;
 
-                    /*
-                    // Keep individual
-                    dqpr = dprc;
-                    dqps = dpsc + dpsi;
-                    dqpg = dpgc + dpgi;
-                    */
+                    // NOTE: Autoconversion of cloud water and ice are sources
+                    //       to qp, while accretion is a source to an individual
+                    //       precipitating component (e.g., qpr/qps/qpg). So we
+                    //       only split autoconversion with omega. The omega
+                    //       splitting does imply a latent heat source.
 
-                    // Partition formed precip comps
-                    dqp  = dqc + dqi;
-                    dqpr = dqp * omp;
-                    dqps = dqp * (1.0 - omp) * (1.0 - omg);
-                    dqpg = dqp * (1.0 - omp) * omg;
+                    // Partition formed precip componentss
+                    dqpr = (dqca + dqia) * omp + dprc;
+                    dqps = (dqca + dqia) * (1.0 - omp) * (1.0 - omg) + dpsc + dpsi;
+                    dqpg = (dqca + dqia) * (1.0 - omp) * omg         + dpgc + dpgi;
 
                     // Update the primitive state variables
                     qcl_array(i,j,k) -= dqc;
@@ -170,29 +165,31 @@ void SAM::Precip () {
                     qn_array(i,j,k) = qcl_array(i,j,k) + qci_array(i,j,k);
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
+
+                    // Latent heat source for theta
+                    tabs_array(i,j,k) += fac_fus * ( dqca * (1.0 - omp) - dqia * omp );
+                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                    pres_array(i,j,k) /= 100.0;
                 }
 
-
-                // TODO: List
-                //       1. Are these IF conditions correct?
-                //       2. Does evaporation source qv?
-                //       3. Is there a theta source here?
+                //==================================================
+                // Evaporation (A24)
+                //==================================================
                 erf_qsatw(tabs_array(i,j,k),pres_array(i,j,k),qsatw);
                 erf_qsati(tabs_array(i,j,k),pres_array(i,j,k),qsati);
                 qsat = qsatw * omn + qsati * (1.0-omn);
-                if((qp_array(i,j,k) > qp_threshold) && (qv_array(i,j,k) < qsat)) {
+                if((qp_array(i,j,k) > 0.0) && (qv_array(i,j,k) < qsat)) {
 
-                    if(omp > 0.001) {
-                        dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
-                    }
-                    if(omp < 0.999 && omg < 0.999) {
-                        dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
-                    }
-                    if(omp < 0.999 && omg > 0.001) {
-                        dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
-                    }
+                    dqpr = evapr1_t(k)*sqrt(qpr) + evapr2_t(k)*pow(qpr,powr2);
+                    dqps = evaps1_t(k)*sqrt(qps) + evaps2_t(k)*pow(qps,pows2);
+                    dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
 
-                    // Evaporation (sink for precipitating comps)
+                    // NOTE: This is always a sink for precipitating comps
+                    //       since qv<qsat and thus (qv/qsat-1)<0. If we are
+                    //       in a super-saturated state (qv>qsat) the Newton
+                    //       iterations in Cloud() will have handled condensation.
                     dqpr *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
                     dqps *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
                     dqpg *= -dtn * (qv_array(i,j,k)/qsat - 1.0);

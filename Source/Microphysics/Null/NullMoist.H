@@ -7,7 +7,7 @@
 
 class NullMoist {
 
- public:
+public:
     NullMoist () {}
 
     virtual ~NullMoist () = default;
@@ -24,7 +24,8 @@ class NullMoist {
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const amrex::Real& /*dt_advance*/,
+             const SolverChoice& /*solverChoce*/) { }
 
     virtual
     void
@@ -58,8 +59,9 @@ class NullMoist {
     int
     Qstate_Size () { return NullMoist::m_qstate_size; }
 
- private:
+private:
     int m_qmoist_size = 1;
     int m_qstate_size = 0;
 };
+
 #endif

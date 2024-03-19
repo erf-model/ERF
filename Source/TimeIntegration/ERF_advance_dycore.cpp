@@ -39,11 +39,11 @@ void ERF::advance_dycore(int level,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
                          MultiFab& source, MultiFab& buoyancy,
-                         const amrex::Geometry fine_geom,
-                         const amrex::Real dt_advance, const amrex::Real old_time)
+                         const Geometry fine_geom,
+                         const Real dt_advance, const Real old_time)
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
-    if (verbose) amrex::Print() << "Starting advance_dycore at level " << level << std::endl;
+    if (verbose) Print() << "Starting advance_dycore at level " << level << std::endl;
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -57,7 +57,9 @@ void ERF::advance_dycore(int level,
     MultiFab* p0  = &p_hse;
     MultiFab* pi0 = &pi_hse;
 
-    Real* dptr_rhotheta_src      = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
+    Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
+    Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
@@ -73,6 +75,9 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type        !=       PBLType::None) );
     bool l_use_kturb   = ( (tc.les_type != LESType::None)   ||
                            (tc.pbl_type != PBLType::None) );
+
+    const bool use_most = (m_most != nullptr);
+    amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -102,11 +107,11 @@ void ERF::advance_dycore(int level,
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
 
-        const amrex::BCRec* bc_ptr_h = domain_bcs_type.data();
+        const BCRec* bc_ptr_h = domain_bcs_type.data();
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
         for ( MFIter mfi(state_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
         {
@@ -180,7 +185,7 @@ void ERF::advance_dycore(int level,
     if (l_use_kturb)
     {
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
-        const amrex::BCRec* bc_ptr_d = domain_bcs_type_d.data();
+        const BCRec* bc_ptr_d = domain_bcs_type_d.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
                                   *Tau11, *Tau22, *Tau33,
                                   *Tau12, *Tau13, *Tau23,
@@ -188,7 +193,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, bc_ptr_d, micro.Get_Qstate_Size());
+                                  m_most, bc_ptr_d);
     }
 
     // ***********************************************************************************************
@@ -198,6 +203,12 @@ void ERF::advance_dycore(int level,
         prob->update_rhotheta_sources(old_time,
                                       h_rhotheta_src[level], d_rhotheta_src[level],
                                       fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_moisture_forcing) {
+        prob->update_rhoqt_sources(old_time,
+                                   h_rhoqt_src[level], d_rhoqt_src[level],
+                                   fine_geom, z_phys_cc[level]);
     }
 
     // ***********************************************************************************************

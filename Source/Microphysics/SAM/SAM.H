@@ -69,7 +69,7 @@ public:
     void Precip ();
 
     // precip fall
-    void PrecipFall (int hydro_type=2);
+    void PrecipFall ();
 
     // diagnose
     void Diagnose () override;
@@ -118,7 +118,8 @@ public:
 
     // wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt_advance) override
+    Advance (const amrex::Real& dt_advance,
+             const SolverChoice& /*solverChoice*/) override
     {
         dt = dt_advance;
 

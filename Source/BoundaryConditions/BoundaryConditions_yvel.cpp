@@ -11,20 +11,20 @@ using namespace amrex;
  * @param[in] domain   computational domain
  * @param[in] bccomp   index into m_domain_bcs_type
  */
-void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
-                                              const Box& bx, const Box& domain,
-                                              int bccomp)
+void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
+                                                const Box& bx, const Box& domain,
+                                                int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_yvel_bcs()",impose_lateral_yvel_bcs);
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -33,13 +33,13 @@ void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
     // yhi: ori = 4
     // zhi: ori = 5
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
+    Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #else
     std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #endif
-    const amrex::BCRec* bc_ptr = bcrs_d.data();
+    const BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
@@ -160,22 +160,22 @@ void ERFPhysBCFunct::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
  * @param[in] bccomp    index into m_domain_bcs_type
  */
 
-void ERFPhysBCFunct::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
-                                               const Box& bx, const Box& domain,
-                                               const Array4<Real const>& z_phys_nd,
-                                               const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                               int bccomp)
+void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
+                                                 const Box& bx, const Box& domain,
+                                                 const Array4<Real const>& z_phys_nd,
+                                                 const GpuArray<Real,AMREX_SPACEDIM> dxInv,
+                                                 int bccomp)
 {
     BL_PROFILE_VAR("impose_vertical_yvel_bcs()",impose_vertical_yvel_bcs);
-    const auto& dom_lo = amrex::lbound(domain);
-    const auto& dom_hi = amrex::ubound(domain);
+    const auto& dom_lo = lbound(domain);
+    const auto& dom_hi = ubound(domain);
 
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    amrex::setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -184,13 +184,13 @@ void ERFPhysBCFunct::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     // yhi: ori = 4
     // zhi: ori = 5
 
-    amrex::Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
+    Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
     Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #else
     std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
 #endif
-    const amrex::BCRec* bc_ptr = bcrs_d.data();
+    const BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
 
@@ -233,8 +233,8 @@ void ERFPhysBCFunct::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     }
 
     if (m_z_phys_nd) {
-        const auto&  bx_lo = amrex::lbound(bx);
-        const auto&  bx_hi = amrex::ubound(bx);
+        const auto&  bx_lo = lbound(bx);
+        const auto&  bx_hi = ubound(bx);
         // Neumann conditions (d<var>/dn = 0) must be aware of the surface normal with terrain.
         // An additional source term arises from d<var>/dx & d<var>/dy & met_h_xi/eta/zeta.
         //=====================================================================================
@@ -244,7 +244,7 @@ void ERFPhysBCFunct::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
             // Hit for Neumann condition at kmin
             if( bcrs[n].lo(2) == ERFBCType::foextrap) {
                 // Loop over ghost cells in bottom XY-plane (valid box)
-                amrex::Box xybx = bx;
+                Box xybx = bx;
                 xybx.setBig(2,-1);
                 xybx.setSmall(2,bx.smallEnd()[2]);
                 int k0 = 0;

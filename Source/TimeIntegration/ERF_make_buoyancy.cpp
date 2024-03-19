@@ -137,11 +137,13 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     // ******************************************************************************************
     if (solverChoice.moisture_type != MoistureType::None) {
 
-        if (solverChoice.moisture_type == MoistureType::FastEddy)
+        if (solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+        }
 
-        if (solverChoice.moisture_type == MoistureType::SAM)
+        if (solverChoice.moisture_type == MoistureType::SAM) {
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+        }
 
         if (solverChoice.buoyancy_type == 1) {
 
@@ -159,7 +161,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 // Base state density
                 const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-                ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
                     Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
@@ -263,7 +265,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                                               qp_minus - qp_d_ptr[k-1] )
                                    + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
-                        } else if (buoyancy_type == 4) {
+                        } else { // (buoyancy_type == 4)
                             qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
                                             ( qc_plus - qc_d_ptr[k]   +
                                               qp_plus - qp_d_ptr[k] )

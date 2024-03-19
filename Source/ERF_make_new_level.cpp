@@ -34,6 +34,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     SetBoxArray(lev, ba);
     SetDistributionMap(lev, dm);
 
+    // amrex::Print() <<" BA AT LEVEL " << lev << " " << ba << std::endl;
+
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
@@ -44,7 +46,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     init_stuff(lev, ba, dm);
 
-    int n_qstate   = micro.Get_Qstate_Size();
+    int n_qstate   = micro->Get_Qstate_Size();
     int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     lev_new[Vars::cons].define(ba, dm, ncomp_cons, ngrow_state);
@@ -62,15 +64,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size  = micro.Get_Qmoist_Size();
+    int q_size  = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     //********************************************************************************************
@@ -154,9 +156,21 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     // Initialize the boundary conditions
     // ********************************************************************************************
-    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
-                                                     z_phys_nd[lev], detJ_cc[lev]);
+    physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                               m_bc_extdir_vals, m_bc_neumann_vals,
+                                                               z_phys_nd[lev], use_real_bcs);
+    physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            solverChoice.terrain_type, z_phys_nd[lev], use_real_bcs);
+    physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
+                                                           (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -225,15 +239,15 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size  = micro.Get_Qmoist_Size();
+    int q_size  = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     init_stuff(lev, ba, dm);
@@ -272,9 +286,21 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *****************************************************************************************************
     // Initialize the boundary conditions (after initializing the terrain but before calling FillCoarsePatch
     // *****************************************************************************************************
-    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
-                                                     z_phys_nd[lev], detJ_cc[lev]);
+    physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                               m_bc_extdir_vals, m_bc_neumann_vals,
+                                                               z_phys_nd[lev], use_real_bcs);
+    physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            solverChoice.terrain_type, z_phys_nd[lev], use_real_bcs);
+    physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
+                                                           (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 
     // ********************************************************************************************
     // Fill data at the new level by interpolation from the coarser level
@@ -296,6 +322,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     if (cf_width >= 0) {
         Construct_ERFFillPatchers(lev);
            Define_ERFFillPatchers(lev);
+    }
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (solverChoice.use_terrain != 0) {
+        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+        }
     }
 }
 
@@ -340,15 +376,15 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
-    int q_size = micro.Get_Qmoist_Size();
+    int q_size = micro->Get_Qmoist_Size(lev);
     qmoist[lev].resize(q_size);
-    micro.Define(lev, solverChoice);
+    micro->Define(lev, solverChoice);
     if (solverChoice.moisture_type != MoistureType::None)
     {
-        micro.Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
+        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     init_stuff(lev, ba, dm);
@@ -389,6 +425,16 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // Build the data structures for terrain-related quantities
     update_terrain_arrays(lev, time);
 
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (solverChoice.use_terrain != 0) {
+        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+        }
+    }
+
     // ********************************************************************************************
     // Update the base state at this level
     // ********************************************************************************************
@@ -399,9 +445,21 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // Initialize the boundary conditions
     // ********************************************************************************************
-    physbcs[lev] = std::make_unique<ERFPhysBCFunct> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                     solverChoice.terrain_type, m_bc_extdir_vals, m_bc_neumann_vals,
-                                                     z_phys_nd[lev], detJ_cc[lev]);
+    physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                               m_bc_extdir_vals, m_bc_neumann_vals,
+                                                               z_phys_nd[lev], use_real_bcs);
+    physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            z_phys_nd[lev], use_real_bcs);
+    physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            solverChoice.terrain_type, z_phys_nd[lev], use_real_bcs);
+    physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
+                                                           (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
+                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 
     // ********************************************************************************************
     // Initialize the integrator class
@@ -456,7 +514,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         }
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
         SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         SFS_hfx1_lev[lev]->setVal(0.);
         SFS_hfx2_lev[lev]->setVal(0.);
@@ -489,22 +547,40 @@ void
 ERF::update_terrain_arrays (int lev, Real time)
 {
     if (solverChoice.use_terrain) {
-        if (init_type != "real" && init_type != "metgrid") {
+
+        if (lev == 0 && (init_type != "real" && init_type != "metgrid") ) {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(geom[lev],*z_phys_nd[lev],zlevels_stag);
+            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
         }
-        if (lev>0 && (init_type == "real" || init_type == "metgrid")) {
+
+        if (lev > 0) {
             PhysBCFunctNoOp empty_bc;
             Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
             Vector<Real> ftime    = {t_old[lev], t_new[lev]};
             Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-            amrex::FillPatchTwoLevels(*z_phys_nd[lev], time, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, geom[lev-1], geom[lev],
-                                      empty_bc, 0, empty_bc, 0, refRatio(lev-1),
-                                      &node_bilinear_interp, domain_bcs_type, 0);
+            //
+            // First we fill z_phys_nd at lev>0 through interpolation
+            //
+            FillPatchTwoLevels(*z_phys_nd[lev], time, cmf, ctime, fmf, ftime,
+                               0, 0, 1, geom[lev-1], geom[lev],
+                               empty_bc, 0, empty_bc, 0, refRatio(lev-1),
+                               &node_bilinear_interp, domain_bcs_type, 0);
+            //
+            // Then if not using real/metgrid data, we
+            // 1) redefine the terrain at k=0 for every fine box which includes k=0
+            // 2) recreate z_phys_nd at every fine node using
+            // the data at the bottom of each fine grid
+            // which has been either been interpolated from the coarse grid (k>0)
+            // or set in init_custom_terrain (k=0)
+            //
+            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
+            if (init_type != "real" && init_type != "metgrid") {
+                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
+            }
         }
+
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
@@ -519,13 +595,13 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     int ncomp_cons = cons_mf.nComp();
 
     // Initialize the integrator memory
-    amrex::Vector<amrex::MultiFab> int_state; // integration state data structure example
-    int_state.push_back(MultiFab(cons_mf, amrex::make_alias, 0, ncomp_cons));         // cons
+    Vector<MultiFab> int_state; // integration state data structure example
+    int_state.push_back(MultiFab(cons_mf, make_alias, 0, ncomp_cons));         // cons
     int_state.push_back(MultiFab(convert(ba,IntVect(1,0,0)), dm, 1, vel_mf.nGrow())); // xmom
     int_state.push_back(MultiFab(convert(ba,IntVect(0,1,0)), dm, 1, vel_mf.nGrow())); // ymom
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
 
-    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > >(int_state);
+    mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
     mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
@@ -534,6 +610,20 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
 void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
+    if (lev == 0) {
+        min_k_at_level[lev] = 0;
+        max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
+    } else {
+        // Start with unreasonable values so we compute the right min/max
+        min_k_at_level[lev] = geom[lev].Domain().bigEnd(2);
+        max_k_at_level[lev] = geom[lev].Domain().smallEnd(2);
+        for (int n = 0; n < ba.size(); n++)
+        {
+            min_k_at_level[lev] = std::min(min_k_at_level[lev], ba[n].smallEnd(2));
+            max_k_at_level[lev] = std::max(max_k_at_level[lev], ba[n].bigEnd(2));
+        }
+    }
+
     // The number of ghost cells for density must be 1 greater than that for velocity
     //     so that we can go back in forth betwen velocity and momentum on all faces
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
@@ -551,13 +641,24 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
     rW_old[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
     rW_new[lev].define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow_vels);
 
+    // We do this here just so they won't be undefined in the initial FillPatch
+    rU_new[lev].setVal(1.2e21);
+    rV_new[lev].setVal(3.4e22);
+    rW_new[lev].setVal(5.6e23);
+
     // ********************************************************************************************
     // Define Theta_prim storage if using MOST BC
     // ********************************************************************************************
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
       Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+      if (solverChoice.moisture_type != MoistureType::None) {
+          Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+      } else {
+          Qv_prim[lev]    = nullptr;
+      }
     } else {
       Theta_prim[lev] = nullptr;
+      Qv_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************
@@ -587,7 +688,7 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
     //*********************************************************
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
+    if (solverChoice.windfarm_type == WindFarmType::Fitch){
         int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
     }
@@ -614,5 +715,11 @@ ERF::ClearLevel (int lev)
 
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
-    physbcs[lev].reset();
+
+    // Clears the physical boundary condition routines
+    physbcs_cons[lev].reset();
+    physbcs_u[lev].reset();
+    physbcs_v[lev].reset();
+    physbcs_w[lev].reset();
+    physbcs_w_no_terrain[lev].reset();
 }

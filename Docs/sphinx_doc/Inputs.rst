@@ -122,7 +122,7 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+| **amr.iterate_grids**     | do we iterate   | true, false     | true        |
 |                           | on the grids?   |                 |             |
 |                           |                 |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
@@ -778,8 +778,8 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
-|                                  | numerical diffusion| "False"             |              |
+| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
+|                                  | numerical diffusion| "false"             |              |
 |                                  |                    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
@@ -1066,7 +1066,10 @@ Examples of Usage
 Moisture
 ========
 
-ERF has several different moisture models.
+ERF has several different moisture models. The models that are currently implemented
+are Eulerian models; however, ERF has the capability for Lagrangian models when
+compiled with particles.
+
 The following run-time options control how the full moisture model is used.
 
 List of Parameters

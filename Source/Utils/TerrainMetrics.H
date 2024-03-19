@@ -17,7 +17,7 @@ void init_zlevels (amrex::Vector<amrex::Real>& zlevels_stag,
                    const amrex::Real zsurf,
                    const amrex::Real dz0);
 
-void init_terrain_grid (const amrex::Geometry& geom,
+void init_terrain_grid (int lev, const amrex::Geometry& geom,
                         amrex::MultiFab& z_phys_nd,
                         amrex::Vector<amrex::Real> const& z_levels_h);
 

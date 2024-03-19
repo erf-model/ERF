@@ -42,9 +42,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
             IntVect ng = Theta_prim[lev]->nGrowVect();
             MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                ng = Qv_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+            }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
+            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim);
             m_most->update_fluxes(lev, time);
         }
     }
@@ -60,7 +65,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     if (solverChoice.moisture_type != MoistureType::None) {
         // TODO: This is only qv
-        FillPatchMoistVars(lev, *(qmoist[lev][0]));
+        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
 #if defined(ERF_USE_WINDFARM)
@@ -87,8 +92,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
-    amrex::Vector<amrex::MultiFab> state_old;
-    amrex::Vector<amrex::MultiFab> state_new;
+    amrex::Vector<MultiFab> state_old;
+    amrex::Vector<MultiFab> state_new;
 
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced
