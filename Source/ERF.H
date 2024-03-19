@@ -384,10 +384,6 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
-    // This reads in the turbuine locations and thrust and power coefficients from the input text files
-    // and fills the associated multifabs with that data
-    void initializeWindFarmParametrization (const int&);
-
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
     // NOTE: FillPatch takes in an empty MF, and returns cell-centered + velocities (not momenta)
