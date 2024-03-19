@@ -6,6 +6,9 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
+erf.windfarm_type = "Fitch"
+erf.latitude_lo      =   35.0
+erf.longitude_lo     = -100.0  
 geometry.prob_extent =  534000  389000  20000
 amr.n_cell           =   32     32      64
 
@@ -61,7 +64,6 @@ erf.pbl_type        = "None"
 
 erf.init_type = "uniform"
 
-erf.windfarm_type = "Fitch"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
