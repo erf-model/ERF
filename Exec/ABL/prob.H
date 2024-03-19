@@ -11,7 +11,11 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0 = 0.0;
   amrex::Real T_0   = 0.0;
   amrex::Real A_0   = 1.0;
+  amrex::Real KE_0  = 0.1;
   amrex::Real QKE_0 = 0.1;
+
+  amrex::Real KE_decay_height = -1;
+  amrex::Real KE_decay_order = 1;
 
   amrex::Real U_0 = 0.0;
   amrex::Real V_0 = 0.0;
@@ -22,6 +26,7 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real V_0_Pert_Mag = 0.0;
   amrex::Real W_0_Pert_Mag = 0.0;
   amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
+  bool pert_rhotheta = true;
 
   // divergence-free initial perturbations
   amrex::Real pert_deltaU = 0.0;
@@ -54,10 +59,11 @@ public:
         const amrex::Box& xbx,
         const amrex::Box& ybx,
         const amrex::Box& zbx,
-        amrex::Array4<amrex::Real      > const& state,
-        amrex::Array4<amrex::Real      > const& x_vel,
-        amrex::Array4<amrex::Real      > const& y_vel,
-        amrex::Array4<amrex::Real      > const& z_vel,
+        amrex::Array4<amrex::Real const> const& state,
+        amrex::Array4<amrex::Real      > const& state_pert,
+        amrex::Array4<amrex::Real      > const& x_vel_pert,
+        amrex::Array4<amrex::Real      > const& y_vel_pert,
+        amrex::Array4<amrex::Real      > const& z_vel_pert,
         amrex::Array4<amrex::Real      > const& r_hse,
         amrex::Array4<amrex::Real      > const& p_hse,
         amrex::Array4<amrex::Real const> const& z_nd,

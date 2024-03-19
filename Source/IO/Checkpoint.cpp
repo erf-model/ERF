@@ -30,9 +30,9 @@ ERF::WriteCheckpointFile () const
     // etc.                these subdirectories will hold the MultiFab data at each level of refinement
 
     // checkpoint file name, e.g., chk00010
-    const std::string& checkpointname = amrex::Concatenate(check_file,istep[0],5);
+    const std::string& checkpointname = Concatenate(check_file,istep[0],5);
 
-    amrex::Print() << "Writing native checkpoint " << checkpointname << "\n";
+    Print() << "Writing native checkpoint " << checkpointname << "\n";
 
     const int nlevels = finest_level+1;
 
@@ -42,7 +42,7 @@ ERF::WriteCheckpointFile () const
     // ---- if callBarrier is true, call ParallelDescriptor::Barrier()
     // ---- after all directories are built
     // ---- ParallelDescriptor::IOProcessor() creates the directories
-    amrex::PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+    PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
 
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
@@ -57,7 +57,7 @@ ERF::WriteCheckpointFile () const
                                                std::ofstream::trunc |
                                                std::ofstream::binary);
        if( ! HeaderFile.good()) {
-           amrex::FileOpenFailed(HeaderFileName);
+           FileOpenFailed(HeaderFileName);
        }
 
        HeaderFile.precision(17);
@@ -114,32 +114,32 @@ ERF::WriteCheckpointFile () const
     {
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,ncomp_cons,0);
-        VisMF::Write(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
+        VisMF::Write(cons, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         MultiFab::Copy(xvel,vars_new[lev][Vars::xvel],0,0,1,0);
-        VisMF::Write(xvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
+        VisMF::Write(xvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
         MultiFab::Copy(yvel,vars_new[lev][Vars::yvel],0,0,1,0);
-        VisMF::Write(yvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
+        VisMF::Write(yvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
         MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
-        VisMF::Write(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
+        VisMF::Write(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
 
         // Note that we write the ghost cells of the base state (unlike above)
         IntVect ng = base_state[lev].nGrowVect();
         MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
         MultiFab::Copy(base,base_state[lev],0,0,base.nComp(),ng);
-        VisMF::Write(base, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
+        VisMF::Write(base, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "BaseState"));
 
         if (solverChoice.use_terrain)  {
             // Note that we also write the ghost cells of z_phys_nd
             ng = z_phys_nd[lev]->nGrowVect();
             MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
             MultiFab::Copy(z_height,*z_phys_nd[lev],0,0,1,ng);
-            VisMF::Write(z_height, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
+            VisMF::Write(z_height, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
         }
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
@@ -150,7 +150,7 @@ ERF::WriteCheckpointFile () const
                 int nvar = lsm_data[lev][mvar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
                 MultiFab::Copy(lsm_vars,*(lsm_data[lev][mvar]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmVars"));
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmVars"));
             }
         }
 
@@ -164,17 +164,17 @@ ERF::WriteCheckpointFile () const
         ng = mapfac_m[lev]->nGrowVect();
         MultiFab mf_m(ba2d,dmap[lev],1,ng);
         MultiFab::Copy(mf_m,*mapfac_m[lev],0,0,1,ng);
-        VisMF::Write(mf_m, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
+        VisMF::Write(mf_m, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_m"));
 
         ng = mapfac_u[lev]->nGrowVect();
         MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_u,*mapfac_u[lev],0,0,1,ng);
-        VisMF::Write(mf_u, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
+        VisMF::Write(mf_u, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_u"));
 
         ng = mapfac_v[lev]->nGrowVect();
         MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
         MultiFab::Copy(mf_v,*mapfac_v[lev],0,0,1,ng);
-        VisMF::Write(mf_v, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
+        VisMF::Write(mf_v, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MapFactor_v"));
     }
 
 #ifdef ERF_USE_PARTICLES
@@ -190,13 +190,13 @@ ERF::WriteCheckpointFile () const
      int num_var  = bdy_data_xlo[0].size();
 
      // Open header file and write to it
-     std::ofstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
+     std::ofstream bdy_h_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_H"));
      bdy_h_file << std::setprecision(1) << std::fixed;
      bdy_h_file << num_time << "\n";
      bdy_h_file << num_var  << "\n";
      bdy_h_file << start_bdy_time << "\n";
      bdy_h_file << bdy_time_interval << "\n";
-     bdy_h_file << wrfbdy_width << "\n";
+     bdy_h_file << real_width << "\n";
      for (int ivar(0); ivar<num_var; ++ivar) {
        bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
        bdy_h_file << bdy_data_xhi[0][ivar].box() << "\n";
@@ -205,7 +205,7 @@ ERF::WriteCheckpointFile () const
      }
 
      // Open data file and write to it
-     std::ofstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
+     std::ofstream bdy_d_file(MultiFabFileFullPrefix(0, checkpointname, "Level_", "bdy_D"));
      for (int itime(0); itime<num_time; ++itime) {
        for (int ivar(0); ivar<num_var; ++ivar) {
          bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
@@ -225,7 +225,7 @@ ERF::WriteCheckpointFile () const
 void
 ERF::ReadCheckpointFile ()
 {
-    amrex::Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
+    Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
     // Header
     std::string File(restart_chkfile + "/Header");
@@ -321,29 +321,29 @@ ERF::ReadCheckpointFile ()
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
-        VisMF::Read(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
         vars_new[lev][Vars::cons].setBndry(1.0e34);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
-        VisMF::Read(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
+        VisMF::Read(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "XFace"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
         vars_new[lev][Vars::xvel].setBndry(1.0e34);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
-        VisMF::Read(yvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
+        VisMF::Read(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "YFace"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
         vars_new[lev][Vars::yvel].setBndry(1.0e34);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
-        VisMF::Read(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
+        VisMF::Read(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "ZFace"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
         vars_new[lev][Vars::zvel].setBndry(1.0e34);
 
         // Note that we read the ghost cells of the base state (unlike above)
         IntVect ng = base_state[lev].nGrowVect();
         MultiFab base(grids[lev],dmap[lev],base_state[lev].nComp(),ng);
-        VisMF::Read(base, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
+        VisMF::Read(base, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "BaseState"));
         MultiFab::Copy(base_state[lev],base,0,0,base.nComp(),ng);
         base_state[lev].FillBoundary(geom[lev].periodicity());
 
@@ -351,7 +351,7 @@ ERF::ReadCheckpointFile ()
            // Note that we also read the ghost cells of z_phys_nd
            ng = z_phys_nd[lev]->nGrowVect();
            MultiFab z_height(convert(grids[lev],IntVect(1,1,1)),dmap[lev],1,ng);
-           VisMF::Read(z_height, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
+           VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev, t_new[lev]);
         }
@@ -363,7 +363,7 @@ ERF::ReadCheckpointFile ()
                 ng = lsm_data[lev][mvar]->nGrowVect();
                 int nvar = lsm_data[lev][mvar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmVars"));
+                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmVars"));
                 MultiFab::Copy(*(lsm_data[lev][mvar]),lsm_vars,0,0,nvar,ng);
             }
         }
@@ -377,22 +377,22 @@ ERF::ReadCheckpointFile ()
 
         ng = mapfac_m[lev]->nGrowVect();
         MultiFab mf_m(ba2d,dmap[lev],1,ng);
-        VisMF::Read(mf_m, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
+        VisMF::Read(mf_m, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_m"));
         MultiFab::Copy(*mapfac_m[lev],mf_m,0,0,1,ng);
 
         ng = mapfac_u[lev]->nGrowVect();
         MultiFab mf_u(convert(ba2d,IntVect(1,0,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_u, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
+        VisMF::Read(mf_u, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_u"));
         MultiFab::Copy(*mapfac_u[lev],mf_u,0,0,1,ng);
 
         ng = mapfac_v[lev]->nGrowVect();
         MultiFab mf_v(convert(ba2d,IntVect(0,1,0)),dmap[lev],1,ng);
-        VisMF::Read(mf_v, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
+        VisMF::Read(mf_v, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MapFactor_v"));
         MultiFab::Copy(*mapfac_v[lev],mf_v,0,0,1,ng);
     }
 
 #ifdef ERF_USE_PARTICLES
-   particleData.Restart((amrex::ParGDBBase*)GetParGDB(),restart_chkfile);
+   particleData.Restart((ParGDBBase*)GetParGDB(),restart_chkfile);
 #endif
 
 #ifdef ERF_USE_NETCDF
@@ -404,12 +404,12 @@ ERF::ReadCheckpointFile ()
         Vector<Box> bx_v;
         if (ParallelDescriptor::IOProcessor()) {
             // Open header file and read from it
-            std::ifstream bdy_h_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_H"));
+            std::ifstream bdy_h_file(MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_H"));
             bdy_h_file >> num_time;
             bdy_h_file >> num_var;
             bdy_h_file >> start_bdy_time;
             bdy_h_file >> bdy_time_interval;
-            bdy_h_file >> wrfbdy_width;
+            bdy_h_file >> real_width;
             bx_v.resize(4*num_var);
             for (int ivar(0); ivar<num_var; ++ivar) {
                 bdy_h_file >> bx_v[4*ivar  ];
@@ -437,7 +437,7 @@ ERF::ReadCheckpointFile ()
             }
 
             // Open data file and read from it
-            std::ifstream bdy_d_file(amrex::MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_D"));
+            std::ifstream bdy_d_file(MultiFabFileFullPrefix(0, restart_chkfile, "Level_", "bdy_D"));
             for (int itime(0); itime<num_time; ++itime) {
                 for (int ivar(0); ivar<num_var; ++ivar) {
                     bdy_data_xlo[itime][ivar].readFrom(bdy_d_file);
@@ -452,7 +452,7 @@ ERF::ReadCheckpointFile ()
         ParallelDescriptor::Barrier();
         ParallelDescriptor::Bcast(&start_bdy_time,1,ioproc);
         ParallelDescriptor::Bcast(&bdy_time_interval,1,ioproc);
-        ParallelDescriptor::Bcast(&wrfbdy_width,1,ioproc);
+        ParallelDescriptor::Bcast(&real_width,1,ioproc);
         ParallelDescriptor::Bcast(&num_time,1,ioproc);
         ParallelDescriptor::Bcast(&num_var,1,ioproc);
 

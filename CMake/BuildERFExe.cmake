@@ -17,6 +17,10 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  if(ERF_ENABLE_EXPLICIT_MOST_STRESS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_EXPLICIT_MOST_STRESS)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
@@ -38,6 +42,7 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
+                   ${SRC_DIR}/Particles/ERFPCUtils.cpp
                    ${SRC_DIR}/Particles/ERFTracers.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
@@ -100,8 +105,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_yvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_zvel.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_bndryreg.cpp
-       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_wrfbdy.cpp
-       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_metgrid.cpp
+       ${SRC_DIR}/BoundaryConditions/BoundaryConditions_realbdy.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatch.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_FillPatcher.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_PhysBCFunct.cpp
@@ -127,6 +131,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_Write1DProfiles.cpp
+       ${SRC_DIR}/IO/ERF_Write1DProfiles_stag.cpp
        ${SRC_DIR}/IO/ERF_WriteScalarProfiles.cpp
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
@@ -161,10 +166,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
@@ -211,7 +212,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy) 
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/SLM)

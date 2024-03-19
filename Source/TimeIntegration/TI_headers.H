@@ -4,7 +4,6 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_YAFluxRegister.H>
-#include <AMReX_InterpFaceRegister.H>
 #include "DataStruct.H"
 #include "IndexDefines.H"
 #include "ABLMost.H"
@@ -56,6 +55,7 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
                       const amrex::Real* dptr_rhotheta_src,
+                      const amrex::Real* dptr_wbar_sub,
                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 
 /**
@@ -100,9 +100,10 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
+                       const amrex::Real* dptr_rhoqt_src,
+                       const amrex::Real* dptr_wbar_sub,
                        amrex::YAFluxRegister* fr_as_crse,
-                       amrex::YAFluxRegister* fr_as_fine
-                       );
+                       amrex::YAFluxRegister* fr_as_fine);
 
 /**
  * Function for computing the fast RHS with no terrain
@@ -164,7 +165,7 @@ void erf_fast_rhs_MT (int step, int nrk, int level, int finest_level,
                       const amrex::Vector<amrex::MultiFab >& S_prev,
                       amrex::Vector<amrex::MultiFab >& S_stg_data,
                       const amrex::MultiFab& S_stg_prim,
-                      const amrex::MultiFab& pi_stg,
+                      const amrex::MultiFab& pi_stage,
                       const amrex::MultiFab& fast_coeffs,
                       amrex::Vector<amrex::MultiFab >& S_data,
                       amrex::Vector<amrex::MultiFab >& S_scratch,
@@ -219,7 +220,8 @@ void make_buoyancy (amrex::Vector<  amrex::MultiFab>& S_data,
                     amrex::MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
-                    const amrex::MultiFab* r0);
+                    const amrex::MultiFab* r0,
+                    const int& qstate_size);
 #endif
 
 #ifdef ERF_USE_POISSON_SOLVE
@@ -237,7 +239,6 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
-                       const amrex::MultiFab* qvapor,
                        std::unique_ptr<amrex::MultiFab>& z_t,
                        amrex::MultiFab& Omega,
                        const amrex::MultiFab& source,
@@ -267,6 +268,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rhotheta_src,
+                       const amrex::Real* dptr_wbar_sub,
                        const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 #endif
 

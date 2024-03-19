@@ -4,7 +4,11 @@
  *  Wrapper for calling the routine that creates the slow RHS
  */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
+#ifdef ERF_USE_NETCDF
                                 Vector<MultiFab>& S_old,
+#else
+                                Vector<MultiFab>& /*S_old*/,
+#endif
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,
                                 const Real old_step_time,
@@ -45,17 +49,17 @@
 
             if (verbose) Print() << "Re-making old geometry at old time   : " << old_step_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
-            init_terrain_grid  (fine_geom,*z_phys_nd[level], zlevels_stag);
+            init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
-            init_terrain_grid  (fine_geom,*z_phys_nd_src[level], zlevels_stag);
+            init_terrain_grid  (level,fine_geom,*z_phys_nd_src[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
-            init_terrain_grid  (fine_geom,*z_phys_nd_new[level], zlevels_stag);
+            init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
 
             Real inv_dt  = 1./slow_dt;
@@ -90,8 +94,8 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0_new);
+            make_buoyancy(S_data, S_prim, buoyancy, fine_geom,
+                          solverChoice, r0_new, micro->Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -106,7 +110,7 @@
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -184,7 +188,7 @@
 
             // If not moving_terrain
             make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0);
+                          fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -199,33 +203,25 @@
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
         }
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs) {
-            if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
-                int width, set_width;
-                if (init_type == "real") {
-                    width = wrfbdy_width;
-                    set_width = wrfbdy_set_width;
-                } else if (init_type == "metgrid") {
-                    width = metgrid_bdy_width;
-                    set_width = metgrid_bdy_set_width;
-                }
-
-                if (width>0)
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      width, set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+        if (use_real_bcs && (level == 0)) {
+            if (real_width>0) {
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif
 
+#if 0
+        // HACK -- NO RELAXATION INSIDE FINE GRIDS
         // Compute RHS for fine interior ghost
         if (level > 0 && cf_width > 0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
@@ -233,11 +229,7 @@
                                             &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
                                             domain_bcs_type, S_rhs, S_data);
         }
-
-        // S_rhs[IntVar::cons].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::xmom].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::ymom].FillBoundary(fine_geom.periodicity());
-        // S_rhs[IntVar::zmom].FillBoundary(fine_geom.periodicity());
+#endif
     }; // end slow_rhs_fun_pre
 
     // *************************************************************
@@ -245,7 +237,7 @@
     // *************************************************************
     auto pre_update_fun = [&](Vector<MultiFab>& S_data, int ng_cons)
     {
-        cons_to_prim(S_data[IntVar::cons], ng_cons);
+        cons_to_prim(S_data[IntVars::cons], ng_cons);
     };
 
     // *************************************************************
@@ -254,9 +246,7 @@
     auto post_update_fun = [&](Vector<MultiFab>& S_data,
                                const Real time_for_fp, int ng_cons, int ng_vel)
     {
-        bool fast_only = false;
-        bool vel_and_mom_synced = false;
-        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only, vel_and_mom_synced);
+        apply_bcs(S_data, time_for_fp, ng_cons, ng_vel, fast_only=false, vel_and_mom_synced=false);
     };
 
     // *************************************************************
@@ -283,20 +273,13 @@
         Real slow_dt = new_stage_time - old_step_time;
 
 #if defined(ERF_USE_NETCDF)
-        int width, set_width;
         bool moist_set_rhs = false;
-        if ( use_real_bcs && (solverChoice.moisture_type != MoistureType::None) && (level==0) )
+        if ( use_real_bcs &&
+             (level==0)   &&
+             (real_set_width > 0) &&
+             (solverChoice.moisture_type != MoistureType::None) )
         {
-            if (init_type=="real") {
-                width = wrfbdy_width;
-                set_width = wrfbdy_set_width;
-                if (wrfbdy_set_width > 0) moist_set_rhs = true;
-            }
-            if (init_type=="metgrid") {
-                width = metgrid_bdy_width;
-                set_width = metgrid_bdy_set_width;
-                if (metgrid_bdy_set_width > 0) moist_set_rhs = true;
-            }
+            moist_set_rhs = true;
         }
 #endif
 
@@ -327,11 +310,11 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              width, set_width,
+                              real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src, dptr_wbar_sub,
+                              fr_as_crse, fr_as_fine);
         } else {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
@@ -343,11 +326,11 @@
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
-                              width, set_width,
+                              real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              fr_as_crse, fr_as_fine
-                              );
+                              dptr_rhoqt_src, dptr_wbar_sub,
+                              fr_as_crse, fr_as_fine);
         }
     }; // end slow_rhs_fun_post
 
@@ -369,7 +352,7 @@
 
         // If not moving_terrain
         make_buoyancy(S_data, S_prim, buoyancy,
-                      fine_geom, solverChoice, r0);
+                      fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
@@ -380,33 +363,25 @@
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_rhotheta_src, d_rayleigh_ptrs_at_lev);
+                         dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
 
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
-        if (use_real_bcs) {
-            if (((init_type == "real") || (init_type == "metgrid")) && level == 0) {
-                int width, set_width;
-                if (init_type == "real") {
-                    width = wrfbdy_width;
-                    set_width = wrfbdy_set_width;
-                } else if (init_type == "metgrid") {
-                    width = metgrid_bdy_width;
-                    set_width = metgrid_bdy_set_width;
-                }
-
-                if (width>0)
-                    wrfbdy_compute_interior_ghost_rhs(init_type,
-                                                      bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
-                                                      width, set_width, fine_geom,
-                                                      S_rhs, S_old, S_data,
-                                                      bdy_data_xlo, bdy_data_xhi,
-                                                      bdy_data_ylo, bdy_data_yhi);
+        if (use_real_bcs && (level == 0)) {
+            if (real_width>0) {
+                    realbdy_compute_interior_ghost_rhs(init_type,
+                                                       bdy_time_interval, start_bdy_time, new_stage_time, slow_dt,
+                                                       real_width, real_set_width, fine_geom,
+                                                       S_rhs, S_old, S_data,
+                                                       bdy_data_xlo, bdy_data_xhi,
+                                                       bdy_data_ylo, bdy_data_yhi);
             }
         }
 #endif
 
+#if 0
+        // HACK -- NO RELAXATION INSIDE FINE GRIDS
         // Compute RHS for fine interior ghost
         if (level > 0 && cf_width>0) {
             fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
@@ -415,5 +390,6 @@
                                             boxes_at_level[level], domain_bcs_type,
                                             S_rhs, S_data);
         }
+#endif
     }; // end slow_rhs_fun_inc
 #endif

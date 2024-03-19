@@ -32,21 +32,25 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::MultiFab& cons_in,
                          const amrex::MultiFab& xmom_in,
                          const amrex::MultiFab& ymom_in,
-                         const amrex::MultiFab& zmom_in);
+                         const amrex::MultiFab& zmom_in,
+                         const amrex::Box& domain,
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces
  */
 void VelocityToMomentum (const amrex::MultiFab& xvel_in,
-                         const amrex::IntVect& xvel_ngrow,
+                         const amrex::IntVect & xvel_ngrow,
                          const amrex::MultiFab& yvel_in,
-                         const amrex::IntVect& yvel_ngrow,
+                         const amrex::IntVect & yvel_ngrow,
                          const amrex::MultiFab& zvel_in,
-                         const amrex::IntVect& zvel_ngrow,
+                         const amrex::IntVect & zvel_ngrow,
                          const amrex::MultiFab& cons_in,
                          amrex::MultiFab& xmom_out,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
+                         const amrex::Box& domain,
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                          bool l_use_ndiff);
 
 /*
@@ -67,21 +71,21 @@ void compute_interior_ghost_bxs_xy (const amrex::Box& bx,
 /*
  * Compute relaxation region RHS with wrfbdy
  */
-void wrfbdy_compute_interior_ghost_rhs (const std::string& init_type,
-                                        const amrex::Real& bdy_time_interval,
-                                        const amrex::Real& start_bdy_time,
-                                        const amrex::Real& time,
-                                        const amrex::Real& delta_t,
-                                        int width,
-                                        int set_width,
-                                        const amrex::Geometry& geom,
-                                        amrex::Vector<amrex::MultiFab>& S_rhs,
-                                        amrex::Vector<amrex::MultiFab>& S_old_data,
-                                        amrex::Vector<amrex::MultiFab>& S_cur_data,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
-                                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+void realbdy_compute_interior_ghost_rhs (const std::string& init_type,
+                                         const amrex::Real& bdy_time_interval,
+                                         const amrex::Real& start_bdy_time,
+                                         const amrex::Real& time,
+                                         const amrex::Real& delta_t,
+                                         int width,
+                                         int set_width,
+                                         const amrex::Geometry& geom,
+                                         amrex::Vector<amrex::MultiFab>& S_rhs,
+                                         amrex::Vector<amrex::MultiFab>& S_old_data,
+                                         amrex::Vector<amrex::MultiFab>& S_cur_data,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
+                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
 
 /*
  * Compute relaxation region RHS at fine-crse interface
@@ -228,7 +232,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
     int Relax_z = width - Spec_z + 1;
     amrex::Real num     = amrex::Real(Spec_z + Relax_z);
     amrex::Real denom   = amrex::Real(Relax_z - 1);
-    amrex::Real SpecExp = 0.5;
+    amrex::Real SpecExp = -std::log(0.01) / amrex::Real(width - Spec_z);
     amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
         // Corners with x boxes
@@ -238,7 +242,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         int n_ind = std::min(i-dom_lo.x,jj) + 1;
         AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
         amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
@@ -250,7 +254,8 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
         amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
+        rhs_arr(i,j,k,n+icomp) += Temp;
     },
     bx_xhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -261,7 +266,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         int n_ind = std::min(dom_hi.x-i,jj) + 1;
         AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
         amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
@@ -273,7 +278,8 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real delta_yp = arr_xhi(i  ,j+1,k,n) - d_jp1;
         amrex::Real delta_ym = arr_xhi(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
+        rhs_arr(i,j,k,n+icomp) += Temp;
     });
 
     amrex::ParallelFor(bx_ylo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
@@ -282,7 +288,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         int n_ind = j - dom_lo.y + 1;
         AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
         amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
@@ -294,7 +300,8 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real delta_yp = arr_ylo(i  ,j+1,k,n) - d_jp1;
         amrex::Real delta_ym = arr_ylo(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
+        rhs_arr(i,j,k,n+icomp) += Temp;
     },
     bx_yhi, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
@@ -302,7 +309,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         int n_ind = dom_hi.y - j + 1;
         AMREX_ASSERT(n_ind > Spec_z);
         amrex::Real Factor   = (num - amrex::Real(n_ind))/denom
-                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z - 1));
+                              * std::exp(-SpecExp * amrex::Real(n_ind - Spec_z));
         amrex::Real d        = data_arr(i  ,j  ,k  ,n+icomp);
         amrex::Real d_ip1    = data_arr(i+1,j  ,k  ,n+icomp);
         amrex::Real d_im1    = data_arr(i-1,j  ,k  ,n+icomp);
@@ -314,7 +321,8 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         amrex::Real delta_yp = arr_yhi(i  ,j+1,k,n) - d_jp1;
         amrex::Real delta_ym = arr_yhi(i  ,j-1,k,n) - d_jm1;
         amrex::Real Laplacian = delta_xp + delta_xm + delta_yp + delta_ym - 4.0*delta;
-        rhs_arr(i,j,k,n+icomp) += (F1*delta - F2*Laplacian) * Factor;
+        amrex::Real Temp = (F1*delta - F2*Laplacian) * Factor;
+        rhs_arr(i,j,k,n+icomp) += Temp;
     });
 }
 #endif

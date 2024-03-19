@@ -24,6 +24,8 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     if (m_advect_w_gravity) {
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
+
+    Redistribute();
     return;
 }
 
@@ -47,10 +49,8 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
 
     const auto      strttime = amrex::second();
     const Geometry& geom = m_gdb->Geom(a_lev);
-    const Box& domain = geom.Domain();
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
-    const auto dx  = geom.CellSizeArray();
 
     Vector<std::unique_ptr<MultiFab> > raii_umac(AMREX_SPACEDIM);
     Vector<MultiFab*> umac_pointer(AMREX_SPACEDIM);
@@ -66,7 +66,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
         {
             int ng = a_umac[i].nGrow();
             raii_umac[i] = std::make_unique<MultiFab>
-                (amrex::convert(m_gdb->ParticleBoxArray(a_lev), IntVect::TheDimensionVector(i)),
+                (convert(m_gdb->ParticleBoxArray(a_lev), IntVect::TheDimensionVector(i)),
                  m_gdb->ParticleDistributionMap(a_lev), a_umac[i].nComp(), ng);
             umac_pointer[i] = raii_umac[i].get();
             umac_pointer[i]->ParallelCopy(a_umac[i],0,0,a_umac[i].nComp(),ng,ng);
@@ -83,14 +83,21 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             int grid    = pti.index();
             auto& ptile = ParticlesAt(a_lev, pti);
             auto& aos  = ptile.GetArrayOfStructs();
+            auto& soa  = ptile.GetStructOfArrays();
             const int n = aos.numParticles();
             auto *p_pbox = aos().data();
+
+            Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
+            v_ptr[0] = soa.GetRealData(ERFParticlesRealIdxSoA::vx).data();
+            v_ptr[1] = soa.GetRealData(ERFParticlesRealIdxSoA::vy).data();
+            v_ptr[2] = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
+
             const FArrayBox* fab[AMREX_SPACEDIM] = { AMREX_D_DECL(&((*umac_pointer[0])[grid]),
                                                                   &((*umac_pointer[1])[grid]),
                                                                   &((*umac_pointer[2])[grid])) };
 
             //array of these pointers to pass to the GPU
-            amrex::GpuArray<amrex::Array4<const Real>, AMREX_SPACEDIM>
+            GpuArray<Array4<const Real>, AMREX_SPACEDIM>
                 const umacarr {{AMREX_D_DECL((*fab[0]).array(),
                                              (*fab[1]).array(),
                                              (*fab[2]).array() )}};
@@ -102,28 +109,27 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
             {
                 ParticleType& p = p_pbox[i];
                 if (p.id() <= 0) { return; }
+
                 ParticleReal v[AMREX_SPACEDIM];
                 if (use_terrain) {
                     mac_interpolate_mapped_z(p, plo, dxi, umacarr, zheight, v);
                 } else {
                     mac_interpolate(p, plo, dxi, umacarr, v);
                 }
-                if (ipass == 0)
-                {
+
+                if (ipass == 0) {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
                     {
-                        p.rdata(dim) = p.pos(dim);
+                        v_ptr[dim][i] = p.pos(dim);
                         p.pos(dim) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*v[dim]);
                     }
                     // Update z-coordinate carried by the particle
                     update_location_idata(p,plo,dxi,zheight);
-                }
-                else
-                {
+                } else {
                     for (int dim=0; dim < AMREX_SPACEDIM; dim++)
                     {
-                        p.pos(dim) = p.rdata(dim) + static_cast<ParticleReal>(a_dt*v[dim]);
-                        p.rdata(dim) = v[dim];
+                        p.pos(dim) = v_ptr[dim][i] + static_cast<ParticleReal>(a_dt*v[dim]);
+                        v_ptr[dim][i] = v[dim];
                     }
                     // Update z-coordinate carried by the particle
                     update_location_idata(p,plo,dxi,zheight);
@@ -142,7 +148,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 ParallelReduce::Max(stoptime, ParallelContext::IOProcessorNumberSub(),
                                     ParallelContext::CommunicatorSub());
 
-                amrex::Print() << "ERFPC::AdvectWithFlow() time: " << stoptime << '\n';
+                Print() << "ERFPC::AdvectWithFlow() time: " << stoptime << '\n';
 #ifdef AMREX_LAZY
         });
 #endif
@@ -158,9 +164,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
 
     const auto      strttime = amrex::second();
     const Geometry& geom = m_gdb->Geom(a_lev);
-    const Box& domain = geom.Domain();
     const auto plo = geom.ProbLoArray();
-    const auto dx  = geom.CellSizeArray();
     const auto dxi = geom.InvCellSizeArray();
 
 #ifdef AMREX_USE_OMP
@@ -171,8 +175,11 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
         int grid    = pti.index();
         auto& ptile = ParticlesAt(a_lev, pti);
         auto& aos  = ptile.GetArrayOfStructs();
+        auto& soa  = ptile.GetStructOfArrays();
         const int n = aos.numParticles();
         auto *p_pbox = aos().data();
+
+        auto vz_ptr = soa.GetRealData(ERFParticlesRealIdxSoA::vz).data();
 
         bool use_terrain = (a_z_height != nullptr);
         auto zheight = use_terrain ? (*a_z_height)[grid].array() : Array4<Real>{};
@@ -182,7 +189,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
 
-            ParticleReal v = p.rdata(ERFParticlesRealIdx::vz);
+            ParticleReal v = vz_ptr[i];
 
             // Define acceleration to be (gravity minus drag) where drag is defined
             // such the particles will reach a terminal velocity of 5.0 (totally arbitrary)
@@ -193,13 +200,13 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
             ParticleReal half_dt = 0.5 * a_dt;
 
             // Update the particle velocity over first half of step (a_dt/2)
-            p.rdata(ERFParticlesRealIdx::vz) -= (grav - drag) * half_dt;
+            vz_ptr[i] -= (grav - drag) * half_dt;
 
             // Update the particle position over (a_dt)
-            p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*p.rdata(ERFParticlesRealIdx::vz));
+            p.pos(2) += static_cast<ParticleReal>(ParticleReal(0.5)*a_dt*vz_ptr[i]);
 
             // Update the particle velocity over second half of step (a_dt/2)
-            p.rdata(ERFParticlesRealIdx::vz) -= (grav - drag) * half_dt;
+            vz_ptr[i] -= (grav - drag) * half_dt;
 
             // also update z-coordinate here
             update_location_idata(p,plo,dxi,zheight);
@@ -216,7 +223,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
                 ParallelReduce::Max(stoptime, ParallelContext::IOProcessorNumberSub(),
                                     ParallelContext::CommunicatorSub());
 
-                amrex::Print() << "ERFPC::AdvectWithGravity() time: " << stoptime << '\n';
+                Print() << "ERFPC::AdvectWithGravity() time: " << stoptime << '\n';
 #ifdef AMREX_LAZY
         });
 #endif

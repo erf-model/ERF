@@ -136,6 +136,10 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
       (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right]
 
+   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implentation with terrain will require local vector rotations. While the ERF dycore accounts for
+   terrain metrics when computing fluxes (e.g. for advection, diffusion, etc.), the impact of terrain metrics on MOST is still a work in progress. Therefore, running with terrain (``erf.use_terrain = true``) and with MOST
+   (``zlo.type = "Most"``) should be cautioned.
+
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~
 To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports three methods for parameterizing the surface roughness: ``constant``, ``charnock``, and ``modified_charnock``. The latter two methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_. The rougness calculation method may be specified with

@@ -1,0 +1,82 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 21600
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =  6400     6400    3000
+amr.n_cell           =    64       64      75
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type      = "Most"
+
+erf.most.z0   = 0.000283
+erf.most.zref = 20.0
+erf.most.surf_temp_flux = 0.008
+
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.fixed_dt           = 1.0 # fixed time step depending on grid resolution
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 600        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 60        # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qi
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 1.0
+erf.use_gravity = true
+
+erf.moisture_model  = "SAM"
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
+
+erf.init_type = "input_sounding"
+erf.init_sounding_ideal = true
+
+erf.add_custom_rhotheta_forcing = true
+erf.add_custom_moisture_forcing = true
+erf.add_custom_w_subsidence     = true
+erf.custom_forcing_uses_primitive_vars = false
+
+# Higher values of perturbations lead to instability
+# Instability seems to be coming from BC
+prob.U_0_Pert_Mag = 0.01
+prob.V_0_Pert_Mag = 0.01 
+prob.W_0_Pert_Mag = 0.0
+
+prob.pert_ref_height = 400.0
+prob.T_pert          = 0.1
+prob.qv_pert         = 0.025
+
+prob.advection_heating_rate   = -2.3148E-5
+prob.source_cutoff            = 1500.0
+prob.source_cutoff_transition = 3000.0
+
+prob.advection_moisture_rate   		    = -1.2E-8
+prob.moisture_source_cutoff            	= 300.0
+prob.moisture_source_cutoff_transition 	= 500.0
+
+prob.wbar_sub_max    = -0.65
+prob.wbar_cutoff_max = 1500.0
+prob.wbar_cutoff_min = 2100.0   

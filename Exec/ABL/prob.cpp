@@ -16,7 +16,10 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("rho_0", parms.rho_0);
   pp.query("T_0", parms.T_0);
   pp.query("A_0", parms.A_0);
+  pp.query("KE_0", parms.KE_0);
   pp.query("QKE_0", parms.QKE_0);
+  pp.query("KE_decay_height", parms.KE_decay_height);
+  pp.query("KE_decay_order", parms.KE_decay_order);
 
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
@@ -25,6 +28,7 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
   pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
   pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
+  pp.query("pert_rhotheta", parms.pert_rhotheta);
 
   pp.query("pert_deltaU", parms.pert_deltaU);
   pp.query("pert_deltaV", parms.pert_deltaV);
@@ -48,14 +52,15 @@ Problem::init_custom_pert(
     const amrex::Box& xbx,
     const amrex::Box& ybx,
     const amrex::Box& zbx,
-    amrex::Array4<amrex::Real      > const& state,
-    amrex::Array4<amrex::Real      > const& x_vel,
-    amrex::Array4<amrex::Real      > const& y_vel,
-    amrex::Array4<amrex::Real      > const& z_vel,
-    amrex::Array4<amrex::Real      > const& /*r_hse*/,
+    amrex::Array4<amrex::Real const> const& /*state*/,
+    amrex::Array4<amrex::Real      > const& state_pert,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
+    amrex::Array4<amrex::Real      > const& r_hse,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
-    amrex::Array4<amrex::Real const> const& /*z_nd*/,
-    amrex::Array4<amrex::Real const> const& /*z_cc*/,
+    amrex::Array4<amrex::Real const> const& z_nd,
+    amrex::Array4<amrex::Real const> const& z_cc,
     amrex::GeometryData const& geomdata,
     amrex::Array4<amrex::Real const> const& /*mf_m*/,
     amrex::Array4<amrex::Real const> const& /*mf_u*/,
@@ -64,6 +69,35 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
+    const bool use_terrain = sc.use_terrain;
+
+    if (parms.KE_decay_height > 0) {
+        amrex::Print() << "Initial KE profile (order " << parms.KE_decay_order
+                       << ") will extend up to " << parms.KE_decay_height
+                       << std::endl;
+    }
+
+    if (parms.pert_ref_height > 0) {
+        if ((parms.pert_deltaU != 0.0) || (parms.pert_deltaV != 0.0)) {
+            amrex::Print() << "Adding divergence-free perturbations "
+                           << parms.pert_deltaU << " " << parms.pert_deltaV
+                           << std::endl;
+        }
+        if (parms.U_0_Pert_Mag != 0.0) {
+            amrex::Print() << "Adding random x-velocity perturbations" << std::endl;
+        }
+        if (parms.V_0_Pert_Mag != 0.0) {
+            amrex::Print() << "Adding random y-velocity perturbations" << std::endl;
+        }
+        if (parms.T_0_Pert_Mag != 0.0) {
+            if (parms.pert_rhotheta) {
+                amrex::Print() << "Adding random rho*theta perturbations" << std::endl;
+            } else {
+                amrex::Print() << "Adding random theta perturbations" << std::endl;
+            }
+        }
+    }
+
   ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
@@ -71,7 +105,7 @@ Problem::init_custom_pert(
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = use_terrain ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
@@ -83,18 +117,41 @@ Problem::init_custom_pert(
     // Add temperature perturbations
     if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        if (!parms.pert_rhotheta) {
+            // we're perturbing theta, not rho*theta
+            state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
+        }
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+    state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
-    // Set an initial value for QKE
-    state(i, j, k, RhoQKE_comp) = parms.QKE_0;
+    // Set an initial value for SGS KE
+    if (state_pert.nComp() > RhoKE_comp) {
+        // Deardorff
+        state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms.KE_0;
+        if (parms.KE_decay_height > 0) {
+            // scale initial SGS kinetic energy with height
+            state_pert(i, j, k, RhoKE_comp) *= max(
+                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
+                1e-12);
+        }
+    }
+    if (state_pert.nComp() > RhoQKE_comp) {
+        // PBL
+        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
+        if (parms.KE_decay_height > 0) {
+            // scale initial SGS kinetic energy with height
+            state_pert(i, j, k, RhoQKE_comp) *= max(
+                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
+                1e-12);
+        }
+    }
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
@@ -103,22 +160,24 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = use_terrain ? 0.25*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
+                                      + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
+                               : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    x_vel(i, j, k) = parms.U_0;
+    x_vel_pert(i, j, k) = parms.U_0;
     if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
-        x_vel(i, j, k) += x_vel_prime;
+        x_vel_pert(i, j, k) += x_vel_prime;
     }
     if (parms.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        x_vel(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
+        x_vel_pert(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
     }
   });
 
@@ -127,22 +186,24 @@ Problem::init_custom_pert(
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
     const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-    const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real z = use_terrain ? 0.25*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
+                                      + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
+                               : prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel(i, j, k) = parms.V_0;
+    y_vel_pert(i, j, k) = parms.V_0;
     if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
-        y_vel(i, j, k) += y_vel_prime;
+        y_vel_pert(i, j, k) += y_vel_prime;
     }
     if (parms.pert_deltaV != 0.0)
     {
         const amrex::Real xl = x - prob_lo[0];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        y_vel(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+        y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
     }
   });
 
@@ -154,13 +215,13 @@ Problem::init_custom_pert(
     // Set the z-velocity
     if (k == dom_lo_z || k == dom_hi_z+1)
     {
-        z_vel(i, j, k) = 0.0;
+        z_vel_pert(i, j, k) = 0.0;
     }
     else if (parms.W_0_Pert_Mag != 0.0)
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-        z_vel(i, j, k) = parms.W_0 + z_vel_prime;
+        z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
     }
   });
 }

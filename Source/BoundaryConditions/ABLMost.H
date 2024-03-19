@@ -32,6 +32,7 @@ public:
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_lev,
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
@@ -42,8 +43,12 @@ public:
     : m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
-      m_ma(geom,vars_old,Theta_prim,z_phys_nd)
+      m_ma(geom,vars_old,Theta_prim,Qv_prim,z_phys_nd)
     {
+        // We have a moisture model if Qv_prim is a valid pointer
+        use_moisture = (Qv_prim[0].get());
+
+        // Get roughness
         amrex::ParmParse pp("erf");
         pp.query("most.z0", z0_const);
 
@@ -54,28 +59,48 @@ public:
             flux_type = FluxCalcType::DONELAN;
         } else if (flux_string == "moeng") {
             flux_type = FluxCalcType::MOENG;
+        } else if (flux_string == "custom") {
+            flux_type = FluxCalcType::CUSTOM;
         } else {
             amrex::Abort("Undefined MOST flux type!");
         }
 
-        // Specify surface temperature or surface flux
+        // Get surface temperature
         auto erf_st = pp.query("most.surf_temp", surf_temp);
-        if (erf_st) {
-            theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
-            pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
-            surf_heating_rate = surf_heating_rate / 3600.0; // [K/s]
-            if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
-                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+
+        // Custom type user must specify the fluxes
+        if (flux_type == FluxCalcType::CUSTOM) {
+            theta_type = ThetaCalcType::HEAT_FLUX;
+            pp.query("most.ustar", custom_ustar);
+            pp.query("most.tstar", custom_tstar);
+            pp.query("most.qstar", custom_qstar);
+            if (custom_qstar != 0) {
+                AMREX_ASSERT_WITH_MESSAGE(use_moisture, "Specified custom MOST qv flux without moisture model!");
             }
+            amrex::Print() << "Using specified ustar, tstar, qstar for MOST = "
+                << custom_ustar << " "
+                << custom_tstar << " "
+                << custom_qstar << std::endl;
+
+        // Specify surface temperature or surface flux
         } else {
-            pp.query("most.surf_temp_flux", surf_temp_flux);
-            if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
-                amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
-            }
-            if (std::abs(surf_temp_flux) > std::numeric_limits<amrex::Real>::epsilon()) {
-                theta_type = ThetaCalcType::HEAT_FLUX;
+            if (erf_st) {
+                theta_type = ThetaCalcType::SURFACE_TEMPERATURE;
+                pp.query("most.surf_heating_rate", surf_heating_rate); // [K/h]
+                surf_heating_rate = surf_heating_rate / 3600.0; // [K/s]
+                if (pp.query("most.surf_temp_flux", surf_temp_flux)) {
+                    amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+                }
             } else {
-                theta_type = ThetaCalcType::ADIABATIC;
+                pp.query("most.surf_temp_flux", surf_temp_flux);
+                if (pp.query("most.surf_heating_rate", surf_heating_rate)) {
+                    amrex::Abort("Can only specify one of surf_temp_flux or surf_heating_rate");
+                }
+                if (std::abs(surf_temp_flux) > std::numeric_limits<amrex::Real>::epsilon()) {
+                    theta_type = ThetaCalcType::HEAT_FLUX;
+                } else {
+                    theta_type = ThetaCalcType::ADIABATIC;
+                }
             }
         }
 
@@ -99,6 +124,7 @@ public:
         z_0.resize(nlevs);
         u_star.resize(nlevs);
         t_star.resize(nlevs);
+        q_star.resize(nlevs);
         t_surf.resize(nlevs);
         olen.resize(nlevs);
 
@@ -159,6 +185,9 @@ public:
             t_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             t_star[lev]->setVal(1.E34);
 
+            q_star[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
+            q_star[lev]->setVal(1.E34);
+
             olen[lev] = std::make_unique<amrex::MultiFab>(ba2d,dm,ncomp,ng);
             olen[lev]->setVal(1.E34);
 
@@ -191,14 +220,26 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                     amrex::MultiFab* heat_flux,
+#else
                      amrex::MultiFab* eddyDiffs,
+#endif
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
+#ifdef ERF_EXPLICIT_MOST_STRESS
+                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                      amrex::MultiFab* heat_flux,
+#else
                       amrex::MultiFab* eddyDiffs,
+#endif
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
@@ -229,8 +270,9 @@ public:
     void
     update_mac_ptrs (const int& lev,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
-                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim)
-    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim); }
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
+                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim)
+    { m_ma.update_field_ptrs(lev,vars_old,Theta_prim,Qv_prim); }
 
     const amrex::MultiFab*
     get_u_star (const int& lev) { return u_star[lev].get(); }
@@ -246,7 +288,8 @@ public:
 
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
-        DONELAN         ///< Donelan functional form
+        DONELAN,        ///< Donelan functional form
+        CUSTOM          ///< Custom constant flux functional form
     };
 
     enum struct ThetaCalcType {
@@ -261,15 +304,19 @@ public:
         MODIFIED_CHARNOCK
     };
 
-    FluxCalcType  flux_type;
-    ThetaCalcType theta_type;
-    RoughCalcType rough_type;
+    FluxCalcType   flux_type{FluxCalcType::MOENG};
+    ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
+    RoughCalcType rough_type{RoughCalcType::CONSTANT};
 
 private:
+    bool use_moisture;
     amrex::Real z0_const;
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
     amrex::Real surf_temp_flux{0};
+    amrex::Real custom_ustar{0};
+    amrex::Real custom_tstar{0};
+    amrex::Real custom_qstar{0};
     amrex::Real cnk_a{0.0185};
     amrex::Real depth{30.0};
     amrex::Real m_start_bdy_time;
@@ -280,6 +327,7 @@ private:
     MOSTAverage m_ma;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> olen;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 

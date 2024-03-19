@@ -22,34 +22,27 @@
 #include "Microphysics_Utils.H"
 #include "IndexDefines.H"
 #include "DataStruct.H"
+#include "NullMoist.H"
 
 namespace MicVar_Kess {
    enum {
       // independent variables
-      qt = 0,
-      qp,
+      rho=0, // density
       theta, // liquid/ice water potential temperature
       tabs,  // temperature
-      rho,   // density
       pres,  // pressure
-      // derived variables
-      qr,   // rain water
-      qv,   // water vapor
-      qn,   // cloud condensate (liquid+ice), initial to zero
-      qci,  // cloud ice
-      qcl,  // cloud water
-      qpl,  // precip rain
-      qpi,  // precip ice
-      qg,   // graupel
-      // temporary variable
-      omega,
+      // non-precipitating vars
+      qt,    // total cloud
+      qv,    // cloud vapor
+      qcl,   // cloud water
+      // precipitating vars
+      qp,    // total precip
+      // derived vars
+      rain_accum,
       NumVars
   };
 }
 
-//
-// use MultiFab for 3D data, but table for 1D data
-//
 class Kessler : public NullMoist {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -62,7 +55,7 @@ public:
     virtual ~Kessler () = default;
 
     // cloud physics
-    void AdvanceKessler ();
+    void AdvanceKessler (const SolverChoice &solverChoice);
 
     // diagnose
     void Diagnose () override;
@@ -112,11 +105,12 @@ public:
 
     // wrapper to advance micro vars
     void
-    Advance (const amrex::Real& dt_advance) override
+    Advance (const amrex::Real& dt_advance,
+             const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
 
-        this->AdvanceKessler();
+        this->AdvanceKessler(solverChoice);
         this->Diagnose();
     }
 
@@ -134,8 +128,8 @@ public:
     Qstate_Size () override { return Kessler::m_qstate_size; }
 
 private:
-    // Number of qmoist variables (qt, qv, qcl, qci, qp, qpl, qpi)
-    int m_qmoist_size = 7;
+    // Number of qmoist variables (qt, qv, qcl, qp)
+    int m_qmoist_size = 5;
 
     // Number of qstate variables
     int m_qstate_size = 3;

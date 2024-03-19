@@ -3,6 +3,8 @@
 
 extern std::string inputs_name;
 
+using namespace amrex;
+
 void
 ERF::writeJobInfo (const std::string& dir) const
 {
@@ -26,7 +28,7 @@ ERF::writeJobInfo (const std::string& dir) const
   jobInfoFile << "inputs file: " << inputs_name << "\n\n";
 
   jobInfoFile << "number of MPI processes: "
-              << amrex::ParallelDescriptor::NProcs() << "\n";
+              << ParallelDescriptor::NProcs() << "\n";
 #ifdef _OPENMP
   jobInfoFile << "number of threads:       " << omp_get_max_threads() << "\n";
 #endif
@@ -48,7 +50,7 @@ ERF::writeJobInfo (const std::string& dir) const
   tm* localtm = localtime(&now);
   jobInfoFile << "output data / time: " << asctime(localtm);
 
-  std::string currentDir = amrex::FileSystem::CurrentPath();
+  std::string currentDir = FileSystem::CurrentPath();
   jobInfoFile << "output dir:         " << currentDir << "\n";
 
   jobInfoFile << "\n\n";
@@ -58,27 +60,27 @@ ERF::writeJobInfo (const std::string& dir) const
   jobInfoFile << " Build Information\n";
   jobInfoFile << PrettyLine;
 
-  jobInfoFile << "build date:    " << amrex::buildInfoGetBuildDate() << "\n";
-  jobInfoFile << "build machine: " << amrex::buildInfoGetBuildMachine() << "\n";
-  jobInfoFile << "build dir:     " << amrex::buildInfoGetBuildDir() << "\n";
-  jobInfoFile << "AMReX dir:     " << amrex::buildInfoGetAMReXDir() << "\n";
+  jobInfoFile << "build date:    " << buildInfoGetBuildDate() << "\n";
+  jobInfoFile << "build machine: " << buildInfoGetBuildMachine() << "\n";
+  jobInfoFile << "build dir:     " << buildInfoGetBuildDir() << "\n";
+  jobInfoFile << "AMReX dir:     " << buildInfoGetAMReXDir() << "\n";
 
   jobInfoFile << "\n";
 
-  jobInfoFile << "COMP:          " << amrex::buildInfoGetComp() << "\n";
-  jobInfoFile << "COMP version:  " << amrex::buildInfoGetCompVersion() << "\n";
+  jobInfoFile << "COMP:          " << buildInfoGetComp() << "\n";
+  jobInfoFile << "COMP version:  " << buildInfoGetCompVersion() << "\n";
 
   jobInfoFile << "\n";
 
-  for (int n = 1; n <= amrex::buildInfoGetNumModules(); n++) {
-    jobInfoFile << amrex::buildInfoGetModuleName(n) << ": "
-                << amrex::buildInfoGetModuleVal(n) << "\n";
+  for (int n = 1; n <= buildInfoGetNumModules(); n++) {
+    jobInfoFile << buildInfoGetModuleName(n) << ": "
+                << buildInfoGetModuleVal(n) << "\n";
   }
 
   jobInfoFile << "\n";
 
-  const char* githash1 = amrex::buildInfoGetGitHash(1);
-  const char* githash2 = amrex::buildInfoGetGitHash(2);
+  const char* githash1 = buildInfoGetGitHash(1);
+  const char* githash2 = buildInfoGetGitHash(2);
   if (strlen(githash1) > 0) {
     jobInfoFile << "ERF       git hash: " << githash1 << "\n";
   }
@@ -86,8 +88,8 @@ ERF::writeJobInfo (const std::string& dir) const
     jobInfoFile << "AMReX       git hash: " << githash2 << "\n";
   }
 
-  const char* buildgithash = amrex::buildInfoGetBuildGitHash();
-  const char* buildgitname = amrex::buildInfoGetBuildGitName();
+  const char* buildgithash = buildInfoGetBuildGitHash();
+  const char* buildgitname = buildInfoGetBuildGitName();
   if (strlen(buildgithash) > 0) {
     jobInfoFile << buildgitname << " git hash: " << buildgithash << "\n";
   }
@@ -127,7 +129,7 @@ ERF::writeJobInfo (const std::string& dir) const
   jobInfoFile << " Inputs File Parameters\n";
   jobInfoFile << PrettyLine;
 
-  amrex::ParmParse::dumpTable(jobInfoFile, true);
+  ParmParse::dumpTable(jobInfoFile, true);
   jobInfoFile.close();
 }
 
@@ -143,34 +145,34 @@ ERF::writeBuildInfo (std::ostream& os)
   os << " ERF Build Information\n";
   os << PrettyLine;
 
-  os << "build date:    " << amrex::buildInfoGetBuildDate() << "\n";
-  os << "build machine: " << amrex::buildInfoGetBuildMachine() << "\n";
-  os << "build dir:     " << amrex::buildInfoGetBuildDir() << "\n";
-  os << "AMReX dir:     " << amrex::buildInfoGetAMReXDir() << "\n";
+  os << "build date:    " << buildInfoGetBuildDate() << "\n";
+  os << "build machine: " << buildInfoGetBuildMachine() << "\n";
+  os << "build dir:     " << buildInfoGetBuildDir() << "\n";
+  os << "AMReX dir:     " << buildInfoGetAMReXDir() << "\n";
 
   os << "\n";
 
-  os << "COMP:          " << amrex::buildInfoGetComp() << "\n";
-  os << "COMP version:  " << amrex::buildInfoGetCompVersion() << "\n";
+  os << "COMP:          " << buildInfoGetComp() << "\n";
+  os << "COMP version:  " << buildInfoGetCompVersion() << "\n";
 
-  os << "C++ compiler:  " << amrex::buildInfoGetCXXName() << "\n";
-  os << "C++ flags:     " << amrex::buildInfoGetCXXFlags() << "\n";
-
-  os << "\n";
-
-  os << "Link flags:    " << amrex::buildInfoGetLinkFlags() << "\n";
-  os << "Libraries:     " << amrex::buildInfoGetLibraries() << "\n";
+  os << "C++ compiler:  " << buildInfoGetCXXName() << "\n";
+  os << "C++ flags:     " << buildInfoGetCXXFlags() << "\n";
 
   os << "\n";
 
-  for (int n = 1; n <= amrex::buildInfoGetNumModules(); n++) {
-    os << amrex::buildInfoGetModuleName(n) << ": "
-       << amrex::buildInfoGetModuleVal(n) << "\n";
+  os << "Link flags:    " << buildInfoGetLinkFlags() << "\n";
+  os << "Libraries:     " << buildInfoGetLibraries() << "\n";
+
+  os << "\n";
+
+  for (int n = 1; n <= buildInfoGetNumModules(); n++) {
+    os << buildInfoGetModuleName(n) << ": "
+       << buildInfoGetModuleVal(n) << "\n";
   }
 
   os << "\n";
-  const char* githash1 = amrex::buildInfoGetGitHash(1);
-  const char* githash2 = amrex::buildInfoGetGitHash(2);
+  const char* githash1 = buildInfoGetGitHash(1);
+  const char* githash2 = buildInfoGetGitHash(2);
   if (strlen(githash1) > 0) {
     os << "ERF       git hash: " << githash1 << "\n";
   }
@@ -178,8 +180,8 @@ ERF::writeBuildInfo (std::ostream& os)
     os << "AMReX       git hash: " << githash2 << "\n";
   }
 
-  const char* buildgithash = amrex::buildInfoGetBuildGitHash();
-  const char* buildgitname = amrex::buildInfoGetBuildGitName();
+  const char* buildgithash = buildInfoGetBuildGitHash();
+  const char* buildgitname = buildInfoGetBuildGitName();
   if (strlen(buildgithash) > 0) {
     os << buildgitname << " git hash: " << buildgithash << "\n";
   }

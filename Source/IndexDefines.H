@@ -17,14 +17,17 @@
 #define RhoQ1_comp     5
 #define RhoQ2_comp     6
 #define RhoQ3_comp     7
+#define RhoQ4_comp     8
+#define RhoQ5_comp     9
+#define RhoQ6_comp     10
 
 // This is the number of components if using moisture
 // We use this to allocate the 1d arrays of boundary condition types,
 //    but not to allocate actual solution data
-#define NVAR_max 8
+#define NVAR_max 11
 
 // This defines the maximum number of moisture vars
-#define NMOIST_max 3
+#define NMOIST_max 6
 
 // Cell-centered primitive variables
 #define PrimTheta_comp   (RhoTheta_comp -1)
@@ -34,6 +37,9 @@
 #define PrimQ1_comp      (RhoQ1_comp-1)
 #define PrimQ2_comp      (RhoQ2_comp-1)
 #define PrimQ3_comp      (RhoQ3_comp-1)
+#define PrimQ4_comp      (RhoQ4_comp-1)
+#define PrimQ5_comp      (RhoQ5_comp-1)
+#define PrimQ6_comp      (RhoQ6_comp-1)
 
 // NOTE: we still use this indexing even if no moisture
 namespace BCVars {
@@ -49,6 +55,17 @@ namespace BCVars {
         xvel_bc = NVAR_max,
         yvel_bc = NVAR_max+1,
         zvel_bc = NVAR_max+2,
+        NumTypes
+    };
+}
+
+namespace RealBdyVars {
+    enum {
+        U  = 0,
+        V  = 1,
+        R  = 2,
+        T  = 3,
+        QV,
         NumTypes
     };
 }
@@ -83,10 +100,17 @@ namespace Vars {
         xvel,
         yvel,
         zvel,
-        NumTypes,
+        NumTypes
+    };
+}
+
+namespace IntVars {
+    enum {
+        cons = 0,
         xmom,
         ymom,
-        zmom
+        zmom,
+        NumTypes
     };
 }
 
@@ -96,20 +120,16 @@ namespace EddyDiff {
     enum {
         Mom_h = 0,
         Theta_h,
-        Scalar_h,
         KE_h,
         QKE_h,
-        Q1_h,
-        Q2_h,
-        Q3_h,
+        Scalar_h,
+        Q_h,
         Mom_v,
         Theta_v,
-        Scalar_v,
         KE_v,
         QKE_v,
-        Q1_v,
-        Q2_v,
-        Q3_v,
+        Scalar_v,
+        Q_v,
         PBL_lengthscale,
         NumDiffs
     };
@@ -135,16 +155,6 @@ enum mathematicalBndryTypes : int {
     neumann          =  103,
     neumann_int      =  104
 };
-}
-
-namespace IntVar {
-    enum {
-        cons = 0,
-        xmom,
-        ymom,
-        zmom,
-        NumVars
-    };
 }
 
 enum struct AdvType : int {

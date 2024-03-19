@@ -275,10 +275,11 @@ Problem::init_custom_pert (
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real      > const& state,
-    Array4<Real      > const& x_vel,
-    Array4<Real      > const& y_vel,
-    Array4<Real      > const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real      > const& /*r_hse*/,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
@@ -331,13 +332,13 @@ Problem::init_custom_pert (
     Real height = parms.height;
     Real z_tr = parms.z_tr;
 
-  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
-    const auto prob_lo         = geomdata.ProbLo();
-    const auto dx              = geomdata.CellSize();
-    const amrex::Real z        = prob_lo[2] + (k + 0.5) * dx[2];
-    const amrex::Real x        = prob_lo[0] + (i + 0.5) * dx[0];
+    const auto prob_lo  = geomdata.ProbLo();
+    const auto dx       = geomdata.CellSize();
+    const Real z        = prob_lo[2] + (k + 0.5) * dx[2];
+    const Real x        = prob_lo[0] + (i + 0.5) * dx[0];
     Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
     // Introduce the warm bubble. Assume that the bubble is pressure matche with the background
@@ -368,37 +369,37 @@ Problem::init_custom_pert (
     Real rho_back         = p[k]/(R_d*temperature_back*(1.0 + (R_v/R_d)*q_v_back));
 
     // This version perturbs rho but not p
-    state(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(1.0 + (R_v/R_d)*q_v_back);// rho*d_t[k]*(1.0 + R_v_by_R_d*q_v_hot);
-    state(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + q_v_back);
+    state_pert(i, j, k, RhoTheta_comp) = rho*theta_total - rho_back*t[k]*(1.0 + (R_v/R_d)*q_v_back);// rho*d_t[k]*(1.0 + R_v_by_R_d*q_v_hot);
+    state_pert(i, j, k, Rho_comp)      = rho - rho_back*(1.0 + q_v_back);
 
     // Set scalar = 0 everywhere
-    state(i, j, k, RhoScalar_comp) = rho*scalar;
+    state_pert(i, j, k, RhoScalar_comp) = rho*scalar;
 
     // mean states
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = rho*q_v_hot;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
 
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    const amrex::Real z = prob_lo_z + (k+0.5) * dz;
-    x_vel(i,j,k) = -12.0*std::max(0.0, (2.5e3 - z)/2.5e3);
+  ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      const amrex::Real z = prob_lo_z + (k+0.5) * dz;
+      x_vel_pert(i,j,k) = -12.0*std::max(0.0, (2.5e3 - z)/2.5e3);
   });
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    y_vel(i, j, k) = 0.0;
+  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      y_vel_pert(i, j, k) = 0.0;
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        z_vel(i, j, k) = 0.0;
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      z_vel_pert(i, j, k) = 0.0;
   });
 
-  amrex::Gpu::streamSynchronize();
+  Gpu::streamSynchronize();
 }
 
 void

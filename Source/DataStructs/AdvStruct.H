@@ -39,10 +39,60 @@ struct AdvChoice {
            amrex::Print() << "Using efficient advection scheme" << std::endl;;
         }
 
+        if ( (dycore_horiz_adv_string == "Blended_3rd4th") ||
+             (dycore_horiz_adv_string == "Blended_5th6th") )
+        {
+            pp.query("dycore_horiz_upw_frac" , dycore_horiz_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((dycore_horiz_upw_frac >= 0.) && (dycore_horiz_upw_frac <= 1.),
+                                      "The dycore horizontal upwinding fraction must be between 0 and 1");
+        }
+
+        if ( (dycore_vert_adv_string == "Blended_3rd4th") ||
+             (dycore_vert_adv_string == "Blended_5th6th") )
+        {
+            pp.query("dycore_vert_upw_frac" , dycore_vert_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((dycore_vert_upw_frac >= 0.) && (dycore_vert_upw_frac <= 1.),
+                                      "The dycore vertical upwinding fraction must be between 0 and 1");
+        }
+
+        if ( (dryscal_horiz_adv_string == "Blended_3rd4th") ||
+             (dryscal_horiz_adv_string == "Blended_5th6th") )
+        {
+            pp.query("dryscal_horiz_upw_frac" , dryscal_horiz_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((dryscal_horiz_upw_frac >= 0.) && (dryscal_horiz_upw_frac <= 1.),
+                                      "The dry scalar horizontal upwinding fraction must be between 0 and 1");
+        }
+
+        if ( (dryscal_vert_adv_string == "Blended_3rd4th") ||
+             (dryscal_vert_adv_string == "Blended_5th6th") )
+        {
+            pp.query("dryscal_vert_upw_frac" , dryscal_vert_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((dryscal_vert_upw_frac >= 0.) && (dryscal_vert_upw_frac <= 1.),
+                                      "The dry scalar vertical upwinding fraction must be between 0 and 1");
+        }
+
+        if ( (moistscal_horiz_adv_string == "Blended_3rd4th") ||
+             (moistscal_horiz_adv_string == "Blended_5th6th") )
+        {
+            pp.query("moistscal_horiz_upw_frac" , moistscal_horiz_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((moistscal_horiz_upw_frac >= 0.) && (moistscal_horiz_upw_frac <= 1.),
+                                      "The moist scalar horizontal upwinding fraction must be between 0 and 1");
+        }
+
+        if ( (moistscal_vert_adv_string == "Blended_3rd4th") ||
+             (moistscal_vert_adv_string == "Blended_5th6th") )
+        {
+            pp.query("moistscal_vert_upw_frac" , moistscal_vert_upw_frac);
+            AMREX_ASSERT_WITH_MESSAGE((moistscal_vert_upw_frac >= 0.) && (moistscal_vert_upw_frac <= 1.),
+                                      "The moist scalar vertical upwinding fraction must be between 0 and 1");
+        }
+
         if ( (dycore_horiz_adv_string == "Centered_2nd") ||
              (dycore_horiz_adv_string == "Upwind_3rd"  ) ||
+             (dycore_horiz_adv_string == "Blended_3rd4th") ||
              (dycore_horiz_adv_string == "Centered_4th") ||
              (dycore_horiz_adv_string == "Upwind_5th"  ) ||
+             (dycore_horiz_adv_string == "Blended_5th6th") ||
              (dycore_horiz_adv_string == "Centered_6th") )
         {
             dycore_horiz_adv_type = adv_type_convert_string_to_advtype(dycore_horiz_adv_string);
@@ -53,8 +103,10 @@ struct AdvChoice {
 
         if ( (dycore_vert_adv_string == "Centered_2nd") ||
              (dycore_vert_adv_string == "Upwind_3rd"  ) ||
+             (dycore_vert_adv_string == "Blended_3rd4th") ||
              (dycore_vert_adv_string == "Centered_4th") ||
              (dycore_vert_adv_string == "Upwind_5th"  ) ||
+             (dycore_vert_adv_string == "Blended_5th6th") ||
              (dycore_vert_adv_string == "Centered_6th") )
         {
             dycore_vert_adv_type = adv_type_convert_string_to_advtype(dycore_vert_adv_string);
@@ -65,8 +117,10 @@ struct AdvChoice {
 
         if ( (dryscal_horiz_adv_string == "Centered_2nd") ||
              (dryscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_horiz_adv_string == "Blended_3rd4th") ||
              (dryscal_horiz_adv_string == "Centered_4th") ||
              (dryscal_horiz_adv_string == "Upwind_5th"  ) ||
+             (dryscal_horiz_adv_string == "Blended_5th6th") ||
              (dryscal_horiz_adv_string == "Centered_6th") ||
              (dryscal_horiz_adv_string == "WENO3"       ) ||
              (dryscal_horiz_adv_string == "WENOZ3"      ) ||
@@ -82,8 +136,10 @@ struct AdvChoice {
 
         if ( (dryscal_vert_adv_string == "Centered_2nd") ||
              (dryscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (dryscal_vert_adv_string == "Blended_3rd4th") ||
              (dryscal_vert_adv_string == "Centered_4th") ||
              (dryscal_vert_adv_string == "Upwind_5th"  ) ||
+             (dryscal_vert_adv_string == "Blended_5th6th") ||
              (dryscal_vert_adv_string == "Centered_6th") ||
              (dryscal_vert_adv_string == "WENO3"       ) ||
              (dryscal_vert_adv_string == "WENOZ3"      ) ||
@@ -99,8 +155,10 @@ struct AdvChoice {
 
         if ( (moistscal_horiz_adv_string == "Centered_2nd") ||
              (moistscal_horiz_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_horiz_adv_string == "Blended_3rd4th") ||
              (moistscal_horiz_adv_string == "Centered_4th") ||
              (moistscal_horiz_adv_string == "Upwind_5th"  ) ||
+             (moistscal_horiz_adv_string == "Blended_5th6th") ||
              (moistscal_horiz_adv_string == "Centered_6th") ||
              (moistscal_horiz_adv_string == "WENO3"       ) ||
              (moistscal_horiz_adv_string == "WENOZ3"      ) ||
@@ -116,8 +174,10 @@ struct AdvChoice {
 
         if ( (moistscal_vert_adv_string == "Centered_2nd") ||
              (moistscal_vert_adv_string == "Upwind_3rd"  ) ||
+             (moistscal_vert_adv_string == "Blended_3rd4th") ||
              (moistscal_vert_adv_string == "Centered_4th") ||
              (moistscal_vert_adv_string == "Upwind_5th"  ) ||
+             (moistscal_vert_adv_string == "Blended_5th6th") ||
              (moistscal_vert_adv_string == "Centered_6th") ||
              (moistscal_vert_adv_string == "WENO3"       ) ||
              (moistscal_vert_adv_string == "WENOZ3"      ) ||
@@ -135,12 +195,24 @@ struct AdvChoice {
     void display()
     {
         amrex::Print() << "Advection Choices: " << std::endl;
-        amrex::Print() << "dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type) << std::endl;
-        amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type) << std::endl;
-        amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type) << std::endl;
-        amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type) << std::endl;
-        amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type) << std::endl;
-        amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type) << std::endl;
+        amrex::Print() << "dycore_horiz_adv_type       : " << adv_type_convert_int_to_string(dycore_horiz_adv_type);
+        if (dycore_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dycore_horiz_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
+        amrex::Print() << "dycore_vert_adv_type        : " << adv_type_convert_int_to_string(dycore_vert_adv_type);
+        if (dycore_vert_upw_frac < 1) amrex::Print() << " with " << 100*dycore_vert_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
+        amrex::Print() << "dryscal_horiz_adv_type      : " << adv_type_convert_int_to_string(dryscal_horiz_adv_type);
+        if (dryscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_horiz_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
+        amrex::Print() << "dryscal_vert_adv_type       : " << adv_type_convert_int_to_string(dryscal_vert_adv_type);
+        if (dryscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*dryscal_vert_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
+        amrex::Print() << "moistscal_horiz_adv_type    : " << adv_type_convert_int_to_string(moistscal_horiz_adv_type);
+        if (moistscal_horiz_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_horiz_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
+        amrex::Print() << "moistscal_vert_adv_type     : " << adv_type_convert_int_to_string(moistscal_vert_adv_type);
+        if (moistscal_vert_upw_frac < 1) amrex::Print() << " with " << 100*moistscal_vert_upw_frac << "% upwinding";
+        amrex::Print() << std::endl;
     }
 
     std::string
@@ -175,11 +247,11 @@ struct AdvChoice {
     {
         if (adv_string == "Centered_2nd") {
             return AdvType::Centered_2nd;
-        } else if (adv_string == "Upwind_3rd") {
+        } else if ((adv_string == "Upwind_3rd") || (adv_string == "Blended_3rd4th")) {
             return AdvType::Upwind_3rd;
         } else if (adv_string == "Centered_4th") {
             return AdvType::Centered_4th;
-        } else if (adv_string == "Upwind_5th") {
+        } else if (adv_string == "Upwind_5th" || (adv_string == "Blended_5th6th")) {
             return AdvType::Upwind_5th;
         } else if (adv_string == "Centered_6th") {
             return AdvType::Centered_6th;
@@ -210,5 +282,15 @@ struct AdvChoice {
     AdvType dryscal_vert_adv_type    = AdvType::Upwind_3rd;
     AdvType moistscal_horiz_adv_type = AdvType::Weno_3;
     AdvType moistscal_vert_adv_type  = AdvType::Weno_3;
+
+    // Blending between upwind and the next-highest order central scheme
+    // Note: This is used by both Upwind_* and Blended_* schemes -- the default
+    //       is a pure upwind scheme
+    amrex::Real dycore_horiz_upw_frac    = 1.0;
+    amrex::Real dycore_vert_upw_frac     = 1.0;
+    amrex::Real dryscal_horiz_upw_frac   = 1.0;
+    amrex::Real dryscal_vert_upw_frac    = 1.0;
+    amrex::Real moistscal_horiz_upw_frac = 1.0;
+    amrex::Real moistscal_vert_upw_frac  = 1.0;
 };
 #endif

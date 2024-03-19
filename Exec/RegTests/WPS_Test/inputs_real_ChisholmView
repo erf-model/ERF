@@ -7,7 +7,7 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 3750000. 	3750000. 	5000.
+geometry.prob_extent = 3750000. 	3750000. 	16500.
 amr.n_cell           = 200   		200   		176
 #amr.blocking_factor  = 1
 
@@ -20,10 +20,6 @@ yhi.type = "Outflow"
 
 zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
-
-# SET/RELAXATION REGIONS
-erf.wrfbdy_width = 1    
-erf.wrfbdy_set_width = 1
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 0.5  # fixed time step depending on grid resolution
@@ -53,7 +49,7 @@ erf.use_gravity = true
 erf.use_terrain = true
 erf.use_terrain = false
 
-erf.moisture_model = "SAM"
+erf.moisture_model = "Kessler"
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "Constant"
@@ -70,6 +66,8 @@ prob.rho_0 = 1.0
 prob.T_0 = 300.0
 
 # INITIALIZATION WITH ATM DATA
-erf.init_type    = "real"
+erf.real_width     = 1
+erf.real_set_width = 1
+erf.init_type      = "real"
 erf.nc_init_file_0 = "wrfinput_chisholmview_d01"
-erf.nc_bdy_file = "wrfbdy_chisholmview_d01_width1"
+erf.nc_bdy_file    = "wrfbdy_chisholmview_d01_width1"

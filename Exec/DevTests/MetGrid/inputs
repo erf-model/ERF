@@ -15,8 +15,12 @@ xlo.type = "Outflow"
 xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
-zlo.type = "NoSlipWall"
+#zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
+
+zlo.type      = "Most"
+erf.most.z0   = 0.1
+erf.most.zref = 40.0
 
 # TIME STEP CONTROL
 erf.fixed_dt = 0.5  # fixed time step depending on grid resolution
@@ -56,8 +60,8 @@ erf.moisture_model = "NullMoist"
 #erf.terrain_z_levels = 0 130 354 583 816 1054 1549 2068 2615 3193 3803 4450 5142 5892 6709 7603 8591 9702 10967 12442 14230 16610 18711 20752 22133 23960 26579 28493 31236 33699 36068 40000
 
 # INITIALIZATION WITH ATM DATA
-erf.metgrid_bdy_width = 7
-erf.metgrid_bdy_set_width = 1
+erf.real_width     = 7
+erf.real_set_width = 1
 erf.init_type      = "metgrid"
 erf.nc_init_file_0 = "met_em.d01.2022-06-18_00_00_00.nc" "met_em.d01.2022-06-18_06_00_00.nc"
 

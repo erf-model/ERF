@@ -42,17 +42,6 @@
                          bool fast_only, bool vel_and_mom_synced)
     {
         BL_PROFILE("apply_bcs()");
-        amrex::Array<const MultiFab*,3> cmf_const{&xmom_crse, &ymom_crse, &zmom_crse};
-        amrex::Array<MultiFab*,3> fmf{&S_data[IntVar::xmom],
-                                      &S_data[IntVar::ymom],
-                                      &S_data[IntVar::zmom]};
-
-        // ***************************************************************************************
-        // Interpolate momentum from coarse faces to fine faces *only* on the coarse-fine boundary
-        // ***************************************************************************************
-        if (level > 0) {
-            ifr->interp(fmf,cmf_const,0,1);
-        }
 
         int scomp_cons;
         int ncomp_cons;
@@ -60,6 +49,11 @@
 
         int ng_cons_to_use;
 
+        // **********************************************************************************
+        // Because momentum is updated in the time-stepping routine, but boundary conditions
+        //  are imposed on velocities, we must first update the velocity from the momentum
+        //  before applying bcs.
+        // **********************************************************************************
         if (!vel_and_mom_synced) {
 
             // **********************************************************************************
@@ -70,9 +64,6 @@
             //     2) physical boundaries
             //     3) other grids at the same level
             // **********************************************************************************
-            scomp_cons = 0;
-            ncomp_cons = 1;
-            cons_only  = true;
 
             // We must have at least one ghost cell of density to convert from momentum to velocity
             //    on the valid region
@@ -82,17 +73,17 @@
             //    on the valid region
             ng_cons_to_use = std::max(ng_cons, ng_vel+1);
 
+            scomp_cons = 0;
+            ncomp_cons = 1;
+            cons_only  = true;
+            // **********************************************************************************
+            // Fill ghost cells of density only
+            // **********************************************************************************
             FillIntermediatePatch(level, time_for_fp,
-                                  {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
+                                  {&S_data[IntVars::cons], &xvel_new, &yvel_new, &zvel_new},
+                                  {&S_data[IntVars::cons], &S_data[IntVars::xmom],
+                                   &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
                                   ng_cons_to_use, 0, cons_only, scomp_cons, ncomp_cons);
-
-            // Here we don't use include any of the ghost region because we have only updated
-            //      momentum on valid faces
-            MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
-            MomentumToVelocity(xvel_new, yvel_new, zvel_new, density,
-                               S_data[IntVar::xmom],
-                               S_data[IntVar::ymom],
-                               S_data[IntVar::zmom]);
         }
 
         // ***************************************************************************************
@@ -108,7 +99,7 @@
                 ncomp_cons = 2; // rho and (rho theta) only
             } else {
                 scomp_cons = 0;
-                ncomp_cons = S_data[IntVar::cons].nComp();
+                ncomp_cons = S_data[IntVars::cons].nComp();
             }
             // We must have at least one extra ghost cell of density to convert from velocity to momentum
             //    on the valid region
@@ -120,7 +111,7 @@
                 ncomp_cons = 1; // (rho theta) only since we filled rho above
             } else {
                 scomp_cons = 1;
-                ncomp_cons = S_data[IntVar::cons].nComp()-1; // since we filled rho above
+                ncomp_cons = S_data[IntVars::cons].nComp()-1; // since we filled rho above
             }
             ng_cons_to_use = ng_cons;
         }
@@ -132,21 +123,14 @@
             allow_most_bcs = true;
         }
 
+        // **********************************************************************************
+        // NOTE: FillIntermediatePatch takes momenta at the new time, and returns
+        //       BOTH updated velocities and momenta
+        // **********************************************************************************
         cons_only = false;
         FillIntermediatePatch(level, time_for_fp,
-                              {&S_data[IntVar::cons], &xvel_new, &yvel_new, &zvel_new},
+                              {&S_data[IntVars::cons], &xvel_new, &yvel_new, &zvel_new},
+                              {&S_data[IntVars::cons], &S_data[IntVars::xmom], &S_data[IntVars::ymom], &S_data[IntVars::zmom]},
                               ng_cons_to_use, ng_vel, cons_only, scomp_cons, ncomp_cons,
                               allow_most_bcs);
-
-        // Now we can convert back to momentum on valid+ghost since we have
-        //     filled the ghost regions for both velocity and density
-        MultiFab density(S_data[IntVar::cons], make_alias, Rho_comp, 1);
-        VelocityToMomentum(xvel_new, IntVect(ng_vel,ng_vel,ng_vel),
-                           yvel_new, IntVect(ng_vel,ng_vel,ng_vel),
-                           zvel_new, IntVect(ng_vel,ng_vel,0),
-                           density,
-                           S_data[IntVar::xmom],
-                           S_data[IntVar::ymom],
-                           S_data[IntVar::zmom],
-                           solverChoice.use_NumDiff);
     };

@@ -48,30 +48,36 @@ void ERF::init_bcs ()
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
 
-        ParmParse pp(bcid);
+        std::string pp_text;
+        if (pp_prefix == "erf") {
+          pp_text = bcid;
+        } else {
+          pp_text = pp_prefix + "." + bcid;
+        }
+        ParmParse pp(pp_text);
         std::string bc_type_in = "null";
         pp.query("type", bc_type_in);
         //if (pp.query("type", bc_type_in))
-        //   amrex::Print() << "INPUT BC TYPE " << bcid << " " << bc_type_in << std::endl;
+        //   Print() << "INPUT BC TYPE " << bcid << " " << bc_type_in << std::endl;
         std::string bc_type = amrex::toLower(bc_type_in);
 
         if (bc_type == "symmetry")
         {
-            // amrex::Print() << bcid << " set to symmetry.\n";
+            // Print() << bcid << " set to symmetry.\n";
 
             phys_bc_type[ori] = ERF_BC::symmetry;
             domain_bc_type[ori] = "Symmetry";
         }
         else if (bc_type == "outflow")
         {
-            // amrex::Print() << bcid << " set to outflow.\n";
+            // Print() << bcid << " set to outflow.\n";
 
             phys_bc_type[ori] = ERF_BC::outflow;
             domain_bc_type[ori] = "Outflow";
         }
         else if (bc_type == "inflow")
         {
-            // amrex::Print() << bcid << " set to inflow.\n";
+            // Print() << bcid << " set to inflow.\n";
 
             phys_bc_type[ori] = ERF_BC::inflow;
             domain_bc_type[ori] = "Inflow";
@@ -145,7 +151,7 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "noslipwall")
         {
-            // amrex::Print() << bcid <<" set to no-slip wall.\n";
+            // Print() << bcid <<" set to no-slip wall.\n";
 
             phys_bc_type[ori] = ERF_BC::no_slip_wall;
             domain_bc_type[ori] = "NoSlipWall";
@@ -182,7 +188,7 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "slipwall")
         {
-            // amrex::Print() << bcid <<" set to slip wall.\n";
+            // Print() << bcid <<" set to slip wall.\n";
 
             phys_bc_type[ori] = ERF_BC::slip_wall;
             domain_bc_type[ori] = "SlipWall";
@@ -227,14 +233,14 @@ void ERF::init_bcs ()
             {
                 phys_bc_type[ori] = ERF_BC::periodic;
             } else {
-                amrex::Abort("Wrong BC type for periodic boundary");
+                Abort("Wrong BC type for periodic boundary");
             }
         }
 
         if (phys_bc_type[ori] == ERF_BC::undefined)
         {
-             amrex::Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
-             amrex::Abort("This BC type is unknown");
+             Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
+             Abort("This BC type is unknown");
         }
     };
 

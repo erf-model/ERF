@@ -51,8 +51,10 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<const Real>& mf_v,
                     const AdvType horiz_adv_type,
                     const AdvType vert_adv_type,
+                    const Real horiz_upw_frac,
+                    const Real vert_upw_frac,
                     const bool use_terrain,
-                    const int domhi_z)
+                    const int lo_z_face, const int hi_z_face)
 {
     BL_PROFILE_VAR("AdvectionSrcForMom", AdvectionSrcForMom);
 
@@ -129,7 +131,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
-                Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) :
+                Real zflux_hi = (k == hi_z_face) ? Omega(i,j,k) * w(i,j,k) :
                     0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
 
                 Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
@@ -147,35 +149,40 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_N<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_N<CENTERED4>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_N<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_N<CENTERED6>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w,
                                                   cellSizeInv, mf_m,
                                                   mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
@@ -253,7 +260,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
-                Real zflux_hi = (k == domhi_z+1) ? Omega(i,j,k) * w(i,j,k) :
+                Real zflux_hi = (k == hi_z_face) ? Omega(i,j,k) * w(i,j,k) :
                     0.25 * (Omega(i,j,k) + Omega(i,j,k+1)) * (w(i,j,k) + w(i,j,k+1));
 
                 Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
@@ -271,31 +278,36 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                   cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert_T<UPWIND3>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                   cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert_T<CENTERED4>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                   cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert_T<UPWIND5>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                   cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert_T<CENTERED6>(bxx, bxy, bxz,
                                                   rho_u_rhs, rho_v_rhs, rho_w_rhs,
                                                   rho_u, rho_v, Omega, u, v, w, z_nd, detJ,
                                                   cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
-                                                  vert_adv_type, domhi_z);
+                                                  horiz_upw_frac, vert_upw_frac,
+                                                  vert_adv_type, lo_z_face, hi_z_face);
             } else {
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }

@@ -1,5 +1,5 @@
 #include <AMReX_GpuContainers.H>
-#include "Microphysics.H"
+#include "Kessler.H"
 #include "IndexDefines.H"
 #include "PlaneAverage.H"
 #include "EOS.H"
@@ -29,8 +29,7 @@ void Kessler::Init (const MultiFab& cons_in,
     m_gtoe = grids;
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Kess::qt, MicVar_Kess::qv, MicVar_Kess::qcl, MicVar_Kess::qci,
-                 MicVar_Kess::qp, MicVar_Kess::qpl, MicVar_Kess::qpi};
+    MicVarMap = {MicVar_Kess::rain_accum, MicVar_Kess::qt, MicVar_Kess::qv, MicVar_Kess::qcl, MicVar_Kess::qp};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar_Kess::NumVars; ++ivar) {
@@ -43,8 +42,8 @@ void Kessler::Init (const MultiFab& cons_in,
     for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
 
-        const auto& lo = amrex::lbound(box3d);
-        const auto& hi = amrex::ubound(box3d);
+        const auto& lo = lbound(box3d);
+        const auto& hi = ubound(box3d);
 
         nlev = box3d.length(2);
         zlo  = lo.z;
@@ -65,14 +64,16 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
 
         auto states_array = cons_in.array(mfi);
 
+        auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
         auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+
         auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
 
         auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
-        auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
-        auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -82,6 +83,7 @@ void Kessler::Copy_State_to_Micro (const MultiFab& cons_in)
             qv_array(i,j,k)    = states_array(i,j,k,RhoQ1_comp)/states_array(i,j,k,Rho_comp);
             qc_array(i,j,k)    = states_array(i,j,k,RhoQ2_comp)/states_array(i,j,k,Rho_comp);
             qp_array(i,j,k)    = states_array(i,j,k,RhoQ3_comp)/states_array(i,j,k,Rho_comp);
+            qt_array(i,j,k)    = qv_array(i,j,k) + qc_array(i,j,k);
 
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),

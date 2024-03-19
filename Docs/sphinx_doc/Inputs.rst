@@ -122,7 +122,7 @@ List of Parameters
 |                           | after           |                 |             |
 |                           | restarting      |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
-| **amr.iterate_grids**     | do we iterate   | True, False     | True        |
+| **amr.iterate_grids**     | do we iterate   | true, false     | true        |
 |                           | on the grids?   |                 |             |
 |                           |                 |                 |             |
 +---------------------------+-----------------+-----------------+-------------+
@@ -542,6 +542,137 @@ Examples of Usage
    | for example. If this line is commented out then it will not compute
      and print these quantities.
 
+Diagnostic Outputs
+==================
+
+If ``erf.v`` is set then one or more additional output files may be requested.
+These include (1) a surface time history file, (2) a history of mean profiles,
+(3) a history of vertical flux profiles (i.e., variances and covariances), and
+(4) a history of modeled subgrid stresses. The number of specified output
+filenames dictates the level of output. E.g., specifying 3 filenames will give
+outputs (1), (2), and (3). Data files are only written if ``erf.profile_int >
+0``. This output functionality has not been implemented for terrain.
+
+.. _list-of-parameters-10a:
+
+
+List of Parameters
+------------------
+
++-------------------------------+------------------+----------------+----------------+
+| Parameter                     | Definition       | Acceptable     | Default        |
+|                               |                  | Values         |                |
++===============================+==================+================+================+
+| **erf.datalog**               | Output           | Up to four     | NONE           |
+|                               | filename(s)      | strings        |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.profile_int**           | Interval (number)| Integer        | -1             |
+|                               | of steps between |                |                |
+|                               | ouputs           |                |                |
++-------------------------------+------------------+----------------+----------------+
+| **erf.interp_profiles_to_cc** | Interpolate all  | Boolean        | true           |
+|                               | outputs to cell  |                |                |
+|                               | centers          |                |                |
++-------------------------------+------------------+----------------+----------------+
+
+By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
+interpolated to cell centers. Setting ``erf.interp_profiles_to_cc = false`` will
+keep vertically staggered quantities on z faces (quantities already at cell
+centers or on x/y faces will remain at those locations). Note that all output
+quantities--whether cell-centered or face-centered--will be output on the
+staggered grid. The user should discard the highest z level (corresponding to
+the z-dir ``amr.n_cell`` + 1) for cell-centered quantities. Staggered quantities
+are indicated below.
+
+The requested output files have the following columns:
+
+
+* Surface time history
+
+  #. Time (s)
+
+  #. Friction velocity, :math:`u_*` (m/s)
+
+  #. Surface-layer potential temperature scale, :math:`\theta_*` (K)
+
+  #. Obukhov length, :math:`L` (m)
+
+* Mean flow profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. X-velocity, :math:`\langle u \rangle` (m/s)
+
+  #. Y-velocity, :math:`\langle v \rangle` (m/s)
+
+  #. *Z-velocity*, :math:`\langle w \rangle` (m/s) -- *staggered*
+
+  #. Dry air density, :math:`\langle \rho \rangle` (kg/m3)
+
+  #. Total (moist) potential temperature, :math:`\langle \theta \rangle` (K)
+
+  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) for the subgrid model
+
+* Vertical flux profiles
+
+  #. Time (s)
+
+  #. Height (m)
+
+  #. X-velocity variance, :math:`\langle u^\prime u^\prime \rangle` (m2/s2)
+
+  #. X,Y-velocity covariance, :math:`\langle u^\prime v^\prime \rangle` (m2/s2)
+
+  #. *X,Z-velocity covariance*, :math:`\langle u^\prime w^\prime \rangle` (m2/s2) -- *staggered*
+
+  #. Y-velocity variance, :math:`\langle v^\prime v^\prime \rangle` (m2/s2)
+
+  #. *Y,Z-velocity covariance*, :math:`\langle v^\prime w^\prime \rangle` (m2/s2) -- *staggered*
+
+  #. *Z-velocity variance*, :math:`\langle w^\prime w^\prime \rangle` (m2/s2) -- *staggered*
+
+  #. X-direction heat flux, :math:`\langle u^\prime \theta^\prime \rangle` (K m/s)
+
+  #. Y-direction heat flux, :math:`\langle v^\prime \theta^\prime \rangle` (K m/s)
+
+  #. *Z-direction heat flux*, :math:`\langle w^\prime \theta^\prime \rangle` (K m/s) -- *staggered*
+
+  #. Temperature variance, :math:`\langle \theta^\prime \theta^\prime \rangle` (K m/s)
+
+  #. X-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime u^\prime \rangle` (m3/s3)
+     -- Note: :math:`u_i u_i = uu + vv + ww`
+
+  #. Y-direction turbulent transport of TKE, :math:`\langle u_i^\prime u_i^\prime v^\prime \rangle` (m3/s3)
+
+  #. *Z-direction turbulent transport of TKE*, :math:`\langle u_i^\prime u_i^\prime w^\prime \rangle` (m3/s3) -- *staggered*
+
+  #. X-direction pressure transport of TKE, :math:`\langle p^\prime u^\prime \rangle` (m3/s3)
+
+  #. Y-direction pressure transport of TKE, :math:`\langle p^\prime v^\prime \rangle` (m3/s3)
+
+  #. *Z-direction pressure transport of TKE*, :math:`\langle p^\prime w^\prime \rangle` (m3/s3) -- *staggered*
+
+* Modeled subgrid-scale (SGS) profiles
+
+  #. SGS stress tensor component, :math:`\tau_{11}` (m2/s2)
+
+  #. SGS stress tensor component, :math:`\tau_{12}` (m2/s2)
+
+  #. *SGS stress tensor component*, :math:`\tau_{13}` (m2/s2) -- *staggered*
+
+  #. SGS stress tensor component, :math:`\tau_{22}` (m2/s2)
+
+  #. *SGS stress tensor component*, :math:`\tau_{23}` (m2/s2) -- *staggered*
+
+  #. SGS stress tensor component, :math:`\tau_{33}` (m2/s2)
+
+  #. SGS heat flux, :math:`\tau_{\theta w}` (K m/s)
+
+  #. SGS turbulence dissipation, :math:`\epsilon` (m2/s3)
+
+
 Advection Schemes
 =================
 
@@ -566,7 +697,7 @@ List of Parameters
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Upwind_3rd |
+| **erf.dryscal_vert_adv_type**    | Vertical           | see below           | Upwind_3rd   |
 |                                  | advection type     |                     |              |
 |                                  | for dry scalars    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
@@ -583,12 +714,13 @@ List of Parameters
 |                                  | for scalars        |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 
-
 The allowed advection types for the dycore variables are
-"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th" and "Centered_6th".
+"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
+and "Centered_6th".
 
 The allowed advection types for the dry and moist scalars are
-"Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th", "Centered_6th" and in addition,
+"Centered_2nd", "Upwind_3rd", "Blended_3rd4th", "Centered_4th", "Upwind_5th", "Blended_5th6th",
+"Centered_6th" and in addition,
 "WENO3", "WENOZ3", "WENOMZQ3", "WENO5", and "WENOZ5."
 
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
@@ -646,8 +778,8 @@ List of Parameters
 | **erf.Sc_t**                     | Turbulent Schmidt  | Real                | 1.0          |
 |                                  | Number             |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
-| **erf.use_NumDiff**              | Use 6th order      | "True",             | "False"      |
-|                                  | numerical diffusion| "False"             |              |
+| **erf.use_NumDiff**              | Use 6th order      | "true",             | "false"      |
+|                                  | numerical diffusion| "false"             |              |
 |                                  |                    |                     |              |
 +----------------------------------+--------------------+---------------------+--------------+
 | **erf.NumDiffCoeff**             | Coefficient for    | Real                | 0.0          |
@@ -815,41 +947,41 @@ advantage of this option, the code must be built with ``USE_POISSON_SOLVE = TRUE
 List of Parameters
 ------------------
 
-+----------------------------------+-------------------+--------------------+--------------+
-| Parameter                        | Definition        | Acceptable         | Default      |
-|                                  |                   | Values             |              |
-+==================================+===================+====================+==============+
-| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”   |
-|                                  | type              | “ideal”,           |              |
-|                                  |                   | "real",            |              |
-|                                  |                   |"input_sounding"    |              |
-+----------------------------------+-------------------+--------------------+--------------+
++----------------------------------+-------------------+--------------------+------------------+
+| Parameter                        | Definition        | Acceptable         | Default          |
+|                                  |                   | Values             |                  |
++==================================+===================+====================+==================+
+| **erf.init_type**                | Initialization    | “custom”,          | “*custom*”       |
+|                                  | type              | “ideal”,           |                  |
+|                                  |                   | "real",            |                  |
+|                                  |                   |"input_sounding"    |                  |
++----------------------------------+-------------------+--------------------+------------------+
 | **erf.input_sounding_file**      | Path to WRF-style |  String            | "input_sounding" |
-|                                  | input sounding    |                    |              |
-|                                  | file              |                    |              |
-+----------------------------------+-------------------+--------------------+--------------+
-| **erf.init_sounding_ideal**      | Perform           |  true or false     | false        |
-|                                  | initialization    |                    |              |
-|                                  | like WRF's        |                    |              |
-|                                  | ideal.exe         |                    |              |
-+----------------------------------+-------------------+--------------------+--------------+
-| **erf.use_real_bcs**             | If init_type is   | true or false      | true if      |
-|                                  | real or metgrid,  |                    | if init_type |
-|                                  | do we want to use |                    | is real or   |
-|                                  | these bcs?        |                    | metgrid;     |
-|                                  |                   |                    | else false   |
-+----------------------------------+-------------------+--------------------+--------------+
-| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE         |
-|                                  | initial mesoscale |                    |              |
-|                                  | data              |                    |              |
-+----------------------------------+-------------------+--------------------+--------------+
-| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE         |
-|                                  | mesoscale data at |                    |              |
-|                                  | lateral boundaries|                    |              |
-+----------------------------------+-------------------+--------------------+--------------+
-| **erf.project_initial_velocity** | project initial   |  Integer           | 1            |
-|                                  | velocity?         |                    |              |
-+----------------------------------+-------------------+--------------------+--------------+
+|                                  | input sounding    |                    |                  |
+|                                  | file              |                    |                  |
++----------------------------------+-------------------+--------------------+------------------+
+| **erf.init_sounding_ideal**      | Perform           |  true or false     | false            |
+|                                  | initialization    |                    |                  |
+|                                  | like WRF's        |                    |                  |
+|                                  | ideal.exe         |                    |                  |
++----------------------------------+-------------------+--------------------+------------------+
+| **erf.use_real_bcs**             | If init_type is   | true or false      | true if          |
+|                                  | real or metgrid,  |                    | if init_type     |
+|                                  | do we want to use |                    | is real or       |
+|                                  | these bcs?        |                    | metgrid;         |
+|                                  |                   |                    | else false       |
++----------------------------------+-------------------+--------------------+------------------+
+| **erf.nc_init_file**             | NetCDF file with  |  String            | NONE             |
+|                                  | initial mesoscale |                    |                  |
+|                                  | data              |                    |                  |
++----------------------------------+-------------------+--------------------+------------------+
+| **erf.nc_bdy_file**              | NetCDF file with  |  String            | NONE             |
+|                                  | mesoscale data at |                    |                  |
+|                                  | lateral boundaries|                    |                  |
++----------------------------------+-------------------+--------------------+------------------+
+| **erf.project_initial_velocity** | project initial   |  Integer           | 1                |
+|                                  | velocity?         |                    |                  |
++----------------------------------+-------------------+--------------------+------------------+
 
 Notes
 -----------------
@@ -934,7 +1066,10 @@ Examples of Usage
 Moisture
 ========
 
-ERF has several different moisture models.
+ERF has several different moisture models. The models that are currently implemented
+are Eulerian models; however, ERF has the capability for Lagrangian models when
+compiled with particles.
+
 The following run-time options control how the full moisture model is used.
 
 List of Parameters
@@ -952,3 +1087,31 @@ List of Parameters
 | **erf.do_precip**           | include precipitation    |  true / false      | true       |
 |                             | in treatment of moisture |                    |            |
 +-----------------------------+--------------------------+--------------------+------------+
+
+Runtime Error Checking
+======================
+
+Through `AMReX functionality <https://amrex-codes.github.io/amrex/docs_html/Debugging.html>`_,
+ERF supports options to raise errors when NaNs, division by zero, and overflow errors
+are detected. These checks are activated at runtime using the input parameters below.
+
+.. note::
+
+   When running on Macs using the Apple-Clang compilers with optimization
+   (``DEBUG = FALSE`` in the ``GNUmakefile``), these checks may lead to false positives
+   due to optimizations performed by the compiler and the flags should be turned off.
+   It is still possible to run with these error checks with Apple-Clang debug builds.
+
+List of Parameters
+------------------
+
++-----------------------------+---------------------------+-------------------+------------+
+| Parameter                   | Definition                | Acceptable Values | Default    |
++=============================+===========================+===================+============+
+| **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
++-----------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_zero**     | Raise errors for divide   |  0 / 1            | 0          |
+|                             | by zero                   |                   |            |
++-----------------------------+---------------------------+-------------------+------------+
+| **amrex.fpe_trap_overflow** | Raise errors for overflow |  0 / 1            | 0          |
++-----------------------------+---------------------------+-------------------+------------+

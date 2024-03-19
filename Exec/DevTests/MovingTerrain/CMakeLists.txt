@@ -1,4 +1,4 @@
-set(erf_exe_name moving_terrain)
+set(erf_exe_name erf_moving_terrain)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

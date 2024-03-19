@@ -69,18 +69,19 @@ void make_fast_coeffs (int /*level*/,
 #endif
     {
 
-    for ( MFIter mfi(S_stage_data[IntVar::cons],TileNoZ()); mfi.isValid(); ++mfi)
+    for ( MFIter mfi(S_stage_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
         Box bx  = mfi.tilebox();
         Box tbz = surroundingNodes(bx,2);
 
-        const Array4<const Real> & stage_cons = S_stage_data[IntVar::cons].const_array(mfi);
+        const Array4<const Real> & stage_cons = S_stage_data[IntVars::cons].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
         const Array4<const Real>& detJ   = l_use_terrain ?   detJ_cc->const_array(mfi) : Array4<const Real>{};
 
         const Array4<const Real>& r0_ca       = r0->const_array(mfi);
-        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi); const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
+        const Array4<const Real>& pi0_ca      = pi0->const_array(mfi);
+        const Array4<const Real>& pi_stage_ca = pi_stage.const_array(mfi);
 
         FArrayBox gam_fab; gam_fab.resize(surroundingNodes(bx,2),1,The_Async_Arena());
 
@@ -117,20 +118,20 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_lo = pi_stage_ca(i,j,k-1,0);
-                 Real pi_hi = pi_stage_ca(i,j,k  ,0);
-                 Real pi_c =  0.5 * (pi_lo + pi_hi);
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
                  Real     detJ_on_kface = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
                  Real inv_detJ_on_kface = 1. / detJ_on_kface;
 
-                 Real coeff_P = -Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
-                               +  halfg * R_d * rhobar_hi * pi_hi  /
+                 Real coeff_P = -Gamma * R_d * dzi * inv_detJ_on_kface
+                               +  halfg * R_d * rhobar_hi /
                                (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 coeff_P *= pi_c;
 
-                 Real coeff_Q =  Gamma * R_d * pi_c * dzi * inv_detJ_on_kface
-                               + halfg * R_d * rhobar_lo * pi_lo  /
+                 Real coeff_Q =  Gamma * R_d * dzi * inv_detJ_on_kface
+                               + halfg * R_d * rhobar_lo /
                                ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                 coeff_Q *= pi_c;
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -164,17 +165,17 @@ void make_fast_coeffs (int /*level*/,
                  pibar_lo = pi0_ca(i,j,k-1);
                  pibar_hi = pi0_ca(i,j,k  );
 
-                 Real pi_lo = pi_stage_ca(i,j,k-1,0);
-                 Real pi_hi = pi_stage_ca(i,j,k  ,0);
-                 Real pi_c =  0.5 * (pi_lo + pi_hi);
+                 Real pi_c =  0.5 * (pi_stage_ca(i,j,k-1) + pi_stage_ca(i,j,k));
 
-                 Real coeff_P = -Gamma * R_d * pi_c * dzi
-                              +  halfg * R_d * rhobar_hi * pi_hi  /
+                 Real coeff_P = -Gamma * R_d * dzi
+                              +  halfg * R_d * rhobar_hi /
                               (  c_v * pibar_hi * stage_cons(i,j,k,RhoTheta_comp) );
+                 coeff_P *= pi_c;
 
-                 Real coeff_Q = Gamma * R_d * pi_c * dzi
-                              + halfg * R_d * rhobar_lo * pi_lo  /
+                 Real coeff_Q = Gamma * R_d * dzi
+                              + halfg * R_d * rhobar_lo /
                               ( c_v  * pibar_lo * stage_cons(i,j,k-1,RhoTheta_comp) );
+                 coeff_Q *= pi_c;
 
                  coeffP_a(i,j,k) = coeff_P;
                  coeffQ_a(i,j,k) = coeff_Q;
@@ -202,6 +203,7 @@ void make_fast_coeffs (int /*level*/,
         amrex::Box b2d = tbz; // Copy constructor
         b2d.setRange(2,0);
 
+        auto const lo = amrex::lbound(bx);
         auto const hi = amrex::ubound(bx);
 
         {
@@ -209,9 +211,9 @@ void make_fast_coeffs (int /*level*/,
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
           // w_0 = 0
-          coeffA_a(i,j,0) =  0.0;
-          coeffB_a(i,j,0) =  1.0;
-          coeffC_a(i,j,0) =  0.0;
+          coeffA_a(i,j,lo.z) =  0.0;
+          coeffB_a(i,j,lo.z) =  1.0;
+          coeffC_a(i,j,lo.z) =  0.0;
 
           // w_khi = 0
           coeffA_a(i,j,hi.z+1) =  0.0;
@@ -219,22 +221,21 @@ void make_fast_coeffs (int /*level*/,
           coeffC_a(i,j,hi.z+1) =  0.0;
 
           // w = 0 at k = 0
-          Real bet = coeffB_a(i,j,0);
+          Real bet = coeffB_a(i,j,lo.z);
 
-          for (int k = 1; k <= hi.z+1; k++) {
+          for (int k = lo.z+1; k <= hi.z+1; k++) {
               gam_a(i,j,k) = coeffC_a(i,j,k-1) / bet;
               bet = coeffB_a(i,j,k) - coeffA_a(i,j,k)*gam_a(i,j,k);
               coeffB_a(i,j,k) = bet;
           }
         });
 #else
-        auto const lo = amrex::lbound(bx);
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                coeffA_a(i,j,0) =  0.0;
-                coeffB_a(i,j,0) =  1.0;
-                coeffC_a(i,j,0) =  0.0;
+                coeffA_a(i,j,lo.z) =  0.0;
+                coeffB_a(i,j,lo.z) =  1.0;
+                coeffC_a(i,j,lo.z) =  0.0;
             }
         }
         for (int j = lo.y; j <= hi.y; ++j) {

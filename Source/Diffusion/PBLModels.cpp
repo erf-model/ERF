@@ -19,16 +19,16 @@ using namespace amrex;
  * @param[in] most pointer to Monin-Obukhov class if instantiated
  */
 void
-ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
-                              const amrex::MultiFab& yvel,
-                              const amrex::MultiFab& cons_in,
-                              amrex::MultiFab& eddyViscosity,
-                              const amrex::Geometry& geom,
+ComputeTurbulentViscosityPBL (const MultiFab& xvel,
+                              const MultiFab& yvel,
+                              const MultiFab& cons_in,
+                              MultiFab& eddyViscosity,
+                              const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
-                              const amrex::BCRec* bc_ptr,
+                              const BCRec* bc_ptr,
                               bool /*vert_only*/,
-                              const std::unique_ptr<amrex::MultiFab>& z_phys_nd)
+                              const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     const bool use_terrain = (z_phys_nd != nullptr);
 
@@ -57,40 +57,40 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
         Real eps = std::numeric_limits<Real>::epsilon();
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-            const amrex::Box &bx = mfi.growntilebox(1);
-            const amrex::Array4<Real const> &cell_data     = cons_in.array(mfi);
-            const amrex::Array4<Real      > &K_turb = eddyViscosity.array(mfi);
-            const amrex::Array4<Real const> &uvel = xvel.array(mfi);
-            const amrex::Array4<Real const> &vvel = yvel.array(mfi);
+            const Box &bx = mfi.growntilebox(1);
+            const Array4<Real const> &cell_data     = cons_in.array(mfi);
+            const Array4<Real      > &K_turb = eddyViscosity.array(mfi);
+            const Array4<Real const> &uvel = xvel.array(mfi);
+            const Array4<Real const> &vvel = yvel.array(mfi);
 
             // Compute some quantities that are constant in each column
             // Sbox is shrunk to only include the interior of the domain in the vertical direction to compute integrals
             // Box includes one ghost cell in each direction
-            const amrex::Box &dbx = geom.Domain();
-            amrex::Box sbx(bx.smallEnd(), bx.bigEnd());
+            const Box &dbx = geom.Domain();
+            Box sbx(bx.smallEnd(), bx.bigEnd());
             sbx.grow(2,-1);
             AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
 
-            const amrex::GeometryData gdata = geom.data();
+            const GeometryData gdata = geom.data();
 
-            const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
-            amrex::FArrayBox qintegral(xybx,2);
-            qintegral.setVal<amrex::RunOn::Device>(0.0);
-            amrex::FArrayBox qturb(bx,1); amrex::FArrayBox qturb_old(bx,1);
-            const amrex::Array4<Real> qint = qintegral.array();
-            const amrex::Array4<Real> qvel = qturb.array();
-            const amrex::Array4<Real> qvel_old = qturb_old.array();
+            const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+            FArrayBox qintegral(xybx,2);
+            qintegral.setVal<RunOn::Device>(0.0);
+            FArrayBox qturb(bx,1); FArrayBox qturb_old(bx,1);
+            const Array4<Real> qint = qintegral.array();
+            const Array4<Real> qvel = qturb.array();
+            const Array4<Real> qvel_old = qturb_old.array();
 
             // vertical integrals to compute lengthscale
             if (use_terrain) {
-                const amrex::Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
+                const Array4<Real const> &z_nd_arr = z_phys_nd->array(mfi);
                 const auto invCellSize = geom.InvCellSizeArray();
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
-                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
+                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
                     qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                     qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -100,13 +100,13 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                     if (sbx.contains(i,j,k)) {
                         const Real Zval = Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr);
                         const Real dz = Compute_h_zeta_AtCellCenter(i,j,k,invCellSize,z_nd_arr);
-                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz, handler);
-                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k)*dz, handler);
+                        Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k)*dz, handler);
+                        Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k)*dz, handler);
                     }
                 });
             } else {
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), bx,
-                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept
+                ParallelFor(Gpu::KernelInfo().setReduction(true), bx,
+                                   [=] AMREX_GPU_DEVICE (int i, int j, int k, Gpu::Handler const& handler) noexcept
                 {
                     qvel(i,j,k)     = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp));
                     qvel_old(i,j,k) = std::sqrt(cell_data(i,j,k,RhoQKE_comp) / cell_data(i,j,k,Rho_comp) + eps);
@@ -116,8 +116,8 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
                     // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
                     if (sbx.contains(i,j,k)) {
                         const Real Zval = gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
-                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
-                        amrex::Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
+                        Gpu::deviceReduceSum(&qint(i,j,0,0), Zval*qvel(i,j,k), handler);
+                        Gpu::deviceReduceSum(&qint(i,j,0,1), qvel(i,j,k), handler);
                     }
                 });
             }
@@ -139,7 +139,7 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
             const auto& u_star_arr = u_star_mf->array(mfi);
             const auto& t_star_arr = t_star_mf->array(mfi);
 
-            const amrex::Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
+            const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -244,20 +244,20 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
-        amrex::Error("YSU Model not implemented yet");
+        Error("YSU Model not implemented yet");
 
         // FIXME: this should be an argument to function
         int lev = 0;
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-        for ( amrex::MFIter mfi(eddyViscosity,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
             // Pull out the box we're working on, make sure it covers full domain in z-direction
-            const amrex::Box &bx = mfi.growntilebox(1);
-            const amrex::Box &dbx = geom.Domain();
-            amrex::Box sbx(bx.smallEnd(), bx.bigEnd());
+            const Box &bx = mfi.growntilebox(1);
+            const Box &dbx = geom.Domain();
+            Box sbx(bx.smallEnd(), bx.bigEnd());
             sbx.grow(2,-1);
             AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
 
@@ -271,11 +271,11 @@ ComputeTurbulentViscosityPBL (const amrex::MultiFab& xvel,
             const auto& l_obuk_arr = most->get_olen(lev)->const_array(mfi);
 
             // create flattened boxes to store PBL height
-            const amrex::Box xybx = PerpendicularBox<ZDir>(bx, amrex::IntVect{0,0,0});
-            amrex::FArrayBox pbl_height(xybx,1);
+            const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+            FArrayBox pbl_height(xybx,1);
             const auto& pblh_arr = pbl_height.array();
             // Diagnose PBL height - starting out assuming non-moist
-            amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 pblh_arr(i,j,k) = 0.0;
             });

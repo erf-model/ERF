@@ -44,7 +44,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     // since they may be in any order in the input list
     Vector<std::string> tmp_plot_names;
 
-    int n_qstate   = micro.Get_Qstate_Size();
+    int n_qstate   = micro->Get_Qstate_Size();
     int ncomp_cons = NVAR_max - (NMOIST_max - n_qstate);
 
     for (int i = 0; i < ncomp_cons; ++i) {
@@ -78,15 +78,52 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 #endif
 
-    // Check to see if we found all the requested variables
-    for (const auto& plot_name : plot_var_names) {
-      if (!containerHasElement(tmp_plot_names, plot_name)) {
-           if (amrex::ParallelDescriptor::IOProcessor()) {
-               Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
-           }
-      }
-    }
     plot_var_names = tmp_plot_names;
+}
+
+void
+ERF::appendPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& a_plot_var_names)
+{
+    ParmParse pp(pp_prefix);
+
+    Vector<std::string> plot_var_names(0);
+    if (pp.contains(pp_plot_var_names.c_str())) {
+        std::string nm;
+        int nPltVars = pp.countval(pp_plot_var_names.c_str());
+        for (int i = 0; i < nPltVars; i++) {
+            pp.get(pp_plot_var_names.c_str(), nm, i);
+            // Add the named variable to our list of plot variables
+            // if it is not already in the list
+            if (!containerHasElement(plot_var_names, nm)) {
+                plot_var_names.push_back(nm);
+            }
+        }
+    }
+
+    Vector<std::string> tmp_plot_names(0);
+#ifdef ERF_USE_PARTICLES
+    Vector<std::string> particle_mesh_plot_names;
+    particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+    for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+        std::string tmp(particle_mesh_plot_names[i]);
+        if (containerHasElement(plot_var_names, tmp) ) {
+            tmp_plot_names.push_back(tmp);
+        }
+    }
+#endif
+
+    for (int i = 0; i < tmp_plot_names.size(); i++) {
+        a_plot_var_names.push_back( tmp_plot_names[i] );
+    }
+
+    // Finally, check to see if we found all the requested variables
+    for (const auto& plot_name : plot_var_names) {
+        if (!containerHasElement(a_plot_var_names, plot_name)) {
+             if (amrex::ParallelDescriptor::IOProcessor()) {
+                 Warning("\nWARNING: Requested to plot variable '" + plot_name + "' but it is not available");
+             }
+        }
+    }
 }
 
 // set plotfile variable names
@@ -119,14 +156,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         bool fillset = false;
         FillPatch(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                                     &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
-                                    fillset);
+                                   {&vars_new[lev][Vars::cons], &rU_new[lev],
+                                    &rV_new[lev], &rW_new[lev]}, fillset);
     }
 
     // Get qmoist pointers if using moisture
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     for (int lev = 0; lev <= finest_level; ++lev) {
         for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-            qmoist[lev][mvar] = micro.Get_Qmoist_Ptr(lev,mvar);
+            qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
         }
     }
 
@@ -222,10 +260,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real      >& derdat = mf[lev].array(mfi);
                 const Array4<Real const>&  S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p);
                 });
@@ -243,10 +282,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Array4<Real>& derdat = mf[lev].array(mfi);
                 const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    Real qv_for_p = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
+                    Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                     const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                     derdat(i, j, k, mf_comp) = getPgivenRTh(rhotheta,qv_for_p) - p0_arr(i,j,k);
                 });
@@ -281,9 +321,10 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 const Box& bx = mfi.tilebox();
                 const Array4<Real>& derdat  = mf[lev].array(mfi);
                 const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
+                const int ncomp = vars_new[lev][Vars::cons].nComp();
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    Real qv = (use_moisture) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
-                    Real qc = (use_moisture) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    Real qv = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
+                    Real qc = (use_moisture && (ncomp > RhoQ2_comp)) ? S_arr(i,j,k,RhoQ2_comp)/S_arr(i,j,k,Rho_comp) : 0.0;
                     Real T = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                     Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv);
                     Real fac = Cp_d + Cp_l*(qv + qc);
@@ -340,17 +381,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                         if(k == klo) {
                             gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                 p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
+                              - p_arr(i-1,j,k  ) - p_arr(i,j,k  ) );
                         } else if (k == khi) {
                             gp_zeta_on_iface_lo = 0.5 * dxInv[2] * (
                                 p_arr(i-1,j,k  ) + p_arr(i,j,k  )
-                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                         } else {
                             gp_zeta_on_iface_lo = 0.25 * dxInv[2] * (
                                 p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
-                                - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
+                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+                        Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                         // Pgrad at higher I face
                         Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
@@ -370,7 +411,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
                                 - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                        Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
                         // Average P grad to CC
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
@@ -436,7 +477,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
                                 - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
                         }
-                        amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+                        Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                         Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
                         Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
@@ -455,7 +496,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                 p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
                                 - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
                         }
-                        amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                        Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                         derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                     });
@@ -501,7 +542,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i-1,j,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i-1,j,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
+                    Real gpx_lo = gp_xi_lo - (met_h_xi_lo/ met_h_zeta_lo) * gp_zeta_on_iface_lo;
 
                     Real met_h_xi_hi   = Compute_h_xi_AtIface  (i+1, j, k, dxInv, z_nd);
                     Real met_h_zeta_hi = Compute_h_zeta_AtIface(i+1, j, k, dxInv, z_nd);
@@ -520,7 +561,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i+1,j,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i+1,j,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
+                    Real gpx_hi = gp_xi_hi - (met_h_xi_hi/ met_h_zeta_hi) * gp_zeta_on_iface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpx_lo + gpx_hi);
                 });
@@ -558,7 +599,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i,j,k+1) + p_arr(i,j-1,k+1)
                                                              - p_arr(i,j,k-1) - p_arr(i,j-1,k-1) );
                     }
-                    amrex::Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
+                    Real gpy_lo = gp_eta_lo - (met_h_eta_lo / met_h_zeta_lo) * gp_zeta_on_jface_lo;
 
                     Real met_h_eta_hi  = Compute_h_eta_AtJface (i, j+1, k, dxInv, z_nd);
                     Real met_h_zeta_hi = Compute_h_zeta_AtJface(i, j+1, k, dxInv, z_nd);
@@ -577,7 +618,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                p_arr(i,j+1,k+1) + p_arr(i,j,k+1)
                                                              - p_arr(i,j+1,k-1) - p_arr(i,j,k-1) );
                     }
-                    amrex::Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
+                    Real gpy_hi = gp_eta_hi - (met_h_eta_hi / met_h_zeta_hi) * gp_zeta_on_jface_hi;
 
                     derdat(i ,j ,k, mf_comp) = 0.5 * (gpy_lo + gpy_hi);
                 });
@@ -636,63 +677,103 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+        // TODO: The size of the q variables can vary with different
+        //       moisture models. Therefore, certain components may
+        //       reside at different indices. For example, Kessler is
+        //       warm but precipitating. This puts qp at index 3.
+        //       However, SAM is cold and precipitating so qp is index 4.
+        //       Need to built an external enum struct or a better pathway.
+
         // NOTE: Protect against accessing non-existent data
         if (use_moisture) {
-            int q_size = qmoist[lev].size();
+            int n_qstate   = micro->Get_Qstate_Size();
 
-            if (containerHasElement(plot_var_names, "qt") && (q_size >= 1))
+            // Non-precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qt"))
             {
-                MultiFab qt_mf(*(qmoist[lev][0]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qt_mf,0,mf_comp,1,0);
+                int n_start = RhoQ1_comp;
+                int n_end   = RhoQ2_comp;
+                if (n_qstate > 3) n_end = RhoQ3_comp;
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,ncomp_cons);
+                MultiFab::Copy(  mf[lev], Sm, n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(  mf[lev], Sm, n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qv") && (q_size >= 2))
+            if(containerHasElement(plot_var_names, "qv") && (n_qstate >= 1))
             {
-                MultiFab qv_mf(*(qmoist[lev][1]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qv_mf,0,mf_comp,1,0);
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ1_comp+1);
+                MultiFab::Copy(  mf[lev], Sm, RhoQ1_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qc") && (q_size >= 3))
+            if(containerHasElement(plot_var_names, "qc") && (n_qstate >= 2))
             {
-                MultiFab qc_mf(*(qmoist[lev][2]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qc_mf,0,mf_comp,1,0);
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ2_comp+1);
+                MultiFab::Copy(  mf[lev], Sm, RhoQ2_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qi") && (q_size >= 4))
+            if(containerHasElement(plot_var_names, "qi") && (n_qstate >= 4))
             {
-                MultiFab qi_mf(*(qmoist[lev][3]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qi_mf,0,mf_comp,1,0);
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ3_comp+1);
+                MultiFab::Copy(  mf[lev], Sm, RhoQ3_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qp") && (q_size >= 5))
+            // Precipitating components
+            //--------------------------------------------------------------------------
+            if(containerHasElement(plot_var_names, "qp"))
             {
-                MultiFab qp_mf(*(qmoist[lev][4]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qp_mf,0,mf_comp,1,0);
+                int n_start = RhoQ3_comp;
+                int n_end   = ncomp_cons - 1;
+                if (n_qstate > 3) n_start = RhoQ4_comp;
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,ncomp_cons);
+                MultiFab::Copy(  mf[lev], Sm, n_start, mf_comp, 1, 0);
+                for (int n_comp(n_start+1); n_comp <= n_end; ++n_comp) {
+                    MultiFab::Add(  mf[lev], Sm, n_comp, mf_comp, 1, 0);
+                }
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qrain") && (q_size >= 6))
+            if(containerHasElement(plot_var_names, "qrain") && (n_qstate >= 3))
             {
-                MultiFab qr_mf(*(qmoist[lev][5]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qr_mf,0,mf_comp,1,0);
+                int n_start = RhoQ3_comp;
+                if (n_qstate > 3) n_start = RhoQ4_comp;
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,ncomp_cons);
+                MultiFab::Copy(  mf[lev], Sm, n_start , mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp, mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qsnow") && (q_size >= 7))
+            if(containerHasElement(plot_var_names, "qsnow") && (n_qstate >= 5))
             {
-                MultiFab qs_mf(*(qmoist[lev][6]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qs_mf,0,mf_comp,1,0);
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ5_comp+1);
+                MultiFab::Copy( mf[lev], Sm, RhoQ5_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
                 mf_comp += 1;
             }
 
-            if (containerHasElement(plot_var_names, "qgraup") && (q_size >= 8))
+            if(containerHasElement(plot_var_names, "qgraup") && (n_qstate >= 6))
             {
-                MultiFab qg_mf(*(qmoist[lev][7]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],qg_mf,0,mf_comp,1,0);
+                MultiFab Sm(vars_new[lev][Vars::cons],make_alias,0,RhoQ6_comp+1);
+                MultiFab::Copy(  mf[lev], Sm, RhoQ6_comp, mf_comp, 1, 0);
+                MultiFab::Divide(mf[lev], Sm, Rho_comp  , mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+
+            if (containerHasElement(plot_var_names, "rain_accum"))
+            {
+                MultiFab rain_accum_mf(*(qmoist[lev][0]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
         }
@@ -704,6 +785,19 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 0);
                 temp_dat.setVal(0);
                 particleData[particles_namelist[i]]->Increment(temp_dat, lev);
+                MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
+                mf_comp += 1;
+            }
+        }
+
+        Vector<std::string> particle_mesh_plot_names(0);
+        particleData.GetMeshPlotVarNames( particle_mesh_plot_names );
+        for (int i = 0; i < particle_mesh_plot_names.size(); i++) {
+            std::string plot_var_name(particle_mesh_plot_names[i]);
+            if (containerHasElement(plot_var_names, plot_var_name) ) {
+                MultiFab temp_dat(mf[lev].boxArray(), mf[lev].DistributionMap(), 1, 1);
+                temp_dat.setVal(0);
+                particleData.GetMeshPlotVar(plot_var_name, temp_dat, lev);
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
             }
@@ -903,7 +997,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (finest_level == 0)
     {
         if (plotfile_type == "amrex") {
-            amrex::Print() << "Writing native plotfile " << plotfilename << "\n";
+            Print() << "Writing native plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),
@@ -923,7 +1017,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
-            amrex::Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
+            Print() << "Writing plotfile " << plotfilename+"d01.h5" << "\n";
             WriteMultiLevelPlotfileHDF5(plotfilename, finest_level+1,
                                         GetVecOfConstPtrs(mf),
                                         varnames,
@@ -936,8 +1030,8 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep, t_new[0]);
 #endif
         } else {
-            amrex::Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
-            amrex::Abort("Dont know this plot_filetype");
+            Print() << "User specified plot_filetype = " << plotfile_type << std::endl;
+            Abort("Dont know this plot_filetype");
         }
 
     } else { // multilevel
@@ -991,7 +1085,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
             }
 
-            amrex::Print() << "Writing plotfile " << plotfilename << "\n";
+            Print() << "Writing plotfile " << plotfilename << "\n";
             if (solverChoice.use_terrain) {
                 WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
                                                    GetVecOfConstPtrs(mf),

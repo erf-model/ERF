@@ -39,6 +39,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    GettingStarted.rst
    Inputs.rst
+   BestPractices.rst
 
 .. toctree::
    :caption: THEORY
@@ -53,6 +54,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/PBLschemes.rst
    theory/Forcings.rst
    Particles.rst
+   theory/WindFarmModels.rst
    theory/UnitsAndConstants.rst
 
 .. toctree::

@@ -1,25 +1,26 @@
-/*
- * this file is modified from precip_proc from samxx
- */
-#include "Microphysics.H"
-
 #include <EOS.H>
 #include <TileNoZ.H>
+#include "Kessler.H"
+#include "DataStruct.H"
 
 using namespace amrex;
 
 /**
  * Compute Precipitation-related Microphysics quantities.
  */
-void Kessler::AdvanceKessler ()
+void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
-    auto qv   = mic_fab_vars[MicVar_Kess::qv];
-    auto qc   = mic_fab_vars[MicVar_Kess::qcl];
-    auto qp   = mic_fab_vars[MicVar_Kess::qp];
-    auto tabs = mic_fab_vars[MicVar_Kess::tabs];
-    auto pres = mic_fab_vars[MicVar_Kess::pres];
+
+if (solverChoice.moisture_type == MoistureType::Kessler){
+    auto qv    = mic_fab_vars[MicVar_Kess::qv];
+    auto qc    = mic_fab_vars[MicVar_Kess::qcl];
+    auto qp    = mic_fab_vars[MicVar_Kess::qp];
+    auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
+    auto pres  = mic_fab_vars[MicVar_Kess::pres];
     auto theta = mic_fab_vars[MicVar_Kess::theta];
     auto rho   = mic_fab_vars[MicVar_Kess::rho];
+    auto rain_accum = mic_fab_vars[MicVar_Kess::rain_accum];
+
 
     auto dz = m_geom.CellSize(2);
     auto domain = m_geom.Domain();
@@ -31,9 +32,13 @@ void Kessler::AdvanceKessler ()
     auto dm    = tabs->DistributionMap();
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
+    Real dtn = dt;
+
     for ( MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi ){
         auto rho_array = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
         auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto rain_accum_array = mic_fab_vars[MicVar_Kess::rain_accum]->array(mfi);
+
         auto fz_array  = fz.array(mfi);
         const Box& tbz = mfi.tilebox();
 
@@ -58,18 +63,22 @@ void Kessler::AdvanceKessler ()
 
             fz_array(i,j,k) = rho_avg*V_terminal*qp_avg;
 
+            if(k==k_lo){
+                rain_accum_array(i,j,k) = rain_accum_array(i,j,k) + rho_avg*qp_avg*V_terminal*dtn/1000.0*1000.0; // Divide by rho_water and convert to mm
+            }
+
             /*if(k==0){
               fz_array(i,j,k) = 0;
               }*/
         });
     }
 
-    Real dtn = dt;
 
     for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qv_array   = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
         auto qc_array   = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
         auto qp_array   = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
+        auto qt_array   = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
         auto tabs_array = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
         auto pres_array = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
         auto theta_array = theta->array(mfi);
@@ -163,6 +172,72 @@ void Kessler::AdvanceKessler ()
             qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
             qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
             qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
+
+            qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
         });
     }
+}
+
+
+if(solverChoice.moisture_type == MoistureType::Kessler_NoRain){
+
+ auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
+
+    // get the temperature, dentisy, theta, qt and qc from input
+    for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
+        auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
+        auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
+        auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
+        auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
+        auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
+
+        const auto& box3d = mfi.tilebox();
+
+        // Expose for GPU
+        Real d_fac_cond = m_fac_cond;
+
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+
+            qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
+
+            //------- Autoconversion/accretion
+            Real dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
+
+            Real pressure = pres_array(i,j,k);
+            erf_qsatw(tabs_array(i,j,k), pressure, qsat);
+
+            // If there is precipitating water (i.e. rain), and the cell is not saturated
+            // then the rain water can evaporate leading to extraction of latent heat, hence
+            // reducing temperature and creating negative buoyancy
+
+            dq_vapor_to_clwater = 0.0;
+            dq_clwater_to_vapor = 0.0;
+
+            //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
+            Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+
+            // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
+            if(qv_array(i,j,k) > qsat){
+                dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
+            }
+            // If water vapor is less than the satruated value, then the cloud water can evaporate, leading to evaporative cooling and
+            // reducing temperature
+            if(qv_array(i,j,k) < qsat and qc_array(i,j,k) > 0.0){
+                dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
+            }
+
+            qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor;
+            qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor;
+
+            theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*(dq_vapor_to_clwater - dq_clwater_to_vapor);
+
+            qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
+            qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
+
+            qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
+        });
+    }
+}
 }

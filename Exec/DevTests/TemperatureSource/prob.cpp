@@ -1,5 +1,6 @@
 #include "prob.H"
 #include "AMReX_Random.H"
+#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
@@ -39,6 +40,14 @@ Problem::Problem(const amrex::Real* problo, const amrex::Real* probhi)
   pp.query("dampcoef", parms.dampcoef);
   pp.query("zdamp", parms.zdamp);
 
+  //===========================================================================
+  // READ USER-DEFINED INPUTS
+  pp.get("advection_heating_rate", parms.advection_heating_rate);
+  pp.query("restart_time",parms.restart_time);
+  pp.query("source_cutoff", parms.cutoff);
+  pp.query("source_cutoff_transition", parms.cutoff_transition);
+  //===========================================================================
+
   init_base_parms(parms.rho_0, parms.T_0);
 }
 
@@ -48,10 +57,11 @@ Problem::init_custom_pert(
     const amrex::Box& xbx,
     const amrex::Box& ybx,
     const amrex::Box& zbx,
-    amrex::Array4<amrex::Real      > const& state,
-    amrex::Array4<amrex::Real      > const& x_vel,
-    amrex::Array4<amrex::Real      > const& y_vel,
-    amrex::Array4<amrex::Real      > const& z_vel,
+    amrex::Array4<amrex::Real const> const& /*state*/,
+    amrex::Array4<amrex::Real      > const& state_pert,
+    amrex::Array4<amrex::Real      > const& x_vel_pert,
+    amrex::Array4<amrex::Real      > const& y_vel_pert,
+    amrex::Array4<amrex::Real      > const& z_vel_pert,
     amrex::Array4<amrex::Real      > const& /*r_hse*/,
     amrex::Array4<amrex::Real      > const& /*p_hse*/,
     amrex::Array4<amrex::Real const> const& /*z_nd*/,
@@ -83,18 +93,18 @@ Problem::init_custom_pert(
     // Add temperature perturbations
     if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-        state(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+        state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
     }
 
     // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
+    state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
     // Set an initial value for QKE
-    state(i, j, k, RhoQKE_comp) = parms.QKE_0;
+    state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
@@ -106,19 +116,19 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the x-velocity
-    x_vel(i, j, k) = parms.U_0;
+    x_vel_pert(i, j, k) = parms.U_0;
     if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
-        x_vel(i, j, k) += x_vel_prime;
+        x_vel_pert(i, j, k) += x_vel_prime;
     }
     if (parms.pert_deltaU != 0.0)
     {
         const amrex::Real yl = y - prob_lo[1];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        x_vel(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
+        x_vel_pert(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
     }
   });
 
@@ -130,19 +140,19 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Set the y-velocity
-    y_vel(i, j, k) = parms.V_0;
+    y_vel_pert(i, j, k) = parms.V_0;
     if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
-        y_vel(i, j, k) += y_vel_prime;
+        y_vel_pert(i, j, k) += y_vel_prime;
     }
     if (parms.pert_deltaV != 0.0)
     {
         const amrex::Real xl = x - prob_lo[0];
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
-        y_vel(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+        y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
     }
   });
 
@@ -154,17 +164,20 @@ Problem::init_custom_pert(
     // Set the z-velocity
     if (k == dom_lo_z || k == dom_hi_z+1)
     {
-        z_vel(i, j, k) = 0.0;
+        z_vel_pert(i, j, k) = 0.0;
     }
     else if (parms.W_0_Pert_Mag != 0.0)
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
-        z_vel(i, j, k) = parms.W_0 + z_vel_prime;
+        z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
     }
   });
 }
 
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
 void
 Problem::update_rhotheta_sources (
     const amrex::Real& time,
@@ -175,19 +188,33 @@ Problem::update_rhotheta_sources (
 {
     if (src.empty()) return;
 
-    if (z_phys_cc) {
-        // use_terrain=1 -- see Prob/init_rayleigh_damping.H for example of how
-        // to reduce the 3D z array to a single height per k
-        amrex::Error("Temperature forcing not defined for "+name()+" problem with terrain");
+    const int khi              = geom.Domain().bigEnd()[2];
+    const amrex::Real* prob_lo = geom.ProbLo();
+    const auto dx              = geom.CellSize();
+
+    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the the height needs to be
+    // calculated at each time step. Here, we assume that only grid
+    // stretching exists.
+    if (z_phys_cc && zlevels.empty()) {
+        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        zlevels.resize(khi+1);
+        reduce_to_max_per_level(zlevels, z_phys_cc);
+    }
+
+    if (time < parms.restart_time) {
+        // Uniform temperature source
+        for (int k = 0; k <= khi; k++) {
+            src[k] = parms.advection_heating_rate;
+        }
     } else {
-        const int khi              = geom.Domain().bigEnd()[2];
-        const amrex::Real* prob_lo = geom.ProbLo();
-        const auto dx              = geom.CellSize();
-        for (int k = 0; k <= khi; k++)
-        {
-            const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
-            if ((time > 1.0) && (z_cc < 100.)) {
-                src[k] = 1.0; // 1 K/s
+        // Only apply temperature source below nominal inversion height
+        for (int k = 0; k <= khi; k++) {
+            const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+            if (z_cc < parms.cutoff) {
+                src[k] = parms.advection_heating_rate;
+            } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
+                src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
             } else {
                 src[k] = 0.0;
             }

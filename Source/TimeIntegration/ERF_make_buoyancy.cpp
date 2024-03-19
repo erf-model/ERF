@@ -38,7 +38,8 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                           MultiFab& buoyancy,
                     const amrex::Geometry geom,
                     const SolverChoice& solverChoice,
-                    const MultiFab* r0)
+                    const MultiFab* r0,
+                    const int& qstate_size)
 {
     BL_PROFILE_REGION("make_buoyancy()");
 
@@ -61,7 +62,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
@@ -76,7 +77,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
         } else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3) {
 
-            PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+            PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
             PlaneAverage prim_ave(&S_prim, geom, solverChoice.ave_plane);
 
             int ncell = state_ave.ncell_line();
@@ -108,7 +109,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -136,8 +137,13 @@ void make_buoyancy (Vector<MultiFab>& S_data,
     // ******************************************************************************************
     if (solverChoice.moisture_type != MoistureType::None) {
 
-        if (solverChoice.moisture_type == MoistureType::FastEddy)
+        if (solverChoice.moisture_type == MoistureType::Kessler_NoRain) {
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+        }
+
+        if (solverChoice.moisture_type == MoistureType::SAM) {
+            AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
+        }
 
         if (solverChoice.buoyancy_type == 1) {
 
@@ -149,24 +155,19 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                 if (tbz.smallEnd(2) == klo) tbz.growLo(2,-1);
                 if (tbz.bigEnd(2)   == khi) tbz.growHi(2,-1);
 
-                const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                 const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
                 // Base state density
                 const Array4<const Real>& r0_arr = r0->const_array(mfi);
 
-                // TODO: A microphysics model may have more than q1 & q2 components for the
-                //       non-precipitating phase.
-
-                ParallelFor(tbz, [=, moisture_type=solverChoice.moisture_type] AMREX_GPU_DEVICE (int i, int j, int k)
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    Real rhop_lo, rhop_hi;
-                    if(moisture_type == MoistureType::FastEddy){
-                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
-                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
-                    }else{
-                        rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) + cell_data(i,j,k  ,RhoQ3_comp) - r0_arr(i,j,k  );
-                        rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) + cell_data(i,j,k-1,RhoQ3_comp) - r0_arr(i,j,k-1);
+                    Real rhop_hi = cell_data(i,j,k  ,Rho_comp) + cell_data(i,j,k  ,RhoQ1_comp) + cell_data(i,j,k  ,RhoQ2_comp) - r0_arr(i,j,k  );
+                    Real rhop_lo = cell_data(i,j,k-1,Rho_comp) + cell_data(i,j,k-1,RhoQ1_comp) + cell_data(i,j,k-1,RhoQ2_comp) - r0_arr(i,j,k-1);
+                    for (int q_offset(2); q_offset<qstate_size; ++q_offset) {
+                        rhop_hi += cell_data(i,j,k  ,RhoQ1_comp+q_offset);
+                        rhop_lo += cell_data(i,j,k-1,RhoQ1_comp+q_offset);
                     }
                     buoyancy_fab(i, j, k) = grav_gpu[2] * 0.5 * ( rhop_hi + rhop_lo );
                 });
@@ -174,7 +175,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
         } else {
 
-            PlaneAverage state_ave(&(S_data[IntVar::cons]), geom, solverChoice.ave_plane);
+            PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
             PlaneAverage  prim_ave(&S_prim                , geom, solverChoice.ave_plane);
 
             // Compute horizontal averages of all components of each field
@@ -230,7 +231,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
-                    const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
@@ -264,7 +265,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                                               qp_minus - qp_d_ptr[k-1] )
                                    + (tempm3d-tempm1d)/tempm1d*(Real(1.0) + Real(0.61)*qv_d_ptr[k-1]-qc_d_ptr[k-1]-qp_d_ptr[k-1]);
 
-                        } else if (buoyancy_type == 4) {
+                        } else { // (buoyancy_type == 4)
                             qplus  = 0.61 * ( qv_plus - qv_d_ptr[k] ) -
                                             ( qc_plus - qc_d_ptr[k]   +
                                               qp_plus - qp_d_ptr[k] )
@@ -297,7 +298,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     const Array4<      Real> & buoyancy_fab = buoyancy.array(mfi);
 
-                    const Array4<const Real> & cell_data  = S_data[IntVar::cons].array(mfi);
+                    const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
                     const Array4<const Real> & cell_prim  = S_prim.array(mfi);
 
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)

@@ -13,7 +13,7 @@ ERF::WriteNCCheckpointFile () const
     // checkpoint file name, e.g., chk00010
     const std::string& checkpointname = amrex::Concatenate(check_file,istep[0],5);
 
-    amrex::Print() << "Writing NetCDF checkpoint " << checkpointname << "\n";
+    Print() << "Writing NetCDF checkpoint " << checkpointname << "\n";
 
     const int nlevels = finest_level+1;
 
@@ -103,19 +103,19 @@ ERF::WriteNCCheckpointFile () const
        int nc_cons = vars_new[lev][Vars::cons].nComp();
        MultiFab cons(grids[lev],dmap[lev],nc_cons,0);
        MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,nc_cons,0);
-       WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
+       WriteNCMultiFab(cons, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
        MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
        MultiFab::Copy(xvel,vars_new[lev][Vars::xvel],0,0,1,0);
-       WriteNCMultiFab(xvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
+       WriteNCMultiFab(xvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "XFace"));
 
        MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
        MultiFab::Copy(yvel,vars_new[lev][Vars::yvel],0,0,1,0);
-       WriteNCMultiFab(yvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
+       WriteNCMultiFab(yvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "YFace"));
 
        MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
        MultiFab::Copy(zvel,vars_new[lev][Vars::zvel],0,0,1,0);
-       WriteNCMultiFab(zvel, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
+       WriteNCMultiFab(zvel, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "ZFace"));
    }
 }
 
@@ -125,7 +125,7 @@ ERF::WriteNCCheckpointFile () const
 void
 ERF::ReadNCCheckpointFile ()
 {
-    amrex::Print() << "Restart from NetCDF checkpoint " << restart_chkfile << "\n";
+    Print() << "Restart from NetCDF checkpoint " << restart_chkfile << "\n";
 
     // Header
     std::string HeaderFileName(restart_chkfile + "/Header.nc");
@@ -215,19 +215,19 @@ ERF::ReadNCCheckpointFile ()
     {
 
         MultiFab cons(grids[lev],dmap[lev],nc_cons,0);
-        WriteNCMultiFab(cons, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        WriteNCMultiFab(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
         MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,nc_cons,0);
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
-        WriteNCMultiFab(xvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        WriteNCMultiFab(xvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
         MultiFab::Copy(vars_new[lev][Vars::xvel],xvel,0,0,1,0);
 
         MultiFab yvel(convert(grids[lev],IntVect(0,1,0)),dmap[lev],1,0);
-        WriteNCMultiFab(yvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        WriteNCMultiFab(yvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
         MultiFab::Copy(vars_new[lev][Vars::yvel],yvel,0,0,1,0);
 
         MultiFab zvel(convert(grids[lev],IntVect(0,0,1)),dmap[lev],1,0);
-        WriteNCMultiFab(zvel, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
+        WriteNCMultiFab(zvel, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
         MultiFab::Copy(vars_new[lev][Vars::zvel],zvel,0,0,1,0);
 
         // Copy from new into old just in case
