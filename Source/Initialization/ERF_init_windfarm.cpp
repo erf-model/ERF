@@ -32,23 +32,21 @@ ERF::init_windfarm (int lev)
     file.close();
 
     Real rad_earth = 6371.0e3; // Radius of the earth
-    Real lat_low  = 35.0*M_PI/180.0;
-    Real lat_high = 38.5*M_PI/180.0;
-    Real lon_low  = -100.0*M_PI/180.0;
-    Real lon_high = -94.0*M_PI/180.0;
+    Real lat_lo  = solverChoice.latitude_lo*M_PI/180.0;
+    Real lon_lo  = solverChoice.longitude_lo*M_PI/180.0;
 
-    // (lat_low, lon_low) is mapped to (0,0)
+    // (lat_lo, lon_lo) is mapped to (0,0)
 
     for(int it=0;it<lat.size();it++){
         lat[it] = lat[it]*M_PI/180.0;
         lon[it] = lon[it]*M_PI/180.0;
-        Real delta_lat = (lat[it] - lat_low);
-        Real delta_lon = (lon[it] - lon_low);
+        Real delta_lat = (lat[it] - lat_lo);
+        Real delta_lon = (lon[it] - lon_lo);
 
         Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_low)*std::pow(sin(delta_lon/2.0),2);
+        Real term2 = cos(lat[it])*cos(lat_lo)*std::pow(sin(delta_lon/2.0),2);
         Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = (lat[it] - lat_low) * 111000.0 * 180.0/M_PI ;
+        Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
         yloc.push_back(dy_turb);
         Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
         xloc.push_back(dx_turb);
