@@ -75,7 +75,6 @@ void VelocityToMomentum (const MultiFab& xvel_in,
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            Real rho_x_face =
             momx(i,j,k) = velx(i,j,k) * 0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
