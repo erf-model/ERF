@@ -1,0 +1,169 @@
+===============================================================================
+ ERF Job Information
+===============================================================================
+inputs file: /home/alattanz/git/ERF/Tests/test_files/MoistBubble/MoistBubble.i
+
+number of MPI processes: 1
+
+CPU time used since start of simulation (CPU-hours): 0.000699355
+
+===============================================================================
+ Plotfile Information
+===============================================================================
+output data / time: Mon Mar 18 14:27:39 2024
+output dir:         /home/alattanz/git/ERF/Exec/RegTests/Bubble
+
+
+===============================================================================
+ Build Information
+===============================================================================
+build date:    2024-03-18 14:22:22.065662
+build machine: Linux LAPTOP-PO22H9R0 4.4.0-22621-Microsoft #2506-Microsoft Fri Jan 01 08:00:00 PST 2016 x86_64 x86_64 x86_64 GNU/Linux
+build dir:     /home/alattanz/git/ERF/Exec/RegTests/Bubble
+AMReX dir:     /home/alattanz/git/amrex
+
+COMP:          gnu
+COMP version:  9.4.0
+
+
+ERF       git hash: 057fe5f2-dirty
+AMReX       git hash: 22.05-774-ga5720c951
+
+
+===============================================================================
+ Grid Information
+===============================================================================
+ level: 0
+   number of boxes = 1
+   maximum zones   = 200 4 100 
+
+ Boundary conditions
+   -x: SlipWall
+   +x: SlipWall
+   -y: Periodic
+   +y: Periodic
+   -z: SlipWall
+   +z: SlipWall
+
+
+===============================================================================
+ Inputs File Parameters
+===============================================================================
+max_step = 10
+stop_time = 3600.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 20000.0 400.0 10000.0
+amr.n_cell = 200 4 100
+geometry.is_periodic = 0 1 0
+xlo.type = SlipWall
+xhi.type = SlipWall
+zlo.type = SlipWall
+zhi.type = SlipWall
+erf.fixed_dt = 0.5
+erf.fixed_mri_dt_ratio = 4
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+amr.max_level = 0
+erf.check_file = chk
+erf.check_int = 100
+erf.plot_file_1 = plt
+erf.plot_int_1 = 100
+erf.plot_vars_1 = density rhotheta rhoQ1 rhoQ2 rhoadv_0 x_velocity y_velocity z_velocity pressure theta scalar temp pres_hse dens_hse pert_pres pert_dens eq_pot_temp qt qv qc
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+erf.dycore_horiz_adv_type = Upwind_3rd
+erf.dycore_vert_adv_type = Upwind_3rd
+erf.dryscal_horiz_adv_type = Upwind_3rd
+erf.dryscal_vert_adv_type = Upwind_3rd
+erf.moistscal_horiz_adv_type = Upwind_3rd
+erf.moistscal_vert_adv_type = Upwind_3rd
+erf.les_type = None
+erf.pbl_type = None
+erf.moisture_model = Kessler_NoRain
+erf.buoyancy_type = 1
+erf.use_moist_background = true
+erf.molec_diff_type = ConstantAlpha
+erf.rho0_trans = 1.0
+erf.dynamicViscosity = 0.0
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+prob.x_c = 10000.0
+prob.z_c = 2000.0
+prob.x_r = 2000.0
+prob.z_r = 2000.0
+prob.T_0 = 300.0
+prob.do_moist_bubble = true
+prob.theta_pert = 2.0
+prob.qt_init = 0.02
+prob.eq_pot_temp = 320.0
+amr.refine_grid_layout_x = 1
+amr.refine_grid_layout_y = 1
+amr.refine_grid_layout_z = 0
+amr.n_proper = 2
+amr.max_grid_size = 2048
+amr.blocking_factor = 1
+amr.n_error_buf = 0
+amrex.v = 1
+amrex.verbose = 1
+amrex.regtest_reduction = 0
+amrex.signal_handling = 1
+amrex.throw_exception = 0
+amrex.call_addr2line = 1
+amrex.abort_on_unused_inputs = 0
+amrex.handle_sigsegv = 1
+amrex.handle_sigterm = 0
+amrex.handle_sigint = 1
+amrex.handle_sigabrt = 1
+amrex.handle_sigfpe = 1
+amrex.handle_sigill = 1
+amrex.fpe_trap_zero = 0
+amrex.fpe_trap_overflow = 0
+amrex.use_gpu_aware_mpi = 0
+amrex.the_arena_init_size = 0
+amrex.the_device_arena_init_size = 8388608
+amrex.the_managed_arena_init_size = 8388608
+amrex.the_pinned_arena_init_size = 8388608
+amrex.the_comms_arena_init_size = 8388608
+amrex.the_arena_release_threshold = 9223372036854775807
+amrex.the_device_arena_release_threshold = 9223372036854775807
+amrex.the_managed_arena_release_threshold = 9223372036854775807
+amrex.the_pinned_arena_release_threshold = 9223372036854775807
+amrex.the_comms_arena_release_threshold = 9223372036854775807
+amrex.the_async_arena_release_threshold = 9223372036854775807
+amrex.the_arena_is_managed = 0
+amrex.abort_on_out_of_gpu_memory = 0
+fab.init_snan = 1
+DistributionMapping.v = 0
+DistributionMapping.verbose = 0
+DistributionMapping.efficiency = 0.90000000000000002
+DistributionMapping.sfc_threshold = 0
+DistributionMapping.node_size = 0
+DistributionMapping.verbose_mapper = 0
+fab.initval = nan
+fab.do_initval = 1
+fabarray.maxcomp = 25
+vismf.v = 0
+vismf.headerversion = 1
+vismf.groupsets = 0
+vismf.setbuf = 1
+vismf.usesingleread = 0
+vismf.usesinglewrite = 0
+vismf.checkfilepositions = 0
+vismf.usepersistentifstreams = 0
+vismf.usesynchronousreads = 0
+vismf.usedynamicsetselection = 1
+vismf.iobuffersize = 2097152
+vismf.allowsparsewrites = 1
+amrex.async_out = 0
+amrex.async_out_nfiles = 64
+amrex.vector_growth_factor = 1.5
+machine.verbose = 0
+machine.very_verbose = 0
+geometry.coord_sys = 0
+geometry.prob_lo = 0 0 0
+amr.grid_eff = 0.69999999999999996
+amr.refine_grid_layout = 1
+amr.check_input = 1

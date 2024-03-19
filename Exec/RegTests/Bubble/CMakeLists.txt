@@ -1,4 +1,4 @@
-set(erf_exe_name bubble)
+set(erf_exe_name erf_bubble)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

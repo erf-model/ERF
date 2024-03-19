@@ -1,4 +1,4 @@
-set(erf_exe_name squallline_2d)
+set(erf_exe_name erf_squallline_2d)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

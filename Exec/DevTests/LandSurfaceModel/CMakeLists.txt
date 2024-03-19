@@ -1,4 +1,4 @@
-set(erf_exe_name LandSurfaceModel)
+set(erf_exe_name erf_lsm)
 
 add_executable(${erf_exe_name} "")
 target_sources(${erf_exe_name}

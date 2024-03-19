@@ -48,6 +48,7 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
+  const int klo = geomdata.Domain().smallEnd()[2];
   const int khi = geomdata.Domain().bigEnd()[2];
 
   const bool use_moisture = (sc.moisture_type != MoistureType::None);
@@ -94,7 +95,9 @@ Problem::init_custom_pert(
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel_pert(i, j, k) = parms.U_0;
+      Real ztop = z_nd(i,j,khi+1);
+      Real zht  = z_nd(i,j,klo);
+      x_vel_pert(i, j, k) = parms.U_0 * ztop / (ztop - zht);
   });
 
   // Set the y-velocity
