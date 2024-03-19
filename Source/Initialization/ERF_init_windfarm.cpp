@@ -1,5 +1,5 @@
 /**
- * \file ERF_init_uniform.cpp
+ * \file ERF_init_windfarm.cpp
  */
 
 #include <ERF.H>
@@ -8,6 +8,8 @@ using namespace amrex;
 
 /**
  * Read in the turbine locations in latitude-longitude from windturbines.txt
+ * and convert it into x and y coordinates in metres
+ *
  * @param lev Integer specifying the current level
  */
 void
