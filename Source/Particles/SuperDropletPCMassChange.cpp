@@ -53,7 +53,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
 
-        GpuArray<ParticleReal*,SuperDropletInitializations::num_aerosols_max> aerosol_mass_ptrs;
+        SDAerosolMassArr aerosol_mass_ptrs;
         for (int i = 0; i < num_aerosols; i++) {
             aerosol_mass_ptrs[i] = soa.GetRealData(   rt_offset
                                                     + SuperDropletsRealIdxSoA_RT::ncomps

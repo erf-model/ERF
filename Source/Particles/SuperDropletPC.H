@@ -170,6 +170,8 @@ namespace SuperDropletInitializations
     const int num_aerosols_max = 8;
 }
 
+using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SuperDropletInitializations::num_aerosols_max>;
+
 class SuperDropletPC : public ERFPC
 {
     public:
@@ -352,6 +354,9 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+
+        /*! \brief Coalescence of super-droplets */
+        virtual void Coalescence ( int, amrex::Real );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
