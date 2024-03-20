@@ -20,6 +20,7 @@ Problem::Problem()
     pp.query("B_0", parms.B_0);
     pp.query("u_0", parms.u_0);
     pp.query("v_0", parms.v_0);
+    pp.query("w_0", parms.w_0);
     pp.query("rad_0", parms.rad_0);
     pp.query("z0", parms.z0);
     pp.query("zRef", parms.zRef);
@@ -135,16 +136,18 @@ Problem::init_custom_pert(
   // Set the x-velocity
   amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      x_vel_pert(i, j, k) = parms.u_0;
-
       const Real* prob_lo = geomdata.ProbLo();
       const Real*      dx = geomdata.CellSize();
       const Real        z = prob_lo[2] + (k + 0.5) * dx[2];
 
       // Set the x-velocity
-      x_vel_pert(i, j, k) = parms.u_0 + parms.uRef *
-                            std::log((z + parms.z0)/parms.z0)/
-                            std::log((parms.zRef +parms.z0)/parms.z0);
+      if (parms.uRef != 0.0) {
+          x_vel_pert(i, j, k) = parms.u_0 + parms.uRef *
+                                std::log((z + parms.z0)/parms.z0)/
+                                std::log((parms.zRef +parms.z0)/parms.z0);
+      } else {
+          x_vel_pert(i, j, k) = parms.u_0;
+      }
   });
 
   // Set the y-velocity
@@ -156,7 +159,7 @@ Problem::init_custom_pert(
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel_pert(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = parms.w_0;
   });
 }
 
