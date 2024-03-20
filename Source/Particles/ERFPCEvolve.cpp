@@ -64,7 +64,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     {
         for (int i = 0; i < AMREX_SPACEDIM; i++)
         {
-            int ng = a_umac[i].nGrow();
+            IntVect ng = a_umac[i].nGrowVect();
             raii_umac[i] = std::make_unique<MultiFab>
                 (convert(m_gdb->ParticleBoxArray(a_lev), IntVect::TheDimensionVector(i)),
                  m_gdb->ParticleDistributionMap(a_lev), a_umac[i].nComp(), ng);
