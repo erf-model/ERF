@@ -699,6 +699,7 @@ void ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+        Nturb[lev].define(ba, dm, 1, 0); // Number of turbines in a cell
     }
 #endif
 }
