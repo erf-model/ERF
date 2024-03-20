@@ -232,6 +232,11 @@ ERF::ERF ()
     mapfac_u.resize(nlevs_max);
     mapfac_v.resize(nlevs_max);
 
+    // Thin immersed boundary
+    xflux_mask.resize(nlevs_max);
+    yflux_mask.resize(nlevs_max);
+    zflux_mask.resize(nlevs_max);
+
     // Base state
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
