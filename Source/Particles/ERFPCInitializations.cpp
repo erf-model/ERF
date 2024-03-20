@@ -31,8 +31,8 @@ void ERFPC::readInputs ()
         pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
         AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
 
-        particle_box.setLo(particle_box_lo);
-        particle_box.setHi(particle_box_hi);
+        m_particle_box.setLo(particle_box_lo);
+        m_particle_box.setHi(particle_box_hi);
 
         // We default to placing the particles randomly within each cell,
         // but can override this for regression testing
@@ -60,7 +60,7 @@ void ERFPC::InitializeParticles (const std::unique_ptr<MultiFab>& a_height_ptr)
     if (m_initialization_type == ERFParticleInitializations::init_default) {
         initializeParticlesDefault( a_height_ptr );
     } else if (m_initialization_type == ERFParticleInitializations::init_box) {
-        initializeParticlesUniformDistributionInBox( a_height_ptr , particle_box );
+        initializeParticlesUniformDistributionInBox( a_height_ptr , m_particle_box );
     } else if (m_initialization_type == ERFParticleInitializations::init_uniform) {
         initializeParticlesUniformDistribution( a_height_ptr );
     } else {

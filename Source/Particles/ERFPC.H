@@ -224,7 +224,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
         bool m_advect_w_gravity;            /*!< advect under gravitational force */
 
-        amrex::RealBox particle_box;
+        amrex::RealBox m_particle_box;
         bool place_randomly_in_cells;
 
         std::string m_name;                 /*!< name of this particle species */
