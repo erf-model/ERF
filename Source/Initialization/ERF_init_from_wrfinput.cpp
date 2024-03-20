@@ -485,11 +485,8 @@ verify_terrain_top_boundary (const Real& z_top,
     for (int idx = 0; idx < nboxes; idx++) {
         Gpu::HostVector  <Real> MaxMax_h(2,-1.0e16);
         Gpu::DeviceVector<Real> MaxMax_d(2);
-#ifdef AMREX_USE_GPU
-        Gpu::htod_memcpy_async(MaxMax_d.data(), MaxMax_h.data(), sizeof(Real)*2);
-#else
-        std::memcpy(MaxMax_d.data(), MaxMax_h.data(), sizeof(Real)*2);
-#endif
+        Gpu::copy(Gpu::hostToDevice, MaxMax_h.begin(), MaxMax_h.end(), MaxMax_d.begin());
+
         Real* mm_d = MaxMax_d.data();
 
         Box Fab2dBox_hi (NC_PHB_fab[idx].box()); Fab2dBox_hi.makeSlab(2,Fab2dBox_hi.bigEnd(2));

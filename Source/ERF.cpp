@@ -34,13 +34,13 @@ Real ERF::fixed_dt      = -1.0;
 Real ERF::fixed_fast_dt = -1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
-int         ERF::fixed_mri_dt_ratio = 0;
+int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int         ERF::verbose       = 0;
+int ERF::verbose       = 0;
 
 // Frequency of diagnostic output
-int         ERF::sum_interval  = -1;
+int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
@@ -66,21 +66,21 @@ std::string ERF::input_sounding_file = "input_sounding";
 bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
-int         ERF::output_1d_column = 0;
-int         ERF::column_interval  = -1;
+int  ERF::output_1d_column = 0;
+int  ERF::column_interval  = -1;
 Real ERF::column_per       = -1.0;
 Real ERF::column_loc_x     = 0.0;
 Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 // 2D BndryRegister output (for ingestion by AMR-Wind)
-int         ERF::output_bndry_planes            = 0;
-int         ERF::bndry_output_planes_interval   = -1;
+int  ERF::output_bndry_planes            = 0;
+int  ERF::bndry_output_planes_interval   = -1;
 Real ERF::bndry_output_planes_per        = -1.0;
 Real ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
-int         ERF::input_bndry_planes             = 0;
+int  ERF::input_bndry_planes             = 0;
 
 Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -1091,6 +1091,12 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
+
+    // Initialize wind farm
+
+#ifdef ERF_USE_WINDFARM
+    init_windfarm(lev);
+#endif
 }
 
 // read in some parameters from inputs file
@@ -1576,6 +1582,8 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rU_new[lev],
                              rV_new[lev],
                              rW_new[lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type,
                            true);
     }
 
@@ -1590,7 +1598,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                            vars_new[lev][Vars::cons],
                              rU_new[lev],
                              rV_new[lev],
-                             rW_new[lev]);
+                             rW_new[lev],
+                           Geom(lev).Domain(),
+                           domain_bcs_type);
     }
 }
 

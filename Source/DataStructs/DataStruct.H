@@ -255,7 +255,10 @@ struct SolverChoice {
 
         // Which type of windfarm model
         static std::string windfarm_type_string = "Fitch";
+
         pp.query("windfarm_type", windfarm_type_string);
+        pp.query("latitude_lo",  latitude_lo);
+        pp.query("longitude_lo", longitude_lo);
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
@@ -421,5 +424,7 @@ struct SolverChoice {
     bool do_cloud {true};
     bool do_precip {true};
     bool use_moist_background {false};
+
+    amrex::Real latitude_lo, longitude_lo;
 };
 #endif

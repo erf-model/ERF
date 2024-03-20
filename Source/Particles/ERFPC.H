@@ -43,6 +43,7 @@ namespace ERFParticleInitializations
 {
     /* list of particle initializations */
     const std::string init_default = "default";
+    const std::string init_box     = "box";
     const std::string init_uniform = "uniform";
 
 }
@@ -215,11 +216,16 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         void initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
         /*! Default particle initialization */
         void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,
+                                                          const amrex::RealBox& particle_box);
 
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
         bool m_advect_w_gravity;            /*!< advect under gravitational force */
+
+        amrex::RealBox m_particle_box;
+        bool place_randomly_in_cells;
 
         std::string m_name;                 /*!< name of this particle species */
 
@@ -233,7 +239,6 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
 
         /*! Default particle initialization */
         void initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-
 };
 
 #endif
