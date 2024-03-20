@@ -612,6 +612,16 @@ ERF::InitData ()
         initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
 #endif
 
+        if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
+            (solverChoice.advChoice.zero_yflux.size() > 0) ||
+            (solverChoice.advChoice.zero_zflux.size() > 0))
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+                "Thin immersed boundary with refinement not currently supported.");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_terrain == 0,
+                "Thin immersed boundary with terrain has not been tested.");
+        }
+
     } else { // Restart from a checkpoint
 
         restart();

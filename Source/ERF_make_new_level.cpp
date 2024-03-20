@@ -132,6 +132,81 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
 
     //********************************************************************************************
+    // Thin immersed boundary
+    // *******************************************************************************************
+    if (solverChoice.advChoice.zero_xflux.size() > 0) {
+        amrex::Print() << "Setting up thin immersed boundary for "
+            << solverChoice.advChoice.zero_xflux.size() << " xfaces" << std::endl;
+        BoxArray ba_xf(ba);
+        ba_xf.surroundingNodes(0);
+        xflux_mask[lev] = std::make_unique<iMultiFab>(ba_xf,dm,1,0);
+        xflux_mask[lev]->setVal(1);
+        for ( amrex::MFIter mfi(*xflux_mask[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            amrex::Array4<int> const& mask_arr = xflux_mask[lev]->array(mfi);
+            amrex::Box xbx = mfi.nodaltilebox(0);
+            for (int iv=0; iv < solverChoice.advChoice.zero_xflux.size(); ++iv) {
+                const auto& faceidx = solverChoice.advChoice.zero_xflux[iv];
+                if ((faceidx[0] >= xbx.smallEnd(0)) && (faceidx[0] <= xbx.bigEnd(0)) &&
+                    (faceidx[1] >= xbx.smallEnd(1)) && (faceidx[1] <= xbx.bigEnd(1)) &&
+                    (faceidx[2] >= xbx.smallEnd(2)) && (faceidx[2] <= xbx.bigEnd(2))) {
+                    mask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
+                }
+            }
+        }
+    } else {
+        xflux_mask[lev] = nullptr;
+    }
+
+    if (solverChoice.advChoice.zero_yflux.size() > 0) {
+        amrex::Print() << "Setting up thin immersed boundary for "
+            << solverChoice.advChoice.zero_yflux.size() << " yfaces" << std::endl;
+        BoxArray ba_yf(ba);
+        ba_yf.surroundingNodes(1);
+        yflux_mask[lev] = std::make_unique<iMultiFab>(ba_yf,dm,1,0);
+        yflux_mask[lev]->setVal(1);
+        for ( amrex::MFIter mfi(*yflux_mask[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            amrex::Array4<int> const& mask_arr = yflux_mask[lev]->array(mfi);
+            amrex::Box ybx = mfi.nodaltilebox(1);
+            for (int iv=0; iv < solverChoice.advChoice.zero_yflux.size(); ++iv) {
+                const auto& faceidx = solverChoice.advChoice.zero_yflux[iv];
+                if ((faceidx[0] >= ybx.smallEnd(0)) && (faceidx[0] <= ybx.bigEnd(0)) &&
+                    (faceidx[1] >= ybx.smallEnd(1)) && (faceidx[1] <= ybx.bigEnd(1)) &&
+                    (faceidx[2] >= ybx.smallEnd(2)) && (faceidx[2] <= ybx.bigEnd(2))) {
+                    mask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
+                }
+            }
+        }
+    } else {
+        yflux_mask[lev] = nullptr;
+    }
+
+    if (solverChoice.advChoice.zero_zflux.size() > 0) {
+        amrex::Print() << "Setting up thin immersed boundary for "
+            << solverChoice.advChoice.zero_zflux.size() << " zfaces" << std::endl;
+        BoxArray ba_zf(ba);
+        ba_zf.surroundingNodes(2);
+        zflux_mask[lev] = std::make_unique<iMultiFab>(ba_zf,dm,1,0);
+        zflux_mask[lev]->setVal(1);
+        for ( amrex::MFIter mfi(*zflux_mask[lev], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            amrex::Array4<int> const& mask_arr = zflux_mask[lev]->array(mfi);
+            amrex::Box zbx = mfi.nodaltilebox(2);
+            for (int iv=0; iv < solverChoice.advChoice.zero_zflux.size(); ++iv) {
+                const auto& faceidx = solverChoice.advChoice.zero_zflux[iv];
+                if ((faceidx[0] >= zbx.smallEnd(0)) && (faceidx[0] <= zbx.bigEnd(0)) &&
+                    (faceidx[1] >= zbx.smallEnd(1)) && (faceidx[1] <= zbx.bigEnd(1)) &&
+                    (faceidx[2] >= zbx.smallEnd(2)) && (faceidx[2] <= zbx.bigEnd(2))) {
+                    mask_arr(faceidx[0],faceidx[1],faceidx[2]) = 0;
+                }
+            }
+        }
+    } else {
+        zflux_mask[lev] = nullptr;
+    }
+
+    //********************************************************************************************
     // Microphysics
     // *******************************************************************************************
     int q_size  = micro->Get_Qmoist_Size(lev);
