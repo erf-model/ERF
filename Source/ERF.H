@@ -657,9 +657,9 @@ private:
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     // These are the masks for the thin immersed boundary
-    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> xflux_mask;
-    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> yflux_mask;
-    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> zflux_mask;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> xflux_mask;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> yflux_mask;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> zflux_mask;
 
     int last_plot_file_step_1;
     int last_plot_file_step_2;

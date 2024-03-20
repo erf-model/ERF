@@ -255,6 +255,17 @@ ERF::FillIntermediatePatch (int lev, Real time,
     AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
     AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
 
+    // Impose poor person's immersed boundary
+    if (xflux_mask[lev]) {
+        amrex::Multiply(*mfs_mom[IntVars::xmom], *xflux_mask[lev], 0,0,1,0);
+    }
+    if (yflux_mask[lev]) {
+        amrex::Multiply(*mfs_mom[IntVars::ymom], *yflux_mask[lev], 0,0,1,0);
+    }
+    if (zflux_mask[lev]) {
+        amrex::Multiply(*mfs_mom[IntVars::zmom], *zflux_mask[lev], 0,0,1,0);
+    }
+
     // We always come in to this call with updated momenta but we need to create updated velocity
     //    in order to impose the rest of the bc's
     if (!cons_only) {
