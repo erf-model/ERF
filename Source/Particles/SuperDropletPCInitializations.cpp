@@ -18,7 +18,7 @@ void SuperDropletPC::add_superdroplet_attributes()
         AddRealComp(communicate_this_comp);
         count++;
     }
-    Print() << "SuperDropletPC: added " << count << " real-type attibute(s).\n";
+    Print() << "SuperDropletPC(" << m_name << "): added " << count << " real-type attibute(s).\n";
     return;
 }
 
