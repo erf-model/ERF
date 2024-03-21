@@ -562,7 +562,6 @@ ERF::update_terrain_arrays (int lev, Real time)
         }
 
         if (lev > 0) {
-            PhysBCFunctNoOp empty_bc;
             Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
             Vector<Real> ftime    = {t_old[lev], t_new[lev]};
             Vector<MultiFab*> cmf = {z_phys_nd[lev-1].get(), z_phys_nd[lev-1].get()};
@@ -571,10 +570,14 @@ ERF::update_terrain_arrays (int lev, Real time)
             //
             // First we fill z_phys_nd at lev>0 through interpolation
             //
-            FillPatchTwoLevels(*z_phys_nd[lev], time, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               empty_bc, 0, empty_bc, 0, refRatio(lev-1),
-                               &node_bilinear_interp, domain_bcs_type, 0);
+            Interpolater* mapper = &node_bilinear_interp;
+            PhysBCFunctNoOp null_bc;
+            InterpFromCoarseLevel(*z_phys_nd[lev], time, *z_phys_nd[lev-1],
+                                  0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  null_bc, 0, null_bc, 0, refRatio(lev-1),
+                                  mapper, domain_bcs_type, 0);
+
             //
             // Then if not using real/metgrid data, we
             // 1) redefine the terrain at k=0 for every fine box which includes k=0

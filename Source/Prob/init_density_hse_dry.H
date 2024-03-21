@@ -43,19 +43,27 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
               amrex::Array1D<amrex::Real,0,255> r;;
               amrex::Array1D<amrex::Real,0,255> p;;
 
-              HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              if (klo == 0) {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              } else {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_arr(i,j,klo-1),Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              }
 
-              for (int k = 0; k <= khi; k++) {
+              for (int k = klo; k <= khi; k++) {
                  rho_arr(i,j,k) = r(k);
               }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
+
+              if (klo == 0) {
+                  rho_arr(i,j,   -1) = rho_arr(i,j,0);
+              }
+              if (khi == geom.Domain().bigEnd(2)) {
+                  rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
+              }
             });
         } // mfi
 
     } else { // use_terrain = 0
 
-        const int klo = 0;
         const int khi = geom.Domain().bigEnd(2);
 
         // These are at cell centers (unstaggered)
