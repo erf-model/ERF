@@ -64,6 +64,8 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
+ * @param[in] dptr_u_geos  custom geostrophic wind profile
+ * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
@@ -103,6 +105,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const Real* dptr_rhotheta_src,
+		       const Real* dptr_u_geos,
+		       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
@@ -970,6 +974,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_on_u_face * abl_geo_forcing[0];
 
+	    if (solverChoice.custom_geostrophic_profile) {
+                  rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
+                                        + rho_on_u_face * dptr_u_geos[k];
+              }
+
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (use_coriolis)
             {
@@ -1011,6 +1020,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                     + rho_on_u_face * abl_geo_forcing[0];
+
+              if (solverChoice.custom_geostrophic_profile) {
+              	  rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
+                                        + rho_on_u_face * dptr_u_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (use_coriolis)
@@ -1073,6 +1087,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
+		if (solverChoice.custom_geostrophic_profile) {
+                 	rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
+                                        + rho_on_v_face * dptr_v_geos[k];
+              	}
+
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
@@ -1112,6 +1131,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
+
+		if (solverChoice.custom_geostrophic_profile) {
+                        rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
+                                        + rho_on_v_face * dptr_v_geos[k];
+                }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (use_coriolis)

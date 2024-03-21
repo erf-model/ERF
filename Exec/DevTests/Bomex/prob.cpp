@@ -315,3 +315,46 @@ Problem::update_w_subsidence (const amrex::Real& /*time*/,
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
 }
+
+//=============================================================================
+// USER-DEFINED FUNCTION
+//=============================================================================
+void
+Problem::update_geostrophic_profile (const amrex::Real& /*time*/,
+                               amrex::Vector<amrex::Real>& u_geos,
+                               amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
+			       amrex::Vector<amrex::Real>& v_geos,
+                               amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
+                               const amrex::Geometry& geom,
+                               std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+{
+    if (u_geos.empty()) return;
+
+    const int khi              = geom.Domain().bigEnd()[2];
+    const amrex::Real* prob_lo = geom.ProbLo();
+    const auto dx              = geom.CellSize();
+
+    // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
+    // varies in time and or space, then the the height needs to be
+    // calculated at each time step. Here, we assume that only grid
+    // stretching exists.
+    if (z_phys_cc && zlevels.empty()) {
+        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        zlevels.resize(khi+1);
+        reduce_to_max_per_level(zlevels, z_phys_cc);
+    }
+
+    const Real coriolis = 0.376E-4;
+
+    // Only apply temperature source below nominal inversion height
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        const Real u_geo_wind = -10.0 + z_cc * 0.0018;
+	u_geos[k] =  0; //  -coriolis_factor * v_geo_wind
+	v_geos[k] =  coriolis *  u_geo_wind;
+    }
+
+    // Copy from host version to device version
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
+}

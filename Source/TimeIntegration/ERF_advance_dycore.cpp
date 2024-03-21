@@ -59,6 +59,8 @@ void ERF::advance_dycore(int level,
     Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
     Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
     Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
+    Real* dptr_u_geos       = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data()    : nullptr;
+    Real* dptr_v_geos       = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data()    : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
@@ -207,6 +209,13 @@ void ERF::advance_dycore(int level,
     if (solverChoice.custom_moisture_forcing) {
         prob->update_rhoqt_sources(old_time,
                                    h_rhoqt_src[level], d_rhoqt_src[level],
+                                   fine_geom, z_phys_cc[level]);
+    }
+
+    if (solverChoice.custom_geostrophic_profile) {
+        prob->update_geostrophic_profile(old_time,
+                                   h_u_geos[level], d_u_geos[level],
+				   h_v_geos[level], d_v_geos[level],
                                    fine_geom, z_phys_cc[level]);
     }
 
