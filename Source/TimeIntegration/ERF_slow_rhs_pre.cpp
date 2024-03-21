@@ -105,8 +105,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const Real* dptr_rhotheta_src,
-		       const Real* dptr_u_geos,
-		       const Real* dptr_v_geos,
+                       const Real* dptr_u_geos,
+                       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
@@ -974,10 +974,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_on_u_face * abl_geo_forcing[0];
 
-	    if (solverChoice.custom_geostrophic_profile) {
-                  rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                        + rho_on_u_face * dptr_u_geos[k];
-              }
+            if (solverChoice.custom_geostrophic_profile) {
+                rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
+                                      + rho_on_u_face * dptr_u_geos[k];
+            }
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
             if (use_coriolis)
@@ -1022,8 +1022,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     + rho_on_u_face * abl_geo_forcing[0];
 
               if (solverChoice.custom_geostrophic_profile) {
-              	  rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                        + rho_on_u_face * dptr_u_geos[k];
+                    rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
+                                          + rho_on_u_face * dptr_u_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1084,13 +1084,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
+
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
-		if (solverChoice.custom_geostrophic_profile) {
-                 	rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                        + rho_on_v_face * dptr_v_geos[k];
-              	}
+              if (solverChoice.custom_geostrophic_profile) {
+                   rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
+                                         + rho_on_v_face * dptr_v_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
@@ -1132,10 +1133,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
-		if (solverChoice.custom_geostrophic_profile) {
-                        rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                         + rho_on_v_face * dptr_v_geos[k];
-                }
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (use_coriolis)

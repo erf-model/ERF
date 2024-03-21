@@ -114,7 +114,7 @@ public:
 	amrex::Vector<amrex::Real>& v_geos,
 	amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
         const amrex::Geometry& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;    
+        std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 
 protected:
     std::string name () override { return "BOMEX"; }

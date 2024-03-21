@@ -99,8 +99,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        const Real* dptr_rhotheta_src,
-		       const Real* dptr_u_geos,
-		       const Real* dptr_v_geos,
+                       const Real* dptr_u_geos,
+                       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_dptrs)
 {
@@ -756,10 +756,10 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
               rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
                                     + rho_on_u_face * solverChoice.abl_geo_forcing[0];
 
-	      if (solverChoice.custom_geostrophic_profile) {
-	      rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
-                                    + rho_on_u_face * dptr_u_geos[k];
-	      }
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
+                                   + rho_on_u_face * dptr_u_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
@@ -798,10 +798,10 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
               // Note we do NOT include a pressure gradient here
               rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
                                     + rho_v_face * solverChoice.abl_geo_forcing[1];
-				    
-	      if (solverChoice.custom_geostrophic_profile) {
-              	rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
-                	              + rho_v_face * dptr_v_geos[k];
+
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
+                                        + rho_v_face * dptr_v_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -853,7 +853,7 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
               rho_w_rhs(i, j, k) += - solverChoice.abl_pressure_grad[2]
                                       rho_on_w_face * solverChoice.abl_geo_forcing[2];
 
-	      // Add Coriolis forcing (that assumes east is +x, north is +y)
+              // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
               {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));

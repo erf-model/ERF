@@ -229,7 +229,7 @@ public:
     update_geostrophic_profile (const amrex::Real& /*time*/,
                          amrex::Vector<amrex::Real>& u_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
-			 amrex::Vector<amrex::Real>& v_geos,
+                         amrex::Vector<amrex::Real>& v_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
                          const amrex::Geometry& geom,
                          std::unique_ptr<amrex::MultiFab>& z_phys_cc)
@@ -248,13 +248,13 @@ public:
                 // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
                 // set RHS term of RhoTheta equation based on time, z_cc here
                 u_geos[k] = 0.0;
-		v_geos[k] = 0.0;
+                v_geos[k] = 0.0;
             }
         }
 
         // Copy from host version to device version
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
-	amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
     }
 
      /**

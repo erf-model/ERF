@@ -215,7 +215,7 @@ void ERF::advance_dycore(int level,
     if (solverChoice.custom_geostrophic_profile) {
         prob->update_geostrophic_profile(old_time,
                                    h_u_geos[level], d_u_geos[level],
-				   h_v_geos[level], d_v_geos[level],
+                                   h_v_geos[level], d_v_geos[level],
                                    fine_geom, z_phys_cc[level]);
     }
 

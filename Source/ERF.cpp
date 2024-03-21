@@ -681,17 +681,17 @@ ERF::InitData ()
     {
         h_u_geos.resize(max_level+1, Vector<Real>(0));
         d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
-	h_v_geos.resize(max_level+1, Vector<Real>(0));
+        h_v_geos.resize(max_level+1, Vector<Real>(0));
         d_v_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
             const int domlen = geom[lev].Domain().length(2);
             h_u_geos[lev].resize(domlen, 0.0_rt);
             d_u_geos[lev].resize(domlen, 0.0_rt);
-	    h_v_geos[lev].resize(domlen, 0.0_rt);
+            h_v_geos[lev].resize(domlen, 0.0_rt);
             d_v_geos[lev].resize(domlen, 0.0_rt);
             prob->update_geostrophic_profile(t_new[0],
                                           h_u_geos[lev], d_u_geos[lev],
-					  h_v_geos[lev], d_v_geos[lev],
+                                          h_v_geos[lev], d_v_geos[lev],
                                           geom[lev], z_phys_cc[lev]);
         }
     }

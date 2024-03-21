@@ -323,7 +323,7 @@ void
 Problem::update_geostrophic_profile (const amrex::Real& /*time*/,
                                amrex::Vector<amrex::Real>& u_geos,
                                amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
-			       amrex::Vector<amrex::Real>& v_geos,
+                               amrex::Vector<amrex::Real>& v_geos,
                                amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
                                const amrex::Geometry& geom,
                                std::unique_ptr<amrex::MultiFab>& z_phys_cc)
@@ -350,8 +350,8 @@ Problem::update_geostrophic_profile (const amrex::Real& /*time*/,
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
-	u_geos[k] =  0; //  -coriolis_factor * v_geo_wind
-	v_geos[k] =  coriolis *  u_geo_wind;
+        u_geos[k] =  0; //  -coriolis_factor * v_geo_wind
+        v_geos[k] =  coriolis *  u_geo_wind;
     }
 
     // Copy from host version to device version
