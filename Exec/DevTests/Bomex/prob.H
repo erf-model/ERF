@@ -111,8 +111,8 @@ public:
         const amrex::Real& /*time*/,
         amrex::Vector<amrex::Real>& u_geos,
         amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
-	amrex::Vector<amrex::Real>& v_geos,
-	amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
+        amrex::Vector<amrex::Real>& v_geos,
+        amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
         const amrex::Geometry& geom,
         std::unique_ptr<amrex::MultiFab>& z_phys_cc) override;
 

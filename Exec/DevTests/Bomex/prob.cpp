@@ -10,7 +10,7 @@ amrex_probinit (const amrex_real* problo, const amrex_real* probhi)
     return std::make_unique<Problem>(problo, probhi);
 }
 
-Problem::Problem (const amrex::Real* problo, const amrex::Real* probhi)
+Problem::Problem (const Real* problo, const Real* probhi)
 {
     // Parse params
     ParmParse pp("prob");
@@ -60,28 +60,28 @@ Problem::Problem (const amrex::Real* problo, const amrex::Real* probhi)
 
 void
 Problem::init_custom_pert (
-    const amrex::Box&  bx,
-    const amrex::Box& xbx,
-    const amrex::Box& ybx,
-    const amrex::Box& zbx,
-    amrex::Array4<amrex::Real const> const& /*state*/,
-    amrex::Array4<amrex::Real      > const& state_pert,
-    amrex::Array4<amrex::Real      > const& x_vel_pert,
-    amrex::Array4<amrex::Real      > const& y_vel_pert,
-    amrex::Array4<amrex::Real      > const& z_vel_pert,
-    amrex::Array4<amrex::Real      > const& /*r_hse*/,
-    amrex::Array4<amrex::Real      > const& /*p_hse*/,
-    amrex::Array4<amrex::Real const> const& /*z_nd*/,
-    amrex::Array4<amrex::Real const> const& /*z_cc*/,
-    amrex::GeometryData const& geomdata,
-    amrex::Array4<amrex::Real const> const& /*mf_m*/,
-    amrex::Array4<amrex::Real const> const& /*mf_u*/,
-    amrex::Array4<amrex::Real const> const& /*mf_v*/,
+    const Box&  bx,
+    const Box& xbx,
+    const Box& ybx,
+    const Box& zbx,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
+    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& /*p_hse*/,
+    Array4<Real const> const& /*z_nd*/,
+    Array4<Real const> const& /*z_cc*/,
+    GeometryData const& geomdata,
+    Array4<Real const> const& /*mf_m*/,
+    Array4<Real const> const& /*mf_u*/,
+    Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
     {
         // Geometry
         const Real* prob_lo = geomdata.ProbLo();
@@ -117,7 +117,7 @@ Problem::init_custom_pert (
     });
 
     // Set the x-velocity
-    ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
@@ -142,7 +142,7 @@ Problem::init_custom_pert (
     });
 
   // Set the y-velocity
-  ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -167,7 +167,7 @@ Problem::init_custom_pert (
   });
 
   // Set the z-velocity
-  ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+  ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
   {
       const int dom_lo_z = geomdata.Domain().smallEnd()[2];
       const int dom_hi_z = geomdata.Domain().bigEnd()[2];
@@ -190,24 +190,24 @@ Problem::init_custom_pert (
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhotheta_sources (const amrex::Real& /*time*/,
-                                  amrex::Vector<amrex::Real>& src,
-                                  amrex::Gpu::DeviceVector<amrex::Real>& d_src,
-                                  const amrex::Geometry& geom,
-                                  std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_rhotheta_sources (const Real& /*time*/,
+                                  Vector<Real>& src,
+                                  Gpu::DeviceVector<Real>& d_src,
+                                  const Geometry& geom,
+                                  std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (src.empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const auto dx              = geom.CellSize();
+    const int khi       = geom.Domain().bigEnd()[2];
+    const Real* prob_lo = geom.ProbLo();
+    const auto dx       = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
     if (z_phys_cc && zlevels.empty()) {
-        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
@@ -232,24 +232,24 @@ Problem::update_rhotheta_sources (const amrex::Real& /*time*/,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_rhoqt_sources (const amrex::Real& /*time*/,
-                               amrex::Vector<amrex::Real>& qsrc,
-                               amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
-                               const amrex::Geometry& geom,
-                               std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_rhoqt_sources (const Real& /*time*/,
+                               Vector<Real>& qsrc,
+                               Gpu::DeviceVector<Real>& d_qsrc,
+                               const Geometry& geom,
+                               std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (qsrc.empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const auto dx              = geom.CellSize();
+    const int khi       = geom.Domain().bigEnd()[2];
+    const Real* prob_lo = geom.ProbLo();
+    const auto dx       = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
     if (z_phys_cc && zlevels.empty()) {
-        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
@@ -274,24 +274,24 @@ Problem::update_rhoqt_sources (const amrex::Real& /*time*/,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_w_subsidence (const amrex::Real& /*time*/,
-                               amrex::Vector<amrex::Real>& wbar,
-                               amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
-                               const amrex::Geometry& geom,
-                               std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_w_subsidence (const Real& /*time*/,
+                              Vector<Real>& wbar,
+                              Gpu::DeviceVector<Real>& d_wbar,
+                              const Geometry& geom,
+                              std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (wbar.empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const auto dx              = geom.CellSize();
+    const int khi       = geom.Domain().bigEnd()[2];
+    const Real* prob_lo = geom.ProbLo();
+    const auto dx       = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
     if (z_phys_cc && zlevels.empty()) {
-        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
@@ -320,26 +320,26 @@ Problem::update_w_subsidence (const amrex::Real& /*time*/,
 // USER-DEFINED FUNCTION
 //=============================================================================
 void
-Problem::update_geostrophic_profile (const amrex::Real& /*time*/,
-                               amrex::Vector<amrex::Real>& u_geos,
-                               amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
-                               amrex::Vector<amrex::Real>& v_geos,
-                               amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
-                               const amrex::Geometry& geom,
-                               std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+Problem::update_geostrophic_profile (const Real& /*time*/,
+                                     Vector<Real>& u_geos,
+                                     Gpu::DeviceVector<Real>& d_u_geos,
+                                     Vector<Real>& v_geos,
+                                     Gpu::DeviceVector<Real>& d_v_geos,
+                                     const Geometry& geom,
+                                     std::unique_ptr<MultiFab>& z_phys_cc)
 {
     if (u_geos.empty()) return;
 
-    const int khi              = geom.Domain().bigEnd()[2];
-    const amrex::Real* prob_lo = geom.ProbLo();
-    const auto dx              = geom.CellSize();
+    const int khi       = geom.Domain().bigEnd()[2];
+    const Real* prob_lo = geom.ProbLo();
+    const auto dx       = geom.CellSize();
 
     // Note: If z_phys_cc, then use_terrain=1 was set. If the z coordinate
     // varies in time and or space, then the the height needs to be
     // calculated at each time step. Here, we assume that only grid
     // stretching exists.
     if (z_phys_cc && zlevels.empty()) {
-        amrex::Print() << "Initializing z levels on stretched grid" << std::endl;
+        Print() << "Initializing z levels on stretched grid" << std::endl;
         zlevels.resize(khi+1);
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }

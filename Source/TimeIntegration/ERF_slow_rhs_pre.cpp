@@ -974,9 +974,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_on_u_face * abl_geo_forcing[0];
 
+            // Add geostrophic wind
             if (solverChoice.custom_geostrophic_profile) {
-                rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                      + rho_on_u_face * dptr_u_geos[k];
+                rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
             }
 
             // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1021,9 +1021,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                     + rho_on_u_face * abl_geo_forcing[0];
 
+              // Add geostrophic wind
               if (solverChoice.custom_geostrophic_profile) {
-                    rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                          + rho_on_u_face * dptr_u_geos[k];
+                    rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -1088,9 +1088,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
+              // Add geostrophic wind
               if (solverChoice.custom_geostrophic_profile) {
-                   rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                         + rho_on_v_face * dptr_v_geos[k];
+                   rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
@@ -1133,9 +1133,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
+              // Add geostrophic wind
               if (solverChoice.custom_geostrophic_profile) {
-                  rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                        + rho_on_v_face * dptr_v_geos[k];
+                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
