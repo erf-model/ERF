@@ -356,7 +356,7 @@ class SuperDropletPC : public ERFPC
                                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
 
         /*! \brief Coalescence of super-droplets */
-        virtual void Coalescence ( int, amrex::Real );
+        virtual void Coalescence ( int, amrex::Real, const amrex::MultiFab& );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */

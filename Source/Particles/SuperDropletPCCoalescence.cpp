@@ -32,7 +32,7 @@ static void random_shuffle ( dtype* const a_d_ptr, /*!< Pointer to data array */
 
 /*! \brief Binary coalescence between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void binary_coalescence (const int a_i, /*!< index of first particle */
+static bool binary_coalescence (const int a_i, /*!< index of first particle */
                                 const int a_j, /*!< index of second particle */
                                 const RandomEngine& a_rnd_eng, /*!< random engine */
                                 const Real a_p, /*!< probability */
@@ -91,12 +91,20 @@ static void binary_coalescence (const int a_i, /*!< index of first particle */
             a_sd_mass[j] = a_mult[j] * a_mass[j];
 
         }
+
+        return true;
+
+    } else {
+
+        return false;
+
     }
 }
 
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
-                                  Real  a_dt )
+                                  Real  a_dt,
+                                  const MultiFab& a_temperature )
 {
     BL_PROFILE("SuperDropletPC::Coalescence()");
     AMREX_ASSERT( a_lev == m_lev );
@@ -111,16 +119,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     IntVect bin_size = {AMREX_D_DECL(1, 1, 1)};
 
-// Do NOT add OpenMP here; building DenseBins is not thread-safe.
-    for (MFIter mfi = MakeMFIter(a_lev,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    long num_collisions = 0;
 
-        const Box& box = mfi.validbox();
-        auto& ptile = ParticlesAt( a_lev, mfi );
+// Do NOT add OpenMP here; building DenseBins is not thread-safe.
+    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+
+        auto& ptile = ParticlesAt( a_lev, pti );
         auto& aos = ptile.GetArrayOfStructs();
         auto& soa = ptile.GetStructOfArrays();
         const size_t np = aos.numParticles();
-        auto pstruct_ptr = aos().dataPtr();
+        auto* pstruct_ptr = aos().data();
 
+        int grid = pti.index();
+        const Box& box = a_temperature[grid].box();
         DenseBins<ParticleType> bins;
         int ntiles = numTilesInBox(box, true, bin_size);
         auto binner = GetParticleBin{plo, dxi, domain, bin_size, box};
@@ -129,7 +140,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     pstruct_ptr,
                     ntiles,
                     binner );
-        AMREX_ALWAYS_ASSERT(np == bins.numItems());
+        AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
         AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
         auto inds = bins.permutationPtr();
         auto offsets = bins.offsetsPtr();
@@ -156,6 +167,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
         }
 
         CollisionCS_Sedimentation<ParticleReal> coll_cs_sedim{};
+
+        amrex::Gpu::Buffer<amrex::Long> particle_collisions({0});
+        amrex::Long* particle_collisions_ptr = particle_collisions.data();
 
         ParallelForRNG( bins.numBins(),
                         [=] AMREX_GPU_DEVICE (int i_bin,
@@ -187,21 +201,31 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
                 auto scaled_prob = prob_sd_ij * scaling_factor;
 
-                binary_coalescence( pi, pj,
-                                    rnd_eng,
-                                    scaled_prob,
-                                    mass_ptr,
-                                    radius_ptr,
-                                    mult_ptr,
-                                    supdrop_mass_ptr,
-                                    num_aerosols,
-                                    aerosol_mass_ptrs );
+                auto flag = binary_coalescence( pi, pj,
+                                                rnd_eng,
+                                                scaled_prob,
+                                                mass_ptr,
+                                                radius_ptr,
+                                                mult_ptr,
+                                                supdrop_mass_ptr,
+                                                num_aerosols,
+                                                aerosol_mass_ptrs );
+
+                amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(flag));
             }
 
         } );
 
         Gpu::synchronize();
+        num_collisions = *(particle_collisions.copyToHost());
     }
+
+    ParallelDescriptor::ReduceLongSum(  &num_collisions,
+                                        1,
+                                        ParallelDescriptor::IOProcessorNumber() );
+
+    Print() << "SuperDropletPC(" << m_name << "): "
+            << "number of collisions = " << num_collisions << "\n";
 }
 
 #endif
