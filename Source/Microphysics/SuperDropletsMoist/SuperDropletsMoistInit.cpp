@@ -15,6 +15,13 @@ void SuperDropletsMoist::readInputs ()
     BL_PROFILE("SuperDropletsMoist::readInputs");
     ParmParse pp(m_name);
 
+    m_flag_phase_change = true;
+    m_flag_advection = true;
+    m_flag_coalescence = true;
+    pp.query("include_phase_change", m_flag_phase_change);
+    pp.query("include_advection", m_flag_advection);
+    pp.query("include_coalescence", m_flag_coalescence);
+
     m_init_type = ERFParticleInitializations::init_default;
     pp.query("initial_distribution_type", m_init_type);
 
@@ -78,6 +85,14 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                        << m_super_droplets->TotalNumberOfParticles()
                        << " particles in super-droplets moisture model.\n";
     }
+
+    amrex::Print() << "SuperDropletsMoist:\n"
+                   << "    include phase change: "
+                   << (m_flag_phase_change ? "true" : "false") << "\n"
+                   << "    include particle advection: "
+                   << (m_flag_advection ? "true" : "false") << "\n"
+                   << "    include coalescence: "
+                   << (m_flag_coalescence ? "true" : "false") << "\n";
 
 }
 

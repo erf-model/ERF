@@ -152,6 +152,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     protected:
 
+        bool m_flag_phase_change;   /*!< Enable/disable phase change */
+        bool m_flag_advection;      /*!< Enable/disable advection */
+        bool m_flag_coalescence;    /*!< Enable/disable coalescence */
+
         /*! initialization type */
         std::string m_init_type;
 
