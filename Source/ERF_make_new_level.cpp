@@ -132,10 +132,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
 
     //********************************************************************************************
-    // Thin immersed boundary
+    // Thin immersed interface
     // *******************************************************************************************
     if (solverChoice.advChoice.zero_xflux.size() > 0) {
-        amrex::Print() << "Setting up thin immersed boundary for "
+        amrex::Print() << "Setting up thin immersed interface for "
             << solverChoice.advChoice.zero_xflux.size() << " xfaces" << std::endl;
         BoxArray ba_xf(ba);
         ba_xf.surroundingNodes(0);
@@ -160,7 +160,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     }
 
     if (solverChoice.advChoice.zero_yflux.size() > 0) {
-        amrex::Print() << "Setting up thin immersed boundary for "
+        amrex::Print() << "Setting up thin interface boundary for "
             << solverChoice.advChoice.zero_yflux.size() << " yfaces" << std::endl;
         BoxArray ba_yf(ba);
         ba_yf.surroundingNodes(1);
@@ -185,7 +185,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     }
 
     if (solverChoice.advChoice.zero_zflux.size() > 0) {
-        amrex::Print() << "Setting up thin immersed boundary for "
+        amrex::Print() << "Setting up thin interface boundary for "
             << solverChoice.advChoice.zero_zflux.size() << " zfaces" << std::endl;
         BoxArray ba_zf(ba);
         ba_zf.surroundingNodes(2);

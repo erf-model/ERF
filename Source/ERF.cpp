@@ -232,7 +232,7 @@ ERF::ERF ()
     mapfac_u.resize(nlevs_max);
     mapfac_v.resize(nlevs_max);
 
-    // Thin immersed boundary
+    // Thin immersed interface
     xflux_mask.resize(nlevs_max);
     yflux_mask.resize(nlevs_max);
     zflux_mask.resize(nlevs_max);
@@ -622,9 +622,10 @@ ERF::InitData ()
             (solverChoice.advChoice.zero_zflux.size() > 0))
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
-                "Thin immersed boundary with refinement not currently supported.");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(solverChoice.use_terrain == 0,
-                "Thin immersed boundary with terrain has not been tested.");
+                "Thin immersed interface with refinement not currently supported.");
+            if (solverChoice.use_terrain == 1) {
+                amrex::Print() << "NOTE: Thin immersed interface with terrain has not been tested." << std::endl;
+            }
         }
 
     } else { // Restart from a checkpoint
