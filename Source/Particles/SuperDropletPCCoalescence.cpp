@@ -104,7 +104,7 @@ static bool binary_coalescence (const int a_i, /*!< index of first particle */
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
                                   Real  a_dt,
-                                  const MultiFab& a_temperature )
+                                  const MultiFab& /* a_temperature */ )
 {
     BL_PROFILE("SuperDropletPC::Coalescence()");
     AMREX_ASSERT( a_lev == m_lev );
@@ -122,24 +122,21 @@ void SuperDropletPC::Coalescence( int   a_lev,
     long num_collisions = 0;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
-    for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
+    for (MFIter mfi = MakeMFIter(a_lev, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        auto& ptile = ParticlesAt( a_lev, pti );
+        auto& ptile = ParticlesAt(a_lev, mfi);
         auto& aos = ptile.GetArrayOfStructs();
         auto& soa = ptile.GetStructOfArrays();
         const size_t np = aos.numParticles();
-        auto* pstruct_ptr = aos().data();
+        auto pstruct_ptr = aos().dataPtr();
 
-        int grid = pti.index();
-        const Box& box = a_temperature[grid].box();
-        DenseBins<ParticleType> bins;
+        const Box& box = mfi.validbox();
         int ntiles = numTilesInBox(box, true, bin_size);
-        auto binner = GetParticleBin{plo, dxi, domain, bin_size, box};
-        bins.build( BinPolicy::Serial,
-                    np,
+        DenseBins<ParticleType> bins;
+        bins.build( np,
                     pstruct_ptr,
                     ntiles,
-                    binner );
+                    GetParticleBin{plo, dxi, domain, bin_size, box} );
         AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
         AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
         auto inds = bins.permutationPtr();

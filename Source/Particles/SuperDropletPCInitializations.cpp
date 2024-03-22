@@ -103,8 +103,8 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 {
     BL_PROFILE("SuperDropletPC::initializeParticlesUniformDistribution");
 
-    const Real* dx = Geom(m_lev).CellSize();
-    const Real* plo = Geom(m_lev).ProbLo();
+    const auto dx = Geom(m_lev).CellSizeArray();
+    const auto plo = Geom(m_lev).ProbLoArray();
 
     const Real cell_volume = dx[0]*dx[1]*dx[2];
 

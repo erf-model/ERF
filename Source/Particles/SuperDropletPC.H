@@ -106,8 +106,8 @@ namespace SuperDropletsUtils
     template<typename RHSFunc, typename JacFunc, typename RT>
     struct NewtonSolver
     {
-        RHSFunc&  m_rhs;
-        JacFunc&  m_jac;
+        RHSFunc m_rhs;
+        JacFunc m_jac;
 
         RT  m_rtol;
         RT  m_atol;
