@@ -64,21 +64,24 @@ void ERF::init_bcs ()
         if (bc_type == "symmetry")
         {
             // Print() << bcid << " set to symmetry.\n";
-
             phys_bc_type[ori] = ERF_BC::symmetry;
             domain_bc_type[ori] = "Symmetry";
         }
         else if (bc_type == "outflow")
         {
             // Print() << bcid << " set to outflow.\n";
-
             phys_bc_type[ori] = ERF_BC::outflow;
             domain_bc_type[ori] = "Outflow";
+        }
+        else if (bc_type == "open")
+        {
+            // Print() << bcid << " set to open.\n";
+            phys_bc_type[ori] = ERF_BC::open;
+            domain_bc_type[ori] = "Open";
         }
         else if (bc_type == "inflow")
         {
             // Print() << bcid << " set to inflow.\n";
-
             phys_bc_type[ori] = ERF_BC::inflow;
             domain_bc_type[ori] = "Inflow";
 
@@ -152,7 +155,6 @@ void ERF::init_bcs ()
         else if (bc_type == "noslipwall")
         {
             // Print() << bcid <<" set to no-slip wall.\n";
-
             phys_bc_type[ori] = ERF_BC::no_slip_wall;
             domain_bc_type[ori] = "NoSlipWall";
 
@@ -290,6 +292,16 @@ void ERF::init_bcs ()
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::neumann_int);
                 }
             }
+            else if (bct == ERF_BC::open)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::open);
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::open);
+                }
+            }
             else if (bct == ERF_BC::inflow)
             {
                 if (side == Orientation::low) {
@@ -383,6 +395,16 @@ void ERF::init_bcs ()
                 } else {
                     for (int i = 0; i < NVAR_max; i++)
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                }
+            }
+            else if ( bct == ERF_BC::open )
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NVAR_max; i++)
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::open);
+                } else {
+                    for (int i = 0; i < NVAR_max; i++)
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
             else if ( bct == ERF_BC::no_slip_wall)
