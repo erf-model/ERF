@@ -59,6 +59,14 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_maxits", m_newton_maxits);
 
     {
+        Vector<int> bin_size = {1,1,1};
+        pp.queryarr("coalescence_bin_size", bin_size);
+        for (int i = 0; i < AMREX_SPACEDIM; i++) {
+            m_coalescence_bin_size[i] = bin_size[i];
+        }
+    }
+
+    {
         Vector<Real> particle_box_lo(AMREX_SPACEDIM);
         Vector<Real> particle_box_hi(AMREX_SPACEDIM);
 
@@ -166,6 +174,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
+            << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
             << "    Initial radius: " << par_radius << "\n"
             << "    Initial mass: " << par_mass << "\n"
             << "    Vapour material: " << m_vapour_mat->name() << "\n";

@@ -419,6 +419,8 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_newton_stol;  /*!< Newton solver - step tolerance */
         int m_newton_maxits;        /*!< Newton solver - maximum iterations */
 
+        amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
+
         /*! \brief read inputs from file */
         virtual void readInputs ();
 
