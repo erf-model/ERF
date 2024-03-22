@@ -64,6 +64,8 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
+ * @param[in] dptr_u_geos  custom geostrophic wind profile
+ * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
@@ -103,6 +105,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const Real* dptr_rhotheta_src,
+                       const Real* dptr_u_geos,
+                       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
@@ -929,7 +933,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_xmom");
-        auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
+        auto rayleigh_damp_U  = solverChoice.rayleigh_damp_U;
+        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
         // *****************************************************************************
         // TERRAIN VERSION
         // *****************************************************************************
@@ -970,17 +975,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_on_u_face * abl_geo_forcing[0];
 
+            // Add geostrophic wind
+            if (geostrophic_wind) {
+                rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+            }
+
             // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (use_coriolis)
-            {
+            if (use_coriolis) {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
             }
 
             // Add Rayleigh damping
-            if (use_rayleigh_damping && rayleigh_damp_U)
-            {
+            if (use_rayleigh_damping && rayleigh_damp_U) {
                 Real uu = rho_u(i,j,k) / rho_on_u_face;
                 rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
             }
@@ -1012,17 +1020,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                     + rho_on_u_face * abl_geo_forcing[0];
 
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                    rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+              }
+
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis)
-              {
+              if (use_coriolis) {
                   Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                   Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                   rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_U)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_U) {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
               }
@@ -1032,7 +1043,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_ymom");
-        auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
+        auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
+        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
         // *****************************************************************************
         // TERRAIN VERSION
         // *****************************************************************************
@@ -1070,8 +1082,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
+
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
+
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                   rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
@@ -1080,8 +1098,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_V) {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
                   rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
@@ -1113,16 +1130,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+              }
+
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis)
-              {
+              if (use_coriolis) {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
                   rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_V) {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
                   rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
@@ -1220,15 +1240,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis)
-                {
+                if (use_coriolis) {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                     rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W)
-                {
+                if (use_rayleigh_damping && rayleigh_damp_W) {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
                     rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }
@@ -1257,15 +1275,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis)
-                {
+                if (use_coriolis) {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                     rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W)
-                {
+                if (use_rayleigh_damping && rayleigh_damp_W) {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
                     rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }

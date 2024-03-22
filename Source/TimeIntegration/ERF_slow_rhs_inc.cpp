@@ -63,6 +63,8 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
+ * @param[in] dptr_u_geos  custom geostrophic wind profile
+ * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
@@ -97,6 +99,8 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
                        const Real* dptr_rhotheta_src,
+                       const Real* dptr_u_geos,
+                       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_dptrs)
 {
@@ -752,6 +756,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
               rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
                                     + rho_on_u_face * solverChoice.abl_geo_forcing[0];
 
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
+                                   + rho_on_u_face * dptr_u_geos[k];
+              }
+
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
               {
@@ -789,6 +798,11 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
               // Note we do NOT include a pressure gradient here
               rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
                                     + rho_v_face * solverChoice.abl_geo_forcing[1];
+
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
+                                        + rho_v_face * dptr_v_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
               if (solverChoice.use_coriolis)
