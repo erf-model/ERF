@@ -33,6 +33,7 @@ using namespace amrex;
 class SuperDropletsMoist : public NullMoistLagrangian {
 
     using FabPtr = std::shared_ptr<MultiFab>;
+    using MFPtr = std::unique_ptr<MultiFab>;
 
     public:
 
@@ -49,7 +50,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void Init ( const MultiFab&,
                             const BoxArray&,
                             const Geometry&,
-                            const Real& ) override;
+                            const Real&,
+                            MFPtr&,
+                            MFPtr& ) override;
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
@@ -59,7 +62,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Advance for one timestep */
         virtual void Advance (const Real&,
                               Vector<Vector<MultiFab>>&,
-                              const Vector<std::unique_ptr<MultiFab>>& ) override;
+                              const Vector<MFPtr>& ) override;
 
         /*! \brief Update microphysics variables */
         inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override
@@ -78,9 +81,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             computeQt();
             Copy_Micro_to_State(a_cons_vars);
         }
-
-        /*! \brief TODO */
-        virtual void Diagnose () override { }
 
         /*! \brief Copy moisture model vars from state to member multifabs */
         virtual void Copy_State_to_Micro (const MultiFab&) override;
@@ -148,7 +148,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Compute phase changes (vapour <--> cloud water) */
         virtual void phaseChange (  const Real&,
-                                    const Vector<std::unique_ptr<MultiFab>>& );
+                                    const Vector<MFPtr>& );
 
     protected:
 
