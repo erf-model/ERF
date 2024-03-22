@@ -236,6 +236,9 @@ ERF::ERF ()
     xflux_mask.resize(nlevs_max);
     yflux_mask.resize(nlevs_max);
     zflux_mask.resize(nlevs_max);
+    thin_xforce.resize(nlevs_max);
+    thin_yforce.resize(nlevs_max);
+    thin_zforce.resize(nlevs_max);
 
     // Base state
     base_state.resize(nlevs_max);

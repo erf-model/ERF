@@ -110,7 +110,8 @@
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -203,7 +204,8 @@
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                             dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -363,7 +365,8 @@
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                         dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                         thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 
 #ifdef ERF_USE_NETCDF

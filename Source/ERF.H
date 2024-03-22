@@ -661,6 +661,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> yflux_mask;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> zflux_mask;
 
+    // These are the body forces that result from the thin immersed interface
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
+
     int last_plot_file_step_1;
     int last_plot_file_step_2;
 

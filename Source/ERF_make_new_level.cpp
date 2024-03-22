@@ -139,6 +139,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             << solverChoice.advChoice.zero_xflux.size() << " xfaces" << std::endl;
         BoxArray ba_xf(ba);
         ba_xf.surroundingNodes(0);
+        thin_xforce[lev] = std::make_unique<MultiFab>(ba_xf,dm,1,0);
         xflux_mask[lev] = std::make_unique<MultiFab>(ba_xf,dm,1,0);
         xflux_mask[lev]->setVal(1);
         for ( MFIter mfi(*xflux_mask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -156,6 +157,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             }
         }
     } else {
+        thin_xforce[lev] = nullptr;
         xflux_mask[lev] = nullptr;
     }
 
@@ -164,6 +166,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             << solverChoice.advChoice.zero_yflux.size() << " yfaces" << std::endl;
         BoxArray ba_yf(ba);
         ba_yf.surroundingNodes(1);
+        thin_yforce[lev] = std::make_unique<MultiFab>(ba_yf,dm,1,0);
         yflux_mask[lev] = std::make_unique<MultiFab>(ba_yf,dm,1,0);
         yflux_mask[lev]->setVal(1);
         for ( MFIter mfi(*yflux_mask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -181,6 +184,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             }
         }
     } else {
+        thin_yforce[lev] = nullptr;
         yflux_mask[lev] = nullptr;
     }
 
@@ -189,6 +193,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             << solverChoice.advChoice.zero_zflux.size() << " zfaces" << std::endl;
         BoxArray ba_zf(ba);
         ba_zf.surroundingNodes(2);
+        thin_zforce[lev] = std::make_unique<MultiFab>(ba_zf,dm,1,0);
         zflux_mask[lev] = std::make_unique<MultiFab>(ba_zf,dm,1,0);
         zflux_mask[lev]->setVal(1);
         for ( MFIter mfi(*zflux_mask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -206,6 +211,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
             }
         }
     } else {
+        thin_zforce[lev] = nullptr;
         zflux_mask[lev] = nullptr;
     }
 
