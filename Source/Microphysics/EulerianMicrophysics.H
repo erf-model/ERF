@@ -22,8 +22,8 @@ public:
     ~EulerianMicrophysics () = default;
 
     /*! \brief Constructor: create the moisture model */
-    EulerianMicrophysics ( const int& nlev, /*!< Number of AMR levels */
-                           const MoistureType& a_model_type /*!< moisture model */)
+    EulerianMicrophysics (const int& nlev, /*!< Number of AMR levels */
+                          const MoistureType& a_model_type /*!< moisture model */)
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Eulerian );
         m_moist_model.resize(nlev);
@@ -50,29 +50,26 @@ public:
     }
 
     /*! \brief Initialize the moisture model */
-    void Init ( const int& lev, /*!< AMR level */
-                const amrex::MultiFab& cons_in, /*!< Conserved state variables */
-                const amrex::BoxArray& grids,   /*!< Grids */
-                const amrex::Geometry& geom,    /*!< Geometry */
-                const amrex::Real& dt_advance   /*!< Time step */ ) override
+    void Init (const int& lev, /*!< AMR level */
+               const amrex::MultiFab& cons_in, /*!< Conserved state variables */
+               const amrex::BoxArray& grids,   /*!< Grids */
+               const amrex::Geometry& geom,    /*!< Geometry */
+               const amrex::Real& dt_advance,   /*!< Time step */
+               std::unique_ptr<amrex::MultiFab>& z_phys_nd, /*< Nodal z heights */
+               std::unique_ptr<amrex::MultiFab>& detJ_cc    /*< CC Jacobian determinants */) override
     {
-        m_moist_model[lev]->Init(cons_in, grids, geom, dt_advance);
+        m_moist_model[lev]->Init(cons_in, grids, geom, dt_advance,
+                                 z_phys_nd, detJ_cc);
     }
 
     /*! \brief Advance the moisture model for one time step */
-    void Advance (  const int& lev, /*!< AMR level */
-                    const amrex::Real& dt_advance, /*!< Time step */
-                    const SolverChoice &solverChoice, /*!< Solver choice object */
-                    amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /*!< Dycore state variables */
-                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*!< terrain */) override
+    void Advance (const int& lev, /*!< AMR level */
+                  const amrex::Real& dt_advance, /*!< Time step */
+                  const SolverChoice &solverChoice, /*!< Solver choice object */
+                  amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /*!< Dycore state variables */
+                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*!< terrain */) override
     {
         m_moist_model[lev]->Advance(dt_advance, solverChoice);
-    }
-
-    /*! \brief compute diagnostics */
-    void Diagnose (const int& lev /*!< AMR level */) override
-    {
-        m_moist_model[lev]->Diagnose();
     }
 
     /*! \brief update microphysics variables from ERF state variables */

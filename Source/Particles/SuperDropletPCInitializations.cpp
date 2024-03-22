@@ -58,6 +58,25 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_stol", m_newton_stol);
     pp.query("newton_solver_maxits", m_newton_maxits);
 
+    {
+        Vector<Real> particle_box_lo(AMREX_SPACEDIM);
+        Vector<Real> particle_box_hi(AMREX_SPACEDIM);
+
+        // Defaults
+        for (int i = 0; i < AMREX_SPACEDIM; i++) {
+            particle_box_lo[i] = Geom(0).ProbLo(i);
+            particle_box_hi[i] = Geom(0).ProbHi(i);
+        }
+
+        pp.queryAdd("particle_box_lo", particle_box_lo, AMREX_SPACEDIM);
+        AMREX_ASSERT(particle_box_lo.size() == AMREX_SPACEDIM);
+
+        pp.queryAdd("particle_box_hi", particle_box_hi, AMREX_SPACEDIM);
+        AMREX_ASSERT(particle_box_hi.size() == AMREX_SPACEDIM);
+
+        m_init_particle_box.setLo(particle_box_lo);
+        m_init_particle_box.setHi(particle_box_hi);
+    }
 
     for (int i = 0; i < m_num_aerosols; i++) {
         m_mass_aerosol_init[i] = 0.0;
@@ -75,7 +94,7 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
     BL_PROFILE("SuperDropletPC::initializeParticles");
 
     if (a_initialization_type == SuperDropletInitializations::init_uniform) {
-        initializeParticlesUniformDistribution( a_height_ptr );
+        initializeParticlesUniformDistribution( a_height_ptr, m_init_particle_box );
     } else if (a_initialization_type == SuperDropletInitializations::init_null) {
         initializeParticlesNull( a_height_ptr );
     } else {
@@ -99,12 +118,13 @@ void SuperDropletPC::InitializeParticles (const std::string& a_initialization_ty
     + The initial particle radius is the "equivalent radius" for the condensate material given
       the initial mass.
 */
-void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr /*!< terrain */)
+void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_height_ptr, /*!< terrain */
+                                                             const RealBox& a_particle_init_domain /*!< box within which to initialize particles */ )
 {
     BL_PROFILE("SuperDropletPC::initializeParticlesUniformDistribution");
 
-    const Real* dx = Geom(m_lev).CellSize();
-    const Real* plo = Geom(m_lev).ProbLo();
+    const auto dx = Geom(m_lev).CellSizeArray();
+    const auto plo = Geom(m_lev).ProbLoArray();
 
     const Real cell_volume = dx[0]*dx[1]*dx[2];
 
@@ -163,10 +183,31 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
         auto num_superdroplets_arr = num_superdroplets[mfi].array();
-        ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            num_superdroplets_arr(i,j,k) = num_sd_per_cell;
-        });
+        if (a_height_ptr) {
+            const auto height_arr = (*a_height_ptr)[mfi].array();
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = 0.125 * (height_arr(i,j  ,k  ) + height_arr(i+1,j  ,k  ) +
+                                  height_arr(i,j+1,k  ) + height_arr(i+1,j+1,k  ) +
+                                  height_arr(i,j  ,k+1) + height_arr(i+1,j  ,k+1) +
+                                  height_arr(i,j+1,k+1) + height_arr(i+1,j+1,k  ) );
+                if (a_particle_init_domain.contains(RealVect(x,y,z))) {
+                    num_superdroplets_arr(i,j,k) = num_sd_per_cell;
+                }
+            });
+        } else {
+            ParallelFor(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real x = plo[0] + (i + 0.5)*dx[0];
+                Real y = plo[1] + (j + 0.5)*dx[1];
+                Real z = plo[2] + (k + 0.5)*dx[2];
+                if (a_particle_init_domain.contains(RealVect(x,y,z))) {
+                    num_superdroplets_arr(i,j,k) = num_sd_per_cell;
+                }
+            });
+        }
     }
 
     iMultiFab offsets( ParticleBoxArray(m_lev),
@@ -252,12 +293,8 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 
                 p.idata(SuperDropletsIntIdxAoS::k) = k;
 
-                vx_ptr[n] = 0.0;
-                vy_ptr[n] = 0.0;
-                vz_ptr[n] = 0.0;
-
+                vx_ptr[n] = vy_ptr[n] = vz_ptr[n] = 0.0;
                 mass_ptr[n] = par_mass;
-
                 radius_ptr[n] = par_radius;
                 mult_ptr[n] = multiplicity;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
@@ -276,9 +313,29 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             {
                 int start = offset_arr(i,j,k);
                 for (int n = start; n < start+num_sd_per_cell; n++) {
-                    Real r = Random(rnd_engine);
-                    Real z = height_arr(i,j,k) + r * ( height_arr(i,j,k+1) - height_arr(i,j,k) );
                     auto& p = aos[n];
+                    Real x = p.pos(0);
+                    Real y = p.pos(1);
+                    Real r[3] = { (x-plo[0])/dx[0] - i,
+                                  (y-plo[1])/dx[1] - j,
+                                  Random(rnd_engine) };
+
+                    Real sx[] = { amrex::Real(1.) - r[0], r[0]};
+                    Real sy[] = { amrex::Real(1.) - r[1], r[1]};
+
+                    Real height_at_pxy_lo = 0.;
+                    Real height_at_pxy_hi = 0.;
+                    for (int ii = 0; ii < 2; ++ii) {
+                        for (int jj = 0; jj < 2; ++jj) {
+                            height_at_pxy_lo += sx[ii] * sy[jj]
+                                                * height_arr(i+ii,j+jj,k);
+                            height_at_pxy_hi += sx[ii] * sy[jj]
+                                                * height_arr(i+ii,j+jj,k+1);
+                        }
+                    }
+
+                    Real z = height_at_pxy_lo
+                             + r[2] * (height_at_pxy_hi - height_at_pxy_lo);
                     p.pos(2) = z;
                }
             });

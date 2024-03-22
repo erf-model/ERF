@@ -57,9 +57,6 @@ public:
     // cloud physics
     void AdvanceKessler (const SolverChoice &solverChoice);
 
-    // diagnose
-    void Diagnose () override;
-
     // Set up for first time
     void
     Define (SolverChoice& sc) override
@@ -78,7 +75,9 @@ public:
     Init (const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance) override;
+          const amrex::Real& dt_advance,
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+          std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
     // Copy state into micro vars
     void
@@ -93,7 +92,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Diagnose();
     }
 
     // update state vars
@@ -111,7 +109,6 @@ public:
         dt = dt_advance;
 
         this->AdvanceKessler(solverChoice);
-        this->Diagnose();
     }
 
     amrex::MultiFab*
@@ -160,6 +157,10 @@ private:
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
+
+    // Pointer to terrain data
+    amrex::MultiFab* m_z_phys_nd;
+    amrex::MultiFab* m_detJ_cc;
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;

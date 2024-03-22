@@ -165,11 +165,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
        ${SRC_DIR}/Microphysics/SAM/Precip.cpp
        ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/Diagnose_SAM.cpp
        ${SRC_DIR}/Microphysics/SAM/Update_SAM.cpp
        ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/SuperDropletsMoistInit.cpp

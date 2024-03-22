@@ -62,20 +62,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
     //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size  = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
-
-    //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
     int lsm_size  = lsm.Get_Data_Size();
@@ -144,6 +130,22 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size  = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), 0.0,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
 
     // ********************************************************************************************
     // Create the ERFFillPatcher object
@@ -236,20 +238,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, crse_new[Vars::zvel].nGrowVect());
 
-    //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size  = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
-
     init_stuff(lev, ba, dm);
 
     t_new[lev] = time;
@@ -259,6 +247,32 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // Build the data structures for terrain-related quantities
     // ********************************************************************************************
     update_terrain_arrays(lev, time);
+
+    //
+    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
+    //
+    if (solverChoice.use_terrain != 0) {
+        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
+            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
+        }
+    }
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size  = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), 0.0,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
 
     // ********************************************************************************************
     // Update the base state at this level
@@ -323,16 +337,6 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         Construct_ERFFillPatchers(lev);
            Define_ERFFillPatchers(lev);
     }
-
-    //
-    // Make sure that detJ and z_phys_cc are the average of the data on a finer level if there is one
-    //
-    if (solverChoice.use_terrain != 0) {
-        for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
-            average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
-            average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
-        }
-    }
 }
 
 // Remake an existing level using provided BoxArray and DistributionMapping and
@@ -373,19 +377,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                                               ref_ratio[lev-1], lev, ncomp_cons);
     }
 
-    //********************************************************************************************
-    // Microphysics
-    // *******************************************************************************************
-    int q_size = micro->Get_Qmoist_Size(lev);
-    qmoist[lev].resize(q_size);
-    micro->Define(lev, solverChoice);
-    if (solverChoice.moisture_type != MoistureType::None)
-    {
-        micro->Init(lev, vars_new[lev][Vars::cons], grids[lev], Geom(lev), 0.0); // dummy dt value
-    }
-    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
-        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
-    }
+
 
     init_stuff(lev, ba, dm);
 
@@ -433,6 +425,22 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
             average_down(*z_phys_cc[crse_lev+1], *z_phys_cc[crse_lev], 0, 1, refRatio(crse_lev));
         }
+    }
+
+    //********************************************************************************************
+    // Microphysics
+    // *******************************************************************************************
+    int q_size = micro->Get_Qmoist_Size(lev);
+    qmoist[lev].resize(q_size);
+    micro->Define(lev, solverChoice);
+    if (solverChoice.moisture_type != MoistureType::None)
+    {
+        micro->Init(lev, vars_new[lev][Vars::cons],
+                    grids[lev], Geom(lev), 0.0,
+                    z_phys_nd[lev], detJ_cc[lev]); // dummy dt value
+    }
+    for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
+        qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
     }
 
     // ********************************************************************************************
@@ -608,7 +616,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }
 
-void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
+void ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm)
 {
     if (lev == 0) {
         min_k_at_level[lev] = 0;
@@ -691,6 +699,7 @@ void ERF::init_stuff(int lev, const BoxArray& ba, const DistributionMapping& dm)
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+        Nturb[lev].define(ba, dm, 1, 0); // Number of turbines in a cell
     }
 #endif
 }
