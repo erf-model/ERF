@@ -42,9 +42,7 @@ struct ERFParticlesRealIdxSoA
 namespace ERFParticleInitializations
 {
     /* list of particle initializations */
-    const std::string init_default = "default";
-    const std::string init_uniform = "uniform";
-
+    const std::string init_box_uniform  = "box";
 }
 
 namespace ERFParticleNames
@@ -209,17 +207,16 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
         // the following functions should ideally be private or protected, but need to be
         // public due to CUDA extended lambda capture rules
 
-        /*! Default initialization for tracer particles for WoA case (ref: AA) */
-        void initializeParticlesDefaultTracersWoA (const std::unique_ptr<amrex::MultiFab>& a_ptr=nullptr);
-        /*! Default initialization for hydro particles (ref: AA) */
-        void initializeParticlesDefaultHydro (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
         /*! Default particle initialization */
-        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,
+                                                          const amrex::RealBox& particle_box);
 
     protected:
 
         bool m_advect_w_flow;               /*!< advect with flow velocity */
         bool m_advect_w_gravity;            /*!< advect under gravitational force */
+
+        amrex::RealBox m_particle_box;      /*!< box within which to place particles */
 
         std::string m_name;                 /*!< name of this particle species */
 
@@ -231,9 +228,7 @@ class ERFPC : public amrex::ParticleContainer<  ERFParticlesRealIdxAoS::ncomps, 
 
     private:
 
-        /*! Default particle initialization */
-        void initializeParticlesDefault (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
-
+        bool place_randomly_in_cells; /*!< place particles at random positions? */
 };
 
 #endif

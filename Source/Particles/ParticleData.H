@@ -129,7 +129,7 @@ class ParticleData
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \""
+                amrex::Print()  << "ERROR: unable to find particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -143,7 +143,7 @@ class ParticleData
             BL_PROFILE("ParticleData::operator[]");
             ParticleSpeciesMap::iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \""
+                amrex::Print()  << "ERROR: unable to find particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -157,7 +157,7 @@ class ParticleData
             BL_PROFILE("ParticleData::GetSpecies()");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \""
+                amrex::Print()  << "ERROR: unable to find particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {
@@ -171,7 +171,7 @@ class ParticleData
             BL_PROFILE("ParticleData::operator[]");
             ParticleSpeciesMap::const_iterator it (m_particle_species.find(a_name));
             if (it == m_particle_species.end()) {
-                amrex::Print()  << "ERROR: unable to fine particle species with name \""
+                amrex::Print()  << "ERROR: unable to find particle species with name \""
                                 << a_name << "\"!";
                 return nullptr;
             } else {

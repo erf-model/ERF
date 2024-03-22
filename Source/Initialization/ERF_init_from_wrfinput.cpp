@@ -485,11 +485,8 @@ verify_terrain_top_boundary (const Real& z_top,
     for (int idx = 0; idx < nboxes; idx++) {
         Gpu::HostVector  <Real> MaxMax_h(2,-1.0e16);
         Gpu::DeviceVector<Real> MaxMax_d(2);
-#ifdef AMREX_USE_GPU
-        Gpu::htod_memcpy_async(MaxMax_d.data(), MaxMax_h.data(), sizeof(Real)*2);
-#else
-        std::memcpy(MaxMax_d.data(), MaxMax_h.data(), sizeof(Real)*2);
-#endif
+        Gpu::copy(Gpu::hostToDevice, MaxMax_h.begin(), MaxMax_h.end(), MaxMax_d.begin());
+
         Real* mm_d = MaxMax_d.data();
 
         Box Fab2dBox_hi (NC_PHB_fab[idx].box()); Fab2dBox_hi.makeSlab(2,Fab2dBox_hi.bigEnd(2));
@@ -513,7 +510,7 @@ verify_terrain_top_boundary (const Real& z_top,
                                    ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
                                    phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
                                    phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            mm_d[0] = amrex::max(mm_d[0],z_calc);
+            amrex::Gpu::Atomic::Max(&(mm_d[0]),z_calc);
         },
         [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -523,7 +520,7 @@ verify_terrain_top_boundary (const Real& z_top,
                                    ph (ii,jj-1,k) + ph (ii-1,jj-1,k) +
                                    phb(ii,jj  ,k) + phb(ii-1,jj  ,k) +
                                    phb(ii,jj-1,k) + phb(ii-1,jj-1,k) ) / CONST_GRAV;
-            mm_d[1] = amrex::max(mm_d[1],z_calc);
+            amrex::Gpu::Atomic::Max(&(mm_d[1]),z_calc);
         });
 
         Gpu::copy(Gpu::deviceToHost, MaxMax_d.begin(), MaxMax_d.end(), MaxMax_h.begin());

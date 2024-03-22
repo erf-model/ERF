@@ -20,7 +20,9 @@ public:
     void Init (const amrex::MultiFab& /*cons_in*/,
                const amrex::BoxArray& /*grids*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/) { }
+               const amrex::Real& /*dt_advance*/,
+               std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+               std::unique_ptr<amrex::MultiFab>& /*detJ_cc*/) { }
 
     virtual
     void
@@ -34,10 +36,6 @@ public:
     virtual
     void
     Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
-
-    virtual
-    void
-    Diagnose () { }
 
     virtual
     void
