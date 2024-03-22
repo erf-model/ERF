@@ -172,6 +172,8 @@ namespace SuperDropletInitializations
 
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SuperDropletInitializations::num_aerosols_max>;
 
+using MFPtr = std::unique_ptr<amrex::MultiFab>;
+
 class SuperDropletPC : public ERFPC
 {
     public:
@@ -318,17 +320,24 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Initialize super-droplets in domain */
-        inline virtual void InitializeParticles (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr) override
+        inline virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override
         {
             InitializeParticles( m_initialization_type, a_ptr );
         }
 
         /*! \brief Initialize super-droplets in domain */
         virtual void InitializeParticles (  const std::string&,
-                                            const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+                                            const MFPtr& a_ptr = nullptr);
 
         /*! \brief Particle initialization - uniform distribution */
-        void initializeParticlesUniformDistribution (const std::unique_ptr<amrex::MultiFab>& a_ptr = nullptr);
+        inline void initializeParticlesUniformDistribution (const MFPtr& a_height = nullptr)
+        {
+            initializeParticlesUniformDistribution(a_height, m_init_particle_box);
+        }
+        /*! \brief Particle initialization - uniform distribution */
+        void initializeParticlesUniformDistribution (const MFPtr&,
+                                                     const amrex::RealBox& );
+
         /*! \brief Set super-droplets attributes from a given condensate mass density */
         virtual void SetAttributes (  amrex::MultiFab& );
 
@@ -336,7 +345,7 @@ class SuperDropletPC : public ERFPC
         virtual void EvolveParticles ( int,
                                        amrex::Real,
                                        amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                       const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) override
+                                       const amrex::Vector<MFPtr>& ) override
         {
             amrex::Abort("SuperDropletPC::EvolveParticles() is intentionally disabled.");
         }
@@ -345,7 +354,7 @@ class SuperDropletPC : public ERFPC
         virtual void AdvectParticles (   int,
                                          amrex::Real,
                                          amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
-                                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+                                         const amrex::Vector<MFPtr>& );
 
         /*! \brief Grow/shrink particles for one time step */
         virtual void MassChange (   int,
@@ -353,7 +362,7 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
-                                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
+                                    const amrex::Vector<MFPtr>& );
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence ( int, amrex::Real, const amrex::MultiFab& );
@@ -395,11 +404,11 @@ class SuperDropletPC : public ERFPC
 
         /*! Initial aerosol masses of each physical particle */
         std::vector<amrex::Real> m_mass_aerosol_init;
-        int m_num_aerosols;
+        int m_num_aerosols; /*!< Number of aerosols */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
-
         bool m_nucleate_particles;  /*!< nucleate new superdroplets from vapour */
+        amrex::RealBox m_init_particle_box; /*!<box within which to place particles*/
 
         std::unique_ptr<MaterialProperties> m_vapour_mat; /*!< Vapour material */
         std::vector<std::unique_ptr<MaterialProperties>> m_aerosol_mat; /*!< Aerosol materials */
@@ -414,7 +423,7 @@ class SuperDropletPC : public ERFPC
         virtual void readInputs ();
 
         /*! \brief Particle initialization - null (no particles are initialized) */
-        void initializeParticlesNull (const std::unique_ptr<amrex::MultiFab>&) { }
+        void initializeParticlesNull (const MFPtr&) { }
 
     private:
 
