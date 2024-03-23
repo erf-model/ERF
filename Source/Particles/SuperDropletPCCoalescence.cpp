@@ -114,8 +114,13 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const int num_aerosols = m_num_aerosols;
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_bin_size
+        = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
+                 * static_cast<ParticleReal>(m_coalescence_bin_size[1])
+                 * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
+    const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
     long num_collisions = 0;
     const auto& gvec = a_temperature.nGrowVect();
@@ -191,7 +196,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                 dv = std::sqrt(dv);
 
                 auto k_val = coll_cs_sedim(radius_ptr[pi],radius_ptr[pj]) * dv;
-                auto prob_ij = k_val*a_dt*inv_cell_volume;
+                auto prob_ij = k_val*a_dt*inv_bin_volume;
                 auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
                 auto ns = static_cast<ParticleReal>(np_bin);
