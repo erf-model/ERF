@@ -62,7 +62,6 @@ using namespace amrex;
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_rhotheta_src  custom temperature source term
- * @param[in] dptr_rhoqt_src  custom moisture source term
  * @param[in] dptr_u_geos  custom geostrophic wind profile
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
@@ -667,22 +666,6 @@ void erf_slow_rhs_inc (int /*level*/, int nrk,
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     cell_rhs(i, j, k, n) += dptr_rhotheta_src[k];
-                });
-            }
-        }
-
-        if (solverChoice.custom_moisture_forcing) {
-            const int n = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhoqt_src[k];
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += dptr_rhoqt_src[k];
                 });
             }
         }
