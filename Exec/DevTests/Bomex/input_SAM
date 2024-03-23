@@ -56,6 +56,7 @@ erf.init_sounding_ideal = true
 
 erf.add_custom_rhotheta_forcing = true
 erf.add_custom_moisture_forcing = true
+erf.add_custom_geostrophic_profile = true
 erf.add_custom_w_subsidence     = true
 erf.custom_forcing_uses_primitive_vars = false
 

@@ -824,6 +824,12 @@ private:
     amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
 
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_u_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_u_geos;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
+
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
 

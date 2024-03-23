@@ -34,6 +34,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_POISSON_SOLVE)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_inc.cpp
                    ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
