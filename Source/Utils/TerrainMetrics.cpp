@@ -142,18 +142,17 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
               int ii = amrex::max(amrex::min(i,imax),imin);
               int jj = amrex::max(amrex::min(j,jmax),jmin);
 
-              // Start with flat z set either with uniform cell size or specified z_levels
-              Real z = z_lev[k];
-
               //
+              // Start with flat z_lev set either with uniform cell size or specified z_levels
               // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
               // If k0 > 0 then z_arr at k0 has already been filled from interpolation
               //
-              Real z_sfc     =  z_arr(ii,jj,k0);
-              Real z_lev_sfc =  z_lev[k0];
+              Real z         = z_lev[k];
+              Real z_sfc     = z_arr(ii,jj,k0);
+              Real z_lev_sfc = z_lev[k0];
 
               z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
-                               (z_top - z_lev_sfc) * z     ) / (z_top - z_lev_sfc);
+                               (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
 
               // Fill lateral boundaries and below the bottom surface
               if (k == 1 && k0 == 0) {

@@ -608,10 +608,6 @@ ERF::InitData ()
             AverageDown();
         }
 
-#ifdef ERF_USE_PARTICLES
-        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
-#endif
-
     } else { // Restart from a checkpoint
 
         restart();
@@ -648,19 +644,6 @@ ERF::InitData ()
         // We haven't populated dt yet, set to 0 to ensure assert doesn't crash
         Real dt_dummy = 0.0;
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
-    }
-
-    // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        advflux_reg[0] = nullptr;
-        int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-        for (int lev = 1; lev <= finest_level; lev++)
-        {
-            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
-                                                   dmap[lev],  dmap[lev-1],
-                                                   geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, ncomp_reflux);
-        }
     }
 
     if (solverChoice.custom_rhotheta_forcing)

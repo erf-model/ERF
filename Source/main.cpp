@@ -45,7 +45,8 @@ void add_par () {
    int blocking_factor = 1;
    pp.queryAdd("blocking_factor",blocking_factor);
 
-   pp.add("n_error_buf",0);
+   int n_error_buf = 0;
+   pp.queryAdd("n_error_buf",n_error_buf);
 }
 
 /**

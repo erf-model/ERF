@@ -377,9 +377,15 @@ private:
 
     void init_uniform (int lev);
 
-    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+                     amrex::Vector<amrex::MultiFab>& lev_new,
+                     amrex::Vector<amrex::MultiFab>& lev_old);
 
+    // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
+
+    // Initialize the bc routines
+    void initialize_bcs        (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);

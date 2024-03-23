@@ -283,59 +283,64 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
         // Loop over each component
         for (int n = icomp; n < icomp+ncomp; n++) {
             // Hit for Neumann condition at kmin
-            if( bcrs[n].lo(2) == ERFBCType::foextrap) {
+            if( bcrs[n].lo(2) == ERFBCType::foextrap)
+            {
                 // Loop over ghost cells in bottom XY-plane (valid box)
                 Box xybx = bx;
-                xybx.setBig(2,dom_lo.z-1);
-                xybx.setSmall(2,bx.smallEnd()[2]);
+
                 int k0 = 0;
+                if (xybx.smallEnd(2) == k0) {
 
-                // Get the dz cell size
-                Real dz = geomdata.CellSize(2);
+                    xybx.setBig(2,dom_lo.z-1);
+                    xybx.setSmall(2,bx.smallEnd()[2]);
 
-                // Fill all the Neumann srcs with terrain
-                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    // Clip indices for ghost-cells
-                    int ii = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                    int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                    // Get the dz cell size
+                    Real dz = geomdata.CellSize(2);
 
-                    // Get metrics
-                    Real met_h_xi   = Compute_h_xi_AtCellCenter  (ii,jj,k0,dxInv,z_phys_nd);
-                    Real met_h_eta  = Compute_h_eta_AtCellCenter (ii,jj,k0,dxInv,z_phys_nd);
-                    Real met_h_zeta = Compute_h_zeta_AtCellCenter(ii,jj,k0,dxInv,z_phys_nd);
+                    // Fill all the Neumann srcs with terrain
+                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                    {
+                        // Clip indices for ghost-cells
+                        int ii = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
+                        int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
 
-                    // GradX at IJK location inside domain -- this relies on the assumption that we have
-                    // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                    Real GradVarx, GradVary;
-                    if (i < dom_lo.x-1 || i > dom_hi.x+1) {
-                        GradVarx = 0.0;
-                    } else if (i+1 > bx_hi.x) {
-                        GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,n) - dest_arr(i-1,j,k0,n));
-                    } else if (i-1 < bx_lo.x) {
-                        GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i  ,j,k0,n));
-                    } else {
-                        GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i-1,j,k0,n));
-                    }
+                        // Get metrics
+                        Real met_h_xi   = Compute_h_xi_AtCellCenter  (ii,jj,k0,dxInv,z_phys_nd);
+                        Real met_h_eta  = Compute_h_eta_AtCellCenter (ii,jj,k0,dxInv,z_phys_nd);
+                        Real met_h_zeta = Compute_h_zeta_AtCellCenter(ii,jj,k0,dxInv,z_phys_nd);
 
-                    // GradY at IJK location inside domain -- this relies on the assumption that we have
-                    // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
-                    if (j < dom_lo.y-1 || j > dom_hi.y+1) {
-                        GradVary = 0.0;
-                    } else if (j+1 > bx_hi.y) {
-                        GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,n) - dest_arr(i,j-1,k0,n));
-                    } else if (j-1 < bx_lo.y) {
-                        GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j  ,k0,n));
-                    } else {
-                        GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
-                    }
+                        // GradX at IJK location inside domain -- this relies on the assumption that we have
+                        // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
+                        Real GradVarx, GradVary;
+                        if (i < dom_lo.x-1 || i > dom_hi.x+1) {
+                            GradVarx = 0.0;
+                        } else if (i+1 > bx_hi.x) {
+                            GradVarx =       dxInv[0] * (dest_arr(i  ,j,k0,n) - dest_arr(i-1,j,k0,n));
+                        } else if (i-1 < bx_lo.x) {
+                            GradVarx =       dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i  ,j,k0,n));
+                        } else {
+                            GradVarx = 0.5 * dxInv[0] * (dest_arr(i+1,j,k0,n) - dest_arr(i-1,j,k0,n));
+                        }
 
-                    // Prefactor
-                    Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
+                        // GradY at IJK location inside domain -- this relies on the assumption that we have
+                        // used foextrap for cell-centered quantities outside the domain to define the gradient as zero
+                        if (j < dom_lo.y-1 || j > dom_hi.y+1) {
+                            GradVary = 0.0;
+                        } else if (j+1 > bx_hi.y) {
+                            GradVary =       dxInv[1] * (dest_arr(i,j  ,k0,n) - dest_arr(i,j-1,k0,n));
+                        } else if (j-1 < bx_lo.y) {
+                            GradVary =       dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j  ,k0,n));
+                        } else {
+                            GradVary = 0.5 * dxInv[1] * (dest_arr(i,j+1,k0,n) - dest_arr(i,j-1,k0,n));
+                        }
 
-                    // Accumulate in bottom ghost cell (EXTRAP already populated)
-                    dest_arr(i,j,k,n) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
-                });
+                        // Prefactor
+                        Real met_fac =  met_h_zeta / ( met_h_xi*met_h_xi + met_h_eta*met_h_eta + 1. );
+
+                        // Accumulate in bottom ghost cell (EXTRAP already populated)
+                        dest_arr(i,j,k,n) -= dz * met_fac * ( met_h_xi * GradVarx + met_h_eta * GradVary );
+                    });
+                } // box includes k0
             } // foextrap
         } // ncomp
     } // m_z_phys_nd
