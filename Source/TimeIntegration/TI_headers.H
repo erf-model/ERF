@@ -274,7 +274,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::Real* dptr_u_geos,
                        const amrex::Real* dptr_v_geos,
                        const amrex::Real* dptr_wbar_sub,
-                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 #endif
 
 void ApplySpongeZoneBCs (const SpongeChoice& spongeChoice,
