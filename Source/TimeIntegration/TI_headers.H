@@ -273,7 +273,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rhotheta_src,
                        const amrex::Real* dptr_wbar_sub,
-                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                       std::unique_ptr<amrex::MultiFab>& thin_xforce,
                       std::unique_ptr<amrex::MultiFab>& thin_yforce,
                       std::unique_ptr<amrex::MultiFab>& thin_zforce);
