@@ -332,7 +332,6 @@ void ERF::init_bcs ()
                     }
                     // Only normal direction has ext_dir
                     domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::ext_dir);
-                    amrex::Print() << "SETTING TO EXTDIR " << BCVars::xvel_bc+dir << std::endl;
 
                 } else {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {

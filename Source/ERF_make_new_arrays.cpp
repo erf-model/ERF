@@ -148,9 +148,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
             advflux_reg[0] = nullptr;
         } else {
             int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
-                                                   dmap[lev],  dmap[lev-1],
-                                                   geom[lev],  geom[lev-1],
+            advflux_reg[lev] = new YAFluxRegister(ba       , grids[lev-1],
+                                                  dm       ,  dmap[lev-1],
+                                                  geom[lev],  geom[lev-1],
                                               ref_ratio[lev-1], lev, ncomp_reflux);
         }
     }
