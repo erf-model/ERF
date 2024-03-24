@@ -33,7 +33,7 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU
@@ -182,7 +182,7 @@ void ERFPhysBCFunct_u::impose_vertical_xvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
 #ifdef AMREX_USE_GPU

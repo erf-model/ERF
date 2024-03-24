@@ -95,6 +95,7 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_make_new_arrays.cpp
        ${SRC_DIR}/ERF_make_new_level.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp

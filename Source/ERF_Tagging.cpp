@@ -19,12 +19,14 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
     for (int j=0; j < ref_tags.size(); ++j)
     {
         std::unique_ptr<MultiFab> mf;
+        bool tag_found = false;
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
         {
             mf = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
             MultiFab::Copy(*mf,vars_new[level][Vars::cons],Rho_comp,0,1,0);
+            tag_found = true;
 
         // This allows dynamic refinement based on the value of the scalar/pressure/theta
         } else if ( (ref_tags[j].Field() == "scalar"  ) ||
@@ -43,10 +45,26 @@ ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
                 }
             } // mfi
+            tag_found = true;
+#ifdef ERF_USE_PARTICLES
+        } else {
+            // This allows dynamic refinement based on the number of particles per cell
+            const auto& particles_namelist( particleData.getNames() );
+            for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++) {
+                std::string tmp_string(particles_namelist[i]+"_count");
+                if (ref_tags[j].Field() == tmp_string) {
+                    MultiFab temp_dat(grids[level], dmap[level], 1, 0); temp_dat.setVal(0);
+                    particleData[particles_namelist[i]]->Increment(temp_dat, level);
+                    mf = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
+                    MultiFab::Copy(*mf, temp_dat, 0, 0, 1, 0);
+                    tag_found = true;
+                }
+            }
+#endif
         }
-
-        // This is sufficient for static refinement (where we don't need mf filled first)
-        ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
+        if (tag_found) {
+            ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
+        }
   }
 }
 
