@@ -878,19 +878,21 @@ void erf_slow_rhs_inc (int level, int nrk,
         } // end profile
 
         // Enforce thin immersed interface condition, save forces
-        // NOTE: For rk < 2, the force array is used as a surface mask (==0 on the surface);
-        //       in the last stage (rk==2), the force is updated (and set to 0 off the surface)
+        // NOTE: For rk < 1, the force array is used as a surface mask (==0 on the surface);
+        //       in the last stage (rk==1), the force is updated (and set to 0 off the surface)
         if (l_have_thin_xforce) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (thin_xforce_arr(i,j,k) == 0) { // on the surface
-                    // save the force during the last rk stage only
-                    if (nrk==2) {
+                    // save the body force during the last rk stage only
+                    if (nrk==1) {
                         thin_xforce_arr(i,j,k) = -rho_u_rhs(i,j,k);
+                        amrex::AllPrint() << "thinbody fx"<<IntVect(i,j,k)<<"= "
+                            << thin_xforce_arr(i,j,k) << std::endl;
                     }
                     // keep x-mom on interface constant (every rk stage)
                     rho_u_rhs(i,j,k) = 0;
-                } else if (nrk==2) {
+                } else if (nrk==1) {
                     // off the surface & last rk stage
                     thin_xforce_arr(i,j,k) = 0;
                 }
@@ -900,13 +902,15 @@ void erf_slow_rhs_inc (int level, int nrk,
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (thin_yforce_arr(i,j,k) == 0) { // on the surface
-                    // save the force during the last rk stage only
-                    if (nrk==2) {
+                    // save the body force during the last rk stage only
+                    if (nrk==1) {
                         thin_yforce_arr(i,j,k) = -rho_v_rhs(i,j,k);
+                        amrex::AllPrint() << "thinbody fy"<<IntVect(i,j,k)<<"= "
+                            << thin_yforce_arr(i,j,k) << std::endl;
                     }
                     // keep y-mom on interface constant (every rk stage)
                     rho_v_rhs(i,j,k) = 0;
-                } else if (nrk==2) {
+                } else if (nrk==1) {
                     // off the surface & last rk stage
                     thin_yforce_arr(i,j,k) = 0;
                 }
@@ -916,13 +920,15 @@ void erf_slow_rhs_inc (int level, int nrk,
             ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 if (thin_zforce_arr(i,j,k) == 0) { // on the surface
-                    // save the force during the last rk stage only
-                    if (nrk==2) {
+                    // save the body force during the last rk stage only
+                    if (nrk==1) {
                         thin_zforce_arr(i,j,k) = -rho_w_rhs(i,j,k);
+                        amrex::AllPrint() << "thinbody fz"<<IntVect(i,j,k)<<"= "
+                            << thin_zforce_arr(i,j,k) << std::endl;
                     }
                     // keep z-mom on interface constant (every rk stage)
                     rho_w_rhs(i,j,k) = 0;
-                } else if (nrk==2) {
+                } else if (nrk==1) {
                     // off the surface & last rk stage
                     thin_zforce_arr(i,j,k) = 0;
                 }
