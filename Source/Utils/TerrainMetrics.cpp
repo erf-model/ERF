@@ -153,13 +153,16 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
 
               z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
                                (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
-
-              // Fill lateral boundaries and below the bottom surface
-              if (k == 1 && k0 == 0) {
-                  z_arr(i,j,-1) = 2.0*z_arr(ii,jj,0) - z_arr(i,j,1);
-              }
           });
-        }
+
+          if (k0 == 0) {
+              // Fill lateral boundaries below the bottom surface
+              ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+              {
+                  z_arr(i,j,-1) = 2.0*z_arr(i,j,0) - z_arr(i,j,1);
+              });
+            }
+        } // mfi
 
         break;
     }
