@@ -691,7 +691,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Perturbational pressure field
         // *****************************************************************************
-        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
+        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
+        if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
         FArrayBox pprime; pprime.resize(gbx,1,The_Async_Arena());
         const Array4<Real      > & pp_arr = pprime.array();
         {
@@ -716,13 +717,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_use_terrain) {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = 0.;
-                });
+                if (gbxo_lo.smallEnd(2) <= 0) {
+                    ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        omega_arr(i,j,k) = 0.;
+                    });
+                }
                 Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
+                int hi_z_face = domain.bigEnd(2)+1;
+                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
+                    ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        omega_arr(i,j,k) = rho_w(i,j,k);
+                    });
+                }
 
                 if (z_t) {
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
@@ -733,7 +739,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
-                    Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                    Box gbxo_mid = gbxo;
+                    if (gbxo_mid.smallEnd(2) <= 0) {
+                        gbxo_mid.setSmall(2,1);
+                    }
+                    if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
+                        gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                    }
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });

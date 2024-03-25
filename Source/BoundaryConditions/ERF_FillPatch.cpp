@@ -402,59 +402,77 @@ ERF::FillCoarsePatch (int lev, Real time)
     BL_PROFILE_VAR("FillCoarsePatch()",FillCoarsePatch);
     AMREX_ASSERT(lev > 0);
 
-    int icomp = 0;
+    //
+    // First fill density at the COARSE level so we can convert velocity to momenta at the COARSE level
+    //
+    bool cons_only = true;
+    FillPatch(lev-1, time, {&vars_new[lev-1][Vars::cons], &vars_new[lev-1][Vars::xvel],
+                            &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
+                           {&vars_new[lev-1][Vars::cons],
+                            &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
+                            false, cons_only);
 
-    int bccomp = 0;
-    Interpolater* mapper = &cell_cons_interp;
+    //
+    // Convert velocity to momentum at the COARSE level
+    //
+    VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect(0,0,0),
+                       vars_new[lev-1][Vars::yvel], IntVect(0,0,0),
+                       vars_new[lev-1][Vars::zvel], IntVect(0,0,0),
+                       vars_new[lev-1][Vars::cons],
+                         rU_new[lev-1],
+                         rV_new[lev-1],
+                         rW_new[lev-1],
+                       Geom(lev).Domain(),
+                       domain_bcs_type,
+                       true);
+
+
+    //
+    // Interpolate all cell-centered variables from coarse to fine level
+    //
+    Interpolater* mapper_c = &cell_cons_interp;
+    Interpolater* mapper_f = &face_cons_linear_interp;
+
+    int icomp = 0;
+    int bccomp = BCVars::cons_bc;
     InterpFromCoarseLevel(vars_new[lev][Vars::cons], time, vars_new[lev-1][Vars::cons],
                           icomp, icomp, vars_new[lev][Vars::cons].nComp(),
                           geom[lev-1], geom[lev],
-                          null_bc, 0, null_bc, 0, refRatio(lev-1),
-                          mapper, domain_bcs_type, bccomp);
+                          *physbcs_cons[lev-1], BCVars::cons_bc,
+                          *physbcs_cons[lev  ], BCVars::cons_bc,
+                          refRatio(lev-1), mapper_c, domain_bcs_type, bccomp);
 
-
-    mapper = &face_cons_linear_interp;
-
-    for (int which_lev = lev-1; which_lev <= lev; which_lev++)
-    {
-        // First fill density so we can convert velocity to momenta
-        // Note we can only do this because we first interpolated density above
-        bool cons_only = true;
-        FillPatch(which_lev, time, {&vars_new[which_lev][Vars::cons], &vars_new[which_lev][Vars::xvel],
-                                    &vars_new[which_lev][Vars::yvel], &vars_new[which_lev][Vars::zvel]},
-                                   {&vars_new[which_lev][Vars::cons],
-                                    &rU_new[which_lev], &rV_new[which_lev], &rW_new[which_lev]},
-                                    false, cons_only);
-
-        VelocityToMomentum(vars_new[which_lev][Vars::xvel], IntVect(0,0,0),
-                           vars_new[which_lev][Vars::yvel], IntVect(0,0,0),
-                           vars_new[which_lev][Vars::zvel], IntVect(0,0,0),
-                           vars_new[which_lev][Vars::cons],
-                             rU_new[which_lev],
-                             rV_new[which_lev],
-                             rW_new[which_lev],
-                           Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
-    }
-
-    bccomp = BCVars::xvel_bc;
+    //
+    // Interpolate x-momentum from coarse to fine level
+    //
     InterpFromCoarseLevel(rU_new[lev], time, rU_new[lev-1],
                           0, 0, 1, geom[lev-1], geom[lev],
-                          null_bc, 0, null_bc, 0, refRatio(lev-1),
-                          mapper, domain_bcs_type, bccomp);
+                          *physbcs_u[lev-1], BCVars::xvel_bc,
+                          *physbcs_u[lev  ], BCVars::xvel_bc,
+                          refRatio(lev-1), mapper_f,
+                          domain_bcs_type, BCVars::xvel_bc);
 
+    //
+    // Interpolate y-momentum from coarse to fine level
+    //
     bccomp = BCVars::yvel_bc;
     InterpFromCoarseLevel(rV_new[lev], time, rV_new[lev-1],
                           0, 0, 1, geom[lev-1], geom[lev],
-                          null_bc, 0, null_bc, 0, refRatio(lev-1),
-                          mapper, domain_bcs_type, bccomp);
+                          *physbcs_v[lev-1], BCVars::yvel_bc,
+                          *physbcs_v[lev  ], BCVars::yvel_bc,
+                          refRatio(lev-1), mapper_f,
+                          domain_bcs_type, BCVars::yvel_bc);
 
-    bccomp = BCVars::zvel_bc;
+    //
+    // Interpolate z-momentum from coarse to fine level
+    //
+
     InterpFromCoarseLevel(rW_new[lev], time, rW_new[lev-1],
                           0, 0, 1, geom[lev-1], geom[lev],
-                          null_bc, 0, null_bc, 0, refRatio(lev-1),
-                          mapper, domain_bcs_type, bccomp);
+                          *physbcs_w_no_terrain[lev-1], BCVars::zvel_bc,
+                          *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
+                          refRatio(lev-1), mapper_f,
+                          domain_bcs_type, BCVars::zvel_bc);
 
    for (int which_lev = lev-1; which_lev <= lev; which_lev++)
    {

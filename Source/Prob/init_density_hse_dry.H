@@ -23,7 +23,10 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
     // use_terrain = 1
     if (z_phys_nd) {
 
-        if (geom.Domain().bigEnd(2) > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
+        const int domlo_z = geom.Domain().smallEnd(2);
+        const int domhi_z = geom.Domain().bigEnd(2);
+
+        if (domhi_z > 255) amrex::Abort("1D Arrays are hard-wired to only 256 high");
 
         for ( amrex::MFIter mfi(rho_hse, TileNoZ()); mfi.isValid(); ++mfi )
         {
@@ -43,19 +46,28 @@ erf_init_dens_hse (amrex::MultiFab& rho_hse,
               amrex::Array1D<amrex::Real,0,255> r;;
               amrex::Array1D<amrex::Real,0,255> p;;
 
-              HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              if (klo == 0) {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_sfc,Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              } else {
+                  HSEutils::init_isentropic_hse_terrain(i,j,rho_arr(i,j,klo-1),Thetabar,&(r(0)),&(p(0)),z_cc_arr,klo,khi);
+              }
 
-              for (int k = 0; k <= khi; k++) {
+              for (int k = klo; k <= khi; k++) {
                  rho_arr(i,j,k) = r(k);
               }
-              rho_arr(i,j,   -1) = rho_arr(i,j,0);
-              rho_arr(i,j,khi+1) = rho_arr(i,j,khi);
+
+              // Impose Neumann conditions at bottom and top of domain boundary
+              if (klo == domlo_z) {
+                  rho_arr(i,j,domlo_z-1) = rho_arr(i,j,domlo_z);
+              }
+              if (khi == domhi_z) {
+                  rho_arr(i,j,domhi_z+1) = rho_arr(i,j,domhi_z);
+              }
             });
         } // mfi
 
     } else { // use_terrain = 0
 
-        const int klo = 0;
         const int khi = geom.Domain().bigEnd(2);
 
         // These are at cell centers (unstaggered)

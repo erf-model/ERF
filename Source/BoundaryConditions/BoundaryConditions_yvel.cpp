@@ -24,7 +24,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -183,7 +183,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1

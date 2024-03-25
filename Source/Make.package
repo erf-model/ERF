@@ -11,5 +11,6 @@ CEXE_headers += ERF_Constants.H
 CEXE_sources += ERF_Tagging.cpp
 
 CEXE_sources += ERF_make_new_level.cpp
+CEXE_sources += ERF_make_new_arrays.cpp
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
