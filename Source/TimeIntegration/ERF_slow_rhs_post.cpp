@@ -224,22 +224,25 @@ void erf_slow_rhs_post (int level, int finest_level,
         Box tbx  = mfi.tilebox();
         const Box& tbx_update = mfi.tilebox();
 
-          // Only advection operations in bndry normal direction with OPEN BC
-          Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-          if (level==0) {
-              if (xlo_open) {
-                  if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); tbx.growLo(0,-1); }
-              }
-              if (xhi_open) {
-                  if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   tbx.growHi(0,-1); }
-              }
-              if (ylo_open) {
-                  if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); tbx.growLo(1,-1); }
-              }
-              if (yhi_open) {
-                  if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   tbx.growHi(1,-1); }
-              }
-          }
+        /*
+        // Only advection operations in bndry normal direction with OPEN BC
+        Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+        if (level==0) {
+            if (xlo_open) {
+                if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); tbx.growLo(0,-1); }
+            }
+            if (xhi_open) {
+                if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   tbx.growHi(0,-1); }
+            }
+            if (ylo_open) {
+                if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); tbx.growLo(1,-1); }
+            }
+            if (yhi_open) {
+                if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   tbx.growHi(1,-1); }
+            }
+        }
+        */
+
         // *************************************************************************
         // Define flux arrays for use in advection
         // *************************************************************************
@@ -388,6 +391,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    l_use_terrain, flx_arr);
         }
 
+        /*
         // Special advection operator for open BC (bndry normal operations)
         if (level==0) {
             for (int ivar(RhoKE_comp); ivar<nvars; ++ivar) {
@@ -417,6 +421,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 } // valid slow var
             } // loop ivar
         } // level 0
+        */
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);

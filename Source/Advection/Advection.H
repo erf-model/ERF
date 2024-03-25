@@ -67,7 +67,7 @@ AdvectionSrcForOpenBC_Normal (const amrex::Box& bx,
                               const int& dir,
                               const amrex::Array4<      amrex::Real>& rhs_arr,
                               const amrex::Array4<const amrex::Real>& vel_norm_arr,
-                              const amrex::Array4<const amrex::Real>& mom_norm_arr,
+                              const amrex::Array4<const amrex::Real>& cell_data_arr,
                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxInv,
                               const bool do_lo=false);
 

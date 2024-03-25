@@ -8,7 +8,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
                               const int& dir,
                               const Array4<      Real>& rhs_arr,
                               const Array4<const Real>& vel_norm_arr,
-                              const Array4<const Real>& mom_norm_arr,
+                              const Array4<const Real>& cell_data_arr,
                               const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                               const bool do_lo)
 {
@@ -21,12 +21,55 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
     Real c_o_star = Real(sgn)*30.0;
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        IntVect ivm1(i,j,k);
-        IntVect ivm2(ivm1);  ivm2[dir] -= sgn;
-        Real mom_star  =    Real(sgn) * max( Real(sgn)*(mom_norm_arr(i,j,k) + c_o_star), 0.0 );
-        Real vel_grad  =  ( vel_norm_arr(ivm1) - vel_norm_arr(ivm2) ) * dx_inv;
+        IntVect ivu1(i,j,k); if ( do_lo) ivu1[dir] -= sgn; // Vel indexed into domain for do_lo
+        IntVect ivu2(i,j,k); if (!do_lo) ivu2[dir] -= sgn; // Vel indexed into domain for do_hi
+
+        IntVect ivr1(i,j,k); if (!do_lo) ivr1[dir] -= sgn; // Rho indexed into domain for do_hi
+        IntVect ivr2(i,j,k); if ( do_lo) ivr2[dir] += sgn; // Rho indexed out  domain for do_lo
+
+        Real rho_face  = 0.5 * ( cell_data_arr(ivr1,Rho_comp) + cell_data_arr(ivr2,Rho_comp) );
+        Real mom_star  = rho_face * Real(sgn) * max( Real(sgn)*(vel_norm_arr(ivu1) + c_o_star), 0.0 );
+        Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir];
         Real flux      = -( mom_star * vel_grad );
         rhs_arr(i,j,k) = flux;
+
+        /*
+        if (do_lo) {
+            if (i==0 && j==1 && k<6) {
+                Print() << "OPEN LO: "
+                        << dir << ' '
+                        << ivu1 << ' '
+                        << ivu2 << ' '
+                        << ivr1 << ' '
+                        << ivr2 << ' '
+                        << vel_grad << ' '
+                        << vel_norm_arr(ivu2) << ' '
+                        << vel_norm_arr(ivu1) << ' '
+                        << (vel_norm_arr(ivu1) + c_o_star) << ' '
+                        << mom_star << ' '
+                        << vel_grad << ' '
+                        << flux << "\n";
+            }
+        }
+
+        if (!do_lo) {
+            if (i==200 && j==1 && k<6) {
+                Print() << "OPEN HI: "
+                        << dir << ' '
+                        << ivu1 << ' '
+                        << ivu2 << ' '
+                        << ivr1 << ' '
+                        << ivr2 << ' '
+                        << vel_grad << ' '
+                        << vel_norm_arr(ivu2) << ' '
+                        << vel_norm_arr(ivu1) << ' '
+                        << (vel_norm_arr(ivu1) + c_o_star) << ' '
+                        << mom_star << ' '
+                        << vel_grad << ' '
+                        << flux << "\n";
+            }
+        }
+        */
     });
 }
 
@@ -295,16 +338,17 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -1.
     int sgn = 1; if (do_lo) sgn = -1;
-    Real dx_inv = Real(sgn)*dxInv;
-    IntVect ivs1(i,j,k);
-    IntVect ivs2(i,j,k);             ivs2[dir] -= sgn;
-    IntVect ivm1(i,j,k); if (!do_lo) ivm1[dir] += sgn;
-    IntVect ivm2(ivm1);              ivm2[dir] -= sgn;
+
+    IntVect ivm1(i,j,k); if ( do_lo) ivm1[dir] -= sgn; // Mom indexed into domain for do_lo
+    IntVect ivm2(i,j,k); if (!do_lo) ivm2[dir] += sgn; // Mom indexed out  domain for do_hi
+
+    IntVect ivs1(i,j,k); if ( do_lo) ivs1[dir] -= sgn; // Scalar indexed into domain for do_hi
+    IntVect ivs2(i,j,k); if (!do_lo) ivs2[dir] -= sgn; // Scalar indexed into domain for do_lo
 
     Real mom_at_cc = 0.5 * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
     Real mom_star  =    Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
-    Real mom_grad  =  ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dx_inv;
-    Real prim_grad =  ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dx_inv;
+    Real mom_grad  =  ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
+    Real prim_grad =  ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
     Real src       = -( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
     return src;
 }
