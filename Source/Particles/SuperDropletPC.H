@@ -159,7 +159,7 @@ namespace SuperDropletsUtils
 }
 
 /*! \brief List of super-droplet initializations */
-namespace SuperDropletInitializations
+namespace SupDropInit
 {
     /*! Uniform distribution throughout domain */
     const std::string init_uniform = "uniform";
@@ -168,10 +168,12 @@ namespace SuperDropletInitializations
 
     /*! Maximum number of aerosols */
     const int num_aerosols_max = 8;
+
+    const std::string attrib_init_const = "constant";
+    const std::string attrib_init_exp = "exponential";
 }
 
-using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SuperDropletInitializations::num_aerosols_max>;
-
+using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
 
 class SuperDropletPC : public ERFPC
@@ -400,10 +402,14 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_max_multiplicity;     /*!< Maximum multiplicity */
         amrex::Real m_numdens_init;         /*!< Initial number density of physical particles */
         amrex::Real m_numdens_sd_init;      /*!< Initial number density of super-droplets */
+
+        std::string m_mass_condensate_init_type; /*!< type of initial distribution */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
 
         /*! Initial aerosol masses of each physical particle */
         std::vector<amrex::Real> m_mass_aerosol_init;
+        /*! Initial distribution type for aerosol masses */
+        std::vector<std::string> m_mass_aerosol_init_type;
         int m_num_aerosols; /*!< Number of aerosols */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */
@@ -439,7 +445,8 @@ class SuperDropletPC : public ERFPC
             setAerosolMaterial( a_aerosol_mat );
             m_num_aerosols = m_aerosol_mat.size();
             m_mass_aerosol_init.resize(m_num_aerosols);
-            AMREX_ASSERT(m_num_aerosols <= SuperDropletInitializations::num_aerosols_max);
+            m_mass_aerosol_init_type.resize(m_num_aerosols);
+            AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
 
             add_superdroplet_attributes();
             readInputs();
