@@ -34,6 +34,12 @@ ERF::timeStep (int lev, Real time, int iteration)
 
                 regrid(lev, time);
 
+#ifdef ERF_USE_PARTICLES
+                if (finest_level != old_finest) {
+                    particleData.Redistribute();
+                }
+#endif
+
                 // mark that we have regridded this level already
                 for (int k = lev; k <= finest_level; ++k) {
                     last_regrid_step[k] = istep[k];
@@ -62,8 +68,7 @@ ERF::timeStep (int lev, Real time, int iteration)
 
     ++istep[lev];
 
-    if (Verbose())
-    {
+    if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev] << "] ";
         amrex::Print() << "Advanced " << CountCells(lev) << " cells" << std::endl;
     }

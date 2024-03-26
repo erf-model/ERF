@@ -30,7 +30,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
-    setBC(bx, domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(enclosedCells(bx), domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -177,9 +177,9 @@ void ERFPhysBCFunct_w::impose_vertical_zvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_u(1), bcrs_v(1), bcrs_w(1);
-    setBC(bx, domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
-    setBC(bx, domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
-    setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(enclosedCells(bx), domain, bccomp_u, 0, 1, m_domain_bcs_type, bcrs_u);
+    setBC(enclosedCells(bx), domain, bccomp_v, 0, 1, m_domain_bcs_type, bcrs_v);
+    setBC(enclosedCells(bx), domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // We use these for the asserts below
     const BCRec* bc_ptr_u_h = bcrs_u.data();
@@ -300,7 +300,7 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
-    setBC(bx, domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(enclosedCells(bx), domain, bccomp, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -425,7 +425,7 @@ void ERFPhysBCFunct_w_no_terrain::impose_vertical_zvel_bcs (const Array4<Real>& 
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs_w(1);
-    setBC(bx, domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
+    setBC(enclosedCells(bx), domain, bccomp_w, 0, 1, m_domain_bcs_type, bcrs_w);
 
     // We use these for the asserts below
     const BCRec* bc_ptr_w_h = bcrs_w.data();
@@ -442,15 +442,8 @@ void ERFPhysBCFunct_w_no_terrain::impose_vertical_zvel_bcs (const Array4<Real>& 
     // Bottom boundary
     // *******************************************************
 
-    // At the bottom boundary we always assert no normal flow
-    if (m_lev == 0) {
-        AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
-    } else {
-       // If we do not reach to the top or bottom boundary then the z-vel should be
-       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
-    }
-
     if (bx.smallEnd(2) == dom_lo.z) {
+        AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].lo(2) == ERFBCType::ext_dir);
         ParallelFor(makeSlab(bx,2,dom_lo.z), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
            dest_arr(i,j,k) = l_bc_extdir_vals_d[0][2];
         });
@@ -460,18 +453,11 @@ void ERFPhysBCFunct_w_no_terrain::impose_vertical_zvel_bcs (const Array4<Real>& 
     // Top boundary
     // *******************************************************
 
-    if (m_lev == 0) {
-       AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
-                           bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
-    } else {
-       // If we do not reach to the top or bottom boundary then the z-vel should be
-       //    filled by interpolation from the coarser grid using ERF_FillPatcher.
-    }
-
-
     // NOTE: if we set SlipWall at top, that generates ERFBCType::ext_dir which sets w=0 here
     // NOTE: if we set  Outflow at top, that generates ERFBCType::foextrap which doesn't touch w here
     if (bx.bigEnd(2) == dom_hi.z+1) {
+        AMREX_ALWAYS_ASSERT(bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir ||
+                            bc_ptr_w_h[0].hi(2) == ERFBCType::neumann_int);
         if (bc_ptr_w_h[0].hi(2) == ERFBCType::ext_dir) {
             ParallelFor(makeSlab(bx,2,dom_hi.z+1), [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {

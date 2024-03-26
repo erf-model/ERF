@@ -142,6 +142,16 @@ ERF::WriteCheckpointFile () const
             VisMF::Write(z_height, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Z_Phys_nd"));
         }
 
+         // We must read and write qmoist with ghost cells because we don't directly impose BCs on these vars
+         // Write the precipitation accumulation component only
+        if (solverChoice.moisture_type == MoistureType::Kessler) {
+            ng = qmoist[lev][0]->nGrowVect();
+            int nvar = 1;
+             MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
+             MultiFab::Copy(moist_vars,*(qmoist[lev][0]),0,0,nvar,ng);
+             VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+        }
+
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
                 BoxArray ba = lsm_data[lev][mvar]->boxArray();
@@ -354,6 +364,15 @@ ERF::ReadCheckpointFile ()
            VisMF::Read(z_height, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"));
            MultiFab::Copy(*z_phys_nd[lev],z_height,0,0,1,ng);
            update_terrain_arrays(lev, t_new[lev]);
+        }
+
+        // Read in the precipitation accumulation component
+        if (solverChoice.moisture_type == MoistureType::Kessler) {
+            ng = qmoist[lev][0]->nGrowVect();
+            int nvar = 1;
+            MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
+            VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+            MultiFab::Copy(*(qmoist[lev][0]),moist_vars,0,0,nvar,ng);
         }
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {

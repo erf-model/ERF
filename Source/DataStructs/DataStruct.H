@@ -216,6 +216,7 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
         pp.query("Ave_Plane", ave_plane);
@@ -403,6 +404,7 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
+    bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
 
     // Numerical diffusion

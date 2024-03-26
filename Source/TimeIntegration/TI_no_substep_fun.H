@@ -130,7 +130,7 @@
         apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
 
 #ifdef ERF_USE_POISSON_SOLVE
-        if (incompressible) {
+        if (solverChoice.incompressible) {
             project_velocities(S_sum);
         }
 #endif

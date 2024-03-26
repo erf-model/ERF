@@ -36,15 +36,10 @@ void SAM::IceFall () {
         auto rho_array = rho->array(mfi);
         auto fz_array  = fz.array(mfi);
 
-        const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
-
         const auto& box3d  = mfi.tilebox();
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            // Jacobian determinant
-            Real dJinv = (dJ_array) ? 1.0/dJ_array(i,j,k) : 1.0;
-
             Real rho_avg, qci_avg;
             if (k==k_lo) {
                 rho_avg = rho_array(i,j,k);

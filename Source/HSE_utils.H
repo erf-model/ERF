@@ -140,12 +140,18 @@ namespace HSEutils
                                  const amrex::Array4<amrex::Real const> z_cc,
                                  const int& klo, const int& khi)
 {
+    int kstart;
+
     if (klo == 0)  {
         //
         // r_sfc / p_0 are the density / pressure at the surface
         //
         // Initial guess
         int k0 = 0;
+
+        // Where we start the lower iteration
+        kstart = 1;
+
         Real half_dz = z_cc(i,j,k0);
         r[k0] = r_sfc;
         p[k0] = p_0 - half_dz * r[k0] * CONST_GRAV;
@@ -179,10 +185,14 @@ namespace HSEutils
             //if (!converged_hse) amrex::Print() << "DOING ITERATIONS AT K = " << k0 << std::endl;
             //if (!converged_hse) amrex::Error("Didn't converge the iterations in init");
         }
+    } else {
+        kstart = klo; // because we need to solve for r[klo] here; r[klo-1] is what was passed in r_sfc
+        r[klo-1] = r_sfc; // r_sfc is really the interpolated density in the ghost cell in this case
+        p[klo-1] = getPgivenRTh(r[klo-1]*theta);
     }
 
      // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
-     for (int k = klo+1; k <= khi; k++)
+     for (int k = kstart; k <= khi; k++)
      {
          // To get values at k > 0 we do a Newton iteration to satisfy the EOS (with constant theta) and
          // to discretely satisfy HSE -- here we assume spatial_order = 2 -- we can generalize this later if needed

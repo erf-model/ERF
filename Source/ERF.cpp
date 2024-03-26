@@ -608,10 +608,6 @@ ERF::InitData ()
             AverageDown();
         }
 
-#ifdef ERF_USE_PARTICLES
-        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
-#endif
-
     } else { // Restart from a checkpoint
 
         restart();
@@ -650,19 +646,6 @@ ERF::InitData ()
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 
-    // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        advflux_reg[0] = nullptr;
-        int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-        for (int lev = 1; lev <= finest_level; lev++)
-        {
-            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
-                                                   dmap[lev],  dmap[lev-1],
-                                                   geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, ncomp_reflux);
-        }
-    }
-
     if (solverChoice.custom_rhotheta_forcing)
     {
         h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
@@ -673,6 +656,25 @@ ERF::InitData ()
             d_rhotheta_src[lev].resize(domlen, 0.0_rt);
             prob->update_rhotheta_sources(t_new[0],
                                           h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          geom[lev], z_phys_cc[lev]);
+        }
+    }
+
+    if (solverChoice.custom_geostrophic_profile)
+    {
+        h_u_geos.resize(max_level+1, Vector<Real>(0));
+        d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        h_v_geos.resize(max_level+1, Vector<Real>(0));
+        d_v_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++) {
+            const int domlen = geom[lev].Domain().length(2);
+            h_u_geos[lev].resize(domlen, 0.0_rt);
+            d_u_geos[lev].resize(domlen, 0.0_rt);
+            h_v_geos[lev].resize(domlen, 0.0_rt);
+            d_v_geos[lev].resize(domlen, 0.0_rt);
+            prob->update_geostrophic_profile(t_new[0],
+                                          h_u_geos[lev], d_u_geos[lev],
+                                          h_v_geos[lev], d_v_geos[lev],
                                           geom[lev], z_phys_cc[lev]);
         }
     }
