@@ -114,8 +114,13 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto dxi = geom.InvCellSizeArray();
     const auto domain = geom.Domain();
 
-    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
     const int num_aerosols = m_num_aerosols;
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+    const ParticleReal inv_bin_size
+        = 1.0 / (  static_cast<ParticleReal>(m_coalescence_bin_size[0])
+                 * static_cast<ParticleReal>(m_coalescence_bin_size[1])
+                 * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
+    const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
     long num_collisions = 0;
     const auto& gvec = a_temperature.nGrowVect();
@@ -163,7 +168,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                     + i ).data();
         }
 
-        CollisionCS_Sedimentation<ParticleReal> coll_cs_sedim{};
+        [[maybe_unused]]CollisionKernel_Sedimentation<ParticleReal,AMREX_SPACEDIM> ckernel_sedim{};
+        [[maybe_unused]]CollisionKernel_Golovin<ParticleReal> ckernel_golovin{1.5e03};
 
         amrex::Gpu::Buffer<amrex::Long> particle_collisions({0});
         amrex::Long* particle_collisions_ptr = particle_collisions.data();
@@ -184,14 +190,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                 if (pi == pj) { continue; }
 
-                ParticleReal dv = 0;
+                ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
                 for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                    dv += (v_ptr[d][pi]-v_ptr[d][pj])*(v_ptr[d][pi]-v_ptr[d][pj]);
+                    v_i[d] = v_ptr[d][pi];
+                    v_j[d] = v_ptr[d][pj];
                 }
-                dv = std::sqrt(dv);
 
-                auto k_val = coll_cs_sedim(radius_ptr[pi],radius_ptr[pj]) * dv;
-                auto prob_ij = k_val*a_dt*inv_cell_volume;
+                auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                //auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                auto prob_ij = k_val*a_dt*inv_bin_volume;
                 auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
                 auto ns = static_cast<ParticleReal>(np_bin);

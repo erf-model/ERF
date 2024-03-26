@@ -101,6 +101,9 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_terrain,
+                "Terrain is not supported without init_sounding_ideal option.");
+
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,

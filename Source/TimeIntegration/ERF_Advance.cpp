@@ -72,7 +72,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Update with the Fitch source terms
     if (solverChoice.windfarm_type == WindFarmType::Fitch) {
         fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_fitch[lev]);
+                      U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
     }
 #endif
 
