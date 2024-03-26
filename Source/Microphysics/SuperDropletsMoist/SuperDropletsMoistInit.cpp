@@ -22,7 +22,7 @@ void SuperDropletsMoist::readInputs ()
     pp.query("include_advection", m_flag_advection);
     pp.query("include_coalescence", m_flag_coalescence);
 
-    m_init_type = SuperDropletInitializations::init_uniform;
+    m_init_type = SupDropInit::init_uniform;
     pp.query("initial_distribution_type", m_init_type);
 
     m_aerosols.clear();
@@ -77,7 +77,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
            density is not available. So, just initialize with a uniform distribution
            for now; set the radius and multiplicity from condensate density when
            Update_Micro_Vars() is called for the first time. */
-        m_super_droplets->InitializeParticles( SuperDropletInitializations::init_uniform,
+        m_super_droplets->InitializeParticles( SupDropInit::init_uniform,
                                                a_z_phys_nd );
     } else {
         m_super_droplets->InitializeParticles(a_z_phys_nd);
