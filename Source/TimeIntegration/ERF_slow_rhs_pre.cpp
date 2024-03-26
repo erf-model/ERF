@@ -620,7 +620,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (tby.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(tby,0,domain.bigEnd(0)  );                   }
                 if (tbz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(tbz,0,domain.bigEnd(0)  );                   }
             }
-            /*
             if (ylo_open) {
                 if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));                   }
                 if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1));                   }
@@ -633,7 +632,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 if (tby.bigEnd(1) == domain.bigEnd(1)+1)   { tby_yhi = makeSlab(tby,1,domain.bigEnd(1)+1); tby.growHi(1,-1); }
                 if (tbz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(tbz,1,domain.bigEnd(1)  );                   }
             }
-            */
         }
 
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
