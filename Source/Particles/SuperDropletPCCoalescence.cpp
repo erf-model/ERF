@@ -5,7 +5,7 @@
 
 using namespace amrex;
 
-/*! \brief Swap two numbers */
+/*! \brief Swap two numbers; NOTE: a and b can't be the same memory location */
 template <typename dtype>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void swap ( dtype& a, /*!< first number */
@@ -23,10 +23,14 @@ static void random_shuffle ( dtype* const a_d_ptr, /*!< Pointer to data array */
                              const int  a_n, /*!< size of data array */
                              const RandomEngine& a_rnd_eng /*!< random engine */ )
 {
-    for (int i = 0; i < a_n; i++) {
-        int j = Random_int(a_n, a_rnd_eng);
-        int k = Random_int(a_n, a_rnd_eng);
-        swap<dtype>( a_d_ptr[j], a_d_ptr[k] );
+    int num_passes = Random_int(a_n/2, a_rnd_eng);
+    for (int ipass = 0; ipass < num_passes; ipass++) {
+        for (int i = 0; i < a_n; i++) {
+            int j = Random_int(a_n, a_rnd_eng);
+            int k = Random_int(a_n, a_rnd_eng);
+            if (j == k) { continue; }
+            swap<dtype>( a_d_ptr[j], a_d_ptr[k] );
+        }
     }
 }
 
@@ -196,8 +200,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     v_j[d] = v_ptr[d][pj];
                 }
 
-                auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                //auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                //auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                 auto prob_ij = k_val*a_dt*inv_bin_volume;
                 auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
