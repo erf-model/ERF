@@ -26,6 +26,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
                               const std::unique_ptr<MultiFab>& z_phys_nd)
@@ -132,8 +133,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_gravity = CONST_GRAV;
 
             const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
-            const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
-            const auto& t_star_mf = most->get_t_star(0);    // Use coarsest level
+            const auto& u_star_mf = most->get_u_star(level);    // Use desired level
+            const auto& t_star_mf = most->get_t_star(level);    // Use desired level
 
             const auto& tm_arr     = t_mean_mf->array(mfi); // TODO: IS THIS ACTUALLY RHOTHETA
             const auto& u_star_arr = u_star_mf->array(mfi);
@@ -246,9 +247,6 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         Error("YSU Model not implemented yet");
 
-        // FIXME: this should be an argument to function
-        int lev = 0;
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -266,9 +264,9 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& K_turb = eddyViscosity.array(mfi);
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
-            const auto& u_star_arr = most->get_u_star(lev)->const_array(mfi);
-            const auto& t_star_arr = most->get_t_star(lev)->const_array(mfi);
-            const auto& l_obuk_arr = most->get_olen(lev)->const_array(mfi);
+            const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
+            const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
+            const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
 
             // create flattened boxes to store PBL height
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
