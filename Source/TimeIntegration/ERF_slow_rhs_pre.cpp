@@ -593,7 +593,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
     {
-        Box bx  = mfi.tilebox(); Box bx_tot = bx;
+        Box bx  = mfi.tilebox();
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
@@ -609,29 +609,29 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tbz_xlo, tbz_xhi, tbz_ylo, tbz_yhi;
         if (level==0) {
             if (xlo_open) {
-                //if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));  bx.growLo(0,-1); }
+                if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));                   }
                 if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); tbx.growLo(0,-1); }
-                //if (tby.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(tby,0,domain.smallEnd(0)); tby.growLo(0,-1); }
-                //if (tbz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(tbz,0,domain.smallEnd(0)); tbz.growLo(0,-1); }
+                if (tby.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(tby,0,domain.smallEnd(0));                   }
+                if (tbz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(tbz,0,domain.smallEnd(0));                   }
             }
             if (xhi_open) {
-                //if ( bx.bigEnd(0) == domain.bigEnd(0))     {  bx_xhi = makeSlab( bx,0,domain.bigEnd(0)  );  bx.growHi(0,-1); }
+                if ( bx.bigEnd(0) == domain.bigEnd(0))     {  bx_xhi = makeSlab( bx,0,domain.bigEnd(0)  );                   }
                 if (tbx.bigEnd(0) == domain.bigEnd(0)+1)   { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0)+1); tbx.growHi(0,-1); }
-                //if (tby.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(tby,0,domain.bigEnd(0)  ); tby.growHi(0,-1); }
-                //if (tbz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(tbz,0,domain.bigEnd(0)  ); tbz.growHi(0,-1); }
+                if (tby.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(tby,0,domain.bigEnd(0)  );                   }
+                if (tbz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(tbz,0,domain.bigEnd(0)  );                   }
             }
             /*
             if (ylo_open) {
-                if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));  bx.growLo(1,-1); }
-                if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); tbx.growLo(1,-1); }
+                if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));                   }
+                if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1));                   }
                 if (tby.smallEnd(1) == domain.smallEnd(1)) { tby_ylo = makeSlab(tby,1,domain.smallEnd(1)); tby.growLo(1,-1); }
-                if (tbz.smallEnd(1) == domain.smallEnd(1)) { tbz_ylo = makeSlab(tbz,1,domain.smallEnd(1)); tbz.growLo(1,-1); }
+                if (tbz.smallEnd(1) == domain.smallEnd(1)) { tbz_ylo = makeSlab(tbz,1,domain.smallEnd(1));                   }
             }
             if (yhi_open) {
-                if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );  bx.growHi(1,-1); }
-                if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1)  ); tbx.growHi(1,-1); }
+                if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );                   }
+                if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1)  );                   }
                 if (tby.bigEnd(1) == domain.bigEnd(1)+1)   { tby_yhi = makeSlab(tby,1,domain.bigEnd(1)+1); tby.growHi(1,-1); }
-                if (tbz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(tbz,1,domain.bigEnd(1)  ); tbz.growHi(1,-1); }
+                if (tbz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(tbz,1,domain.bigEnd(1)  );                   }
             }
             */
         }
@@ -684,7 +684,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // Define flux arrays for use in advection
         // *****************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(bx_tot,dir),2);
+            flux[dir].resize(surroundingNodes(bx,dir),2);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -714,7 +714,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         {
         BL_PROFILE("slow_rhs_making_omega");
-            Box gbxo = surroundingNodes(bx_tot,2); gbxo.grow(IntVect(1,1,0));
+            Box gbxo = surroundingNodes(bx,2); gbxo.grow(IntVect(1,1,0));
             // Now create Omega with momentum (not velocity) with z_t subtracted if moving terrain
             if (l_use_terrain) {
 
@@ -792,7 +792,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
-        AdvectionSrcForRho(bx_tot, cell_rhs,
+        AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
@@ -806,7 +806,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                l_horiz_upw_frac, l_vert_upw_frac,
                                l_use_terrain, flx_arr);
 
-        /*
+
         // Special advection operator for open BC (bndry tangent operations)
         if (level==0) {
             if (xlo_open) {
@@ -832,7 +832,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                    detJ_arr, dxInv, l_use_terrain);
             }
         }
-        */
+
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -992,7 +992,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (xlo_open) {
                 bool do_lo = true;
                 AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, dxInv, do_lo);
-                /*
                 AdvectionSrcForOpenBC_Tangent_Ymom(tby_xlo, 0, rho_v_rhs, v,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
@@ -1001,11 +1000,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
                                                    l_use_terrain, domhi_z, do_lo);
-                */
             }
             if (xhi_open) {
                 AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, dxInv);
-                /*
                 AdvectionSrcForOpenBC_Tangent_Ymom(tby_xhi, 0, rho_v_rhs, v,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
@@ -1014,16 +1011,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
                                                    l_use_terrain, domhi_z);
-                */
             }
-            /*
             if (ylo_open) {
                 bool do_lo = true;
                 AdvectionSrcForOpenBC_Tangent_Xmom(tbx_ylo, 1, rho_u_rhs, u,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
                                                    l_use_terrain, do_lo);
-                AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, rho_v, dxInv, do_lo);
+                AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, dxInv, do_lo);
                 AdvectionSrcForOpenBC_Tangent_Zmom(tbz_ylo, 1, rho_w_rhs, w,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
@@ -1034,13 +1029,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
                                                    l_use_terrain);
-                AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, rho_v, dxInv);
+                AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, dxInv);
                 AdvectionSrcForOpenBC_Tangent_Zmom(tbz_yhi, 1, rho_w_rhs, w,
                                                    rho_u, rho_v, omega_arr,
                                                    z_nd, detJ_arr, dxInv,
                                                    l_use_terrain, domhi_z);
             }
-            */
         }
 
         if (l_use_diff) {

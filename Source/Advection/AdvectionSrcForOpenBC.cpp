@@ -16,8 +16,8 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
     //       convective storm dynamics, J. Atmos. Sci., 35, 1070-1096.
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -1.
+    // NOTE: Indices (i,j,k) correspond to data that is ON the open bdy.
     int sgn = 1; if (do_lo) sgn = -1;
-    Real dx_inv   = Real(sgn)*dxInv[dir];
     Real c_o_star = Real(sgn)*30.0;
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
@@ -36,7 +36,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
         /*
         if (do_lo) {
             if (i==0 && j==1 && k<6) {
-                Print() << "OPEN LO: "
+                Print() << "OPEN LO N: "
                         << dir << ' '
                         << ivu1 << ' '
                         << ivu2 << ' '
@@ -54,7 +54,7 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
 
         if (!do_lo) {
             if (i==200 && j==1 && k<6) {
-                Print() << "OPEN HI: "
+                Print() << "OPEN HI N: "
                         << dir << ' '
                         << ivu1 << ' '
                         << ivu2 << ' '
@@ -205,7 +205,8 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 {
     AMREX_ALWAYS_ASSERT(dir!=2);
 
-    bool xopen = (dir==0), yopen = (dir==1);
+    bool xopen = (dir==0);
+    bool yopen = (dir==1);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -282,7 +283,8 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
 {
     AMREX_ALWAYS_ASSERT(dir!=2 && icomp>0);
 
-    bool xopen = (dir==0), yopen = (dir==1);
+    bool xopen = (dir==0);
+    bool yopen = (dir==1);
 
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
 
@@ -316,6 +318,30 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
         Real advectionSrc = x_src + y_src + z_src;
 
         cell_rhs(i,j,k,cons_index) = -advectionSrc * invdetJ;
+
+        /*
+        if (do_lo) {
+            if (i==0 && j==1 && k<6) {
+                Print() << "OPEN LO T: "
+                        << IntVect(i,j,k) << ' '
+                        << x_src << ' '
+                        << (xflux_hi - xflux_lo) * dxInv << ' '
+                        << xflux_hi << ' '
+                        << xflux_lo << "\n";
+            }
+        }
+
+        if (!do_lo) {
+            if (i==199 && j==1 && k<6) {
+                Print() << "OPEN HI T: "
+                        << IntVect(i,j,k) << ' '
+                        << x_src << ' '
+                        << (xflux_hi - xflux_lo) * dxInv << ' '
+                        << xflux_hi << ' '
+                        << xflux_lo << "\n";
+            }
+        }
+        */
     });
 }
 
@@ -337,18 +363,58 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
     //       convective storm dynamics, J. Atmos. Sci., 35, 1070-1096.
     // NOTE: Implementation is for the high bndry side. The low bndry side is obtained
     //       by flipping sgn = -1.
+    // NOTE: Indices (i,j,k) correspond to data that is index 1/2 dx off open bdy.
     int sgn = 1; if (do_lo) sgn = -1;
 
     IntVect ivm1(i,j,k); if ( do_lo) ivm1[dir] -= sgn; // Mom indexed into domain for do_lo
-    IntVect ivm2(i,j,k); if (!do_lo) ivm2[dir] += sgn; // Mom indexed out  domain for do_hi
+    IntVect ivm2(i,j,k); if (!do_lo) ivm1[dir] += sgn; // Mom indexed out  domain for do_hi
 
     IntVect ivs1(i,j,k); if ( do_lo) ivs1[dir] -= sgn; // Scalar indexed into domain for do_hi
     IntVect ivs2(i,j,k); if (!do_lo) ivs2[dir] -= sgn; // Scalar indexed into domain for do_lo
 
     Real mom_at_cc = 0.5 * (mom_norm_arr(ivm1) + mom_norm_arr(ivm2));
     Real mom_star  =    Real(sgn) * max( Real(sgn)*mom_at_cc, 0.0 );
-    Real mom_grad  =  ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
-    Real prim_grad =  ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
-    Real src       = -( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
+    Real mom_grad  = ( mom_norm_arr(ivm1) - mom_norm_arr(ivm2) ) * dxInv;
+    Real prim_grad = ( prim_tang_arr(ivs1,nprim) - prim_tang_arr(ivs2,nprim) ) * dxInv;
+
+    // NOTE: Negative sign taken care of by wrapper function
+    Real src       = ( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
+
+    /*
+    if (do_lo) {
+        if (i==0 && j==1 && k<6) {
+            Print() << "OPEN LO T: "
+                    << dir << ' '
+                    << ivm1 << ' '
+                    << ivm2 << ' '
+                    << ivs1 << ' '
+                    << ivs2 << ' '
+                    << mom_norm_arr(ivm1) << ' '
+                    << mom_norm_arr(ivm2) << ' '
+                    << prim_tang_arr(ivs1,nprim) << ' '
+                    << prim_tang_arr(ivs2,nprim) << ' '
+                    << mom_star << ' '
+                    << src << "\n";
+            }
+    }
+
+    if (!do_lo) {
+        if (i==199 && j==1 && k<6) {
+            Print() << "OPEN HI T: "
+                    << dir << ' '
+                    << ivm1 << ' '
+                    << ivm2 << ' '
+                    << ivs1 << ' '
+                    << ivs2 << ' '
+                    << mom_norm_arr(ivm1) << ' '
+                    << mom_norm_arr(ivm2) << ' '
+                    << prim_tang_arr(ivs1,nprim) << ' '
+                    << prim_tang_arr(ivs2,nprim) << ' '
+                    << mom_star << ' '
+                    << src << "\n";
+        }
+    }
+    */
+
     return src;
 }

@@ -222,32 +222,29 @@ void erf_slow_rhs_post (int level, int finest_level,
       for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box tbx  = mfi.tilebox();
-        const Box& tbx_update = mfi.tilebox();
 
-        /*
         // Only advection operations in bndry normal direction with OPEN BC
         Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
         if (level==0) {
             if (xlo_open) {
-                if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); tbx.growLo(0,-1); }
+                if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); }
             }
             if (xhi_open) {
-                if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   tbx.growHi(0,-1); }
+                if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   }
             }
             if (ylo_open) {
-                if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); tbx.growLo(1,-1); }
+                if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); }
             }
             if (yhi_open) {
-                if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   tbx.growHi(1,-1); }
+                if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   }
             }
         }
-        */
 
         // *************************************************************************
         // Define flux arrays for use in advection
         // *************************************************************************
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-            flux[dir].resize(surroundingNodes(tbx_update,dir),nvars);
+            flux[dir].resize(surroundingNodes(tbx,dir),nvars);
             flux[dir].setVal<RunOn::Device>(0.);
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
@@ -301,7 +298,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         {
         BL_PROFILE("rhs_post_7");
-        ParallelFor(tbx_update, ncomp_slow[IntVars::cons],
+        ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
@@ -391,7 +388,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    l_use_terrain, flx_arr);
         }
 
-        /*
         // Special advection operator for open BC (bndry normal operations)
         if (level==0) {
             for (int ivar(RhoKE_comp); ivar<nvars; ++ivar) {
@@ -421,7 +417,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                 } // valid slow var
             } // loop ivar
         } // level 0
-        */
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -717,7 +712,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
             start_comp = RhoScalar_comp;
             num_comp   = S_data[IntVars::cons].nComp() - start_comp;
-            ParallelFor(tbx_update, num_comp,
+            ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -728,7 +723,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (l_use_deardorff) {
               start_comp = RhoKE_comp;
               num_comp   = 1;
-              ParallelFor(tbx_update, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -739,7 +734,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
               num_comp   = 1;
-              ParallelFor(tbx_update, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 // NOTE: we don't include additional source terms when terrain is moving
@@ -759,7 +754,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             auto const& src_arr = source.const_array(mfi);
             start_comp = RhoScalar_comp;
             num_comp   = nvars - start_comp;
-            ParallelFor(tbx_update, num_comp,
+            ParallelFor(tbx, num_comp,
             [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -770,7 +765,7 @@ void erf_slow_rhs_post (int level, int finest_level,
               start_comp = RhoKE_comp;
               num_comp = 1;
               Real eps = std::numeric_limits<Real>::epsilon();
-              ParallelFor(tbx_update, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -782,7 +777,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             if (l_use_QKE) {
               start_comp = RhoQKE_comp;
               num_comp   = 1;
-              ParallelFor(tbx_update, num_comp,
+              ParallelFor(tbx, num_comp,
               [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                 const int n = start_comp + nn;
                 cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
@@ -804,7 +799,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         BL_PROFILE("rhs_post_9");
         // This updates all the conserved variables (not just the "slow" ones)
         int   num_comp_all = S_data[IntVars::cons].nComp();
-        ParallelFor(tbx_update, num_comp_all,
+        ParallelFor(tbx, num_comp_all,
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
             new_cons(i,j,k,n)  = cur_cons(i,j,k,n);
         });
