@@ -379,6 +379,9 @@ class SuperDropletPC : public ERFPC
         /*! \brief Return the total number of physical particles */
         virtual amrex::Real TotalNumberOfParticles ();
 
+        /*! \brief Compute and print diagnostics */
+        virtual void Diagnostics ();
+
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
         /*! \brief Compute the particle mass density on a mesh */

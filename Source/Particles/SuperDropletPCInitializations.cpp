@@ -222,10 +222,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                        1, 0 );
     offsets.setVal(0);
 
-    Long num_total_particles = 0.0;
-    Real avg_par_mass = 0.0;
-    Real avg_par_radius = 0.0;
-
     for(MFIter mfi = MakeMFIter(m_lev); mfi.isValid(); ++mfi) {
         const Box& tile_box  = mfi.tilebox();
 
@@ -328,12 +324,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         auto aerosol_mass = aerosol_mass_d.data();
         auto condensate_mass = condensate_mass_d.data();
 
-        Gpu::Buffer<Real> avg_particle_mass({0}), avg_particle_radius({0});
-        Real* avg_particle_mass_ptr = avg_particle_mass.data();
-        Real* avg_particle_radius_ptr = avg_particle_radius.data();
-        Gpu::Buffer<Long> num_particles({0});
-        Long* num_particles_ptr = num_particles.data();
-
         ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
                                                        const RandomEngine& rnd_engine) noexcept
         {
@@ -377,20 +367,12 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                     par_radius = 1.0e-16;
                 }
 
-                Gpu::Atomic::Add( avg_particle_mass_ptr, par_mass );
-                Gpu::Atomic::Add( avg_particle_radius_ptr, par_radius );
-                Gpu::Atomic::Add( num_particles_ptr, Long(1) );
-
                 mass_ptr[n] = par_mass;
                 radius_ptr[n] = par_radius;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
            }
         });
         Gpu::streamSynchronize();
-
-        avg_par_mass = *(avg_particle_mass.copyToHost());
-        avg_par_radius = *(avg_particle_radius.copyToHost());
-        num_total_particles = *(num_particles.copyToHost());
 
         if (a_height_ptr) {
 
@@ -430,17 +412,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
 
         }
     }
-
-    ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceRealSum(&avg_par_radius,1,ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::ReduceLongSum(&num_total_particles,1,ParallelDescriptor::IOProcessorNumber());
-
-    Print() << "    Average particle mass: " << avg_par_mass/num_total_particles << "\n"
-            << "    Average particle radius: " << avg_par_radius/num_total_particles << "\n";
-    /* TODO:
-     * num_total_particles doesn't agree with ParticleContainer::TotalNumberOfParticles()
-     * for certain MPI decompositions. */
-    Print() << "    Total number of super-droplets: " << num_total_particles << "\n";
 
     return;
 }

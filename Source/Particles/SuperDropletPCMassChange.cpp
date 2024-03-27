@@ -137,7 +137,7 @@ void SuperDropletPC::MassChange ( int                                         a_
 
         });
 
-        num_unconverged_particles = *(unconverged_particles.copyToHost());
+        num_unconverged_particles += *(unconverged_particles.copyToHost());
     }
 
     ParallelDescriptor::ReduceLongSum(  &num_unconverged_particles,
