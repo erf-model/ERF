@@ -186,40 +186,43 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto bin_stop = offsets[i_bin+1];
             auto np_bin = bin_stop - bin_start;
 
-            random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+            if (np_bin > 1) {
 
-            for (unsigned int p = 0; p < np_bin/2; p++) {
-                auto pi = inds[bin_start+p];
-                auto pj = inds[bin_stop-1-p];
+                random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
 
-                if (pi == pj) { continue; }
+                for (unsigned int p = 0; p < np_bin/2; p++) {
+                    auto pi = inds[bin_start+p];
+                    auto pj = inds[bin_stop-1-p];
 
-                ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
-                for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                    v_i[d] = v_ptr[d][pi];
-                    v_j[d] = v_ptr[d][pj];
+                    if (pi == pj) { continue; }
+
+                    ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
+                    for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                        v_i[d] = v_ptr[d][pi];
+                        v_j[d] = v_ptr[d][pj];
+                    }
+
+                    //auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    auto prob_ij = k_val*a_dt*inv_bin_volume;
+                    auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
+
+                    auto ns = static_cast<ParticleReal>(np_bin);
+                    auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
+                    auto scaled_prob = prob_sd_ij * scaling_factor;
+
+                    auto flag = binary_coalescence( pi, pj,
+                                                    rnd_eng,
+                                                    scaled_prob,
+                                                    mass_ptr,
+                                                    radius_ptr,
+                                                    mult_ptr,
+                                                    supdrop_mass_ptr,
+                                                    num_aerosols,
+                                                    aerosol_mass_ptrs );
+
+                    amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(flag));
                 }
-
-                //auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                auto prob_ij = k_val*a_dt*inv_bin_volume;
-                auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
-
-                auto ns = static_cast<ParticleReal>(np_bin);
-                auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
-                auto scaled_prob = prob_sd_ij * scaling_factor;
-
-                auto flag = binary_coalescence( pi, pj,
-                                                rnd_eng,
-                                                scaled_prob,
-                                                mass_ptr,
-                                                radius_ptr,
-                                                mult_ptr,
-                                                supdrop_mass_ptr,
-                                                num_aerosols,
-                                                aerosol_mass_ptrs );
-
-                amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(flag));
             }
 
         } );
