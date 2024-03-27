@@ -236,7 +236,9 @@ public:
 
     void advance_microphysics (int lev,
                                amrex::MultiFab& cons_in,
-                               const amrex::Real& dt_advance);
+                               const amrex::Real& dt_advance,
+                               const int& iteration,
+                               const amrex::Real& time);
 
     void advance_lsm (int lev,
                       amrex::MultiFab& /*cons_in*/,

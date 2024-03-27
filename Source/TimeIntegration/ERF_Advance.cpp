@@ -17,7 +17,7 @@ using namespace amrex;
  */
 
 void
-ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/)
+ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
 
@@ -124,7 +124,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    advance_microphysics(lev, S_new, dt_lev);
+    advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
     // **************************************************************************************
     // Update the land surface model

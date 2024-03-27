@@ -66,12 +66,14 @@ public:
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */
+                  const int& iter, /*!< iteration number */
+                  const amrex::Real& time, /*!< current time */
                   const SolverChoice& /*solverChoice*/, /*!< Solver choice object */
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars, /*!< Dycore state variables */
                   const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */) override
     {
         if (lev > 0) return;
-        m_moist_model->Advance(dt_advance, a_vars, a_z);
+        m_moist_model->Advance(dt_advance, iter, time, a_vars, a_z);
     }
 
     /*! \brief update microphysics variables from ERF state variables */
