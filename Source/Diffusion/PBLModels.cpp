@@ -36,15 +36,15 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
     // MYNN Level 2.5 PBL Model
     if (turbChoice.pbl_type == PBLType::MYNN25) {
 
-        const Real A1 = turbChoice.pbl_A1;
-        const Real A2 = turbChoice.pbl_A2;
-        const Real B1 = turbChoice.pbl_B1;
-        const Real B2 = turbChoice.pbl_B2;
-        const Real C1 = turbChoice.pbl_C1;
-        const Real C2 = turbChoice.pbl_C2;
-        const Real C3 = turbChoice.pbl_C3;
-        //const Real C4 = turbChoice.pbl_C4;
-        const Real C5 = turbChoice.pbl_C5;
+        const Real A1 = turbChoice.pbl_mynn_A1;
+        const Real A2 = turbChoice.pbl_mynn_A2;
+        const Real B1 = turbChoice.pbl_mynn_B1;
+        const Real B2 = turbChoice.pbl_mynn_B2;
+        const Real C1 = turbChoice.pbl_mynn_C1;
+        const Real C2 = turbChoice.pbl_mynn_C2;
+        const Real C3 = turbChoice.pbl_mynn_C3;
+        //const Real C4 = turbChoice.pbl_mynn_C4;
+        const Real C5 = turbChoice.pbl_mynn_C5;
 
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -272,11 +272,20 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
             FArrayBox pbl_height(xybx,1);
             const auto& pblh_arr = pbl_height.array();
-            // Diagnose PBL height - starting out assuming non-moist
+
+            // -- Diagnose PBL height - starting out assuming non-moist
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // This is only for stable BLs
                 pblh_arr(i,j,k) = 0.0;
             });
+
+            // -- Compute entrainment parameters
+
+            // -- Compute diffusion coefficients within PBL
+
+            // -- Compute coefficients in free stream above PBL
+
         }
 
     }
