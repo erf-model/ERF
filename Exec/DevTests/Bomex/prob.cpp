@@ -109,11 +109,11 @@ Problem::init_custom_pert (
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
-        // Set an initial value for QKE
-        if (parms.custom_TKE) {
+	// Set an initial value for QKE
+	if (parms.custom_TKE) {
             state_pert(i, j, k, RhoQKE_comp) = 1.0 - zc/3000.0; //*state_pert(i, j, k, Rho_comp);
-        }
-        else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
+	}
+	else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = 0.0;
@@ -359,8 +359,9 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
-        u_geos[k] =  0 ; //coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
-        v_geos[k] =  coriolis *  u_geo_wind;
+
+	u_geos[k] =  coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
+        v_geos[k] =  0 ; // coriolis *  u_geo_wind;
     }
 
     // Copy from host version to device version
