@@ -36,6 +36,9 @@ void SuperDropletsMoist::readInputs ()
         }
     }
 
+    m_diagnostics_iter = INT_MAX;
+    pp.query("diagnostics_interval", m_diagnostics_iter);
+
     return;
 }
 
@@ -88,7 +91,10 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                        << " particles in super-droplets moisture model.\n";
     }
 
+    m_super_droplets->Diagnostics();
+
     amrex::Print() << "SuperDropletsMoist:\n"
+                   << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "

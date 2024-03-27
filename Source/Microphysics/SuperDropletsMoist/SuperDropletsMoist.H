@@ -3,6 +3,7 @@
 
 #ifdef ERF_USE_PARTICLES
 
+#include <limits>
 #include <string>
 #include <AMReX_Geometry.H>
 #include "NullMoistLagrangian.H"
@@ -61,6 +62,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Advance for one timestep */
         virtual void Advance (const Real&,
+                              const int&,
+                              const Real&,
                               Vector<Vector<MultiFab>>&,
                               const Vector<MFPtr>& ) override;
 
@@ -155,6 +158,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_phase_change;   /*!< Enable/disable phase change */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
+
+        int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
         /*! initialization type */
         std::string m_init_type;
