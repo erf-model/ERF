@@ -36,7 +36,7 @@ void SuperDropletsMoist::readInputs ()
         }
     }
 
-    m_diagnostics_iter = INT_MAX;
+    m_diagnostics_iter = 1;
     pp.query("diagnostics_interval", m_diagnostics_iter);
 
     return;
