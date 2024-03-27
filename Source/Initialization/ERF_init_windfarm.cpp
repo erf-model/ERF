@@ -16,8 +16,6 @@ void
 ERF::init_windfarm (int lev)
 {
     // Read turbine locations from windturbines.txt
-    FILE *file_windturbines;
-    file_windturbines = fopen("windturbines.txt","r");
     std::ifstream file("windturbines.txt");
     if (!file.is_open()) {
         amrex::Error("Wind turbines location file windturbines.txt not found");
@@ -92,5 +90,32 @@ ERF::init_windfarm (int lev)
             }
         });
     }
+
+
+    //The first line is the number of pairs entries for the power curve and thrust coefficient.
+    //The second line gives first the height in meters of the turbine hub, second, the diameter in
+    //meters of the rotor, third the standing thrust coefficient, and fourth the nominal power of
+    //the turbine in MW.
+    //The remaining lines contain the three values of: wind speed, thrust coefficient, and power production in kW.
+
+     // Read turbine data from wind-turbine-1.tbl
+    std::ifstream file_turb_table("wind-turbine-1.tbl");
+    if (!file_turb_table.is_open()) {
+        amrex::Error("Wind turbines location file wind-turbine-1.tbl not found");
+    }
+
+    int nlines;
+    file_turb_table >> nlines;
+    wind_speed.resize(nlines);
+    thrust_coeff.resize(nlines);
+    power.resize(nlines);
+
+    file_turb_table >>     hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
+    std::cout << hub_height << " " << rotor_dia << " " << thrust_coeff_standing << " " << nominal_power << "\n";
+    for(int iline=0;iline<nlines;iline++){
+        file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline];
+    }
+    file.close();
 }
+
 

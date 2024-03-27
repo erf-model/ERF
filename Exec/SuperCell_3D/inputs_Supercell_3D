@@ -6,16 +6,17 @@ amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 2048 1024 2048
 
-# PROBLEM SIZE & GEOMETRY
-geometry.prob_lo     = -75000.   0.    0.
-geometry.prob_hi     =  75000. 400. 24000.
-amr.n_cell           =  1500     4    240    # dx=dy=dz=100 m
+geometry.prob_lo     = -75000. -50000.    0.
+geometry.prob_hi     =  75000. 50000. 24000.
+amr.n_cell           =  600    400    96    # dx=dy=dz=100 m
 
 # periodic in x to match WRF setup
 # - as an alternative, could use symmetry at x=0 and outflow at x=25600
-geometry.is_periodic = 0 1 0
+geometry.is_periodic = 0 0 0
 xlo.type = "Open"
 xhi.type = "Open"
+ylo.type = "Open"
+yhi.type = "Open"
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
 
@@ -80,7 +81,9 @@ prob.theta_0 = 300.0
 prob.theta_tr = 343.0
 prob.T_tr = 213.0
 prob.x_c = 0.0
+prob.y_c = 0.0
 prob.z_c = 2000.0
 prob.x_r = 10000.0
+prob.y_r = 10000.0
 prob.z_r = 1500.0
 prob.theta_c = 3.0
