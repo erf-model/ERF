@@ -40,8 +40,6 @@ void VelocityToMomentum (const MultiFab& xvel_in,
 
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
-    amrex::Print() <<" COMING IN WITH NG " << xvel_ngrow << " " << yvel_ngrow << " " << zvel_ngrow << std::endl;
-
     // Loop over boxes = valid boxes grown by ngrow
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
