@@ -65,6 +65,8 @@ public:
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */
+                  const int&, /*!< iteration number */
+                  const amrex::Real&, /*!< current time */
                   const SolverChoice &solverChoice, /*!< Solver choice object */
                   amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /*!< Dycore state variables */
                   const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*!< terrain */) override
