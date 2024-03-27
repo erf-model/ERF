@@ -22,6 +22,7 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real V_0_Pert_Mag = 0.0;
     amrex::Real W_0_Pert_Mag = 0.0;
     amrex::Real T_0_Pert_Mag = 0.0; // perturbation to rho*Theta
+    amrex::Real qv_0_Pert_Mag = 0.0;
 
     // divergence-free initial perturbations
     amrex::Real pert_deltaU = 0.0;
@@ -49,6 +50,9 @@ struct ProbParm : ProbParmDefaults {
     amrex::Real wbar_sub_max    = -0.65;
     amrex::Real wbar_cutoff_max = 1500.0;
     amrex::Real wbar_cutoff_min = 2100.0;
+
+    bool custom_TKE = false;
+
     //==============================================
 
     // helper vars
