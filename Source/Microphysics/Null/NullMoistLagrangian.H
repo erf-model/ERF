@@ -41,6 +41,8 @@ public:
     /*! \brief advance the moisture model by one time step */
     virtual void
     Advance (const amrex::Real&, /* dt */
+             const int&, /* iter */
+             const amrex::Real&, /* time */
              amrex::Vector<amrex::Vector<amrex::MultiFab>>&, /* state variables */
              const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /* terrain */) { }
 
