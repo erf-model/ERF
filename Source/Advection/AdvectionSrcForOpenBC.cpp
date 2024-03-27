@@ -32,44 +32,6 @@ AdvectionSrcForOpenBC_Normal (const Box& bx,
         Real vel_grad  =  ( vel_norm_arr(ivu1) - vel_norm_arr(ivu2) ) * dxInv[dir];
         Real flux      = -( mom_star * vel_grad );
         rhs_arr(i,j,k) = flux;
-
-        /*
-        if (do_lo) {
-            if (i==0 && j==1 && k<6) {
-                Print() << "OPEN LO N: "
-                        << dir << ' '
-                        << ivu1 << ' '
-                        << ivu2 << ' '
-                        << ivr1 << ' '
-                        << ivr2 << ' '
-                        << vel_grad << ' '
-                        << vel_norm_arr(ivu2) << ' '
-                        << vel_norm_arr(ivu1) << ' '
-                        << (vel_norm_arr(ivu1) + c_o_star) << ' '
-                        << mom_star << ' '
-                        << vel_grad << ' '
-                        << flux << "\n";
-            }
-        }
-
-        if (!do_lo) {
-            if (i==200 && j==1 && k<6) {
-                Print() << "OPEN HI N: "
-                        << dir << ' '
-                        << ivu1 << ' '
-                        << ivu2 << ' '
-                        << ivr1 << ' '
-                        << ivr2 << ' '
-                        << vel_grad << ' '
-                        << vel_norm_arr(ivu2) << ' '
-                        << vel_norm_arr(ivu1) << ' '
-                        << (vel_norm_arr(ivu1) + c_o_star) << ' '
-                        << mom_star << ' '
-                        << vel_grad << ' '
-                        << flux << "\n";
-            }
-        }
-        */
     });
 }
 
@@ -316,32 +278,7 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                           (yflux_hi - yflux_lo) * dyInv;
         Real z_src = (zflux_hi - zflux_lo) * dzInv;
         Real advectionSrc = x_src + y_src + z_src;
-
         cell_rhs(i,j,k,cons_index) = -advectionSrc * invdetJ;
-
-        /*
-        if (do_lo) {
-            if (i==0 && j==1 && k<6) {
-                Print() << "OPEN LO T: "
-                        << IntVect(i,j,k) << ' '
-                        << x_src << ' '
-                        << (xflux_hi - xflux_lo) * dxInv << ' '
-                        << xflux_hi << ' '
-                        << xflux_lo << "\n";
-            }
-        }
-
-        if (!do_lo) {
-            if (i==199 && j==1 && k<6) {
-                Print() << "OPEN HI T: "
-                        << IntVect(i,j,k) << ' '
-                        << x_src << ' '
-                        << (xflux_hi - xflux_lo) * dxInv << ' '
-                        << xflux_hi << ' '
-                        << xflux_lo << "\n";
-            }
-        }
-        */
     });
 }
 
@@ -379,42 +316,5 @@ AdvectionSrcForOpenBC_Tangent (const int& i,
 
     // NOTE: Negative sign taken care of by wrapper function
     Real src       = ( mom_star*prim_grad + prim_tang_arr(ivs1,nprim)*mom_grad );
-
-    /*
-    if (do_lo) {
-        if (i==0 && j==1 && k<6) {
-            Print() << "OPEN LO T: "
-                    << dir << ' '
-                    << ivm1 << ' '
-                    << ivm2 << ' '
-                    << ivs1 << ' '
-                    << ivs2 << ' '
-                    << mom_norm_arr(ivm1) << ' '
-                    << mom_norm_arr(ivm2) << ' '
-                    << prim_tang_arr(ivs1,nprim) << ' '
-                    << prim_tang_arr(ivs2,nprim) << ' '
-                    << mom_star << ' '
-                    << src << "\n";
-            }
-    }
-
-    if (!do_lo) {
-        if (i==199 && j==1 && k<6) {
-            Print() << "OPEN HI T: "
-                    << dir << ' '
-                    << ivm1 << ' '
-                    << ivm2 << ' '
-                    << ivs1 << ' '
-                    << ivs2 << ' '
-                    << mom_norm_arr(ivm1) << ' '
-                    << mom_norm_arr(ivm2) << ' '
-                    << prim_tang_arr(ivs1,nprim) << ' '
-                    << prim_tang_arr(ivs2,nprim) << ' '
-                    << mom_star << ' '
-                    << src << "\n";
-        }
-    }
-    */
-
     return src;
 }
