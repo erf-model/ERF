@@ -13,7 +13,7 @@ using namespace amrex;
  */
 
 void
-ERF::timeStep (int lev, Real time, int iteration)
+ERF::timeStep (int lev, Real time, int /*iteration*/)
 {
     if (regrid_int > 0)  // We may need to regrid
     {

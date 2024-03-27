@@ -43,16 +43,27 @@ ERF::FillPatch (int lev, Real time,
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time, null_bc, domain_bcs_type);
         }
         if (cf_set_width >= 0 && !cons_only) {
-            VelocityToMomentum(*mfs_vel[Vars::xvel], mfs_vel[Vars::xvel]->nGrowVect(),
-                               *mfs_vel[Vars::yvel], mfs_vel[Vars::yvel]->nGrowVect(),
-                               *mfs_vel[Vars::zvel], mfs_vel[Vars::zvel]->nGrowVect(),
+            //
+            // This is an optimization since we won't need more than one ghost
+            // cell of momentum in the integrator if not using NumDiff
+            //
+            //IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
+            //IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
+            //IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
+            IntVect ngu = IntVect::TheZeroVector();
+            IntVect ngv = IntVect::TheZeroVector();
+            IntVect ngw = IntVect::TheZeroVector();
+
+            VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
+                               *mfs_vel[Vars::yvel], ngv,
+                               *mfs_vel[Vars::zvel], ngw,
                                *mfs_vel[Vars::cons],
                                *mfs_mom[IntVars::xmom],
                                *mfs_mom[IntVars::ymom],
                                *mfs_mom[IntVars::zmom],
                                Geom(lev).Domain(),
-                               domain_bcs_type,
-                               solverChoice.use_NumDiff);
+                               domain_bcs_type);
+
             FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time, null_bc, domain_bcs_type);
             FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time, null_bc, domain_bcs_type);
             FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time, null_bc, domain_bcs_type);
@@ -375,14 +386,22 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // We need to make sure we convert back on all ghost cells/faces because this is
     // how velocity from fine-fine copies (as well as physical and interpolated bcs) will be filled
     if (!cons_only) {
-        VelocityToMomentum(*mfs_vel[Vars::xvel], mfs_vel[Vars::xvel]->nGrowVect(),
-                           *mfs_vel[Vars::yvel], mfs_vel[Vars::yvel]->nGrowVect(),
-                           *mfs_vel[Vars::zvel], mfs_vel[Vars::zvel]->nGrowVect(),
+        IntVect ngu = mfs_vel[Vars::xvel]->nGrowVect();
+        IntVect ngv = mfs_vel[Vars::yvel]->nGrowVect();
+        IntVect ngw = mfs_vel[Vars::zvel]->nGrowVect();
+
+        if (!solverChoice.use_NumDiff) {
+            ngu = IntVect(1,1,1);
+            ngv = IntVect(1,1,1);
+            ngw = IntVect(1,1,0);
+        }
+        VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
+                           *mfs_vel[Vars::yvel], ngv,
+                           *mfs_vel[Vars::zvel], ngw,
                            *mfs_vel[Vars::cons],
                            *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom], *mfs_mom[IntVars::zmom],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           solverChoice.use_NumDiff);
+                           domain_bcs_type);
     }
 }
 
@@ -415,16 +434,19 @@ ERF::FillCoarsePatch (int lev, Real time)
     //
     // Convert velocity to momentum at the COARSE level
     //
-    VelocityToMomentum(vars_new[lev-1][Vars::xvel], IntVect(0,0,0),
-                       vars_new[lev-1][Vars::yvel], IntVect(0,0,0),
-                       vars_new[lev-1][Vars::zvel], IntVect(0,0,0),
+    IntVect ngu = IntVect(0,0,0);
+    IntVect ngv = IntVect(0,0,0);
+    IntVect ngw = IntVect(0,0,0);
+
+    VelocityToMomentum(vars_new[lev-1][Vars::xvel], ngu,
+                       vars_new[lev-1][Vars::yvel], ngv,
+                       vars_new[lev-1][Vars::zvel], ngw,
                        vars_new[lev-1][Vars::cons],
                          rU_new[lev-1],
                          rV_new[lev-1],
                          rW_new[lev-1],
                        Geom(lev).Domain(),
-                       domain_bcs_type,
-                       true);
+                       domain_bcs_type);
 
 
     //
