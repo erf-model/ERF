@@ -33,6 +33,8 @@ public:
     /*! \brief advance microphysics for one time step */
     virtual void Advance (const int&,
                           const amrex::Real&,
+                          const int&,
+                          const amrex::Real&,
                           const SolverChoice&,
                           amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                           const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& ) = 0;
