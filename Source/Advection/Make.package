@@ -1,5 +1,6 @@
 CEXE_sources += AdvectionSrcForMom.cpp
 CEXE_sources += AdvectionSrcForState.cpp
+CEXE_sources += AdvectionSrcForOpenBC.cpp
 
 CEXE_headers += Advection.H
 CEXE_headers += AdvectionSrcForMom_N.H

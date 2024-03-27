@@ -76,6 +76,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                     }
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
+                } else if (bc_ptr_w[n].lo(0) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_odd) {
@@ -90,6 +92,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
                 } else if (bc_ptr_w[n].hi(0) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
+                } else if (bc_ptr_w[n].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
                 } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
@@ -114,6 +118,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 }
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+            } else if (bc_ptr_w[n].lo(1) == ERFBCType::open) {
+                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_even) {
                 dest_arr(i,j,k) =  dest_arr(i,jflip,k);
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_odd) {
@@ -126,6 +132,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
                 dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
+                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+            } else if (bc_ptr_w[n].hi(1) == ERFBCType::open) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_even) {
                 dest_arr(i,j,k) =  dest_arr(i,jflip,k);
@@ -341,6 +349,8 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
+                } else if (bc_ptr_w[n].lo(0) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr_w[n].lo(0) == ERFBCType::reflect_odd) {
@@ -352,6 +362,8 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
                 if (bc_ptr_w[n].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
                 } else if (bc_ptr_w[n].hi(0) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
+                } else if (bc_ptr_w[n].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
                 } else if (bc_ptr_w[n].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
@@ -373,6 +385,8 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+            } else if (bc_ptr_w[n].lo(1) == ERFBCType::open) {
+                dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_even) {
                 dest_arr(i,j,k) =  dest_arr(i,jflip,k);
             } else if (bc_ptr_w[n].lo(1) == ERFBCType::reflect_odd) {
@@ -384,6 +398,8 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
             if (bc_ptr_w[n].hi(1) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
+                dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
+            } else if (bc_ptr_w[n].hi(1) == ERFBCType::open) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::reflect_even) {
                 dest_arr(i,j,k) =  dest_arr(i,jflip,k);

@@ -69,6 +69,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
+                        const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
                         std::unique_ptr<MultiFab>& detJ,
                         std::unique_ptr<MultiFab>& detJ_new,
@@ -94,6 +95,9 @@ void erf_slow_rhs_post (int level, int finest_level,
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
+    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
+
     AdvChoice  ac = solverChoice.advChoice;
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -117,7 +121,11 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
-    const BCRec* bc_ptr = domain_bcs_type_d.data();
+    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
+    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
+    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
+    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
     const Box& domain = geom.Domain();
 
@@ -181,6 +189,12 @@ void erf_slow_rhs_post (int level, int finest_level,
         dflux_z = nullptr;
     }
 
+    // Valid Open BC vars
+    Vector<int> is_valid_slow_var; is_valid_slow_var.resize(nvars,0);
+    if (l_use_deardorff) is_valid_slow_var[RhoKE_comp]  = 1;
+    if (l_use_QKE)       is_valid_slow_var[RhoQKE_comp] = 1;
+    for (int ivar(RhoScalar_comp); ivar<nvars; ++ivar) { is_valid_slow_var[ivar] = 1; }
+
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -207,7 +221,22 @@ void erf_slow_rhs_post (int level, int finest_level,
 
       for ( MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& tbx  = mfi.tilebox();
+        Box tbx  = mfi.tilebox();
+
+        // Only advection operations in bndry normal direction with OPEN BC
+        Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+        if (xlo_open) {
+            if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); }
+        }
+        if (xhi_open) {
+            if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   }
+        }
+        if (ylo_open) {
+            if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); }
+        }
+        if (yhi_open) {
+            if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   }
+        }
 
         // *************************************************************************
         // Define flux arrays for use in advection
@@ -357,6 +386,34 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    l_use_terrain, flx_arr);
         }
 
+        // Special advection operator for open BC (bndry normal operations)
+        for (int ivar(RhoKE_comp); ivar<nvars; ++ivar) {
+            if (is_valid_slow_var[ivar]) {
+                if (xlo_open) {
+                    bool do_lo = true;
+                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_xlo, 0, ivar, 1, cell_rhs, cur_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       detJ_arr, dxInv, l_use_terrain, do_lo);
+                }
+                if (xhi_open) {
+                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_xhi, 0, ivar, 1, cell_rhs, cur_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       detJ_arr, dxInv, l_use_terrain);
+                }
+                if (ylo_open) {
+                    bool do_lo = true;
+                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_ylo, 1, ivar, 1, cell_rhs, cur_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       detJ_arr, dxInv, l_use_terrain, do_lo);
+                }
+                if (yhi_open) {
+                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_yhi, 1, ivar, 1, cell_rhs, cur_prim,
+                                                       avg_xmom, avg_ymom, avg_zmom,
+                                                       detJ_arr, dxInv, l_use_terrain);
+                }
+            } // valid slow var
+        } // loop ivar
+
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
             Array4<Real> diffflux_y = dflux_y->array(mfi);
@@ -378,14 +435,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                 }
                 if (l_use_ndiff) {
                     NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
@@ -401,14 +458,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                            diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr, use_most);
+                                           mu_turb, dc, tc,tm_arr, grav_gpu, bc_ptr_d, use_most);
                 } else {
                     DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                            cur_cons, cur_prim, cell_rhs,
                                            diffflux_x, diffflux_y, diffflux_z,
                                            dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                            hfx_z, diss,
-                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
+                                           mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                 }
                 if (l_use_ndiff) {
                     NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
@@ -424,14 +481,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
             } else {
                 DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
                                        cur_cons, cur_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
-                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr, use_most);
+                                       mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
             }
             if (l_use_ndiff) {
                 NumericalDiffusion(tbx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
