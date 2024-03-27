@@ -20,8 +20,11 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real T_tr = 213.0;
 
   amrex::Real x_c = 0.0;
+  amrex::Real y_c = 0.0;
   amrex::Real z_c = 1.5e3;
-  amrex::Real x_r = 4.0e3;
+
+  amrex::Real x_r = 10.0e3;
+  amrex::Real y_r = 10.0e3;
   amrex::Real z_r = 1.5e3;
   amrex::Real theta_c = 3.0;
 
