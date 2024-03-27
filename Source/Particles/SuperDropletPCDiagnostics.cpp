@@ -9,81 +9,42 @@ using namespace amrex;
 void SuperDropletPC::Diagnostics()
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
+    using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
-    Long num_total_particles = 0.0;
-    Real avg_par_mass = 0.0;
-    Real avg_par_radius = 0.0;
-    Real max_par_mass = 0.0;
-    Real max_par_radius = 0.0;
-    Real min_par_mass = DBL_MAX;
-    Real min_par_radius = DBL_MAX;
+    Long num_total_particles = TotalNumberOfParticles();
 
-    for (ParIterType pti(*this, m_lev); pti.isValid(); ++pti) {
+    auto min_par_radius = ReduceMin( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
 
-        auto& ptile = ParticlesAt(m_lev, pti);
-        auto& aos = ptile.GetArrayOfStructs();
-        auto& soa = ptile.GetStructOfArrays();
-        const size_t np = aos.numParticles();
-        auto* p_pbox = aos().data();
+    auto max_par_radius = ReduceMax( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i]; } );
 
-        /* SoA attributes */
-        auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
+    auto avg_par_radius = ReduceSum( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     {
+                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                         auto r = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                                         return n*r;
+                                     } );
 
-        /* Runtime-added SoA attributes */
-        int rt_offset = SuperDropletsRealIdxSoA::ncomps;
-        auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
+    auto min_par_mass   = ReduceMin( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
 
-        Gpu::Buffer<Real> avg_particle_mass({0}), avg_particle_radius({0});
-        auto* avg_particle_mass_ptr = avg_particle_mass.data();
-        auto* avg_particle_radius_ptr = avg_particle_radius.data();
+    auto max_par_mass   = ReduceMax( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
 
-        Gpu::Buffer<Real> min_particle_mass({DBL_MAX}), min_particle_radius({DBL_MAX});
-        auto* min_particle_mass_ptr = min_particle_mass.data();
-        auto* min_particle_radius_ptr = min_particle_radius.data();
+    auto avg_par_mass   = ReduceSum( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     {
+                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                         auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+                                         return n*m;
+                                     } );
 
-        Gpu::Buffer<Real> max_particle_mass({0}), max_particle_radius({0});
-        auto* max_particle_mass_ptr = max_particle_mass.data();
-        auto* max_particle_radius_ptr = max_particle_radius.data();
-
-        Gpu::Buffer<Long> num_particles({0});
-        Long* num_particles_ptr = num_particles.data();
-
-        ParallelFor(np, [=] AMREX_GPU_DEVICE (int i)
-        {
-            ParticleType& p = p_pbox[i];
-            if (p.id() <= 0) { return; }
-
-            auto radius = radius_ptr[i];
-            auto mass = mass_ptr[i];
-
-            Gpu::Atomic::Add( avg_particle_mass_ptr, mass );
-            Gpu::Atomic::Add( avg_particle_radius_ptr, radius );
-
-            Gpu::Atomic::Min( min_particle_mass_ptr, mass );
-            Gpu::Atomic::Min( min_particle_radius_ptr, radius );
-
-            Gpu::Atomic::Max( max_particle_mass_ptr, mass );
-            Gpu::Atomic::Max( max_particle_radius_ptr, radius );
-
-            Gpu::Atomic::Add( num_particles_ptr, Long(1) );
-
-        });
-
-        Gpu::streamSynchronize();
-
-        max_par_mass = std::max( max_par_mass, *(max_particle_mass.copyToHost()) );
-        max_par_radius = std::max( max_par_radius, *(max_particle_radius.copyToHost()) );
-
-        min_par_mass = std::min( min_par_mass, *(min_particle_mass.copyToHost()) );
-        min_par_radius = std::min( min_par_radius, *(min_particle_radius.copyToHost()) );
-
-        avg_par_mass += *(avg_particle_mass.copyToHost());
-        avg_par_radius += *(avg_particle_radius.copyToHost());
-
-        num_total_particles += *(num_particles.copyToHost());
-    }
-
-    ParallelDescriptor::ReduceLongSum(&num_total_particles,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
