@@ -586,6 +586,9 @@ private:
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
+    amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
 //#endif
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
