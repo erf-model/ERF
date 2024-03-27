@@ -9,11 +9,12 @@ fabarray.mfiter_tile_size = 2048 1024 2048
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -25000.   0.    0.
 geometry.prob_hi     =  25000. 400. 20000.
-amr.n_cell           =  192    4    128    # dx=dy=dz=100 m
+amr.n_cell           =  192    4    128
 
-# periodic in x to match WRF setup
-# - as an alternative, could use symmetry at x=0 and outflow at x=25600
-geometry.is_periodic = 1 1 0
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Open"
+xhi.type = "Open"
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
@@ -58,13 +59,12 @@ erf.alpha_C = 100.0
 erf.moisture_model = "Kessler"
 erf.use_moist_background = true
 
-erf.dycore_horiz_adv_type    = "Upwind_3rd"
-erf.dycore_vert_adv_type     = "Upwind_3rd"
-erf.dryscal_horiz_adv_type   = "Upwind_3rd"
-erf.dryscal_vert_adv_type    = "Upwind_3rd"
-erf.moistscal_horiz_adv_type = "Upwind_3rd"
-erf.moistscal_vert_adv_type  = "Upwind_3rd"
-
+erf.dycore_horiz_adv_type    = "Centered_2nd"
+erf.dycore_vert_adv_type     = "Centered_2nd"
+erf.dryscal_horiz_adv_type   = "Centered_2nd"
+erf.dryscal_vert_adv_type    = "Centered_2nd"
+erf.moistscal_horiz_adv_type = "Centered_2nd"
+erf.moistscal_vert_adv_type  = "Centered_2nd"
 
 # PROBLEM PARAMETERS (optional)
 prob.z_tr = 12000.0

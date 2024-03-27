@@ -1585,8 +1585,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rV_new[lev],
                              rW_new[lev],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
+                           domain_bcs_type);
     }
 
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
