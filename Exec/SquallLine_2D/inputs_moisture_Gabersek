@@ -11,11 +11,11 @@ geometry.prob_lo     = -75000.   0.    0.
 geometry.prob_hi     =  75000. 400. 24000.
 amr.n_cell           =  1500     4    240    # dx=dy=dz=100 m
 
-# periodic in x to match WRF setup
-# - as an alternative, could use symmetry at x=0 and outflow at x=25600
 geometry.is_periodic = 0 1 0
+
 xlo.type = "Open"
 xhi.type = "Open"
+
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
 

@@ -9,14 +9,15 @@ fabarray.mfiter_tile_size = 2048 1024 2048
 # PROBLEM SIZE & GEOMETRY
 geometry.prob_lo     = -25000.   0.    0.
 geometry.prob_hi     =  25000. 400. 20000.
-amr.n_cell           =  192    4    128
+amr.n_cell           =   96    4    128
 
 geometry.is_periodic = 0 1 0
 
 xlo.type = "Open"
 xhi.type = "Open"
+
 zlo.type = "SlipWall"
-zhi.type = "Outflow"
+zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
@@ -29,8 +30,24 @@ erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 
+################################ MULTILEVEL ################################
 # REFINEMENT / REGRIDDING
-amr.max_level       = 0       # maximum level number allowed
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+
+erf.coupling_type = "TwoWay"
+erf.regrid_int = 2
+
+erf.refinement_indicators = hi_qc
+erf.hi_qc.max_level     = 1
+erf.hi_qc.field_name    = qc
+erf.hi_qc.value_greater = 1.e-4
+
+erf.cf_width     = 0
+erf.cf_set_width = 0
+
+amr.n_error_buf  = 3 3
+################################ MULTILEVEL ################################
 
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file

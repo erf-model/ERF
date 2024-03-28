@@ -50,8 +50,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                         bool l_use_ndiff);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
  * Compute boxes for looping over interior/exterior ghost cells
