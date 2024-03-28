@@ -247,6 +247,14 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         Error("YSU Model not implemented yet");
 
+        /*
+          YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
+
+          Further Modifications from S.-Y. Hong, Q. J. R. Meteorol. Soc., 2010 [H10]
+
+          Implementation follows WRF as of early 2024 with some simplifications
+         */
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -273,7 +281,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             if (most->get_zref() != 10.0) {
-                amrex::Abort("MOST Zref must be 10 m for YSU PBL scheme");
+                amrex::Abort("MOST Zref must be 10m for YSU PBL scheme");
             }
 
             // create flattened boxes to store PBL height
@@ -284,17 +292,24 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             // -- Diagnose PBL height - starting out assuming non-moist
             // loop is only over i,j in order to find height at each x,y
             const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
+            const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
+            const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 // TODO: unstable BLs
 
-                // This is only for stable BLs
-                // Compute u10 and v10 based on values in first cell and MOST
-                // See Jiminez et al, Monthly Weather Review, 2012 (https://doi.org/10.1175/MWR-D-11-00056.1)
-                const Real ws10 = ws10av_arr(i,j,0);
-                const Real z0 = z0_arr(i,j,0);
-                const Real Rossby = ws10/(f0*z0);
-                const Real Rib_cr = min(0.16*std::pow(1.0e-7*Rossby,-0.18),0.3); // Note: upper bound in WRF code, but not H10 paper
+                // PBL Height: Stable Conditions
+                amrex::Real Rib_cr;
+                if (over_land) {
+                    Rib_cr = land_Ribcr;
+                } else { // over water
+                    // Velocity at z=10 m comes from MOST -> currently the average using whatever averaging MOST uses.
+                    // TODO: Revisit this calculation with local ws10?
+                    const Real ws10 = ws10av_arr(i,j,0);
+                    const Real z0 = z0_arr(i,j,0);
+                    const Real Rossby = ws10/(f0*z0);
+                    Rib_cr = min(0.16*std::pow(1.0e-7*Rossby,-0.18),0.3); // Note: upper bound in WRF code, but not H10 paper
+                }
                 pblh_arr(i,j,0) = 0.0;
             });
 

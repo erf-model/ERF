@@ -289,7 +289,10 @@ struct TurbChoice {
     amrex::Real pbl_mynn_C5 = 0.2;
 
     // Model coefficients - YSU
-    amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // TODO:
+    // TODO: Add parmparse for all of these above
+    amrex::Real pbl_ysu_coriolis_freq = 1.0e-4; // TODO: make this consistent with coriolis forcing (but note WRF always uses 1e-4)
+    bool        pbl_ysu_over_land = false; // TODO: pull from other inputs and make local
+    amrex::Real pbl_ysu_land_Ribcr = 0.25; // Critical Bulk Richardson number of Land for stable conditions
 
     // QKE stuff - default is not to use it, if MYNN2.5 or YSU PBL is used default is turb transport in Z-direction only
     bool use_QKE = false;
