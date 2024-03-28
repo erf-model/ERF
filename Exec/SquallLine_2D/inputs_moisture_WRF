@@ -16,7 +16,7 @@ geometry.is_periodic = 0 1 0
 xlo.type = "Open"
 xhi.type = "Open"
 zlo.type = "SlipWall"
-zhi.type = "SlipWall"
+zhi.type = "Outflow"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
