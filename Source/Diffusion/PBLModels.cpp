@@ -132,7 +132,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_kappa   = KAPPA;
             Real d_gravity = CONST_GRAV;
 
-            const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
+            const auto& t_mean_mf = most->get_mac_avg(level,2); // TODO: IS THIS ACTUALLY RHOTHETA
             const auto& u_star_mf = most->get_u_star(level);    // Use desired level
             const auto& t_star_mf = most->get_t_star(level);    // Use desired level
 
@@ -264,9 +264,17 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& K_turb = eddyViscosity.array(mfi);
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
+
+            const auto& z0_arr = most->get_z0(level)->const_array();
+            const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
             const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
             const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
             const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+
+            // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
+            if (most->get_zref() != 10.0) {
+                amrex::Abort("MOST Zref must be 10 m for YSU PBL scheme");
+            }
 
             // create flattened boxes to store PBL height
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
@@ -274,10 +282,20 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& pblh_arr = pbl_height.array();
 
             // -- Diagnose PBL height - starting out assuming non-moist
+            // loop is only over i,j in order to find height at each x,y
+            const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // TODO: unstable BLs
+
                 // This is only for stable BLs
-                pblh_arr(i,j,k) = 0.0;
+                // Compute u10 and v10 based on values in first cell and MOST
+                // See Jiminez et al, Monthly Weather Review, 2012 (https://doi.org/10.1175/MWR-D-11-00056.1)
+                const Real ws10 = ws10av_arr(i,j,0);
+                const Real z0 = z0_arr(i,j,0);
+                const Real Rossby = ws10/(f0*z0);
+                const Real Rib_cr = min(0.16*std::pow(1.0e-7*Rossby,-0.18),0.3); // Note: upper bound in WRF code, but not H10 paper
+                pblh_arr(i,j,0) = 0.0;
             });
 
             // -- Compute entrainment parameters
