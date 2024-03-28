@@ -286,6 +286,12 @@ public:
     const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
+    amrex::Real
+    get_zref () {return m_ma.get_zref();}
+
+    const amrex::FArrayBox*
+    get_z0 (const int& lev) {return &z_0[lev];}
+
     enum struct FluxCalcType {
         MOENG = 0,      ///< Moeng functional form
         DONELAN,        ///< Donelan functional form
