@@ -16,24 +16,21 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
+
     for (int j=0; j < ref_tags.size(); ++j)
     {
         std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 0);
-
-        bool tag_found = false;
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
         {
             MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,0);
-            tag_found = true;
 
         // This allows dynamic refinement based on the value of qv
         } else if ( ref_tags[j].Field() == "qv" ) {
             MultiFab qv(vars_new[levc][Vars::cons],make_alias,0,RhoQ1_comp+1);
             MultiFab::Copy(  *mf, qv, RhoQ1_comp, 0, 1, 0);
             MultiFab::Divide(*mf, qv, Rho_comp  , 0, 1, 0);
-            tag_found = true;
 
 
         // This allows dynamic refinement based on the value of qc
@@ -41,7 +38,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
             MultiFab qc(vars_new[levc][Vars::cons],make_alias,0,RhoQ2_comp+1);
             MultiFab::Copy(  *mf, qc, RhoQ2_comp, 0, 1, 0);
             MultiFab::Divide(*mf, qc, Rho_comp  , 0, 1, 0);
-            tag_found = true;
 
 
         // This allows dynamic refinement based on the value of the scalar/pressure/theta
@@ -60,7 +56,6 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                     derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
-            tag_found = true;
 #ifdef ERF_USE_PARTICLES
         } else {
             //
@@ -95,15 +90,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             MultiFab::Add(*mf, temp_dat_crse, 0, 0, 1, 0);
                         }
                     }
-                    tag_found = true;
                 }
             }
 #endif
         }
 
-        if (tag_found) {
-            ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
-        }
+        ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
     } // loop over j
 }
 
