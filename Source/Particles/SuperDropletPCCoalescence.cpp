@@ -23,7 +23,7 @@ static void random_shuffle ( dtype* const a_d_ptr, /*!< Pointer to data array */
                              const int  a_n, /*!< size of data array */
                              const RandomEngine& a_rnd_eng /*!< random engine */ )
 {
-    int num_passes = Random_int(a_n/2, a_rnd_eng);
+    int num_passes = Random_int(100, a_rnd_eng);
     for (int ipass = 0; ipass < num_passes; ipass++) {
         for (int i = 0; i < a_n; i++) {
             int j = Random_int(a_n, a_rnd_eng);
