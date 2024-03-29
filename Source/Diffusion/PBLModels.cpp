@@ -275,16 +275,21 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             const auto& z0_arr = most->get_z0(level)->const_array();
             const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
+            const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
             const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
             const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
+            const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+            const auto& z_nd_arr = z_phys_nd->array(mfi);
+            const Real most_zref = most->get_zref();
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
-            if (most->get_zref() != 10.0) {
+            if (most_zref != 10.0) {
                 amrex::Abort("MOST Zref must be 10m for YSU PBL scheme");
             }
 
             // create flattened boxes to store PBL height
+            const GeometryData gdata = geom.data();
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
             FArrayBox pbl_height(xybx,1);
             const auto& pblh_arr = pbl_height.array();
@@ -294,8 +299,21 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
             const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
             const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
+            const Real unst_Ribcr = turbChoice.pbl_ysu_unst_Ribcr;
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
+                // Reconstruct a surface bulk Richardson number from the surface layer model
+                // In WRF, this value is supplied to YSU by the MM5 surface layer model
+                const Real t_surf = t_surf_arr(i,j,0);
+                const Real t_layer = t10av_arr(i,j,0);
+                const Real ws_layer = ws10av_arr(i,j,0);
+                const Real Rib_layer = CONST_GRAV * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
+
+                // For now, we only support stable boundary layers
+                if (Rib_layer < unst_Ribcr) {
+                    amrex::Abort("For now, YSU PBL only supports stable conditions");
+                }
+
                 // TODO: unstable BLs
 
                 // PBL Height: Stable Conditions
@@ -305,13 +323,43 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 } else { // over water
                     // Velocity at z=10 m comes from MOST -> currently the average using whatever averaging MOST uses.
                     // TODO: Revisit this calculation with local ws10?
-                    const Real ws10 = ws10av_arr(i,j,0);
                     const Real z0 = z0_arr(i,j,0);
-                    const Real Rossby = ws10/(f0*z0);
+                    const Real Rossby = ws_layer/(f0*z0);
                     Rib_cr = min(0.16*std::pow(1.0e-7*Rossby,-0.18),0.3); // Note: upper bound in WRF code, but not H10 paper
                 }
-                pblh_arr(i,j,0) = 0.0;
+
+                bool above_critical = false;
+                int kpbl = 0;
+                Real Rib_up = Rib_layer, Rib_dn;
+                const Real base_theta = cell_data(i,j,0,RhoTheta_comp) / cell_data(i,j,0,Rho_comp);
+                while (!above_critical and bx.contains(i,j,kpbl+1)) {
+                    kpbl += 1;
+                    const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                    const Real ws2_level = (uvel(i,j,kpbl)+uvel(i+1,j,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j,kpbl)) + (vvel(i,j,kpbl)+vvel(i,j+1,kpbl))*(uvel(i,j,kpbl)+uvel(i,j+1,kpbl));
+                    const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
+                    Rib_dn = Rib_up;
+                    Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;
+                    above_critical = Rib_up >= Rib_cr;
+                }
+
+                Real interp_fact;
+                if (Rib_dn >= Rib_cr) {
+                    interp_fact = 0.0;
+                } else if (Rib_up <= Rib_cr)
+                    interp_fact = 1.0;
+                else {
+                    interp_fact = (Rib_cr - Rib_dn) / (Rib_up - Rib_dn);
+                }
+
+                const Real zval_up = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                const Real zval_dn = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + 0.5)*gdata.CellSize(2);
+                pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
+                if (pblh_arr(i,j,0) < 0.5*(zval_up+zval_dn) ) {
+                    kpbl = 0;
+                }
             });
+
+            // -- Compute nonlocal/countergradient mixing parameters
 
             // -- Compute entrainment parameters
 

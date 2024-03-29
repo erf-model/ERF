@@ -286,6 +286,9 @@ public:
     const amrex::MultiFab*
     get_mac_avg (const int& lev, int comp) { return m_ma.get_average(lev,comp); }
 
+    const amrex::MultiFab*
+    get_t_surf (const int& lev) { return t_surf[lev].get(); }
+
     amrex::Real
     get_zref () {return m_ma.get_zref();}
 
