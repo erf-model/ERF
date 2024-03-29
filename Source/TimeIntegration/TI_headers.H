@@ -55,6 +55,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
                       const amrex::Real* dptr_rhotheta_src,
+                      const amrex::Real* dptr_rhoqt_src,
+                      const amrex::Real* dptr_u_geos,
+                      const amrex::Real* dptr_v_geos,
                       const amrex::Real* dptr_wbar_sub,
                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 
@@ -82,6 +85,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
+                       const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                        std::unique_ptr<amrex::MultiFab>& dJ_old,
                        std::unique_ptr<amrex::MultiFab>& dJ_new,
@@ -268,8 +272,10 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
                        const amrex::Real* dptr_rhotheta_src,
+                       const amrex::Real* dptr_u_geos,
+                       const amrex::Real* dptr_v_geos,
                        const amrex::Real* dptr_wbar_sub,
-                       const Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
 #endif
 
 void ApplySpongeZoneBCs (const SpongeChoice& spongeChoice,

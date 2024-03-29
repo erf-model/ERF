@@ -236,7 +236,9 @@ public:
 
     void advance_microphysics (int lev,
                                amrex::MultiFab& cons_in,
-                               const amrex::Real& dt_advance);
+                               const amrex::Real& dt_advance,
+                               const int& iteration,
+                               const amrex::Real& time);
 
     void advance_lsm (int lev,
                       amrex::MultiFab& /*cons_in*/,
@@ -342,6 +344,10 @@ public:
     void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
+#ifdef ERF_USE_WINDFARM
+    void init_windfarm(int lev);
+#endif
+
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
@@ -373,9 +379,15 @@ private:
 
     void init_uniform (int lev);
 
-    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+                     amrex::Vector<amrex::MultiFab>& lev_new,
+                     amrex::Vector<amrex::MultiFab>& lev_old);
 
+    // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
+
+    // Initialize the bc routines
+    void initialize_bcs        (int lev);
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
@@ -576,6 +588,9 @@ private:
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
+    amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
 //#endif
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
@@ -711,8 +726,8 @@ private:
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar", "vorticity",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
                                                     // eddy viscosity
@@ -813,6 +828,12 @@ private:
 
     amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_u_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_u_geos;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;

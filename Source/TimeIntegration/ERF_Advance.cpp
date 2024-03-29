@@ -17,7 +17,7 @@ using namespace amrex;
  */
 
 void
-ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/)
+ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
 
@@ -72,7 +72,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Update with the Fitch source terms
     if (solverChoice.windfarm_type == WindFarmType::Fitch) {
         fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_fitch[lev]);
+                      U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
     }
 #endif
 
@@ -124,7 +124,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    advance_microphysics(lev, S_new, dt_lev);
+    advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
     // **************************************************************************************
     // Update the land surface model

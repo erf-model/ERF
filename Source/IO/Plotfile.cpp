@@ -7,6 +7,8 @@
 
 using namespace amrex;
 
+PhysBCFunctNoOp null_bc_for_fill;
+
 template<typename V, typename T>
 bool containerHasElement (const V& iterable, const T& query) {
     return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
@@ -168,11 +170,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
     }
 
+    // Vector of MultiFabs for cell-centered data
     Vector<MultiFab> mf(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         mf[lev].define(grids[lev], dmap[lev], ncomp_mf, 0);
     }
 
+    // Vector of MultiFabs for nodal data
     Vector<MultiFab> mf_nd(finest_level+1);
     if (solverChoice.use_terrain) {
         for (int lev = 0; lev <= finest_level; ++lev) {
@@ -181,6 +185,39 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_nd[lev].setVal(0.);
         }
     }
+
+    // Array of MultiFabs for cell-centered velocity
+    Vector<MultiFab> mf_cc_vel(finest_level+1);
+
+    if (containerHasElement(plot_var_names, "x_velocity") ||
+        containerHasElement(plot_var_names, "y_velocity") ||
+        containerHasElement(plot_var_names, "z_velocity") ||
+        containerHasElement(plot_var_names, "vorticity") ) {
+
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,0));
+            average_face_to_cellcenter(mf_cc_vel[lev],0,
+                                       Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
+            mf_cc_vel[lev].FillBoundary(geom[lev].periodicity());
+        } // lev
+
+        // We need ghost cells if computing vorticity
+        amrex::Interpolater* mapper = &cell_cons_interp;
+        if ( containerHasElement(plot_var_names, "vorticity") ) {
+            for (int lev = 1; lev <= finest_level; ++lev) {
+                Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
+                Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+                Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
+                Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+
+                MultiFab mf_to_fill;
+                amrex::FillPatchTwoLevels(mf_cc_vel[lev], t_new[lev], cmf, ctime, fmf, ftime,
+                                          0, 0, AMREX_SPACEDIM, geom[lev-1], geom[lev],
+                                          null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
+                                          mapper, domain_bcs_type, 0);
+            } // lev
+        } // if
+    } // if
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -195,14 +232,18 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         }
 
-        // Next, check for velocities and if desired, output them -- note we output none or all, not just some
-        if (containerHasElement(plot_var_names, "x_velocity") ||
-            containerHasElement(plot_var_names, "y_velocity") ||
-            containerHasElement(plot_var_names, "z_velocity")) {
-
-            average_face_to_cellcenter(mf[lev],mf_comp,
-                Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-            mf_comp += AMREX_SPACEDIM;
+        // Next, check for velocities
+        if (containerHasElement(plot_var_names, "x_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "y_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 1, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "z_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 2, mf_comp, 1, 0);
+            mf_comp += 1;
         }
 
         // Finally, check for any derived quantities and compute them, inserting
@@ -234,6 +275,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("KE",          derived::erf_derKE);
         calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
+        calculate_derived("vorticity",   derived::erf_dervort);
 
         MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
         MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -335,6 +377,26 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
             mf_comp ++;
         }
+
+#ifdef ERF_USE_WINDFARM
+        if (containerHasElement(plot_var_names, "num_turb"))
+        {
+        std::cout << "Plotting num_turb" << "\n";
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+            for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real>& derdat  = mf[lev].array(mfi);
+                const Array4<Real const>& Nturb_array = Nturb[lev].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    derdat(i, j, k, mf_comp) = Nturb_array(i,j,k,0);
+                });
+            }
+            mf_comp ++;
+        }
+#endif
 
         int klo = geom[lev].Domain().smallEnd(2);
         int khi = geom[lev].Domain().bigEnd(2);

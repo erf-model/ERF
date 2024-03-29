@@ -34,13 +34,13 @@ Real ERF::fixed_dt      = -1.0;
 Real ERF::fixed_fast_dt = -1.0;
 Real ERF::init_shrink   =  1.0;
 Real ERF::change_max    =  1.1;
-int         ERF::fixed_mri_dt_ratio = 0;
+int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
-int         ERF::verbose       = 0;
+int ERF::verbose       = 0;
 
 // Frequency of diagnostic output
-int         ERF::sum_interval  = -1;
+int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
 
 // Native AMReX vs NetCDF
@@ -66,21 +66,21 @@ std::string ERF::input_sounding_file = "input_sounding";
 bool ERF::init_sounding_ideal = false;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
-int         ERF::output_1d_column = 0;
-int         ERF::column_interval  = -1;
+int  ERF::output_1d_column = 0;
+int  ERF::column_interval  = -1;
 Real ERF::column_per       = -1.0;
 Real ERF::column_loc_x     = 0.0;
 Real ERF::column_loc_y     = 0.0;
 std::string ERF::column_file_name = "column_data.nc";
 
 // 2D BndryRegister output (for ingestion by AMR-Wind)
-int         ERF::output_bndry_planes            = 0;
-int         ERF::bndry_output_planes_interval   = -1;
+int  ERF::output_bndry_planes            = 0;
+int  ERF::bndry_output_planes_interval   = -1;
 Real ERF::bndry_output_planes_per        = -1.0;
 Real ERF::bndry_output_planes_start_time =  0.0;
 
 // 2D BndryRegister input
-int         ERF::input_bndry_planes             = 0;
+int  ERF::input_bndry_planes             = 0;
 
 Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
 
@@ -608,10 +608,6 @@ ERF::InitData ()
             AverageDown();
         }
 
-#ifdef ERF_USE_PARTICLES
-        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
-#endif
-
     } else { // Restart from a checkpoint
 
         restart();
@@ -650,19 +646,6 @@ ERF::InitData ()
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 
-    // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        advflux_reg[0] = nullptr;
-        int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-        for (int lev = 1; lev <= finest_level; lev++)
-        {
-            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
-                                                   dmap[lev],  dmap[lev-1],
-                                                   geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, ncomp_reflux);
-        }
-    }
-
     if (solverChoice.custom_rhotheta_forcing)
     {
         h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
@@ -673,6 +656,25 @@ ERF::InitData ()
             d_rhotheta_src[lev].resize(domlen, 0.0_rt);
             prob->update_rhotheta_sources(t_new[0],
                                           h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          geom[lev], z_phys_cc[lev]);
+        }
+    }
+
+    if (solverChoice.custom_geostrophic_profile)
+    {
+        h_u_geos.resize(max_level+1, Vector<Real>(0));
+        d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        h_v_geos.resize(max_level+1, Vector<Real>(0));
+        d_v_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++) {
+            const int domlen = geom[lev].Domain().length(2);
+            h_u_geos[lev].resize(domlen, 0.0_rt);
+            d_u_geos[lev].resize(domlen, 0.0_rt);
+            h_v_geos[lev].resize(domlen, 0.0_rt);
+            d_v_geos[lev].resize(domlen, 0.0_rt);
+            prob->update_geostrophic_profile(t_new[0],
+                                          h_u_geos[lev], d_u_geos[lev],
+                                          h_v_geos[lev], d_v_geos[lev],
                                           geom[lev], z_phys_cc[lev]);
         }
     }
@@ -1091,6 +1093,12 @@ ERF::init_only (int lev, Real time)
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::yvel].OverrideSync(geom[lev].periodicity());
     lev_new[Vars::zvel].OverrideSync(geom[lev].periodicity());
+
+    // Initialize wind farm
+
+#ifdef ERF_USE_WINDFARM
+    init_windfarm(lev);
+#endif
 }
 
 // read in some parameters from inputs file
@@ -1577,8 +1585,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rV_new[lev],
                              rW_new[lev],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
+                           domain_bcs_type);
     }
 
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

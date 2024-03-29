@@ -56,7 +56,7 @@ void SAM::Cloud () {
             // NOTE: Conversion before iterations is necessary to
             //       convert cloud water to ice or vice versa.
             //       This ensures the omn splitting is enforced
-            //       before the Newton itersion, which assume it is.
+            //       before the Newton iteration, which assumes it is.
 
             // Cloud ice not permitted (melt to form water)
             if(tabs >= tbgmax) {

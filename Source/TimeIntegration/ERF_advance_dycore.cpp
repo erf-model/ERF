@@ -59,6 +59,8 @@ void ERF::advance_dycore(int level,
     Real* dptr_rhotheta_src = solverChoice.custom_rhotheta_forcing ? d_rhotheta_src[level].data() : nullptr;
     Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
     Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
+    Real* dptr_u_geos       = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data()    : nullptr;
+    Real* dptr_v_geos       = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data()    : nullptr;
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
@@ -210,19 +212,31 @@ void ERF::advance_dycore(int level,
                                    fine_geom, z_phys_cc[level]);
     }
 
+    if (solverChoice.custom_geostrophic_profile) {
+        prob->update_geostrophic_profile(old_time,
+                                   h_u_geos[level], d_u_geos[level],
+                                   h_v_geos[level], d_v_geos[level],
+                                   fine_geom, z_phys_cc[level]);
+    }
+
     // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
     MultiFab density(state_old[IntVars::cons], make_alias, Rho_comp, 1);
-    VelocityToMomentum(xvel_old, xvel_old.nGrowVect(),
-                       yvel_old, yvel_old.nGrowVect(),
-                       zvel_old, zvel_old.nGrowVect(),
-                       density,
+
+    //
+    // This is an optimization since we won't need more than one ghost
+    // cell of momentum in the integrator if not using NumDiff
+    //
+    IntVect ngu = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (solverChoice.use_NumDiff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (solverChoice.use_NumDiff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    VelocityToMomentum(xvel_old, ngu, yvel_old, ngv, zvel_old, ngw, density,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
                        state_old[IntVars::zmom],
-                       Geom(level).Domain(), domain_bcs_type,
-                       solverChoice.use_NumDiff);
+                       Geom(level).Domain(), domain_bcs_type);
+
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
     MultiFab::Copy(zvel_new,zvel_old,0,0,1,zvel_old.nGrowVect());

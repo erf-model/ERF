@@ -52,6 +52,13 @@ void SAM::IceFall () {
                 qci_avg = 0.5*(qci_array(i,j,k-1) + qci_array(i,j,k));
             }
             Real vt_ice = min( 0.4 , 8.66 * pow( (max(0.,qci_avg)+1.e-10) , 0.24) );
+
+            // NOTE: Fz is the sedimentation flux from the advective operator.
+            //       In the terrain-following coordinate system, the z-deriv in
+            //       the divergence uses the normal velocity (Omega). However,
+            //       there are no u/v components to the sedimentation velocity.
+            //       Therefore, we simply end up with a division by detJ when
+            //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
             fz_array(i,j,k) = rho_avg*vt_ice*qci_avg;
         });
     }
@@ -63,20 +70,25 @@ void SAM::IceFall () {
         auto rho_array   = rho->array(mfi);
         auto fz_array    = fz.array(mfi);
 
+        const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
+
         const auto& box3d  = mfi.tilebox();
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            // Jacobian determinant
+            Real dJinv = (dJ_array) ? 1.0/dJ_array(i,j,k) : 1.0;
+
             //==================================================
             // Cloud ice sedimentation (A32)
             //==================================================
-            Real dqi  = (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
+            Real dqi  = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
             dqi = std::max(-qci_array(i,j,k), dqi);
 
             // Add this increment to both non-precipitating and total water.
             qci_array(i,j,k) += dqi;
-            qn_array(i,j,k) += dqi;
-            qt_array(i,j,k) += dqi;
+             qn_array(i,j,k) += dqi;
+             qt_array(i,j,k) += dqi;
 
             // NOTE: Sedimentation does not affect the potential temperature,
             //       but it does affect the liquid/ice static energy.

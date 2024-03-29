@@ -24,7 +24,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -64,6 +64,8 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
                 } else if (bc_ptr[n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
+                } else if (bc_ptr[n].lo(0) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(dom_lo.x,j,k);
                 } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
                 } else if (bc_ptr[n].lo(0) == ERFBCType::reflect_odd) {
@@ -75,6 +77,8 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                 if (bc_ptr[n].hi(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
                 } else if (bc_ptr[n].hi(0) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
+                } else if (bc_ptr[n].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(dom_hi.x,j,k);
                 } else if (bc_ptr[n].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(iflip,j,k);
@@ -101,6 +105,8 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][1];
                 } else if (bc_ptr[n].lo(1) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
+                } else if (bc_ptr[n].lo(1) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,dom_lo.y,k);
                 } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(i,jflip,k);
                 } else if (bc_ptr[n].lo(1) == ERFBCType::reflect_odd) {
@@ -126,6 +132,8 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                  if (bc_ptr[n].hi(1) == ERFBCType::ext_dir) {
                      dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
                  } else if (bc_ptr[n].hi(1) == ERFBCType::foextrap) {
+                     dest_arr(i,j,k) =  dest_arr(i,dom_hi.y+1,k);
+                 } else if (bc_ptr[n].hi(1) == ERFBCType::open) {
                      dest_arr(i,j,k) =  dest_arr(i,dom_hi.y+1,k);
                  } else if (bc_ptr[n].hi(1) == ERFBCType::reflect_even) {
                      dest_arr(i,j,k) =  dest_arr(i,jflip,k);
@@ -175,7 +183,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     //      0 is used as starting index for bcrs
     int ncomp = 1;
     Vector<BCRec> bcrs(ncomp);
-    setBC(bx, domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
+    setBC(enclosedCells(bx), domain, bccomp, 0, ncomp, m_domain_bcs_type, bcrs);
 
     // xlo: ori = 0
     // ylo: ori = 1
@@ -211,6 +219,8 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][2];
                 } else if (bc_ptr[n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
+                } else if (bc_ptr[n].lo(2) == ERFBCType::open) {
+                    dest_arr(i,j,k) =  dest_arr(i,j,dom_lo.z);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(i,j,kflip);
                 } else if (bc_ptr[n].lo(2) == ERFBCType::reflect_odd) {
@@ -222,6 +232,8 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                 if (bc_ptr[n].hi(2) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[n][5];
                 } else if (bc_ptr[n].hi(2) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k) =  dest_arr(i,j,dom_hi.z);
+                } else if (bc_ptr[n].hi(2) == ERFBCType::open) {
                     dest_arr(i,j,k) =  dest_arr(i,j,dom_hi.z);
                 } else if (bc_ptr[n].hi(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k) =  dest_arr(i,j,kflip);
@@ -242,7 +254,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
         // Loop over each component
         for (int n = 0; n < ncomp; n++) {
             // Hit for Neumann condition at kmin
-            if( bcrs[n].lo(2) == ERFBCType::foextrap) {
+            if(bcrs[n].lo(2) == ERFBCType::foextrap) {
                 // Loop over ghost cells in bottom XY-plane (valid box)
                 Box xybx = bx;
                 xybx.setBig(2,-1);

@@ -72,7 +72,8 @@ init_zlevels (Vector<Real>& zlevels_stag,
  */
 
 void
-init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Real> const& z_levels_h)
+init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
+                   Vector<Real> const& z_levels_h)
 {
   // z_nd is nodal in all directions
   const Box& domain = geom.Domain();
@@ -81,7 +82,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
   int domlo_z = domain.smallEnd(2); int domhi_z = domain.bigEnd(2) + 1;
   int nz = domain.length(2)+1; // staggered
 
-  Real ztop = z_levels_h[nz-1];
+  Real z_top = z_levels_h[nz-1];
 
   // User-selected method from inputs file (BTF default)
   ParmParse pp("erf");
@@ -116,46 +117,52 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
       for ( MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi )
       {
           // Note that this box is nodal because it is based on z_phys_nd
-          const Box& bx = mfi.validbox();
+          const Box&  bx = mfi.validbox();
+
           int k0 = bx.smallEnd()[2];
 
           // Grown box with corrected ghost cells at top
           Box gbx = mfi.growntilebox(ngrowVect);
 
+          if (bx.smallEnd(2) > domlo_z) {
+              gbx.growLo(2,-1);
+          }
+          if (bx.bigEnd(2) < domhi_z) {
+              gbx.growHi(2,-1);
+          }
+
           Array4<Real> const& z_arr = z_phys_nd.array(mfi);
           auto const&         z_lev = z_levels_d.data();
 
+          //
+          // Vertical grid stretching using BTF model from p2163 of Klemp2011
+          //
           ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
           {
-              // Vertical grid stretching
-              Real z =  z_lev[k];
-
               int ii = amrex::max(amrex::min(i,imax),imin);
               int jj = amrex::max(amrex::min(j,jmax),jmin);
 
               //
-              // Fill levels using BTF model from p2163 of Klemp2011
+              // Start with flat z_lev set either with uniform cell size or specified z_levels
+              // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
+              // If k0 > 0 then z_arr at k0 has already been filled from interpolation
               //
-              // z_arr(i,j,k) = z_arr(ii,jj,k0) + (1. - z_arr(ii,jj,k0)/ztop) * z;
-              // is equivalent to
-              // z_arr(i,j,k) = z + (1. - (z/ztop)) * z_arr(ii,jj,k0);
-              // This formulation allows us to start from k0 != 0
-              //
-              // If k0 = 0 then z_arr has already been filled from the terrain data
-              // If k0 > 0 then z_arr has already been filled from interpolation
-              //
-              if (k == k0) {
-                  z_arr(i,j,k0  ) = z_arr(ii,jj,k0);
-              } else {
-                  z_arr(i,j,k) = z_arr(ii,jj,k0) + (1. - z_arr(ii,jj,k0)/ztop) * (z - z_lev[k0]);
-              }
+              Real z         = z_lev[k];
+              Real z_sfc     = z_arr(ii,jj,k0);
+              Real z_lev_sfc = z_lev[k0];
 
-              // Fill lateral boundaries and below the bottom surface
-              if (k == 1) {
-                  z_arr(i,j,k0-1) = 2.0*z_arr(ii,jj,k0) - z_arr(i,j,k);
-              }
+              z_arr(i,j,k) = ( (z_sfc - z_lev_sfc) * z_top +
+                               (z_top - z_sfc    ) * z     ) / (z_top - z_lev_sfc);
           });
-        }
+
+          if (k0 == 0) {
+              // Fill lateral boundaries below the bottom surface
+              ParallelFor(makeSlab(gbx,2,0), [=] AMREX_GPU_DEVICE (int i, int j, int)
+              {
+                  z_arr(i,j,-1) = 2.0*z_arr(i,j,0) - z_arr(i,j,1);
+              });
+            }
+        } // mfi
 
         break;
     }
@@ -340,7 +347,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
 
                 // Fill levels using model from Sullivan et. al. 2014
                 int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+                z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
 
                 // Fill lateral boundaries and below the bottom surface
                 if (k == k0)
@@ -379,7 +386,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd, Vector<Re
                 } else {
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + (std::pow((1. - (z/ztop)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + (std::pow((1. - (z/z_top)),omega) * z_arr(ii,jj,k0));
                 }
             });
             gbx.setBig(2,0);

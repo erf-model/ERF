@@ -64,6 +64,9 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
+ * @param[in] dptr_u_geos  custom geostrophic wind profile
+ * @param[in] dptr_v_geos  custom geostrophic wind profile
+ * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  */
 
@@ -103,10 +106,16 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const Real* dptr_rhotheta_src,
+                       const Real* dptr_rhoqt_src,
+                       const Real* dptr_u_geos,
+                       const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
+
+    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -141,8 +150,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_most     = (most != nullptr);
 
-    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
-    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
+    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
+    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
+    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
+    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -590,6 +602,36 @@ void erf_slow_rhs_pre (int level, int finest_level,
         tbz.growLo(2,-1);
         tbz.growHi(2,-1);
 
+        // Only advection operations in bndry normal direction with OPEN BC
+        Box  bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi;
+        Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+        Box tby_xlo, tby_xhi, tby_ylo, tby_yhi;
+        Box tbz_xlo, tbz_xhi, tbz_ylo, tbz_yhi;
+        if (xlo_open) {
+            if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));                   }
+            if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); tbx.growLo(0,-1); }
+            if (tby.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(tby,0,domain.smallEnd(0));                   }
+            if (tbz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(tbz,0,domain.smallEnd(0));                   }
+        }
+        if (xhi_open) {
+            if ( bx.bigEnd(0) == domain.bigEnd(0))     {  bx_xhi = makeSlab( bx,0,domain.bigEnd(0)  );                   }
+            if (tbx.bigEnd(0) == domain.bigEnd(0)+1)   { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0)+1); tbx.growHi(0,-1); }
+            if (tby.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(tby,0,domain.bigEnd(0)  );                   }
+            if (tbz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(tbz,0,domain.bigEnd(0)  );                   }
+        }
+        if (ylo_open) {
+            if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));                   }
+            if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1));                   }
+            if (tby.smallEnd(1) == domain.smallEnd(1)) { tby_ylo = makeSlab(tby,1,domain.smallEnd(1)); tby.growLo(1,-1); }
+            if (tbz.smallEnd(1) == domain.smallEnd(1)) { tbz_ylo = makeSlab(tbz,1,domain.smallEnd(1));                   }
+        }
+        if (yhi_open) {
+            if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );                   }
+            if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1)  );                   }
+            if (tby.bigEnd(1) == domain.bigEnd(1)+1)   { tby_yhi = makeSlab(tby,1,domain.bigEnd(1)+1); tby.growHi(1,-1); }
+            if (tbz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(tbz,1,domain.bigEnd(1)  );                   }
+        }
+
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
@@ -647,7 +689,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Perturbational pressure field
         // *****************************************************************************
-        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,0));
+        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
+        if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
         FArrayBox pprime; pprime.resize(gbx,1,The_Async_Arena());
         const Array4<Real      > & pp_arr = pprime.array();
         {
@@ -672,13 +715,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_use_terrain) {
 
                 Box gbxo_lo = gbxo; gbxo_lo.setBig(2,0);
-                ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = 0.;
-                });
+                if (gbxo_lo.smallEnd(2) <= 0) {
+                    ParallelFor(gbxo_lo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        omega_arr(i,j,k) = 0.;
+                    });
+                }
                 Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
-                ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    omega_arr(i,j,k) = rho_w(i,j,k);
-                });
+                int hi_z_face = domain.bigEnd(2)+1;
+                if (gbxo_hi.bigEnd(2) >= hi_z_face) {
+                    ParallelFor(gbxo_hi, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        omega_arr(i,j,k) = rho_w(i,j,k);
+                    });
+                }
 
                 if (z_t) {
                     Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
@@ -689,7 +737,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                             rho_at_face * z_t(i,j,k);
                     });
                 } else {
-                    Box gbxo_mid = gbxo; gbxo_mid.setSmall(2,1); gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                    Box gbxo_mid = gbxo;
+                    if (gbxo_mid.smallEnd(2) <= 0) {
+                        gbxo_mid.setSmall(2,1);
+                    }
+                    if (gbxo_mid.bigEnd(2) >= domain.bigEnd(2)+1) {
+                        gbxo_mid.setBig(2,gbxo.bigEnd(2)-1);
+                    }
                     ParallelFor(gbxo_mid, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         omega_arr(i,j,k) = OmegaFromW(i,j,k,rho_w(i,j,k),rho_u,rho_v,z_nd,dxInv);
                     });
@@ -747,6 +801,32 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                l_horiz_adv_type, l_vert_adv_type,
                                l_horiz_upw_frac, l_vert_upw_frac,
                                l_use_terrain, flx_arr);
+
+
+        // Special advection operator for open BC (bndry tangent operations)
+        if (xlo_open) {
+            bool do_lo = true;
+            AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, RhoTheta_comp, 1, cell_rhs, cell_prim,
+                                               avg_xmom, avg_ymom, avg_zmom,
+                                               detJ_arr, dxInv, l_use_terrain, do_lo);
+        }
+        if (xhi_open) {
+            AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, RhoTheta_comp, 1, cell_rhs, cell_prim,
+                                               avg_xmom, avg_ymom, avg_zmom,
+                                               detJ_arr, dxInv, l_use_terrain);
+        }
+        if (ylo_open) {
+            bool do_lo = true;
+            AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, RhoTheta_comp, 1, cell_rhs, cell_prim,
+                                               avg_xmom, avg_ymom, avg_zmom,
+                                               detJ_arr, dxInv, l_use_terrain, do_lo);
+        }
+        if (yhi_open) {
+            AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, RhoTheta_comp, 1, cell_rhs, cell_prim,
+                                               avg_xmom, avg_ymom, avg_zmom,
+                                               detJ_arr, dxInv, l_use_terrain);
+        }
+
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -833,6 +913,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
+        if (solverChoice.custom_moisture_forcing) {
+            const int n = RhoQ1_comp;
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhoqt_src[k];
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    cell_rhs(i, j, k, n) += dptr_rhoqt_src[k];
+                });
+            }
+        }
+
         // Add custom subsidence source terms
         if (solverChoice.custom_w_subsidence) {
             const int n = RhoTheta_comp;
@@ -885,6 +981,54 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            l_use_terrain, lo_z_face, hi_z_face);
 
+        // Special advection operator for open BC (bndry normal/tangent operations)
+        if (xlo_open) {
+            bool do_lo = true;
+            AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, dxInv, do_lo);
+            AdvectionSrcForOpenBC_Tangent_Ymom(tby_xlo, 0, rho_v_rhs, v,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, do_lo);
+            AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xlo, 0, rho_w_rhs, w,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, domhi_z, do_lo);
+        }
+        if (xhi_open) {
+            AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, dxInv);
+            AdvectionSrcForOpenBC_Tangent_Ymom(tby_xhi, 0, rho_v_rhs, v,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain);
+            AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xhi, 0, rho_w_rhs, w,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, domhi_z);
+        }
+        if (ylo_open) {
+            bool do_lo = true;
+            AdvectionSrcForOpenBC_Tangent_Xmom(tbx_ylo, 1, rho_u_rhs, u,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, do_lo);
+            AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, dxInv, do_lo);
+            AdvectionSrcForOpenBC_Tangent_Zmom(tbz_ylo, 1, rho_w_rhs, w,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, domhi_z, do_lo);
+        }
+        if (yhi_open) {
+            AdvectionSrcForOpenBC_Tangent_Xmom(tbx_yhi, 1, rho_u_rhs, u,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain);
+            AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, dxInv);
+            AdvectionSrcForOpenBC_Tangent_Zmom(tbz_yhi, 1, rho_w_rhs, w,
+                                               rho_u, rho_v, omega_arr,
+                                               z_nd, detJ_arr, dxInv,
+                                               l_use_terrain, domhi_z);
+        }
+
         if (l_use_diff) {
             // Note: tau** were calculated with calls to
             // ComputeStress[Cons|Var]Visc_[N|T] in which ConsVisc ("constant
@@ -929,7 +1073,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_xmom");
-        auto rayleigh_damp_U      = solverChoice.rayleigh_damp_U;
+        auto rayleigh_damp_U  = solverChoice.rayleigh_damp_U;
+        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
         // *****************************************************************************
         // TERRAIN VERSION
         // *****************************************************************************
@@ -970,17 +1115,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                   + rho_on_u_face * abl_geo_forcing[0];
 
+            // Add geostrophic wind
+            if (geostrophic_wind) {
+                rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+            }
+
             // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (use_coriolis)
-            {
+            if (use_coriolis) {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
             }
 
             // Add Rayleigh damping
-            if (use_rayleigh_damping && rayleigh_damp_U)
-            {
+            if (use_rayleigh_damping && rayleigh_damp_U) {
                 Real uu = rho_u(i,j,k) / rho_on_u_face;
                 rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
             }
@@ -1012,17 +1160,20 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
                                     + rho_on_u_face * abl_geo_forcing[0];
 
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                    rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+              }
+
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis)
-              {
+              if (use_coriolis) {
                   Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                   Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                   rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_U)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_U) {
                   Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
                   rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
               }
@@ -1032,7 +1183,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_ymom");
-        auto rayleigh_damp_V      = solverChoice.rayleigh_damp_V;
+        auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
+        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
         // *****************************************************************************
         // TERRAIN VERSION
         // *****************************************************************************
@@ -1070,8 +1222,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                   q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                              +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
               }
+
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
+
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                   rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+              }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
               {
@@ -1080,8 +1238,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_V) {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
                   rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
@@ -1113,16 +1270,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
               rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
                                     + rho_on_v_face * abl_geo_forcing[1];
 
+              // Add geostrophic wind
+              if (geostrophic_wind) {
+                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+              }
+
               // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis)
-              {
+              if (use_coriolis) {
                   Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
                   rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
               }
 
               // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V)
-              {
+              if (use_rayleigh_damping && rayleigh_damp_V) {
                   Real vv = rho_v(i,j,k) / rho_on_v_face;
                   rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
               }
@@ -1220,15 +1380,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis)
-                {
+                if (use_coriolis) {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                     rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W)
-                {
+                if (use_rayleigh_damping && rayleigh_damp_W) {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
                     rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }
@@ -1257,15 +1415,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                      + rho_on_w_face * abl_geo_forcing[2];
 
                 // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis)
-                {
+                if (use_coriolis) {
                     Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                     rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
                 }
 
                 // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W)
-                {
+                if (use_rayleigh_damping && rayleigh_damp_W) {
                     Real ww = rho_w(i,j,k) / rho_on_w_face;
                     rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
                 }

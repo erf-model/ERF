@@ -34,6 +34,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_POISSON_SOLVE)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_inc.cpp
                    ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
@@ -94,10 +95,12 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_make_new_arrays.cpp
        ${SRC_DIR}/ERF_make_new_level.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
@@ -160,11 +163,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
        ${SRC_DIR}/Microphysics/SAM/Precip.cpp
        ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/Diagnose_SAM.cpp
        ${SRC_DIR}/Microphysics/SAM/Update_SAM.cpp
        ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp

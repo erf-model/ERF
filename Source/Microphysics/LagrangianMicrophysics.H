@@ -34,8 +34,8 @@ public:
     ~LagrangianMicrophysics () = default;
 
     /*! \brief Constructor: create the moisture model */
-    LagrangianMicrophysics (  const int& /* nlev */, /*!< Number of AMR levels */
-                              const MoistureType& a_model_type /*!< moisture model */ )
+    LagrangianMicrophysics (const int& /* nlev */, /*!< Number of AMR levels */
+                            const MoistureType& a_model_type /*!< moisture model */ )
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Lagrangian );
         amrex::Abort("No Lagrangian moisture model implemented yet!") ;
@@ -50,32 +50,30 @@ public:
     }
 
     /*! \brief Initialize the moisture model */
-    void Init ( const int& lev, /*!< AMR level */
-                const amrex::MultiFab& cons_in, /*!< Conserved state variables */
-                const amrex::BoxArray& grids,   /*!< Grids */
-                const amrex::Geometry& geom,    /*!< Geometry */
-                const amrex::Real& dt_advance   /*!< Time step */ ) override
+    void Init (const int& lev, /*!< AMR level */
+               const amrex::MultiFab& cons_in, /*!< Conserved state variables */
+               const amrex::BoxArray& grids,   /*!< Grids */
+               const amrex::Geometry& geom,    /*!< Geometry */
+               const amrex::Real& dt_advance,  /*!< Time step */
+               std::unique_ptr<amrex::MultiFab>& z_phys_nd,/*< Nodal z heights */
+               std::unique_ptr<amrex::MultiFab>& detJ_cc /*< CC Jacobian determinants */) override
     {
         if (lev > 0) return;
-        m_moist_model->Init(cons_in, grids, geom, dt_advance);
+        m_moist_model->Init(cons_in, grids, geom, dt_advance,
+                            z_phys_nd, detJ_cc);
     }
 
     /*! \brief Advance the moisture model for one time step */
-    void Advance (  const int& lev, /*!< AMR level */
-                    const amrex::Real& dt_advance, /*!< Time step */
-                    const SolverChoice& /*solverChoice*/, /*!< Solver choice object */
-                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars, /*!< Dycore state variables */
-                    const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */) override
+    void Advance (const int& lev, /*!< AMR level */
+                  const amrex::Real& dt_advance, /*!< Time step */
+                  const int& iter, /*!< iteration number */
+                  const amrex::Real& time, /*!< current time */
+                  const SolverChoice& /*solverChoice*/, /*!< Solver choice object */
+                  amrex::Vector<amrex::Vector<amrex::MultiFab>>& a_vars, /*!< Dycore state variables */
+                  const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z/*!< terrain */) override
     {
         if (lev > 0) return;
-        m_moist_model->Advance(dt_advance, a_vars, a_z);
-    }
-
-    /*! \brief compute diagnostics */
-    void Diagnose (const int& lev /*!< AMR level */) override
-    {
-        if (lev > 0) return;
-        m_moist_model->Diagnose();
+        m_moist_model->Advance(dt_advance, iter, time, a_vars, a_z);
     }
 
     /*! \brief update microphysics variables from ERF state variables */
@@ -114,13 +112,13 @@ public:
     }
 
     /*! \brief get the particle container from the moisture model */
-    inline ERFPC* getParticleContainer() const
+    inline ERFPC* getParticleContainer () const
     {
         return m_moist_model->getParticleContainer();
     }
 
     /*! \brief get the name of the moisture model's particle container */
-    inline const std::string& getName() const
+    inline const std::string& getName () const
     {
         return m_moist_model->getName();
     }
