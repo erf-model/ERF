@@ -33,7 +33,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
     }
 
     if ((a_iter+1)%m_diagnostics_iter == 0) {
-        m_super_droplets->Diagnostics();
+        m_super_droplets->Diagnostics(a_iter);
     }
 }
 
