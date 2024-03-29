@@ -138,19 +138,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
         const size_t np = aos.numParticles();
         auto pstruct_ptr = aos().dataPtr();
 
-        int grid = pti.index();
-        Box box = a_temperature[grid].box(); box.grow(-gvec);
-        int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
-        DenseBins<ParticleType> bins;
-        bins.build( np,
-                    pstruct_ptr,
-                    ntiles,
-                    GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box} );
-        AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
-        AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
-        auto inds = bins.permutationPtr();
-        auto offsets = bins.offsetsPtr();
-
         /* SoA attributes */
         auto* mass_ptr = soa.GetRealData(SuperDropletsRealIdxSoA::mass).data();
         Array<ParticleReal*,AMREX_SPACEDIM> v_ptr;
@@ -175,26 +162,80 @@ void SuperDropletPC::Coalescence( int   a_lev,
         [[maybe_unused]]CollisionKernel_Sedimentation<ParticleReal,AMREX_SPACEDIM> ckernel_sedim{};
         [[maybe_unused]]CollisionKernel_Golovin<ParticleReal> ckernel_golovin{1.5e03};
 
-        amrex::Gpu::Buffer<amrex::Long> particle_collisions({0});
-        amrex::Long* particle_collisions_ptr = particle_collisions.data();
+        int grid = pti.index();
+        Box box = a_temperature[grid].box(); box.grow(-gvec);
+        int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
+        auto binner = GetParticleBin{plo, dxi, domain, m_coalescence_bin_size, box};
+        DenseBins<ParticleType> bins;
+        bins.build( np, pstruct_ptr, ntiles, binner);
+        AMREX_ALWAYS_ASSERT(np == static_cast<size_t>(bins.numItems()));
+        AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
+        auto inds = bins.permutationPtr();
+        auto offsets = bins.offsetsPtr();
 
-        ParallelForRNG( bins.numBins(),
-                        [=] AMREX_GPU_DEVICE (int i_bin,
-                                              RandomEngine const& rnd_eng) noexcept
-        {
-            auto bin_start = offsets[i_bin];
-            auto bin_stop = offsets[i_bin+1];
-            auto np_bin = bin_stop - bin_start;
+        Gpu::Buffer<amrex::Long> particle_collisions({0});
+        Long* particle_collisions_ptr = particle_collisions.data();
 
-            if (np_bin > 1) {
+        if (m_coalescence_alg == SupDropInit::alg_coalescence_cudsmc) {
 
-                random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+            ParallelForRNG( bins.numBins(),
+                            [=] AMREX_GPU_DEVICE (int i,
+                                                  RandomEngine const& rnd_eng) noexcept
+            {
+                auto bin_start = offsets[i];
+                auto bin_stop = offsets[i+1];
+                auto np_bin = bin_stop - bin_start;
+                if (np_bin > 1) {
+                    random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+                }
+            } );
+            Gpu::synchronize();
 
-                for (unsigned int p = 0; p < np_bin/2; p++) {
-                    auto pi = inds[bin_start+p];
-                    auto pj = inds[bin_stop-1-p];
+            Gpu::DeviceVector<unsigned int> np_hbin(bins.numBins()+1);
+            Gpu::DeviceVector<unsigned int> offsets_hbin(bins.numBins()+1);
+            auto np_hbin_ptr = np_hbin.data();
+            ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i) noexcept
+            {
+                auto bin_start = offsets[i];
+                auto bin_stop = offsets[i+1];
+                auto np_bin = bin_stop - bin_start;
+                np_hbin_ptr[i] = np_bin/2;
+            });
+            Gpu::synchronize();
+            Gpu::exclusive_scan(np_hbin.begin(), np_hbin.end(), offsets_hbin.begin());
 
-                    if (pi == pj) { continue; }
+            Gpu::DeviceVector<unsigned int> inds_hbin;
+            inds_hbin.resize(np/2);
+            auto inds_hbin_ptr = inds_hbin.data();
+            auto offsets_hbin_ptr = offsets_hbin.data();
+            ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i) noexcept
+            {
+                auto fbin_start = offsets[i];
+                auto hbin_start = offsets_hbin_ptr[i];
+                auto hbin_stop = offsets_hbin_ptr[i+1];
+                for (int i = 0; i < (hbin_stop-hbin_start); i++) {
+                    inds_hbin_ptr[i+hbin_start] = inds[i+fbin_start];
+                }
+            });
+            Gpu::synchronize();
+
+            ParallelForRNG( np/2, [=] AMREX_GPU_DEVICE (int ib,
+                                                        RandomEngine const& rnd_eng) noexcept
+            {
+                auto pi = inds_hbin_ptr[ib];
+                int i_bin = binner(pstruct_ptr[pi]);
+
+                auto hbin_start = offsets_hbin_ptr[i_bin];
+                auto fbin_start = offsets[i_bin];
+                auto fbin_stop = offsets[i_bin+1];
+                auto np_bin = fbin_stop - fbin_start;
+
+                if (np_bin > 1) {
+
+                    int p = ib - hbin_start;
+                    auto pj = inds[fbin_stop-1-p];
+
+                    if (pi == pj) { return; }
 
                     ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
                     for (int d = 0; d < AMREX_SPACEDIM; d++) {
@@ -223,11 +264,64 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                     amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(flag));
                 }
-            }
 
-        } );
+            } );
+            Gpu::synchronize();
 
-        Gpu::synchronize();
+        } else if (m_coalescence_alg == SupDropInit::alg_coalescence_dsmc) {
+
+            ParallelForRNG( bins.numBins(),
+                            [=] AMREX_GPU_DEVICE (int i_bin,
+                                                  RandomEngine const& rnd_eng) noexcept
+            {
+                auto bin_start = offsets[i_bin];
+                auto bin_stop = offsets[i_bin+1];
+                auto np_bin = bin_stop - bin_start;
+
+                if (np_bin > 1) {
+
+                    random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+
+                    for (unsigned int p = 0; p < np_bin/2; p++) {
+                        auto pi = inds[bin_start+p];
+                        auto pj = inds[bin_stop-1-p];
+
+                        if (pi == pj) { continue; }
+
+                        ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
+                        for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                            v_i[d] = v_ptr[d][pi];
+                            v_j[d] = v_ptr[d][pj];
+                        }
+
+                        //auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        auto prob_ij = k_val*a_dt*inv_bin_volume;
+                        auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
+
+                        auto ns = static_cast<ParticleReal>(np_bin);
+                        auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
+                        auto scaled_prob = prob_sd_ij * scaling_factor;
+
+                        auto flag = binary_coalescence( pi, pj,
+                                                        rnd_eng,
+                                                        scaled_prob,
+                                                        mass_ptr,
+                                                        radius_ptr,
+                                                        mult_ptr,
+                                                        supdrop_mass_ptr,
+                                                        num_aerosols,
+                                                        aerosol_mass_ptrs );
+
+                        amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(flag));
+                    }
+                }
+
+            } );
+            Gpu::synchronize();
+
+        }
+
         num_collisions = *(particle_collisions.copyToHost());
     }
 

@@ -171,6 +171,9 @@ namespace SupDropInit
 
     const std::string attrib_init_const = "constant";
     const std::string attrib_init_exp = "exponential";
+
+    const std::string alg_coalescence_dsmc = "DSMC";
+    const std::string alg_coalescence_cudsmc = "cuDSMC";
 }
 
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
@@ -412,6 +415,7 @@ class SuperDropletPC : public ERFPC
 
         std::string m_mass_condensate_init_type; /*!< type of initial distribution */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
+        std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
 
         /*! Initial aerosol masses of each physical particle */
         std::vector<amrex::Real> m_mass_aerosol_init;

@@ -38,6 +38,7 @@ void SuperDropletPC::readInputs ()
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_mass_condensate_init = 0.0;
     m_mass_condensate_init_type = SupDropInit::attrib_init_const;
+    m_coalescence_alg = SupDropInit::alg_coalescence_dsmc;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
@@ -62,6 +63,7 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_stol", m_newton_stol);
     pp.query("newton_solver_maxits", m_newton_maxits);
     pp.query("distribution_grid_size", m_distribution_grid_size);
+    pp.query("coalescence_algorithm", m_coalescence_alg);
 
     {
         Vector<int> bin_size = {1,1,1};
@@ -177,6 +179,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
             << "    Initial particle box: " << a_particle_init_domain << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
+            << "    Coalescence algorthm: " << m_coalescence_alg << "\n"
             << "    Vapour material: " << m_vapour_mat->name() << "\n";
     if (m_aerosol_mat.size() > 0) {
         Print() << "    Aerosol materials:\n";
