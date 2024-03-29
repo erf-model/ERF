@@ -128,6 +128,10 @@ More recent advancements that add significant complexity to the MYNN scheme have
 YSU PBL Model
 -------------
 
+.. warning::
+
+   Implementation is in progress, this option is not yet supported
+
 The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within
 the PBL, and a local mixing treatment outside the PBL.
 
@@ -145,7 +149,7 @@ any additional scalars (other terms in the equations omitted for brevity):
 
    Not applied for vertical velocity?
 
-Where for each variable the turbulent diffusion coefficient :math:`K_c`, countergadient correction :math:`\gamma_c`,
+Where for each variable the turbulent diffusion coefficient :math:`K_c`, countergradient correction :math:`\gamma_c`,
 and entrainment flux at the PBL top :math:`\overline{\left(w'c' \right)_h}` must be diagnosed for each variable.
 The main controlling parameter is the PBL height :math:`h`.
 Notably, a nonlocal model for turbulent diffusion is used for :math:`z \leq h`, but a local model is used for :math:`z \ge h`.

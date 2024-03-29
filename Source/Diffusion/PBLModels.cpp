@@ -311,13 +311,13 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
                 // For now, we only support stable boundary layers
                 if (Rib_layer < unst_Ribcr) {
-                    amrex::Abort("For now, YSU PBL only supports stable conditions");
+                    Abort("For now, YSU PBL only supports stable conditions");
                 }
 
                 // TODO: unstable BLs
 
                 // PBL Height: Stable Conditions
-                amrex::Real Rib_cr;
+                Real Rib_cr;
                 if (over_land) {
                     Rib_cr = land_Ribcr;
                 } else { // over water
