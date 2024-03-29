@@ -40,6 +40,7 @@ void SuperDropletPC::readInputs ()
     m_mass_condensate_init_type = SupDropInit::attrib_init_const;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
+    m_distribution_grid_size = 100;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -60,6 +61,7 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);
     pp.query("newton_solver_maxits", m_newton_maxits);
+    pp.query("distribution_grid_size", m_distribution_grid_size);
 
     {
         Vector<int> bin_size = {1,1,1};

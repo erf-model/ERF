@@ -380,7 +380,11 @@ class SuperDropletPC : public ERFPC
         virtual amrex::Real TotalNumberOfParticles ();
 
         /*! \brief Compute and print diagnostics */
-        virtual void Diagnostics ();
+        virtual void Diagnostics (const int&);
+        /*! \brief Compute mass density distribution */
+        virtual void MassDensityDistribution (  const int&,
+                                                const amrex::ParticleReal&,
+                                                const amrex::ParticleReal& );
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
@@ -429,6 +433,8 @@ class SuperDropletPC : public ERFPC
         int m_newton_maxits;        /*!< Newton solver - maximum iterations */
 
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
+
+        int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */
 
         /*! \brief read inputs from file */
         virtual void readInputs ();
