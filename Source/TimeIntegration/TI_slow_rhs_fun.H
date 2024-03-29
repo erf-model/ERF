@@ -103,12 +103,15 @@
 #if defined(ERF_USE_RRTMGP)
                              qheating_rates[level],
 #endif
-                             Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx3, Diss,
+                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
+                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
+                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                             EBFactory(level),
+#endif
                              fr_as_crse, fr_as_fine,
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
@@ -197,12 +200,15 @@
 #if defined(ERF_USE_RRTMGP)
                              qheating_rates[level],
 #endif
-                             Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx3, Diss,
+                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
+                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
+                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                              z_phys_nd[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                             EBFactory(level),
+#endif
                              fr_as_crse, fr_as_fine,
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
@@ -310,6 +316,9 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                              EBFactory(level),
+#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
@@ -326,6 +335,9 @@
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                              EBFactory(level),
+#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,

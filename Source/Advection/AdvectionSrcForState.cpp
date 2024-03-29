@@ -47,6 +47,12 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
+#ifdef ERF_USE_EB
+                    const Array4<const Real>& ax_arr,
+                    const Array4<const Real>& ay_arr,
+                    const Array4<const Real>& az_arr,
+                    const Array4<const Real>& vf_arr,
+#endif
                     const bool use_terrain,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
 {
@@ -74,6 +80,23 @@ AdvectionSrcForRho (const Box& bx,
         avg_zmom(i,j,k  ) = (flx_arr[2])(i,j,k,0);
     });
 
+#ifdef ERF_USE_EB
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        (flx_arr[0])(i,j,k,0) *= ax_arr(i,j,k);
+        avg_xmom(i,j,k)       *= ax_arr(i,j,k);
+    });
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        (flx_arr[1])(i,j,k,0) *= ay_arr(i,j,k);
+        avg_ymom(i,j,k)       *= ay_arr(i,j,k);
+    });
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        (flx_arr[2])(i,j,k,0) *= az_arr(i,j,k);
+        avg_zmom(i,j,k)       *= az_arr(i,j,k);
+    });
+#else
     if (use_terrain) {
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
@@ -88,10 +111,15 @@ AdvectionSrcForRho (const Box& bx,
             avg_ymom(i,j,k)       *= h_zeta;
         });
     }
+#endif
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
+#ifdef ERF_USE_EB
+        Real invdetJ = (vf_arr(i,j,k) > 0.) ?  1. / vf_arr(i,j,k) : 1.;
+#else
         Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
+#endif
 
         Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
@@ -140,6 +168,9 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
+#ifdef ERF_USE_EB
+                        const Array4<const Real>& vf_arr,
+#endif
                         const bool use_terrain,
                         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
 {
@@ -152,6 +183,7 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
 
     // Inline with 2nd order for efficiency
     // NOTE: we don't need to weight avg_xmom, avg_ymom, avg_zmom with terrain metrics
+    //       (or with EB area fractions)
     //       because that was done when they were constructed in AdvectionSrcForRhoAndTheta
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
@@ -237,7 +269,11 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
 
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
+#ifdef ERF_USE_EB
+        Real invdetJ = (vf_arr(i,j,k) > 0.) ?  1. / vf_arr(i,j,k) : 1.;
+#else
         Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
+#endif
 
         Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 

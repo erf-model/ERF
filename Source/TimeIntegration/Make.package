@@ -20,6 +20,9 @@ endif
 CEXE_headers += TI_fast_rhs_fun.H
 CEXE_headers += TI_slow_rhs_fun.H
 CEXE_headers += TI_no_substep_fun.H
+CEXE_headers += TI_headers.H
+CEXE_headers += TI_fast_headers.H
+CEXE_headers += TI_slow_headers.H
 CEXE_headers += TI_utils.H
 
 CEXE_headers += ERF_MRI.H

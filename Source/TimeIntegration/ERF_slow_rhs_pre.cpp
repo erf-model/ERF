@@ -1,19 +1,11 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
+#include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
-#include <ERF_Constants.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <NumericalDiffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <EOS.H>
-#include <ERF.H>
 
-#include <TerrainMetrics.H>
-#include <IndexDefines.H>
-#include <PlaneAverage.H>
+#include <TI_slow_headers.H>
+#include <EOS.H>
 
 using namespace amrex;
 
@@ -49,7 +41,7 @@ using namespace amrex;
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
@@ -103,6 +95,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
+#ifdef ERF_USE_EB
+                       EBFArrayBoxFactory const& ebfact,
+#endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
                        const Real* dptr_rhotheta_src,
@@ -788,10 +783,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
+#ifdef ERF_USE_EB
+        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+
+        const auto& vf_arr = ebfact.getVolFrac().const_array(mfi);
+#endif
+
         AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+#ifdef ERF_USE_EB
+                           ax_arr, ay_arr, az_arr, vf_arr,
+#endif
                            l_use_terrain, flx_arr);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
@@ -800,6 +806,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                l_horiz_adv_type, l_vert_adv_type,
                                l_horiz_upw_frac, l_vert_upw_frac,
+#ifdef ERF_USE_EB
+                               vf_arr,
+#endif
                                l_use_terrain, flx_arr);
 
 
