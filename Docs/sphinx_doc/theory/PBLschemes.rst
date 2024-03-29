@@ -128,4 +128,110 @@ More recent advancements that add significant complexity to the MYNN scheme have
 YSU PBL Model
 -------------
 
-The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It is not yet supported in ERF, but is under development.
+.. warning::
+
+   Implementation is in progress, this option is not yet supported
+
+The Yonsei University (YSU) PBL model is another commonly use scheme in WRF. It includes nonlocal mixing with  contergradient diffusion within
+the PBL, and a local mixing treatment outside the PBL.
+
+Turbulent diffusion for prognostic variables (:math:`C, u, v, \theta, q_k`), where :math:`q_k` includes all moisture variables and :math:`C`
+any additional scalars (other terms in the equations omitted for brevity):
+
+.. math::
+   \frac{\partial C}{\partial t}
+   = \frac{\partial}{\partial z} \left[
+   K_c \left( \frac{\partial C}{\partial z} - \gamma_c \right)
+   - \overline{\left(w'c' \right)_h} \left( \frac{z}{h} \right)^3
+   \right]
+
+.. note::
+
+   Not applied for vertical velocity?
+
+Where for each variable the turbulent diffusion coefficient :math:`K_c`, countergradient correction :math:`\gamma_c`,
+and entrainment flux at the PBL top :math:`\overline{\left(w'c' \right)_h}` must be diagnosed for each variable.
+The main controlling parameter is the PBL height :math:`h`.
+Notably, a nonlocal model for turbulent diffusion is used for :math:`z \leq h`, but a local model is used for :math:`z \ge h`.
+
+The first step is to determine the PBL height :math:`h`. This is defined as the smallest value of :math:`z` where the bulk
+Richardson number equals the critical value, which is taken to be 0:
+
+.. math::
+
+   {\rm Rib}(z) = \frac{ g \left[ \theta_m(z) - \theta_s\right] }{\theta_{ma} U(z)^2}z
+
+.. math::
+
+   {\rm Rib}(h) = {\rm Rib_{cr}} = 0
+
+where
+
+- :math:`\theta_m` is the moist potential temperature,
+- :math:`\theta_{ma}` is the value at the lowest vertical cell in a column,
+- :math:`U = \sqrt{u^2 + v^2}` is the horizontal wind speed,
+- :math:`\theta_s = \theta_{ma} + \theta_T` is the virtual temperature near the surface,
+- :math:`\theta_T = a\frac{\overline{\left(w'\theta_m' \right)_0}}{w_{s0}}` is the excess virtual temperature near the surface,
+- :math:`a` is a constant taken to be 6.8 per HND06 (matching the :math:`b` constant that appears elsehwere in the YSU model)
+- :math:`\overline{\left(w'\theta_m' \right)_0}` is the surface virtual heat flux (determined from the MOST surface layer model),
+- :math:`w_{s}(z) = \left(u_*^3 + 8 k w_{*b}^3z/h \right)^{1/3}` is a representative velocity scale in the mixed layer, with :math:`w_{s0} = w_s(h/2)` (note this equation matches the WRF implementation and description in H10, but differs from HND06, where :math:`\phi_m` appears in place of the constant 8),
+- :math:`u_*` is the surface frictional velocity scale determined from the MOST surface layer model,
+- :math:`k = 0.4` is the von Karman constant
+- :math:`w_{*b} = \left[ g/\theta_{ma} \overline{\left(w'\theta_m' \right)_0} h \right]^{1/3}` for :math:`\overline{\left(w'\theta_m' \right)_0} > 0`, :math:`w_{*b} = 0` otherwise, is a convective velcoity scale for moist air
+
+In practice, an approximate value of :math:`h` is determined through a two-step process. First, :math:`\theta_T` is set to be zero
+and a provisional value of :math:`h` is estimated. Then this provisional value of :math:`h` is used to compute :math:`\theta_T`,
+which is in turn used to provide an improved estimate of :math:`h`, which is the value used in subsequent calculations.
+
+.. note::
+
+   This two step-process matches the WRF implementation, but this could be extended iteratively to reach convergence.
+
+
+Countergradient corrections are computed as follows:
+
+.. math::
+
+   \gamma_\theta =
+
+.. math::
+   \gamma_u =
+
+.. math::
+   \gamma_v =
+
+.. math::
+   \gamma_{q_k} = \gamma_C = 0
+
+Entrainment fluxes are computed:
+
+.. math::
+   \overline{\left(w'c' \right)_h} =
+
+.. math::
+   \overline{\left(w'c' \right)_h} =
+
+Within the PBL (:math:`z \leq h`),
+
+.. _YSUReferences:
+
+Useful References
+~~~~~~~~~~~~~~~~~
+
+The following references have informed the implementation of the YSU model in ERF:
+
+.. _HP96: https://doi.org/10.1175/1520-0493(1996)124<2322:NBLVDI>2.0.CO;2
+
+- [H10] `Hong, Quarterly Journal of the Royal Meteorological Society, 2010 <https://doi.org/10.1002/qj.665>`_: Most up-to-date YSU model formulation as implemented in WRF, with revisions for stable boundary layers
+
+- [HND06] `Hong, Noh, and Dudhia, Monthly Weather Review, 2006 <https://doi.org/10.1175/MWR3199.1>`_: Initial formulation referred to as the YSU model, adds improved entrainment formulation (relative to NCHR03) to work of TM86 and a few other modifications
+
+- [NCHR03] `Noh, Cheon, Hong, and Raasch, Boundary-Layer Meteorology, 2003 <https://doi.org/10.1023/A:1022146015946>`_: Entrainment effects added to TM86
+
+- [HP96] `Hong and Pan, Monthly Weather Review, 1996 <HP96_>`_: Largely an implementation and evluation of TM86
+
+- [TM86] `Troen and Mahrt, Boundary-Layer Meteorology, 1986 <https://doi.org/10.1007/BF00122760>`_: Initial incorporation of nonlocal counter-graident term in vertical diffusion model
+
+- [WF18] `Wilson and Fovell, Weather and Forecasting, 2018 <https://doi.org/10.1175/WAF-D-17-0109.1>`_: Extension of YSU to handle interplay between radiation and fog, active in WRF with the ``ysu_topdown_pblmix = 1`` option
+
+- The WRF Fortran source code for this `module <https://github.com/wrf-model/WRF/blob/a8eb846859cb39d0acfd1d3297ea9992ce66424a/phys/module_bl_ysu.F>`_ as of Dec. 2023. The ERF implementation supports the same physical models as this WRF implementation, with the exception of the ``ysu_topdown_pblmix = 1`` option from WF18, i.e. the implementation in ERF largely matches the PBL scheme described in H10.
