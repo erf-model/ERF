@@ -63,6 +63,13 @@ VPATH_LOCATIONS   += $(ERF_PARTICLES_DIR)
 INCLUDE_LOCATIONS += $(ERF_PARTICLES_DIR)
 endif
 
+ifeq ($(USE_EB),TRUE)
+ERF_EB_DIR = $(ERF_SOURCE_DIR)/EB
+include $(ERF_EB_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_EB_DIR)
+INCLUDE_LOCATIONS += $(ERF_EB_DIR)
+endif
+
 ERF_TIMEINT_DIR = $(ERF_SOURCE_DIR)/TimeIntegration
 include $(ERF_TIMEINT_DIR)/Make.package
 
@@ -88,6 +95,10 @@ ifeq ($(USE_PARTICLES),TRUE)
 AMReXdirs             += Particle
 endif
 
+ifeq ($(USE_EB),TRUE)
+AMReXdirs             += EB
+endif
+
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 AMReXdirs             += LinearSolvers/MLMG
 endif
@@ -100,8 +111,6 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
-DEFINES += -DERF_USE_MOISTURE
-
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_DIR)
@@ -111,11 +120,6 @@ ERF_MOISTURE_NULL_DIR = $(ERF_SOURCE_DIR)/Microphysics/Null
 include $(ERF_MOISTURE_NULL_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_NULL_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_NULL_DIR)
-
-ERF_MOISTURE_FE_DIR = $(ERF_SOURCE_DIR)/Microphysics/FastEddy
-include $(ERF_MOISTURE_FE_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_MOISTURE_FE_DIR)
-INCLUDE_LOCATIONS += $(ERF_MOISTURE_FE_DIR)
 
 ERF_MOISTURE_SAM_DIR = $(ERF_SOURCE_DIR)/Microphysics/SAM
 include $(ERF_MOISTURE_SAM_DIR)/Make.package
@@ -156,7 +160,11 @@ ERF_LSM_MM5_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/MM5
 include $(ERF_LSM_MM5_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_LSM_MM5_DIR)
 INCLUDE_LOCATIONS += $(ERF_LSM_MM5_DIR)
-    
+
+ifeq ($(USE_EXPLICIT_MOST_STRESS), TRUE)
+    DEFINES += -DERF_EXPLICIT_MOST_STRESS
+endif
+        
 ifeq ($(COMPUTE_ERROR), TRUE)
   DEFINES += -DERF_COMPUTE_ERROR
 endif
@@ -167,6 +175,10 @@ endif
 
 ifeq ($(USE_PARTICLES), TRUE)
   DEFINES += -DERF_USE_PARTICLES
+endif
+
+ifeq ($(USE_EB), TRUE)
+  DEFINES += -DERF_USE_EB
 endif
 
 ifeq ($(USE_MULTIBLOCK), TRUE)

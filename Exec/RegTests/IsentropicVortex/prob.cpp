@@ -78,10 +78,11 @@ Problem::init_custom_pert(
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real> const& state,
-    Array4<Real> const& x_vel,
-    Array4<Real> const& y_vel,
-    Array4<Real> const& z_vel,
+    Array4<Real const> const& /*state*/,
+    Array4<Real      > const& state_pert,
+    Array4<Real      > const& x_vel_pert,
+    Array4<Real      > const& y_vel_pert,
+    Array4<Real      > const& z_vel_pert,
     Array4<Real> const& r_hse,
     Array4<Real> const& p_hse,
     Array4<Real const> const&,
@@ -114,21 +115,24 @@ Problem::init_custom_pert(
 
     // Set the perturbation density
     const Real rho_norm = std::pow(1.0 + deltaT, parms.inv_gm1);
-    state(i, j, k, Rho_comp) = rho_norm * parms.rho_0 - r_hse(i,j,k);
+    state_pert(i, j, k, Rho_comp) = rho_norm * parms.rho_0 - r_hse(i,j,k);
 
     // Initial _potential_ temperature
     const Real T = (1.0 + deltaT) * parms.T_inf;
     const Real p = std::pow(rho_norm, Gamma) / Gamma  // isentropic relation
                           * parms.rho_0*parms.a_inf*parms.a_inf;
     const Real rho_theta = parms.rho_0 * rho_norm * (T * std::pow(p_0 / p, rdOcp)); // T --> theta
-    state(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
+    state_pert(i, j, k, RhoTheta_comp) = rho_theta - getRhoThetagivenP(p_hse(i,j,k)); // Set the perturbation rho*theta
 
     // Set scalar = 0 -- unused
-    state(i, j, k, RhoScalar_comp) = 0.0;
+    // state_pert(i, j, k, RhoScalar_comp) = 0.0;
+
+    const Real r2d_xy = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
+    state_pert(i, j, k, RhoScalar_comp) = 0.25 * (1.0 + std::cos(PI * std::min(r2d_xy, R) / R));
 
     if (use_moisture) {
-        state(i, j, k, RhoQ1_comp) = 0.0;
-        state(i, j, k, RhoQ2_comp) = 0.0;
+        state_pert(i, j, k, RhoQ1_comp) = 0.0;
+        state_pert(i, j, k, RhoQ2_comp) = 0.0;
     }
   });
 
@@ -142,8 +146,8 @@ Problem::init_custom_pert(
       const Real y = prob_lo[1] + (j + 0.5) * dx[1]; // cell center
       const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-      x_vel(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
-                     - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
+      x_vel_pert(i, j, k) = (parms.M_inf * std::cos(parms.alpha)
+                          - (y - parms.yc)/parms.R * Omg) * parms.a_inf;
   });
 
   // Set the y-velocity
@@ -156,14 +160,14 @@ Problem::init_custom_pert(
       const Real y = prob_lo[1] +  j        * dx[1]; // face center
       const Real Omg = erf_vortex_Gaussian(x,y,xc,yc,R,beta,sigma);
 
-      y_vel(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
-                     + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
+      y_vel_pert(i, j, k) = (parms.M_inf * std::sin(parms.alpha)
+                          + (x - parms.xc)/parms.R * Omg) * parms.a_inf;
   });
 
   // Set the z-velocity
   amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
-      z_vel(i, j, k) = 0.0;
+      z_vel_pert(i, j, k) = 0.0;
   });
 }
 

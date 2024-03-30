@@ -17,14 +17,20 @@ using namespace amrex;
  * @param[in] xmom_in x-component of momentum
  * @param[in] ymom_in y-component of momentum
  * @param[in] zmom_in z-component of momentum
+ * @param[in] domain  Domain at this level
+ * @param[in] domain_bcs_type_h   host vector for domain boundary conditions
  */
 
 void
 MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                     const MultiFab& density,
-                    const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in)
+                    const MultiFab& xmom_in, const MultiFab& ymom_in, const MultiFab& zmom_in,
+                    const Box& domain,
+                    const Vector<BCRec>& domain_bcs_type_h)
 {
     BL_PROFILE_VAR("MomentumToVelocity()",MomentumToVelocity);
+
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -53,13 +59,38 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
 
         ParallelFor(tbx, tby, tbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            velx(i,j,k) = momx(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp)));
+            velx(i,j,k) = momx(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i-1,j,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            vely(i,j,k) = momy(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp)));
+            vely(i,j,k) = momy(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j-1,k,Rho_comp));
         },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            velz(i,j,k) = momz(i,j,k)/(0.5 * (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp)));
+            velz(i,j,k) = momz(i,j,k) * 2.0 / (dens_arr(i,j,k,Rho_comp) + dens_arr(i,j,k-1,Rho_comp));
         });
+
+        if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tbx,0,domain.smallEnd(0)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                velx(i,j,k) = momx(i,j,k) / dens_arr(i-1,j,k,Rho_comp);
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tbx,0,domain.bigEnd(0)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                velx(i,j,k) = momx(i,j,k) / dens_arr(i,j,k,Rho_comp);
+            });
+        }
+        if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
+             (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tby,1,domain.smallEnd(1)), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
+             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
+            ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
+            });
+        }
     } // end MFIter
 }

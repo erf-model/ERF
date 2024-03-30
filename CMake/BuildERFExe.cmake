@@ -17,6 +17,10 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
+  if(ERF_ENABLE_EXPLICIT_MOST_STRESS)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_EXPLICIT_MOST_STRESS)
+  endif()
+
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
@@ -30,6 +34,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_POISSON_SOLVE)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_inc.cpp
                    ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
@@ -38,9 +43,22 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Particles/ERFPCEvolve.cpp
                    ${SRC_DIR}/Particles/ERFPCInitializations.cpp
+                   ${SRC_DIR}/Particles/ERFPCUtils.cpp
                    ${SRC_DIR}/Particles/ERFTracers.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
+  endif()
+
+  if(ERF_ENABLE_EB)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/EB/Init_EB.cpp
+                   ${SRC_DIR}/EB/eb_box.cpp
+                   ${SRC_DIR}/EB/eb_cylinder.cpp
+                   ${SRC_DIR}/EB/eb_regular.cpp
+                   ${SRC_DIR}/EB/initEB.cpp
+                   ${SRC_DIR}/EB/writeEBsurface.cpp)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/EB)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
   endif()
 
   if(ERF_ENABLE_NETCDF)
@@ -89,10 +107,12 @@ function(build_erf_lib erf_lib_name)
      PRIVATE
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/ERF.cpp
+       ${SRC_DIR}/ERF_make_new_arrays.cpp
        ${SRC_DIR}/ERF_make_new_level.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
@@ -155,16 +175,10 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SAM/IceFall.cpp
        ${SRC_DIR}/Microphysics/SAM/Precip.cpp
        ${SRC_DIR}/Microphysics/SAM/PrecipFall.cpp
-       ${SRC_DIR}/Microphysics/SAM/Diagnose_SAM.cpp
        ${SRC_DIR}/Microphysics/SAM/Update_SAM.cpp
        ${SRC_DIR}/Microphysics/Kessler/Init_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Kessler.cpp
-       ${SRC_DIR}/Microphysics/Kessler/Diagnose_Kessler.cpp
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Init_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/FastEddy.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Diagnose_FE.cpp
-       ${SRC_DIR}/Microphysics/FastEddy/Update_FE.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
@@ -211,7 +225,6 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/SAM)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/Kessler)
-  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Microphysics/FastEddy) 
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/Null)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/LandSurfaceModel/SLM)

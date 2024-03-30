@@ -1,0 +1,96 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 14400
+stop_time = 90000.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 2048 1024 2048
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = -25000.   0.    0.
+geometry.prob_hi     =  25000. 400. 20000.
+amr.n_cell           =   96    4    128
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Open"
+xhi.type = "Open"
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.use_native_mri = 1
+erf.fixed_dt       = 1.0      # fixed time step [s] -- Straka et al 1993
+erf.fixed_fast_dt  = 0.5     # fixed time step [s] -- Straka et al 1993
+#erf.no_substepping  = 1
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+################################ MULTILEVEL ################################
+# REFINEMENT / REGRIDDING
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+
+erf.coupling_type = "TwoWay"
+erf.regrid_int = 2
+
+erf.refinement_indicators = hi_qc
+erf.hi_qc.max_level     = 1
+erf.hi_qc.field_name    = qc
+erf.hi_qc.value_greater = 1.e-4
+
+erf.cf_width     = 0
+erf.cf_set_width = 0
+
+amr.n_error_buf  = 3 3
+################################ MULTILEVEL ################################
+
+# CHECKPOINT FILES
+amr.check_file      = chk        # root name of checkpoint file
+amr.check_int       = 1000       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1         = plt        # root name of plotfile
+erf.plot_int_1          = 60         # number of timesteps between plotfiles
+erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain rain_accum pert_dens
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.buoyancy_type = 1
+erf.use_coriolis = false
+erf.use_rayleigh_damping = false
+
+#
+# diffusion coefficient from Straka, K = 75 m^2/s
+#
+erf.molec_diff_type = "ConstantAlpha"
+erf.rho0_trans = 1.0 # [kg/m^3], used to convert input diffusivities
+erf.dynamicViscosity = 100.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
+erf.alpha_T = 100.0 # [m^2/s]
+erf.alpha_C = 100.0
+
+erf.moisture_model = "Kessler"
+erf.use_moist_background = true
+
+erf.dycore_horiz_adv_type    = "Centered_2nd"
+erf.dycore_vert_adv_type     = "Centered_2nd"
+erf.dryscal_horiz_adv_type   = "Centered_2nd"
+erf.dryscal_vert_adv_type    = "Centered_2nd"
+erf.moistscal_horiz_adv_type = "Centered_2nd"
+erf.moistscal_vert_adv_type  = "Centered_2nd"
+
+# PROBLEM PARAMETERS (optional)
+prob.z_tr = 12000.0
+prob.height = 1200.0
+prob.theta_0 = 300.0
+prob.theta_tr = 343.0
+prob.T_tr = 213.0
+prob.x_c = 0.0
+prob.z_c = 1500.0
+prob.x_r = 4000.0
+prob.z_r = 1500.0
+prob.theta_c = 3.0

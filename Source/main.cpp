@@ -45,7 +45,8 @@ void add_par () {
    int blocking_factor = 1;
    pp.queryAdd("blocking_factor",blocking_factor);
 
-   pp.add("n_error_buf",0);
+   int n_error_buf = 0;
+   pp.queryAdd("n_error_buf",n_error_buf);
 }
 
 /**
@@ -111,7 +112,7 @@ int main (int argc, char* argv[])
 #ifdef ERF_USE_MULTIBLOCK
     {
         // Vector of constructor parameters for MultiBlock
-        std::vector<amrex::RealBox> rb_v;
+        std::vector<RealBox> rb_v;
         std::vector<int> max_level_v;
         std::vector<int> coord_v;
         std::vector<amrex::Vector<int>> n_cell_v;
@@ -121,7 +122,7 @@ int main (int argc, char* argv[])
         int max_step{1};
 
         // Local constructor parameters for vector
-        amrex::RealBox rb;
+        RealBox rb;
         int max_level{0};
         int coord{0};
         amrex::Vector<int> n_cell = {1,1,1};
@@ -137,8 +138,8 @@ int main (int argc, char* argv[])
         // Parse data for erf1 constructor
         {
             ParmParse pp("erf1");
-            amrex::Vector<amrex::Real> lo  = {0.,0.,0.};
-            amrex::Vector<amrex::Real> hi  = {0.,0.,0.};
+            amrex::Vector<Real> lo  = {0.,0.,0.};
+            amrex::Vector<Real> hi  = {0.,0.,0.};
             amrex::Vector<int> periodicity = {1,1,1};
             pp.queryarr("prob_lo",lo);
             pp.queryarr("prob_hi",hi);
@@ -165,8 +166,8 @@ int main (int argc, char* argv[])
         // Parse data for erf2 constructor
         {
             ParmParse pp("erf2");
-            amrex::Vector<amrex::Real> lo  = {0.,0.,0.};
-            amrex::Vector<amrex::Real> hi  = {0.,0.,0.};
+            amrex::Vector<Real> lo  = {0.,0.,0.};
+            amrex::Vector<Real> hi  = {0.,0.,0.};
             amrex::Vector<int> periodicity = {1,1,1};
             pp.queryarr("prob_lo",lo);
             pp.queryarr("prob_hi",hi);

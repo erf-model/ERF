@@ -1,0 +1,94 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 32400.0  # 540 min = 9 h
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY (dx=dy=dz=3.125 m)
+geometry.prob_extent = 400  400  400
+amr.n_cell           = 128  128  128
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type                    = "Most"
+erf.most.z0                 = 0.1  # from Beare et al. 2006
+erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
+erf.most.surf_heating_rate  = -0.25 # [K/h] from Beare et al. 2006
+
+zhi.type        = "SlipWall"
+zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
+
+# INITIALIZATION (Beare et al. 2006)
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_GABLS1"
+
+# TIME STEP CONTROL
+erf.fixed_dt = 0.05
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+
+# planar averaging (with erf.v = 1)
+erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
+erf.profile_int = 20
+erf.interp_profiles_to_cc = false
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 6000       # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 6000       # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta
+
+# SOLVER CHOICE
+erf.dycore_horiz_adv_type  = "Upwind_5th"
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_horiz_adv_type = "Upwind_5th"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.molec_diff_type = "None"
+
+erf.use_gravity = true
+
+# Coriolis parameter f = 1.39e-4 s^-1, from Beare et al. 2006
+erf.use_coriolis = true
+erf.latitude = 73.0
+erf.rotational_time_period = 86455.2516813368
+
+# Geostrophic wind (Beare et al. 2006)
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0
+
+# Turbulence closure
+#erf.les_type = "Smagorinsky"
+#erf.Cs       = 0.17  # following Gadde et al 2020 BLM
+erf.les_type = "Deardorff"
+erf.Ck       = 0.1  # Coefficient in Moeng1984, Eqn. 19
+erf.Ce       = 0.7  # Note: Ce_lcoeff = C_e - 1.9*C_k
+erf.Ce_wall  = 3.9  # To account for "wall effects"
+erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, Eqn. 15
+
+# NOT USED
+#erf.rho0_trans      = 1.3223 # from Beare et al. 2006
+#erf.theta_ref       = 263.5 # from Beare et al. 2006
+
+erf.use_rayleigh_damping = true
+prob.dampcoef = 0.2 # [1/s] following FastEddy
+prob.zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
+
+# Initial conditions from Beare et al. 2006
+prob.KE_0            = 0.4 # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 1
+prob.T_0_Pert_Mag    = 0.1 # [K]
+prob.pert_ref_height = 50. # [m]

@@ -7,7 +7,7 @@
 
 class NullMoist {
 
- public:
+public:
     NullMoist () {}
 
     virtual ~NullMoist () = default;
@@ -20,11 +20,14 @@ class NullMoist {
     void Init (const amrex::MultiFab& /*cons_in*/,
                const amrex::BoxArray& /*grids*/,
                const amrex::Geometry& /*geom*/,
-               const amrex::Real& /*dt_advance*/) { }
+               const amrex::Real& /*dt_advance*/,
+               std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
+               std::unique_ptr<amrex::MultiFab>& /*detJ_cc*/) { }
 
     virtual
     void
-    Advance (const amrex::Real& /*dt_advance*/) { }
+    Advance (const amrex::Real& /*dt_advance*/,
+             const SolverChoice& /*solverChoce*/) { }
 
     virtual
     void
@@ -33,10 +36,6 @@ class NullMoist {
     virtual
     void
     Update_State_Vars (amrex::MultiFab& /*cons_in*/) { }
-
-    virtual
-    void
-    Diagnose () { }
 
     virtual
     void
@@ -58,8 +57,9 @@ class NullMoist {
     int
     Qstate_Size () { return NullMoist::m_qstate_size; }
 
- private:
+private:
     int m_qmoist_size = 1;
     int m_qstate_size = 0;
 };
+
 #endif

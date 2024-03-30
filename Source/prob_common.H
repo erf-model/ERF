@@ -85,10 +85,11 @@ public:
                       const amrex::Box& /*xbx*/,
                       const amrex::Box& /*ybx*/,
                       const amrex::Box& /*zbx*/,
-                      amrex::Array4<amrex::Real      > const& /*state*/,
-                      amrex::Array4<amrex::Real      > const& /*x_vel*/,
-                      amrex::Array4<amrex::Real      > const& /*y_vel*/,
-                      amrex::Array4<amrex::Real      > const& /*z_vel*/,
+                      amrex::Array4<amrex::Real const> const& /*state*/,
+                      amrex::Array4<amrex::Real      > const& /*state_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*x_vel_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
+                      amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                       amrex::Array4<amrex::Real      > const& /*r_hse*/,
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
@@ -97,8 +98,7 @@ public:
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       amrex::Array4<amrex::Real const> const& /*mf_u*/,
                       amrex::Array4<amrex::Real const> const& /*mf_v*/,
-                      const SolverChoice& /*sc*/
-    )
+                      const SolverChoice& /*sc*/)
     {
         amrex::Print() << "No perturbation to background fields supplied for "
             << name() << " problem" << std::endl;;
@@ -142,6 +142,122 @@ public:
     }
 
     /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] rhoqt_source     moisture forcing profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_rhoqt_sources (const amrex::Real& /*time*/,
+                             amrex::Vector<amrex::Real>& qsrc,
+                             amrex::Gpu::DeviceVector<amrex::Real>& d_qsrc,
+                             const amrex::Geometry& geom,
+                             std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (qsrc.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                qsrc[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, qsrc.begin(), qsrc.end(), d_qsrc.begin());
+    }
+
+    /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] wbar             w vel forcing profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_w_subsidence (const amrex::Real& /*time*/,
+                         amrex::Vector<amrex::Real>& wbar,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
+                         const amrex::Geometry& geom,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (wbar.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Moisture forcing not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                wbar[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
+    }
+
+    /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] u_geos           geostrophic wind profile
+     * @param[out] v_geos           geostrophic wind profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_geostrophic_profile (const amrex::Real& /*time*/,
+                         amrex::Vector<amrex::Real>& u_geos,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
+                         amrex::Vector<amrex::Real>& v_geos,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
+                         const amrex::Geometry& geom,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (u_geos.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Geostrophic wind profile not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                u_geos[k] = 0.0;
+                v_geos[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
+    }
+
+     /**
      * Function to perform custom initialization of terrain
      *
      * Note: Terrain functionality can also be used to provide grid stretching.
@@ -155,6 +271,7 @@ public:
                          amrex::MultiFab& z_phys_nd,
                          const amrex::Real& /*time*/)
     {
+        // Note that this only sets the terrain value at the ground IF k=0 is in the box
         amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
 
         // Number of ghost cells
@@ -166,15 +283,44 @@ public:
         for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
         {
             // Grown box with no z range
-            amrex::Box xybx = mfi.growntilebox(ngrow);
-            xybx.setRange(2,0);
+            amrex::Box  zbx = mfi.nodaltilebox(2);
+            if (zbx.smallEnd(2) <= 0) {
+                amrex::Box xybx = mfi.growntilebox(ngrow);
+                xybx.setRange(2,0);
 
-            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
 
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                z_arr(i,j,k0) = 0.0;
-            });
+                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                    z_arr(i,j,k0) = 0.0;
+                });
+            }
         }
+    }
+
+    /**
+    * Function to perform custom initialization of terrain
+    *
+    * This version takes a single FArrayBox instead of a MultiFab
+    *
+    */
+    virtual void
+    init_custom_terrain (const amrex::Geometry& /*geom*/,
+                         amrex::FArrayBox& z_phys_nd,
+                         const amrex::Real& /*time*/)
+    {
+        // Note that this only sets the terrain value at the ground IF k=0 is in the box
+        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
+
+        // Bottom of domain
+        int k0 = 0;
+
+        // Grown box with no z range
+        amrex::Box bx = z_phys_nd.box();
+        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            z_arr(i,j,k0) = 0.0;
+        });
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY

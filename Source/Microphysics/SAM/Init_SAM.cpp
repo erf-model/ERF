@@ -21,11 +21,16 @@ using namespace amrex;
 void SAM::Init (const MultiFab& cons_in,
                 const BoxArray& grids,
                 const Geometry& geom,
-                const Real& dt_advance)
+                const Real& dt_advance,
+                std::unique_ptr<MultiFab>& z_phys_nd,
+                std::unique_ptr<MultiFab>& detJ_cc)
 {
     dt = dt_advance;
     m_geom = geom;
     m_gtoe = grids;
+
+    m_z_phys_nd = z_phys_nd.get();
+    m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar::qt, MicVar::qv , MicVar::qcl, MicVar::qci,
@@ -42,8 +47,8 @@ void SAM::Init (const MultiFab& cons_in,
     for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
 
-        const auto& lo = amrex::lbound(box3d);
-        const auto& hi = amrex::ubound(box3d);
+        const auto& lo = lbound(box3d);
+        const auto& hi = ubound(box3d);
 
         nlev = box3d.length(2);
         zlo  = lo.z;

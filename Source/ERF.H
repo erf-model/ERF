@@ -28,7 +28,6 @@
 #include "prob_common.H"
 
 #include <IndexDefines.H>
-#include <TimeInterpolatedData.H>
 #include <DataStruct.H>
 #include <InputSoundingData.H>
 #include <ABLMost.H>
@@ -43,15 +42,12 @@
 #include "ParticleData.H"
 #endif
 
-#include "Microphysics.H"
+#include "EulerianMicrophysics.H"
+#include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
-#endif
-
-#ifdef ERF_USE_NETCDF
-#include "NCWpsFile.H"
 #endif
 
 #include <iostream>
@@ -75,7 +71,9 @@ namespace InterpType {
         CellBilinear,
         CellQuadratic,
         CellConservativeProtected,
-        CellConservativeQuartic
+        CellConservativeQuartic,
+        FaceLinear,
+        FaceConserativeLinear
     };
 }
 
@@ -117,6 +115,10 @@ public:
 
     // Initialize multilevel data
     void InitData ();
+
+#ifdef ERF_USE_EB
+    void WriteMyEBSurface ();
+#endif
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
@@ -233,7 +235,9 @@ public:
 
     void advance_microphysics (int lev,
                                amrex::MultiFab& cons_in,
-                               const amrex::Real& dt_advance);
+                               const amrex::Real& dt_advance,
+                               const int& iteration,
+                               const amrex::Real& time);
 
     void advance_lsm (int lev,
                       amrex::MultiFab& /*cons_in*/,
@@ -339,6 +343,17 @@ public:
     void init_from_metgrid (int lev);
 #endif // ERF_USE_NETCDF
 
+#ifdef ERF_USE_WINDFARM
+    void init_windfarm(int lev);
+#endif
+
+#ifdef ERF_USE_EB
+    void MakeEBGeometry ();
+    void make_eb_box ();
+    void make_eb_cylinder ();
+    void make_eb_regular ();
+#endif
+
     // more flexible version of AverageDown() that lets you average down across multiple levels
     void AverageDownTo (int crse_lev, int scomp, int ncomp); // NOLINT
 
@@ -370,9 +385,18 @@ private:
 
     void init_uniform (int lev);
 
-    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+    void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
+                     amrex::Vector<amrex::MultiFab>& lev_new,
+                     amrex::Vector<amrex::MultiFab>& lev_old);
 
+    // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
+
+    // Initialize the bc routines
+    void initialize_bcs        (int lev);
+
+    // Initialize the microphysics object
+    void initializeMicrophysics (const int&);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -432,6 +456,8 @@ private:
 
     // set which variables and derived quantities go into plotfiles
     void setPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
+    // append variables to plot
+    void appendPlotVariables (const std::string& pp_plot_var_names, amrex::Vector<std::string>& plot_var_names);
 
 #ifdef ERF_USE_NETCDF
     //! Write plotfile using NETCDF
@@ -485,6 +511,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
+    amrex::Real Latitude;
+    amrex::Real Longitude;
 #endif // ERF_USE_NETCDF
 
     // Struct for working with the sounding data we take as an input
@@ -514,6 +542,10 @@ private:
     ////////////////
     // private data members
 
+    // These are the minimum and maximum values of k in valid boxes *at this level*
+    amrex::Vector<int> min_k_at_level;
+    amrex::Vector<int> max_k_at_level;
+
     std::unique_ptr<ProblemBase> prob = nullptr;  // problem-specific functions
 
     amrex::Vector<int> num_boxes_at_level;                   // how many boxes specified at each level by tagging criteria
@@ -536,10 +568,17 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
-    amrex::Vector<std::unique_ptr<ERFPhysBCFunct>> physbcs;
 
-    // Store Theta variable for MOST BC
+    // Vector over levels of routines to impose physical boundary conditions
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_v>> physbcs_v;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w>> physbcs_w;
+    amrex::Vector<std::unique_ptr<ERFPhysBCFunct_w_no_terrain>> physbcs_w_no_terrain;
+
+    // Store primitive variable for MOST BC
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Theta_prim;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Qv_prim;
 
     // Scratch space for time integrator
     amrex::Vector<amrex::MultiFab> rU_old;
@@ -549,12 +588,15 @@ private:
     amrex::Vector<amrex::MultiFab> rW_old;
     amrex::Vector<amrex::MultiFab> rW_new;
 
-    Microphysics micro;
+    std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
+    amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
 //#endif
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
@@ -690,8 +732,8 @@ private:
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar", "vorticity",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
                                                     // eddy viscosity
@@ -701,7 +743,7 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
@@ -786,6 +828,18 @@ private:
     // Custom source terms
     amrex::Vector<           amrex::Vector<amrex::Real> > h_rhotheta_src;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhotheta_src;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_rhoqt_src;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_rhoqt_src;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_w_subsid;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_w_subsid;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_u_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_u_geos;
+
+    amrex::Vector<           amrex::Vector<amrex::Real> > h_v_geos;
+    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > d_v_geos;
 
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
@@ -1021,6 +1075,27 @@ private:
 
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+
+    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
+
+    [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
+    Factory (int lev) const noexcept { return *m_factory[lev]; }
+#ifdef ERF_USE_EB
+    [[nodiscard]] amrex::EBFArrayBoxFactory const&
+    EBFactory (int lev) const noexcept {
+        return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
+    }
+
+    [[nodiscard]] static int nghost_eb_basic ()
+    { return 5; }
+
+    // We need 5 for doing StateRedistribution; otherwise 4 would be enough
+    [[nodiscard]] static int nghost_eb_volume ()
+    { return 5; }
+
+    [[nodiscard]] static int nghost_eb_full ()
+    { return 4; }
+#endif
 
 public:
     void writeJobInfo (const std::string& dir) const;

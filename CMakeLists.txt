@@ -19,9 +19,13 @@ option(ERF_ENABLE_PARTICLES "Enable Lagrangian particles" OFF)
 option(ERF_ENABLE_FCOMPARE "Enable building fcompare when not testing" OFF)
 set(ERF_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
+option(ERF_ENABLE_EXPLICIT_MOST_STRESS "Explicitly include MOST stresses in momentum diffusion" OFF)
+
 option(ERF_ENABLE_MOISTURE "Enable Full Moisture" ON)
 option(ERF_ENABLE_WARM_NO_PRECIP "Enable Warm Moisture" OFF)
 option(ERF_ENABLE_RRTMGP "Enable RTE-RRTMGP Radiation" OFF)
+
+option(ERF_ENABLE_POISSON_SOLVE "Enable Poisson solve for incompressible flow" OFF)
 
 #Options for performance
 option(ERF_ENABLE_MPI "Enable MPI" OFF)

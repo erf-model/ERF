@@ -24,6 +24,8 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
     if (m_advect_w_gravity) {
         AdvectWithGravity( a_lev, a_dt_lev, a_z_phys_nd[a_lev] );
     }
+
+    Redistribute();
     return;
 }
 
@@ -62,9 +64,9 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
     {
         for (int i = 0; i < AMREX_SPACEDIM; i++)
         {
-            int ng = a_umac[i].nGrow();
+            IntVect ng = a_umac[i].nGrowVect();
             raii_umac[i] = std::make_unique<MultiFab>
-                (amrex::convert(m_gdb->ParticleBoxArray(a_lev), IntVect::TheDimensionVector(i)),
+                (convert(m_gdb->ParticleBoxArray(a_lev), IntVect::TheDimensionVector(i)),
                  m_gdb->ParticleDistributionMap(a_lev), a_umac[i].nComp(), ng);
             umac_pointer[i] = raii_umac[i].get();
             umac_pointer[i]->ParallelCopy(a_umac[i],0,0,a_umac[i].nComp(),ng,ng);
@@ -95,7 +97,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                                                                   &((*umac_pointer[2])[grid])) };
 
             //array of these pointers to pass to the GPU
-            amrex::GpuArray<amrex::Array4<const Real>, AMREX_SPACEDIM>
+            GpuArray<Array4<const Real>, AMREX_SPACEDIM>
                 const umacarr {{AMREX_D_DECL((*fab[0]).array(),
                                              (*fab[1]).array(),
                                              (*fab[2]).array() )}};
@@ -146,7 +148,7 @@ void ERFPC::AdvectWithFlow ( MultiFab*                           a_umac,
                 ParallelReduce::Max(stoptime, ParallelContext::IOProcessorNumberSub(),
                                     ParallelContext::CommunicatorSub());
 
-                amrex::Print() << "ERFPC::AdvectWithFlow() time: " << stoptime << '\n';
+                Print() << "ERFPC::AdvectWithFlow() time: " << stoptime << '\n';
 #ifdef AMREX_LAZY
         });
 #endif
@@ -221,7 +223,7 @@ void ERFPC::AdvectWithGravity (  int                                 a_lev,
                 ParallelReduce::Max(stoptime, ParallelContext::IOProcessorNumberSub(),
                                     ParallelContext::CommunicatorSub());
 
-                amrex::Print() << "ERFPC::AdvectWithGravity() time: " << stoptime << '\n';
+                Print() << "ERFPC::AdvectWithGravity() time: " << stoptime << '\n';
 #ifdef AMREX_LAZY
         });
 #endif

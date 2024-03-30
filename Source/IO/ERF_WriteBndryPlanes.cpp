@@ -15,7 +15,7 @@ using namespace amrex;
  * @param b1 Boundary register containing the source data
  * @param b2 Boundary register containing the destination data
  */
-void br_shift(OrientationIter oit, const BndryRegister& b1, BndryRegister& b2)
+void br_shift (OrientationIter oit, const BndryRegister& b1, BndryRegister& b2)
 {
     auto ori = oit();
     int ncomp = b1[ori].nComp();
@@ -33,8 +33,9 @@ void br_shift(OrientationIter oit, const BndryRegister& b1, BndryRegister& b2)
             Array4<Real const>  src_arr = b1[ori][idx].const_array();
             int ioff = bx1.smallEnd(0) - bx2.smallEnd(0);
             int joff = bx1.smallEnd(1) - bx2.smallEnd(1);
-            ParallelFor(
-                bx2, ncomp, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+            ParallelFor(bx2, ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept
+            {
                 dest_arr(i,j,k,n) = src_arr(i+ioff,j+joff,k,n);
             });
         }
@@ -114,8 +115,8 @@ WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
  * @param time Current time
  * @param vars_new Grid data for all variables across the AMR hierarchy
  */
-void WriteBndryPlanes::write_planes(const int t_step, const Real time,
-                                    Vector<Vector<MultiFab>>& vars_new)
+void WriteBndryPlanes::write_planes (const int t_step, const Real time,
+                                     Vector<Vector<MultiFab>>& vars_new)
 {
     BL_PROFILE("ERF::WriteBndryPlanes::write_planes");
 
@@ -127,7 +128,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const Real time,
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);
 
-    //amrex::Print() << "Writing boundary planes at time " << time << std::endl;
+    //Print() << "Writing boundary planes at time " << time << std::endl;
 
     const std::string level_prefix = "Level_";
     PreBuildDirectorHierarchy(chkname, level_prefix, 1, true);
@@ -179,7 +180,7 @@ void WriteBndryPlanes::write_planes(const int t_step, const Real time,
             bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
 
         } else {
-            //amrex::Print() << "Trying to write planar output for " << var_name << std::endl;
+            //Print() << "Trying to write planar output for " << var_name << std::endl;
             Error("Don't know how to output this variable");
         }
 

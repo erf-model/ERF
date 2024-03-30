@@ -38,6 +38,7 @@ namespace MicVar_Kess {
       // precipitating vars
       qp,    // total precip
       // derived vars
+      rain_accum,
       NumVars
   };
 }
@@ -54,10 +55,7 @@ public:
     virtual ~Kessler () = default;
 
     // cloud physics
-    void AdvanceKessler ();
-
-    // diagnose
-    void Diagnose () override;
+    void AdvanceKessler (const SolverChoice &solverChoice);
 
     // Set up for first time
     void
@@ -77,7 +75,9 @@ public:
     Init (const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance) override;
+          const amrex::Real& dt_advance,
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+          std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
     // Copy state into micro vars
     void
@@ -92,7 +92,6 @@ public:
     Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
         this->Copy_State_to_Micro(cons_in);
-        this->Diagnose();
     }
 
     // update state vars
@@ -104,12 +103,12 @@ public:
 
     // wrapper to advance micro vars
     void
-    Advance (const amrex::Real& dt_advance) override
+    Advance (const amrex::Real& dt_advance,
+             const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
 
-        this->AdvanceKessler();
-        this->Diagnose();
+        this->AdvanceKessler(solverChoice);
     }
 
     amrex::MultiFab*
@@ -127,7 +126,7 @@ public:
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qp)
-    int m_qmoist_size = 4;
+    int m_qmoist_size = 5;
 
     // Number of qstate variables
     int m_qstate_size = 3;
@@ -158,6 +157,10 @@ private:
     amrex::Real m_fac_fus;
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
+
+    // Pointer to terrain data
+    amrex::MultiFab* m_z_phys_nd;
+    amrex::MultiFab* m_detJ_cc;
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;

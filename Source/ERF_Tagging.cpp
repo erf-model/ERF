@@ -6,48 +6,97 @@ using namespace amrex;
 /**
  * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore
  *
- * @param[in] level level of refinement (0 is coarsest leve)
+ * @param[in] levc level of refinement at which we tag cells (0 is coarsest level)
  * @param[out] tags array of tagged cells
  * @param[in] time current time
 */
 
 void
-ERF::ErrorEst (int level, TagBoxArray& tags, Real time, int /*ngrow*/)
+ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
 {
     const int clearval = TagBox::CLEAR;
     const int   tagval = TagBox::SET;
+
     for (int j=0; j < ref_tags.size(); ++j)
     {
-        std::unique_ptr<MultiFab> mf;
+        std::unique_ptr<MultiFab> mf = std::make_unique<MultiFab>(grids[levc], dmap[levc], 1, 0);
 
         // This allows dynamic refinement based on the value of the density
         if (ref_tags[j].Field() == "density")
         {
-            mf = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
-            MultiFab::Copy(*mf,vars_new[level][Vars::cons],Rho_comp,0,1,0);
+            MultiFab::Copy(*mf,vars_new[levc][Vars::cons],Rho_comp,0,1,0);
+
+        // This allows dynamic refinement based on the value of qv
+        } else if ( ref_tags[j].Field() == "qv" ) {
+            MultiFab qv(vars_new[levc][Vars::cons],make_alias,0,RhoQ1_comp+1);
+            MultiFab::Copy(  *mf, qv, RhoQ1_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, qv, Rho_comp  , 0, 1, 0);
+
+
+        // This allows dynamic refinement based on the value of qc
+        } else if (ref_tags[j].Field() == "qc" ) {
+            MultiFab qc(vars_new[levc][Vars::cons],make_alias,0,RhoQ2_comp+1);
+            MultiFab::Copy(  *mf, qc, RhoQ2_comp, 0, 1, 0);
+            MultiFab::Divide(*mf, qc, Rho_comp  , 0, 1, 0);
+
 
         // This allows dynamic refinement based on the value of the scalar/pressure/theta
         } else if ( (ref_tags[j].Field() == "scalar"  ) ||
                     (ref_tags[j].Field() == "pressure") ||
                     (ref_tags[j].Field() == "theta"   ) )
         {
-            mf = std::make_unique<MultiFab>(grids[level], dmap[level], 1, 0);
             for (MFIter mfi(*mf, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
                 auto& dfab = (*mf)[mfi];
-                auto& sfab = vars_new[level][Vars::cons][mfi];
+                auto& sfab = vars_new[levc][Vars::cons][mfi];
                 if (ref_tags[j].Field() == "scalar") {
-                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
+                    derived::erf_derscalar(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
                 } else if (ref_tags[j].Field() == "theta") {
-                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(level), time, nullptr, level);
+                    derived::erf_dertheta(bx, dfab, 0, 1, sfab, Geom(levc), time, nullptr, levc);
                 }
             } // mfi
+#ifdef ERF_USE_PARTICLES
+        } else {
+            //
+            // This allows dynamic refinement based on the number of particles per cell
+            //
+            // Note that we must count all the particles in levels both at and above the current,
+            //      since otherwise, e.g., if the particles are all at level 1, counting particles at
+            //      level 0 will not trigger refinement when regridding so level 1 will disappear,
+            //      then come back at the next regridding
+            //
+            const auto& particles_namelist( particleData.getNames() );
+            mf->setVal(0.0);
+            for (ParticlesNamesVector::size_type i = 0; i < particles_namelist.size(); i++)
+            {
+                std::string tmp_string(particles_namelist[i]+"_count");
+                IntVect rr = IntVect::TheUnitVector();
+                if (ref_tags[j].Field() == tmp_string) {
+                    for (int lev = levc; lev <= finest_level; lev++)
+                    {
+                        MultiFab temp_dat(grids[lev], dmap[lev], 1, 0); temp_dat.setVal(0);
+                        particleData[particles_namelist[i]]->IncrementWithTotal(temp_dat, lev);
+
+                        MultiFab temp_dat_crse(grids[levc], dmap[levc], 1, 0); temp_dat_crse.setVal(0);
+
+                        if (lev == levc) {
+                            MultiFab::Copy(*mf, temp_dat, 0, 0, 1, 0);
+                        } else {
+                            for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                                rr[d] *= ref_ratio[levc][d];
+                            }
+                            average_down(temp_dat, temp_dat_crse, 0, 1, rr);
+                            MultiFab::Add(*mf, temp_dat_crse, 0, 0, 1, 0);
+                        }
+                    }
+                }
+            }
+#endif
         }
 
-        // This is sufficient for static refinement (where we don't need mf filled first)
-        ref_tags[j](tags,mf.get(),clearval,tagval,time,level,geom[level]);
-  }
+        ref_tags[j](tags,mf.get(),clearval,tagval,time,levc,geom[levc]);
+    } // loop over j
 }
 
 /**
@@ -75,13 +124,11 @@ ERF::refinement_criteria_setup ()
                 ppr.get("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
-                    ppr.getarr("in_box_lo",box_lo,0,2);
-                    ppr.getarr("in_box_hi",box_hi,0,2);
-                    box_lo[2] = geom[0].ProbLo(2);
-                    box_hi[2] = geom[0].ProbHi(2);
+                    ppr.getarr("in_box_lo",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
                     realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
 
-                    amrex::Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
+                    Print() << "Reading " << realbox << " at level " << lev_for_box << std::endl;
                     num_boxes_at_level[lev_for_box] += 1;
 
                     const auto* dx  = geom[lev_for_box].CellSize();
@@ -97,7 +144,7 @@ ERF::refinement_criteria_setup ()
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
                          amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
-                    amrex::Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
                 } // lev
                 if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {

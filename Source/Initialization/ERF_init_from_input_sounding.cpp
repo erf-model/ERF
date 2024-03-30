@@ -11,32 +11,32 @@
 using namespace amrex;
 
 void
-init_bx_scalars_from_input_sounding (const amrex::Box &bx,
-                                     amrex::Array4<amrex::Real> const &state,
-                                     amrex::GeometryData const &geomdata,
-                                     amrex::Array4<const amrex::Real> const &z_cc_arr,
+init_bx_scalars_from_input_sounding (const Box &bx,
+                                     Array4<Real> const &state,
+                                     GeometryData const &geomdata,
+                                     Array4<const Real> const &z_cc_arr,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData);
 void
-init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
-                                         amrex::Array4<amrex::Real> const &state,
-                                         amrex::Array4<amrex::Real> const &r_hse_arr,
-                                         amrex::Array4<amrex::Real> const &p_hse_arr,
-                                         amrex::Array4<amrex::Real> const &pi_hse_arr,
-                                         amrex::GeometryData const &geomdata,
-                                         amrex::Array4<const amrex::Real> const &z_cc_arr,
-                                         const amrex::Real& l_gravity,
-                                         const amrex::Real& l_rdOcp,
+init_bx_scalars_from_input_sounding_hse (const Box &bx,
+                                         Array4<Real> const &state,
+                                         Array4<Real> const &r_hse_arr,
+                                         Array4<Real> const &p_hse_arr,
+                                         Array4<Real> const &pi_hse_arr,
+                                         GeometryData const &geomdata,
+                                         Array4<const Real> const &z_cc_arr,
+                                         const Real& l_gravity,
+                                         const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData);
 
 void
-init_bx_velocities_from_input_sounding (const amrex::Box &bx,
-                                        amrex::Array4<amrex::Real> const &x_vel,
-                                        amrex::Array4<amrex::Real> const &y_vel,
-                                        amrex::Array4<amrex::Real> const &z_vel,
-                                        amrex::GeometryData const &geomdata,
-                                        amrex::Array4<const amrex::Real> const &z_nd_arr,
+init_bx_velocities_from_input_sounding (const Box &bx,
+                                        Array4<Real> const &x_vel,
+                                        Array4<Real> const &y_vel,
+                                        Array4<Real> const &z_vel,
+                                        GeometryData const &geomdata,
+                                        Array4<const Real> const &z_nd_arr,
                                         InputSoundingData const &inputSoundingData);
 
 /**
@@ -51,7 +51,7 @@ ERF::init_from_input_sounding (int lev)
     // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
     if (lev == 0) {
         if (input_sounding_file.empty())
-            amrex::Error("input_sounding file name must be provided via input");
+            Error("input_sounding file name must be provided via input");
 
         // this will interpolate the input profiles to the nominal height levels
         // (ranging from 0 to the domain top)
@@ -74,7 +74,7 @@ ERF::init_from_input_sounding (int lev)
     const bool l_moist   = (solverChoice.moisture_type != MoistureType::None);
 
 #ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box &bx = mfi.tilebox();
@@ -101,6 +101,9 @@ ERF::init_from_input_sounding (int lev)
         }
         else
         {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!solverChoice.use_terrain,
+                "Terrain is not supported without init_sounding_ideal option.");
+
             // HSE will be calculated later with call to initHSE
             init_bx_scalars_from_input_sounding(
                 bx, cons_arr,
@@ -126,10 +129,10 @@ ERF::init_from_input_sounding (int lev)
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding (const amrex::Box &bx,
-                                     amrex::Array4<amrex::Real> const &state,
-                                     amrex::GeometryData const &geomdata,
-                                     amrex::Array4<const amrex::Real> const &z_cc_arr,
+init_bx_scalars_from_input_sounding (const Box &bx,
+                                     Array4<Real> const &state,
+                                     GeometryData const &geomdata,
+                                     Array4<const Real> const &z_cc_arr,
                                      const bool& l_moist,
                                      InputSoundingData const &inputSoundingData)
 {
@@ -139,20 +142,20 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
     const int   inp_sound_size  = inputSoundingData.size();
 
     // Geometry
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real  z_lo = prob_lo[2];
-    const amrex::Real  dz   = dx[2];
+    const Real* prob_lo = geomdata.ProbLo();
+    const Real* dx = geomdata.CellSize();
+    const Real  z_lo = prob_lo[2];
+    const Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
+        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                          : z_lo + (k + 0.5) * dz;
 
-        amrex::Real rho_0 = 1.0;
+        Real rho_0 = 1.0;
 
         // Set the density
         state(i, j, k, Rho_comp) = rho_0;
@@ -185,15 +188,15 @@ init_bx_scalars_from_input_sounding (const amrex::Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
-                                         amrex::Array4<amrex::Real> const &state,
-                                         amrex::Array4<amrex::Real> const &r_hse_arr,
-                                         amrex::Array4<amrex::Real> const &p_hse_arr,
-                                         amrex::Array4<amrex::Real> const &pi_hse_arr,
-                                         amrex::GeometryData const &geomdata,
-                                         amrex::Array4<const amrex::Real> const &z_cc_arr,
-                                         const amrex::Real& l_gravity,
-                                         const amrex::Real& l_rdOcp,
+init_bx_scalars_from_input_sounding_hse (const Box &bx,
+                                         Array4<Real> const &state,
+                                         Array4<Real> const &r_hse_arr,
+                                         Array4<Real> const &p_hse_arr,
+                                         Array4<Real> const &pi_hse_arr,
+                                         GeometryData const &geomdata,
+                                         Array4<const Real> const &z_cc_arr,
+                                         const Real& l_gravity,
+                                         const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
 {
@@ -205,20 +208,20 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
 
     // Geometry
     int ktop = bx.bigEnd(2);
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real  z_lo = prob_lo[2];
-    const amrex::Real  dz   = dx[2];
+    const Real* prob_lo = geomdata.ProbLo();
+    const Real* dx = geomdata.CellSize();
+    const Real  z_lo = prob_lo[2];
+    const Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
     ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        const amrex::Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
+        const Real z = (z_cc_arr) ? z_cc_arr(i,j,k)
                                          : z_lo + (k + 0.5) * dz;
 
-        Real rho_k, rhoTh_k;
+        Real rho_k, qv_k, rhoTh_k;
 
         // Set the density
         rho_k = interpolate_1d(z_inp_sound, rho_inp_sound, z, inp_sound_size);
@@ -232,15 +235,16 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         state(i, j, k, RhoScalar_comp) = 0;
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
-        r_hse_arr (i, j, k) = rho_k;
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k); // NOTE WE ONLY USE THE DRY AIR PRESSURE
+        qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
+        r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
         // Boundary treatment
         if (k==0)
         {
             // set the ghost cell with dz and rho at boundary
-            amrex::Real rho_surf =
+            Real rho_surf =
                 interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
             p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dz * rho_surf * l_gravity;
             pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), l_rdOcp);
@@ -248,7 +252,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         else if (k==ktop)
         {
             // set the ghost cell with dz and rho at boundary
-            amrex::Real rho_top =
+            Real rho_top =
                 interpolate_1d(z_inp_sound, rho_inp_sound, z+dz/2, inp_sound_size);
             p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dz * rho_top * l_gravity;
             pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
@@ -257,7 +261,7 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there
         // is no cloud water or cloud ice
         if (l_moist)
-            state(i, j, k, RhoQ1_comp) = rho_k * interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size);
+            state(i, j, k, RhoQ1_comp) = rho_k * qv_k;
     });
 }
 
@@ -272,12 +276,12 @@ init_bx_scalars_from_input_sounding_hse (const amrex::Box &bx,
  * @param inputSoundingData InputSoundingData object we are to initialize from
  */
 void
-init_bx_velocities_from_input_sounding (const amrex::Box &bx,
-                                        amrex::Array4<amrex::Real> const &x_vel,
-                                        amrex::Array4<amrex::Real> const &y_vel,
-                                        amrex::Array4<amrex::Real> const &z_vel,
-                                        amrex::GeometryData const &geomdata,
-                                        amrex::Array4<const amrex::Real> const &z_nd_arr,
+init_bx_velocities_from_input_sounding (const Box &bx,
+                                        Array4<Real> const &x_vel,
+                                        Array4<Real> const &y_vel,
+                                        Array4<Real> const &z_vel,
+                                        GeometryData const &geomdata,
+                                        Array4<const Real> const &z_nd_arr,
                                         InputSoundingData const &inputSoundingData)
 {
     const Real* z_inp_sound     = inputSoundingData.z_inp_sound_d.dataPtr();
@@ -286,27 +290,27 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
     const int   inp_sound_size  = inputSoundingData.size();
 
     // Geometry
-    const amrex::Real* prob_lo = geomdata.ProbLo();
-    const amrex::Real* dx = geomdata.CellSize();
-    const amrex::Real  z_lo = prob_lo[2];
-    const amrex::Real  dz   = dx[2];
+    const Real* prob_lo = geomdata.ProbLo();
+    const Real* dx = geomdata.CellSize();
+    const Real  z_lo = prob_lo[2];
+    const Real  dz   = dx[2];
 
     // We want to set the lateral BC values, too
     Box gbx = bx; // Copy constructor
     gbx.grow(0,1); gbx.grow(1,1); // Grow by one in the lateral directions
 
     // Construct a box that is on x-faces
-    const amrex::Box& xbx = amrex::surroundingNodes(gbx,0);
+    const Box& xbx = surroundingNodes(gbx,0);
     // Construct a box that is on y-faces
-    const amrex::Box& ybx = amrex::surroundingNodes(gbx,1);
+    const Box& ybx = surroundingNodes(gbx,1);
     // Construct a box that is on z-faces
-    const amrex::Box& zbx = amrex::surroundingNodes(gbx,2);
+    const Box& zbx = surroundingNodes(gbx,2);
 
     // Set the x,y,z-velocities
     ParallelFor(xbx, ybx, zbx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of x-faces
-        const amrex::Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )
+        const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i,j  ,k  )
                                                 + z_nd_arr(i,j+1,k  )
                                                 + z_nd_arr(i,j  ,k+1)
                                                 + z_nd_arr(i,j+1,k+1))
@@ -317,7 +321,7 @@ init_bx_velocities_from_input_sounding (const amrex::Box &bx,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
         // Note that this is called on a box of y-faces
-        const amrex::Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i  ,j,k  )
+        const Real z = (z_nd_arr) ? 0.25*( z_nd_arr(i  ,j,k  )
                                                 + z_nd_arr(i+1,j,k  )
                                                 + z_nd_arr(i  ,j,k+1)
                                                 + z_nd_arr(i+1,j,k+1))

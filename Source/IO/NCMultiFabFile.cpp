@@ -27,7 +27,7 @@ ERF::ReadNCMultiFab (FabArray<FArrayBox> &mf,
 
     const std::string& FullPath = amrex::Concatenate(check_file,istep[0],5);
 
-    amrex::Print() << "Reading MultiFab NetCDF checkpoint file to path: " << FullPath << "\n";
+    Print() << "Reading MultiFab NetCDF checkpoint file to path: " << FullPath << "\n";
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
@@ -64,7 +64,7 @@ ERF::ReadNCMultiFab (FabArray<FArrayBox> &mf,
       DistributionMapping dm(boxarray);
       mf.define(boxarray, dm, ncomp, ngrow, MFInfo(), FArrayBoxFactory());
 
-      for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+      for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
            auto ncomp_mf   = mf.nComp();
            auto num_pts_mf  = static_cast<long unsigned int>(mf.get(mfi).numPts());
 
@@ -102,7 +102,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
         amrex::Vector<std::string> plt_var_names;
         amrex::Vector<std::string> npts_names;
         amrex::Vector<int> num_pts;
-        for (amrex::MFIter mfi(fab); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(fab); mfi.isValid(); ++mfi) {
            auto ncomp            = fab.nComp();
            std::string comp_name = std::to_string(mfi.index());
            int num_points        = fab.get(mfi).numPts();
@@ -145,7 +145,7 @@ ERF::WriteNCMultiFab (const FabArray<FArrayBox> &fab,
 
         ncf.exit_def_mode();
 
-        for (amrex::MFIter mfi(fab); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(fab); mfi.isValid(); ++mfi) {
             auto ncomp_mf   = fab.nComp();
             auto box        = fab.get(mfi).box();
             auto num_pts_mf = fab.get(mfi).numPts();

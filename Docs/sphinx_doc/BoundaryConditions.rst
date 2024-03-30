@@ -139,17 +139,22 @@ It is important to note that external Dirichlet boundary data should be specifie
 as the value on the face of the cell bounding the domain, even for cell-centered
 state data.
 
-Specified Domain BCs
+Real Domain BCs
 ----------------------
 
-When we use specified lateral boundary conditions, we read time-dependent Dirichlet data
-from a file.  The user may specify (in the inputs file)
+When using real lateral boundary conditions, time-dependent observation data is read
+from a file.  The observation data is utilized to directly set Dirichlet values on the
+lateral domain BCs as well as nudge the solution state towards the observation data.
+The user may specify (in the inputs file)
 the total width of the interior Dirichlet and relaxation region with
 ``erf.real_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
 ``erf.real_set_width = <Int>`` (yellow).
-We note that all dycore variables are set and relaxed, but moisture and other scalars
-are only set in the yellow region if present in the boundary file.
+The real BCs are only imposed for :math:`\psi = \left\{ \rho; \; \rho \theta; \; \rho q_v; \; u; \; v \right\}`.
+Due to the staggering of scalars (cell center) and velocities (face center) with an Arakawa C grid,
+we reduce the relaxation width of the scalars :math:`\left\{ \rho; \; \rho \theta; \; \rho q_v \right\}` by 1
+to ensure the momentum updates at the last relaxation cell involve a pressure gradient that is computed with
+relaxed and non-relaxed data.
 
 .. |wrfbdy| image:: figures/wrfbdy_BCs.png
            :width: 600
@@ -166,26 +171,23 @@ are only set in the yellow region if present in the boundary file.
 
 .. _`Skamarock et al. (2021)`: http://dx.doi.org/10.5065/1dfh-6p97
 
-Here we describe the relaxation algorithm.
-
-Within the interior Dirichlet region (yellow), the RHS is exactly 0.
-However, within the relaxation region (blue), the RHS (:math:`F`) is given by the following:
+Within the interior Dirichlet cells, the RHS is exactly :math:`\psi^{n} - \ps^{BDY} / \Delta t`
+and, as such, we directly impose this value in the yellow region.
+Within the relaxation region (blue), the RHS (:math:`F`) is given by the following:
 
 .. math::
 
    \begin{align}
    F &= G + R, \\
-   \psi^{\prime} &= \psi^{n} + \Delta t \; G, \\
-   R &= H_{1} \left( \psi^{FP} - \psi^{\prime} \right) - H_{2} \Delta^2 \left( \psi^{FP} - \psi^{\prime} \right), \\
+   R &= \left[ H_{1} \left( \psi^{BDY} - \psi^{\*} \right) - H_{2} \Delta^2 \left( \psi^{BDY} - \psi^{\*} \right) \right] \exp \left(-C_{01} \left(n - {\rm SpecWidth}\right)  \right), \\
    H_{1} &= \frac{1}{10 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1}, \\
    H_{2} &= \frac{1}{50 \Delta t} \frac{{\rm SpecWidth} + {\rm RelaxWidth} - n}{{\rm RelaxWidth} - 1},
    \end{align}
 
-where :math:`G` is the RHS of the evolution equations, :math:`\psi^{\prime}` is the predicted update without
-relaxation, :math:`\psi^{FP}` is the fine data obtained from spatial and temporal interpolation of the
-coarse data, and :math:`n` is the minimum number of grid points from a lateral boundary. The specified and
-relaxation regions are applied to all dycore variables :math:`\left[\rho \; \rho\Theta \; U\; V\; W \right]`
-on the fine mesh.
+where :math:`G` is the RHS of the Navier-Stokes equations, :math:`\psi^{*}` is the state variable at the
+current RK stage, :math:`\psi^{BDY}` is temporal interpolation of the observational data, :math:`C_{01} = -\ln(0.01) / ({\rm RealWidth - SpecWidth})`
+is a constant that ensure the exponential blending function obtains a value of 0.01 at the last relaxation cell,
+and :math:`n` is the minimum number of grid points from a lateral boundary.
 
 Sponge zone domain BCs
 ----------------------

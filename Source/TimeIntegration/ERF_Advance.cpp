@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include <TileNoZ.H>
 #include <Utils.H>
+
 #ifdef ERF_USE_WINDFARM
 #include <Fitch.H>
 #endif
@@ -17,7 +18,7 @@ using namespace amrex;
  */
 
 void
-ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/)
+ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 {
     BL_PROFILE("ERF::Advance()");
 
@@ -42,9 +43,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
             IntVect ng = Theta_prim[lev]->nGrowVect();
             MultiFab::Copy(  *Theta_prim[lev], S_old, RhoTheta_comp, 0, 1, ng);
             MultiFab::Divide(*Theta_prim[lev], S_old, Rho_comp     , 0, 1, ng);
+            if (solverChoice.moisture_type != MoistureType::None) {
+                ng = Qv_prim[lev]->nGrowVect();
+                MultiFab::Copy(  *Qv_prim[lev], S_old, RhoQ1_comp, 0, 1, ng);
+                MultiFab::Divide(*Qv_prim[lev], S_old, Rho_comp  , 0, 1, ng);
+            }
             // NOTE: std::swap above causes the field ptrs to be out of date.
             //       Reassign the field ptrs for MAC avg computation.
-            m_most->update_mac_ptrs(lev, vars_old, Theta_prim);
+            m_most->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim);
             m_most->update_fluxes(lev, time);
         }
     }
@@ -60,14 +66,14 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
 
     if (solverChoice.moisture_type != MoistureType::None) {
         // TODO: This is only qv
-        FillPatchMoistVars(lev, *(qmoist[lev][0]));
+        if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
 #if defined(ERF_USE_WINDFARM)
     // Update with the Fitch source terms
     if (solverChoice.windfarm_type == WindFarmType::Fitch) {
         fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_fitch[lev]);
+                      U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
     }
 #endif
 
@@ -87,8 +93,8 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // Define Multifab for buoyancy term -- only added to vertical velocity
     MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
-    amrex::Vector<amrex::MultiFab> state_old;
-    amrex::Vector<amrex::MultiFab> state_new;
+    amrex::Vector<MultiFab> state_old;
+    amrex::Vector<MultiFab> state_new;
 
     // **************************************************************************************
     // Here we define state_old and state_new which are to be advanced
@@ -119,7 +125,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int /*iteration*/, int /*ncycle*/
     // **************************************************************************************
     // Update the microphysics (moisture)
     // **************************************************************************************
-    advance_microphysics(lev, S_new, dt_lev);
+    advance_microphysics(lev, S_new, dt_lev, iteration, time);
 
     // **************************************************************************************
     // Update the land surface model

@@ -23,27 +23,27 @@ void ERF::init_bcs ()
     auto f = [this] (std::string const& bcid, Orientation ori)
     {
         // These are simply defaults for Dirichlet faces -- they should be over-written below
-        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]      =  1.0;
-        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] = -1.0; // It is important to set this negative
-                                                                // because the sign is tested on below
+        m_bc_extdir_vals[BCVars::Rho_bc_comp][ori]       =  1.0;
+        m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori]  = -1.0; // It is important to set this negative
+                                                                 // because the sign is tested on below
         m_bc_extdir_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_extdir_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_extdir_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.0;
-        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
+        m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
 
         m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.0; // default
         m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.0;
 
         // These are simply defaults for Neumann gradients -- they should be over-written below
-        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]      =  0.0;
-        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori] =  0.0;
+        m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]       = 0.0;
+        m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]  = 0.0;
         m_bc_neumann_vals[BCVars::RhoKE_bc_comp][ori]     = 0.0;
         m_bc_neumann_vals[BCVars::RhoQKE_bc_comp][ori]    = 0.0;
         m_bc_neumann_vals[BCVars::RhoScalar_bc_comp][ori] = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]    = 0.0;
-        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]    = 0.0;
+        m_bc_neumann_vals[BCVars::RhoQ1_bc_comp][ori]     = 0.0;
+        m_bc_neumann_vals[BCVars::RhoQ2_bc_comp][ori]     = 0.0;
         m_bc_neumann_vals[BCVars::xvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::yvel_bc][ori] = 0.0;
         m_bc_neumann_vals[BCVars::zvel_bc][ori] = 0.0;
@@ -58,28 +58,32 @@ void ERF::init_bcs ()
         std::string bc_type_in = "null";
         pp.query("type", bc_type_in);
         //if (pp.query("type", bc_type_in))
-        //   amrex::Print() << "INPUT BC TYPE " << bcid << " " << bc_type_in << std::endl;
+        //   Print() << "INPUT BC TYPE " << bcid << " " << bc_type_in << std::endl;
         std::string bc_type = amrex::toLower(bc_type_in);
 
         if (bc_type == "symmetry")
         {
-            // amrex::Print() << bcid << " set to symmetry.\n";
-
-            phys_bc_type[ori] = ERF_BC::symmetry;
+            // Print() << bcid << " set to symmetry.\n";
+              phys_bc_type[ori] = ERF_BC::symmetry;
             domain_bc_type[ori] = "Symmetry";
         }
         else if (bc_type == "outflow")
         {
-            // amrex::Print() << bcid << " set to outflow.\n";
-
-            phys_bc_type[ori] = ERF_BC::outflow;
+            // Print() << bcid << " set to outflow.\n";
+              phys_bc_type[ori] = ERF_BC::outflow;
             domain_bc_type[ori] = "Outflow";
+        }
+        else if (bc_type == "open")
+        {
+            // Print() << bcid << " set to open.\n";
+            AMREX_ASSERT_WITH_MESSAGE((ori.coordDir() != 2), "Open boundary not valid on zlo or zhi!");
+              phys_bc_type[ori] = ERF_BC::open;
+            domain_bc_type[ori] = "Open";
         }
         else if (bc_type == "inflow")
         {
-            // amrex::Print() << bcid << " set to inflow.\n";
-
-            phys_bc_type[ori] = ERF_BC::inflow;
+            // Print() << bcid << " set to inflow.\n";
+              phys_bc_type[ori] = ERF_BC::inflow;
             domain_bc_type[ori] = "Inflow";
 
             std::vector<Real> v;
@@ -151,9 +155,8 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "noslipwall")
         {
-            // amrex::Print() << bcid <<" set to no-slip wall.\n";
-
-            phys_bc_type[ori] = ERF_BC::no_slip_wall;
+            // Print() << bcid <<" set to no-slip wall.\n";
+              phys_bc_type[ori] = ERF_BC::no_slip_wall;
             domain_bc_type[ori] = "NoSlipWall";
 
             std::vector<Real> v;
@@ -188,9 +191,9 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "slipwall")
         {
-            // amrex::Print() << bcid <<" set to slip wall.\n";
+            // Print() << bcid <<" set to slip wall.\n";
 
-            phys_bc_type[ori] = ERF_BC::slip_wall;
+              phys_bc_type[ori] = ERF_BC::slip_wall;
             domain_bc_type[ori] = "SlipWall";
 
             Real rho_in;
@@ -219,7 +222,7 @@ void ERF::init_bcs ()
         }
         else if (bc_type == "most")
         {
-            phys_bc_type[ori] = ERF_BC::MOST;
+              phys_bc_type[ori] = ERF_BC::MOST;
             domain_bc_type[ori] = "MOST";
         }
         else
@@ -233,14 +236,14 @@ void ERF::init_bcs ()
             {
                 phys_bc_type[ori] = ERF_BC::periodic;
             } else {
-                amrex::Abort("Wrong BC type for periodic boundary");
+                Abort("Wrong BC type for periodic boundary");
             }
         }
 
         if (phys_bc_type[ori] == ERF_BC::undefined)
         {
-             amrex::Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
-             amrex::Abort("This BC type is unknown");
+             Print() << "BC Type specified for face " << bcid << " is " << bc_type_in << std::endl;
+             Abort("This BC type is unknown");
         }
     };
 
@@ -269,25 +272,39 @@ void ERF::init_bcs ()
             if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::reflect_even);
+                    }
                     domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::reflect_odd);
                 } else {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::reflect_even);
+                    }
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::reflect_odd);
                 }
             }
             else if (bct == ERF_BC::outflow)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
                     domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::neumann_int);
                 } else {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::neumann_int);
+                }
+            }
+            else if (bct == ERF_BC::open)
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                        domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::open);
+                } else {
+                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                        domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
             else if (bct == ERF_BC::inflow)
@@ -311,24 +328,28 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::ext_dir);
+                    }
                 } else {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::ext_dir);
+                    }
                 }
             }
             else if (bct == ERF_BC::slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
                     // Only normal direction has ext_dir
                     domain_bcs_type[BCVars::xvel_bc+dir].setLo(dir, ERFBCType::ext_dir);
 
                 } else {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
                     // Only normal direction has ext_dir
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::ext_dir);
                 }
@@ -336,11 +357,13 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setLo(dir, ERFBCType::int_dir);
+                    }
                 } else {
-                    for (int i = 0; i < AMREX_SPACEDIM; i++)
+                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
                         domain_bcs_type[BCVars::xvel_bc+i].setHi(dir, ERFBCType::int_dir);
+                    }
                 }
             }
             else if ( bct == ERF_BC::MOST )
@@ -368,61 +391,89 @@ void ERF::init_bcs ()
             if ( bct == ERF_BC::symmetry )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::reflect_even);
+                    }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::reflect_even);
+                    }
                 }
             }
             else if ( bct == ERF_BC::outflow )
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
+                } else {
+                    for (int i = 0; i < NVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
+                }
+            }
+            else if ( bct == ERF_BC::open )
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NVAR_max; i++)
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::open);
                 } else {
                     for (int i = 0; i < NVAR_max; i++)
-                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::open);
                 }
             }
             else if ( bct == ERF_BC::no_slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                    }
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
+                    }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                    }
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
+                    }
                 }
             }
             else if (bct == ERF_BC::slip_wall)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                    }
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::ext_dir);
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setLo(dir, ERFBCType::neumann);
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setLo(dir, ERFBCType::neumann);
+                    }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
-                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.)
+                    }
+                    if (m_bc_extdir_vals[BCVars::RhoTheta_bc_comp][ori] > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::ext_dir);
-                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::RhoTheta_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::RhoTheta_bc_comp].setHi(dir, ERFBCType::neumann);
-                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.)
+                    }
+                    if (std::abs(m_bc_neumann_vals[BCVars::Rho_bc_comp][ori]) > 0.) {
                         domain_bcs_type[BCVars::Rho_bc_comp].setHi(dir, ERFBCType::neumann);
+                    }
                 }
             }
             else if (bct == ERF_BC::inflow)
@@ -461,11 +512,13 @@ void ERF::init_bcs ()
             else if (bct == ERF_BC::periodic)
             {
                 if (side == Orientation::low) {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                         domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::int_dir);
+                    }
                 } else {
-                    for (int i = 0; i < NVAR_max; i++)
+                    for (int i = 0; i < NVAR_max; i++) {
                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::int_dir);
+                    }
                 }
             }
             else if ( bct == ERF_BC::MOST )
@@ -478,14 +531,7 @@ void ERF::init_bcs ()
         }
     }
 
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy
-        (domain_bcs_type_d.data(), domain_bcs_type.data(),
-         sizeof(amrex::BCRec)*(NVAR_max+AMREX_SPACEDIM));
-#else
-    std::memcpy
-        (domain_bcs_type_d.data(), domain_bcs_type.data(),
-         sizeof(amrex::BCRec)*(NVAR_max+AMREX_SPACEDIM));
-#endif
+    // NOTE: Gpu:copy is a wrapper to htod_memcpy (GPU) or memcpy (CPU) and is a blocking comm
+    Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }
 

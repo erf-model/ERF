@@ -15,7 +15,8 @@ public:
     AMREX_FORCE_INLINE
     explicit PlaneAverage (const amrex::MultiFab* field_in,
                            amrex::Geometry geom_in,
-                           int axis_in);
+                           int axis_in,
+                           bool inc_ghost=false);
     PlaneAverage () = delete;
     ~PlaneAverage () = default;
 
@@ -73,6 +74,9 @@ protected:
     const amrex::MultiFab* m_field;
     amrex::Geometry m_geom;
     const int m_axis;
+    bool m_inc_ghost = false;
+    amrex::IntVect m_ixtype;
+    amrex::IntVect m_ng = amrex::IntVect(0);
 
 public:
     /** fill line storage with averages */
@@ -84,24 +88,30 @@ public:
 
 PlaneAverage::PlaneAverage (const amrex::MultiFab* field_in,
                             amrex::Geometry geom_in,
-                            int axis_in)
-   : m_field(field_in), m_geom(geom_in), m_axis(axis_in)
+                            int axis_in,
+                            bool inc_ghost)
+    : m_field(field_in), m_geom(geom_in), m_axis(axis_in), m_inc_ghost(inc_ghost)
 {
     AMREX_ALWAYS_ASSERT(m_axis >= 0 && m_axis < AMREX_SPACEDIM);
 
-    m_xlo   = m_geom.ProbLo(m_axis);
-    m_dx    = m_geom.CellSize(m_axis);
-    m_ncomp = m_field->nComp();
+    m_xlo    = m_geom.ProbLo(m_axis);
+    m_dx     = m_geom.CellSize(m_axis);
+    m_ncomp  = m_field->nComp();
+    m_ixtype = m_field->boxArray().ixType().toIntVect();
 
     amrex::Box domain = m_geom.Domain();
+    if (inc_ghost) {
+        m_ng = field_in->nGrowVect();
+        domain.grow(axis_in, m_ng[axis_in]);
+    }
     amrex::IntVect dom_lo(domain.loVect());
     amrex::IntVect dom_hi(domain.hiVect());
 
-    m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1;
+    m_ncell_line = dom_hi[m_axis] - dom_lo[m_axis] + 1 + m_ixtype[m_axis];
 
     m_ncell_plane = 1;
     for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-       if (i != m_axis) m_ncell_plane *= (dom_hi[i] - dom_lo[i] + 1);
+       if (i != m_axis) m_ncell_plane *= (dom_hi[i] - dom_lo[i] + 1 + m_ixtype[m_axis]);
     }
 
     m_line_average.resize(static_cast<size_t>(m_ncell_line) * m_ncomp, 0.0);
@@ -175,13 +185,21 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
     amrex::Real* line_avg = lavg.data();
     const int ncomp = m_ncomp;
 
+    amrex::IntVect ng = amrex::IntVect(0);
+    int offset = m_ng[m_axis];
+    if (m_inc_ghost) ng[m_axis] = offset;
+
+    std::unique_ptr<amrex::iMultiFab> mask = OwnerMask(*m_field, m_geom.periodicity(), ng);
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(mfab, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        amrex::Box bx = mfi.tilebox();
-        auto fab_arr = mfab.const_array(mfi);
-        amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect{0, 0, 0});
+        amrex::Box bx  = mfi.tilebox(m_ixtype, ng);
+        amrex::Box pbx = PerpendicularBox<IndexSelector>(bx, amrex::IntVect(0));
+
+        const amrex::Array4<const amrex::Real>& fab_arr  = mfab.const_array(mfi);
+        const amrex::Array4<const int        >& mask_arr = mask->const_array(mfi);
 
         ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), pbx, [=]
                     AMREX_GPU_DEVICE( int p_i, int p_j, int p_k,
@@ -189,16 +207,17 @@ PlaneAverage::compute_averages (const IndexSelector& idxOp, const amrex::MultiFa
         {
             // Loop over the direction perpendicular to the plane.
             // This reduces the atomic pressure on the destination arrays.
-
             amrex::Box lbx = ParallelBox<IndexSelector>(bx, amrex::IntVect{p_i, p_j, p_k});
 
             for (int k = lbx.smallEnd(2); k <= lbx.bigEnd(2); ++k) {
                 for (int j = lbx.smallEnd(1); j <= lbx.bigEnd(1); ++j) {
                     for (int i = lbx.smallEnd(0); i <= lbx.bigEnd(0); ++i) {
-                        int ind = idxOp.getIndx(i, j, k);
+                        int ind = idxOp.getIndx(i, j, k) + offset;
                         for (int n = 0; n < ncomp; ++n) {
-                            amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
-                                                        fab_arr(i, j, k, n) * denom, handler);
+                            if (mask_arr(i,j,k)) {
+                                amrex::Gpu::deviceReduceSum(&line_avg[ncomp * ind + n],
+                                                            fab_arr(i, j, k, n) * denom, handler);
+                            }
                         }
                     }
                 }

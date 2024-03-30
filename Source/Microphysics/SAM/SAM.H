@@ -69,10 +69,7 @@ public:
     void Precip ();
 
     // precip fall
-    void PrecipFall (int hydro_type=2);
-
-    // diagnose
-    void Diagnose () override;
+    void PrecipFall ();
 
     // Set up for first time
     void
@@ -93,7 +90,9 @@ public:
     Init (const amrex::MultiFab& cons_in,
           const amrex::BoxArray& grids,
           const amrex::Geometry& geom,
-          const amrex::Real& dt_advance) override;
+          const amrex::Real& dt_advance,
+          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+          std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
     // Copy state into micro vars
     void
@@ -118,7 +117,8 @@ public:
 
     // wrapper to do all the updating
     void
-    Advance (const amrex::Real& dt_advance) override
+    Advance (const amrex::Real& dt_advance,
+             const SolverChoice& /*solverChoice*/) override
     {
         dt = dt_advance;
 
@@ -178,6 +178,10 @@ private:
     amrex::Real m_fac_sub;
     amrex::Real m_gOcp;
     amrex::Real m_rdOcp;
+
+    // Pointer to terrain data
+    amrex::MultiFab* m_z_phys_nd;
+    amrex::MultiFab* m_detJ_cc;
 
     // independent variables
     amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
