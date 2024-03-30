@@ -155,7 +155,7 @@ at a given time are shown in the figure below.
    :width: 600
 
 Dry bubble and moist bubble rise simulations
-----------------------------------------------
+-----------------------------------------------
 Benchmark simulations of dry and moist bubble rises in `Bryan and Fritsch`_ are reproduced. The test case consists of a
 warm bubble rising in dry and moist conditions. The potential temperature perturbation and the vertical velocity
 are compared as shown in the figures below. Excellent quantitative comparisons are obtained. The dry and moist bubble cases are
