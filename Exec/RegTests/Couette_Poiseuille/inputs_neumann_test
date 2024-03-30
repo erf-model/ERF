@@ -66,5 +66,7 @@ erf.use_coriolis = false
 erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
+prob.prob_type = 10
+
 prob.rho_0 = 2.0
 prob.T_0   = 300.0

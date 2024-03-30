@@ -9,10 +9,12 @@
 
 struct ProbParm : ProbParmDefaults {
   amrex::Real rho_0 = 1.0;
-  amrex::Real T_0   = 300.0;
   amrex::Real u_0   = 0.0;
   amrex::Real v_0   = 0.0;
   amrex::Real w_0   = 0.0;
+  amrex::Real T_0   = 300.0;
+
+  int prob_type = -1;
 }; // namespace ProbParm
 
 class Problem : public ProblemBase
@@ -43,7 +45,15 @@ public:
         const SolverChoice& sc) override;
 
 protected:
-    std::string name() override { return "Couette Flow"; }
+    std::string name() override {
+        if ( parms.prob_type == 1 ) {
+            return "Couette Flow";
+        } else if ( parms.prob_type == 10 || parms.prob_type == 11) {
+            return "Poiseuille Flow";
+        } else {
+            return "Unknown";
+        }
+    }
 
 private:
     ProbParm parms;

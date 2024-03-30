@@ -49,6 +49,8 @@ erf.dynamicViscosity = 0.1
 erf.init_type = "uniform"
 
 # PROBLEM PARAMETERS
+prob.prob_type = 1
+
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
 # NOTE: this v_0 should match the zhi.velocity specified above

@@ -269,17 +269,17 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             // Get some data in arrays
             const auto& cell_data = cons_in.const_array(mfi);
-            const auto& K_turb = eddyViscosity.array(mfi);
+            //const auto& K_turb = eddyViscosity.array(mfi);
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
 
             const auto& z0_arr = most->get_z0(level)->const_array();
             const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
-            const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
-            const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
+            //const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
+            //const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
-            const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+            //const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
             const auto& z_nd_arr = z_phys_nd->array(mfi);
             const Real most_zref = most->get_zref();
 
@@ -300,7 +300,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
             const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
             const Real unst_Ribcr = turbChoice.pbl_ysu_unst_Ribcr;
-            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
                 // Reconstruct a surface bulk Richardson number from the surface layer model
                 // In WRF, this value is supplied to YSU by the MM5 surface layer model
