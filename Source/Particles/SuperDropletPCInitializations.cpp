@@ -300,6 +300,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                        aerosol_mass_h.end(),
                        aerosol_mass_d.begin() + (i*np) );
         }
+
         Gpu::DeviceVector<Real> condensate_mass_d;
         {
             Vector<Real> condensate_mass_h;
@@ -324,7 +325,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                        condensate_mass_h.end(),
                        condensate_mass_d.begin() );
         }
-        Gpu::streamSynchronize();
+        Gpu::synchronize();
 
         auto aerosol_mass = aerosol_mass_d.data();
         auto condensate_mass = condensate_mass_d.data();
@@ -377,7 +378,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
            }
         });
-        Gpu::streamSynchronize();
+        Gpu::synchronize();
 
         if (a_height_ptr) {
 
@@ -413,7 +414,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                     p.pos(2) = z;
                }
             });
-            Gpu::streamSynchronize();
+            Gpu::synchronize();
 
         }
     }
