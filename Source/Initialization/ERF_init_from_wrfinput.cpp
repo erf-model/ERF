@@ -47,7 +47,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
                   int& width, Real& start_bdy_time);
 
 void
-convert_wrfbdy_data (int which, const Box& domain,
+convert_wrfbdy_data (const Box& domain,
                      Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
                      const FArrayBox& NC_PH_fab,
@@ -258,19 +258,19 @@ ERF::init_from_wrfinput (int lev)
         Print() << "Running with specification width: " << real_set_width
                 << " and relaxation width: " << real_width - real_set_width << std::endl;
 
-        convert_wrfbdy_data(0,domain,bdy_data_xlo,
+        convert_wrfbdy_data(domain,bdy_data_xlo,
                             NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
                             NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
-        convert_wrfbdy_data(1,domain,bdy_data_xhi,
+        convert_wrfbdy_data(domain,bdy_data_xhi,
                             NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
                             NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
-        convert_wrfbdy_data(2,domain,bdy_data_ylo,
+        convert_wrfbdy_data(domain,bdy_data_ylo,
                             NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
                             NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
-        convert_wrfbdy_data(3,domain,bdy_data_yhi,
+        convert_wrfbdy_data(domain,bdy_data_yhi,
                             NC_MUB_fab[0] , NC_PH_fab[0]  , NC_PHB_fab[0] ,
                             NC_C1H_fab[0] , NC_C2H_fab[0] , NC_RDNW_fab[0],
                             NC_xvel_fab[0], NC_yvel_fab[0], NC_rho_fab[0] , NC_rhoth_fab[0], NC_QVAPOR_fab[0]);
@@ -296,7 +296,7 @@ ERF::init_from_wrfinput (int lev)
  * @param NC_rhotheta_fab Vector of FArrayBox objects with the WRF dataset specifying density*(potential temperature)
  */
 void
-init_state_from_wrfinput (int lev,
+init_state_from_wrfinput (int /*lev*/,
                           FArrayBox& state_fab,
                           FArrayBox& x_vel_fab,
                           FArrayBox& y_vel_fab,
@@ -368,7 +368,7 @@ init_state_from_wrfinput (int lev,
  * @param NC_MSFM_fab Vector of FArrayBoxes holding WRF data specifying z-velocity map factors
  */
 void
-init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
+init_msfs_from_wrfinput (int /*lev*/, FArrayBox& msfu_fab,
                          FArrayBox& msfv_fab, FArrayBox& msfm_fab,
                          const Vector<FArrayBox>& NC_MSFU_fab,
                          const Vector<FArrayBox>& NC_MSFV_fab,
@@ -405,7 +405,7 @@ init_msfs_from_wrfinput (int lev, FArrayBox& msfu_fab,
  * @param NC_PB_fab Vector of FArrayBox objects containing WRF data specifying pressure
  */
 void
-init_base_state_from_wrfinput (int lev,
+init_base_state_from_wrfinput (int /*lev*/,
                                const Box& gtbx,
                                const Box& domain,
                                const Real l_rdOcp,
@@ -433,7 +433,7 @@ init_base_state_from_wrfinput (int lev,
         const Array4<Real      >&  p_hse_arr = p_hse.array();
         const Array4<Real      >& pi_hse_arr = pi_hse.array();
         const Array4<Real      >&  r_hse_arr = r_hse.array();
-        const Array4<Real const>&  alpha_arr = NC_ALB_fab[idx].const_array();
+        //const Array4<Real const>&  alpha_arr = NC_ALB_fab[idx].const_array();
         const Array4<Real const>&  nc_pb_arr = NC_PB_fab[idx].const_array();
         const Array4<Real const>&   nc_p_arr = NC_P_fab[idx].const_array();
 
@@ -541,7 +541,7 @@ verify_terrain_top_boundary (const Real& z_top,
  * @param NC_PHB_fab Vector of FArrayBox objects storing WRF terrain coordinate data (PHB)
  */
 void
-init_terrain_from_wrfinput (int lev, const Real& z_top,
+init_terrain_from_wrfinput (int /*lev*/, const Real& z_top,
                             const Box& domain, FArrayBox& z_phys,
                             const Vector<FArrayBox>& NC_PH_fab,
                             const Vector<FArrayBox>& NC_PHB_fab)

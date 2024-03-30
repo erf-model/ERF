@@ -3,6 +3,10 @@
 
 #include <TI_slow_headers.H>
 
+#if defined(ERF_USE_NETCDF)
+#include <Utils.H>
+#endif
+
 using namespace amrex;
 
 /**

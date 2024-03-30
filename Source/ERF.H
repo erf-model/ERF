@@ -28,7 +28,6 @@
 #include "prob_common.H"
 
 #include <IndexDefines.H>
-#include <TimeInterpolatedData.H>
 #include <DataStruct.H>
 #include <InputSoundingData.H>
 #include <ABLMost.H>
@@ -49,10 +48,6 @@
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
-#endif
-
-#ifdef ERF_USE_NETCDF
-#include "NCWpsFile.H"
 #endif
 
 #include <iostream>

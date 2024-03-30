@@ -29,5 +29,5 @@ Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/CouetteFlow
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/Couette_Poiseuille
 include $(ERF_HOME)/Exec/Make.ERF
