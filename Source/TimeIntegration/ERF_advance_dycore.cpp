@@ -95,15 +95,6 @@ void ERF::advance_dycore(int level,
     // **************************************************************************************
     // Compute strain for use in slow RHS, Smagorinsky model, and MOST
     // **************************************************************************************
-    MultiFab* Tau11 = Tau11_lev[level].get();
-    MultiFab* Tau22 = Tau22_lev[level].get();
-    MultiFab* Tau33 = Tau33_lev[level].get();
-    MultiFab* Tau12 = Tau12_lev[level].get();
-    MultiFab* Tau13 = Tau13_lev[level].get();
-    MultiFab* Tau23 = Tau23_lev[level].get();
-    MultiFab* Tau21 = Tau21_lev[level].get();
-    MultiFab* Tau31 = Tau31_lev[level].get();
-    MultiFab* Tau32 = Tau32_lev[level].get();
     {
     BL_PROFILE("erf_advance_strain");
     if (l_use_diff) {
@@ -125,16 +116,16 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> & v = yvel_old.array(mfi);
             const Array4<const Real> & w = zvel_old.array(mfi);
 
-            Array4<Real> tau11 = Tau11->array(mfi);
-            Array4<Real> tau22 = Tau22->array(mfi);
-            Array4<Real> tau33 = Tau33->array(mfi);
-            Array4<Real> tau12 = Tau12->array(mfi);
-            Array4<Real> tau13 = Tau13->array(mfi);
-            Array4<Real> tau23 = Tau23->array(mfi);
+            Array4<Real> tau11 = Tau11_lev[level].get()->array(mfi);
+            Array4<Real> tau22 = Tau22_lev[level].get()->array(mfi);
+            Array4<Real> tau33 = Tau33_lev[level].get()->array(mfi);
+            Array4<Real> tau12 = Tau12_lev[level].get()->array(mfi);
+            Array4<Real> tau13 = Tau13_lev[level].get()->array(mfi);
+            Array4<Real> tau23 = Tau23_lev[level].get()->array(mfi);
 
-            Array4<Real> tau21  = l_use_terrain ? Tau21->array(mfi) : Array4<Real>{};
-            Array4<Real> tau31  = l_use_terrain ? Tau31->array(mfi) : Array4<Real>{};
-            Array4<Real> tau32  = l_use_terrain ? Tau32->array(mfi) : Array4<Real>{};
+            Array4<Real> tau21  = l_use_terrain ? Tau21_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau31  = l_use_terrain ? Tau31_lev[level].get()->array(mfi) : Array4<Real>{};
+            Array4<Real> tau32  = l_use_terrain ? Tau32_lev[level].get()->array(mfi) : Array4<Real>{};
             const Array4<const Real>& z_nd = l_use_terrain ? z_phys_nd[level]->const_array(mfi) : Array4<const Real>{};
 
             const Array4<const Real> mf_m = mapfac_m[level]->array(mfi);
@@ -188,8 +179,8 @@ void ERF::advance_dycore(int level,
         // NOTE: state_new transfers to state_old for PBL (due to ptr swap in advance)
         const BCRec* bc_ptr_d = domain_bcs_type_d.data();
         ComputeTurbulentViscosity(xvel_old, yvel_old,
-                                  *Tau11, *Tau22, *Tau33,
-                                  *Tau12, *Tau13, *Tau23,
+                                  *Tau11_lev[level].get(), *Tau22_lev[level].get(), *Tau33_lev[level].get(),
+                                  *Tau12_lev[level].get(), *Tau13_lev[level].get(), *Tau23_lev[level].get(),
                                   state_old[IntVars::cons],
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],

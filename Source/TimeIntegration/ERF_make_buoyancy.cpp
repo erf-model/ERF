@@ -28,7 +28,7 @@ using namespace amrex;
  * @param[in]  qv_d   lateral average of cloud vapor
  * @param[in]  qc_d   lateral average of cloud vapor
  * @param[in]  qd_d   lateral average of cloud vapor
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  r0     Reference (hydrostatically stratified) density
  */

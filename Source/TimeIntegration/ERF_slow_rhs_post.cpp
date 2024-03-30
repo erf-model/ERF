@@ -1,16 +1,7 @@
 #include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <NumericalDiffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <ERF.H>
-#include <Utils.H>
+#include <AMReX_TableData.H>
 
-#include <TerrainMetrics.H>
-#include <IndexDefines.H>
-#include <PlaneAverage.H>
+#include <TI_slow_headers.H>
 
 using namespace amrex;
 
@@ -35,7 +26,7 @@ using namespace amrex;
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
@@ -76,6 +67,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         std::unique_ptr<MultiFab>& mapfac_m,
                         std::unique_ptr<MultiFab>& mapfac_u,
                         std::unique_ptr<MultiFab>& mapfac_v,
+#ifdef ERF_USE_EB
+                        amrex::EBFArrayBoxFactory const& ebfact,
+#endif
 #if defined(ERF_USE_NETCDF)
                         const bool& moist_set_rhs,
                         const Real& bdy_time_interval,
@@ -326,6 +320,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+#ifdef ERF_USE_EB
+        const auto& vf_arr = ebfact.getVolFrac().const_array(mfi);
+#endif
+
         AdvType    horiz_adv_type = ac.dryscal_horiz_adv_type;
         AdvType     vert_adv_type = ac.dryscal_vert_adv_type;
         const Real horiz_upw_frac = ac.dryscal_horiz_upw_frac;
@@ -343,6 +341,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                    horiz_adv_type, vert_adv_type,
                                    horiz_upw_frac, vert_upw_frac,
+#ifdef ERF_USE_EB
+                                   vf_arr,
+#endif
                                    l_use_terrain, flx_arr);
         }
         if (l_use_QKE) {
@@ -352,6 +353,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                    horiz_adv_type, vert_adv_type,
                                    horiz_upw_frac, vert_upw_frac,
+#ifdef ERF_USE_EB
+                                   vf_arr,
+#endif
                                    l_use_terrain, flx_arr);
         }
 
@@ -362,6 +366,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                horiz_adv_type, vert_adv_type,
                                horiz_upw_frac, vert_upw_frac,
+#ifdef ERF_USE_EB
+                               vf_arr,
+#endif
                                l_use_terrain, flx_arr);
 
         if (solverChoice.moisture_type != MoistureType::None)
@@ -383,6 +390,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                                    cur_prim, cell_rhs, detJ_arr, dxInv, mf_m,
                                    moist_horiz_adv_type, moist_vert_adv_type,
                                    moist_horiz_upw_frac, moist_vert_upw_frac,
+#ifdef ERF_USE_EB
+                                   vf_arr,
+#endif
                                    l_use_terrain, flx_arr);
         }
 

@@ -80,6 +80,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 #endif
 
+#ifdef ERF_USE_EB
+    if (containerHasElement(plot_var_names, "volfrac")) {
+        tmp_plot_names.push_back("volfrac");
+    }
+#endif
+
     plot_var_names = tmp_plot_names;
 }
 
@@ -866,6 +872,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
 #endif
 
+#ifdef ERF_USE_EB
+        if (containerHasElement(plot_var_names, "volfrac")) {
+            MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+#endif
+
 #ifdef ERF_COMPUTE_ERROR
         // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
         if (containerHasElement(plot_var_names, "xvel_err") ||
@@ -1029,6 +1042,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
 #endif
     }
+
+#ifdef EB_USE_EB
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        EB_set_covered(mf[lev], 0.0);
+    }
+#endif
 
     // Fill terrain distortion MF
     if (solverChoice.use_terrain) {

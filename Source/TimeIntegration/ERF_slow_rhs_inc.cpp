@@ -2,18 +2,8 @@
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
 #include <AMReX_GpuContainers.H>
-#include <ERF_Constants.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <NumericalDiffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <EOS.H>
-#include <ERF.H>
 
-#include <TerrainMetrics.H>
-#include <IndexDefines.H>
-#include <PlaneAverage.H>
+#include <TI_slow_headers.H>
 
 using namespace amrex;
 
@@ -49,7 +39,7 @@ using namespace amrex;
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
