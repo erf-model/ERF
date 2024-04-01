@@ -13,65 +13,65 @@
 class CloudRadProps {
   public:
      // constructors and descturctors
-     CloudRadProps() = default;
-     ~CloudRadProps() = default;
+     CloudRadProps () = default;
+     ~CloudRadProps () = default;
 
      // initialization
-     void initialize();
+     void initialize ();
 
      // liquid optics
-     void gammadist_liq_optics_sw(const int& ncol,
-                                  const int& nlev,
-                                  const real2d& iclwpth,
-                                  const real2d& lamc,
-                                  const real2d& pgam,
-                                  real3d& tau,
-                                  real3d& tau_w,
-                                  real3d& tau_w_g,
-                                  real3d& tau_w_f);
+     void gammadist_liq_optics_sw (const int& ncol,
+                                   const int& nlev,
+                                   const real2d& iclwpth,
+                                   const real2d& lamc,
+                                   const real2d& pgam,
+                                   real3d& tau,
+                                   real3d& tau_w,
+                                   real3d& tau_w_g,
+                                   real3d& tau_w_f);
 
-     void gammadist_liq_optics_lw(const int& ncol,
-                                  const int& nlev,
-                                  const real2d& iclwpth,
-                                  const real2d& lamc,
-                                  const real2d& pgam,
-                                  real3d& abs_od);
+     void gammadist_liq_optics_lw (const int& ncol,
+                                   const int& nlev,
+                                   const real2d& iclwpth,
+                                   const real2d& lamc,
+                                   const real2d& pgam,
+                                   real3d& abs_od);
 
-    void mitchell_ice_optics_sw(const int& ncol,
-                                const int& nlev,
-                                const real2d& iciwpth,
-                                const real2d& dei,
-                                real3d& tau,
-                                real3d& tau_w,
-                                real3d& tau_w_g,
-                                real3d& tau_w_f);
+    void mitchell_ice_optics_sw (const int& ncol,
+                                 const int& nlev,
+                                 const real2d& iciwpth,
+                                 const real2d& dei,
+                                 real3d& tau,
+                                 real3d& tau_w,
+                                 real3d& tau_w_g,
+                                 real3d& tau_w_f);
 
-    void mitchell_ice_optics_lw(const int& ncol,
-                                const int& nlev,
-                                const real2d& iciwpth,
-                                const real2d& dei,
-                                real3d& abs_od);
+    void mitchell_ice_optics_lw (const int& ncol,
+                                 const int& nlev,
+                                 const real2d& iciwpth,
+                                 const real2d& dei,
+                                 real3d& abs_od);
 
-    void gam_liquid_lw(const real& clwptn,
-                       const real& lamc,
-                       const real& pgam,
-                       real1d abs_od);
+    void gam_liquid_lw (const real& clwptn,
+                        const real& lamc,
+                        const real& pgam,
+                        real1d abs_od);
 
 
     // liquid optics (short wave)
-    void gam_liquid_sw(const real& clwptn,
-                       const real& lamc,
-                       const real& pgam,
-                       real1d tau,
-                       real1d tau_w,
-                       real1d tau_w_g,
-                       real1d tau_w_f);
+    void gam_liquid_sw (const real& clwptn,
+                        const real& lamc,
+                        const real& pgam,
+                        real1d tau,
+                        real1d tau_w,
+                        real1d tau_w_g,
+                        real1d tau_w_f);
 
     // lambda weight
-    void get_mu_lambda_weights(const real& lamc,
-                               const real& pgam,
-                               LinInterp::InterpType& mu_wgts,
-                               LinInterp::InterpType& lambda_wgts);
+    void get_mu_lambda_weights (const real& lamc,
+                                const real& pgam,
+                                LinInterp::InterpType& mu_wgts,
+                                LinInterp::InterpType& lambda_wgts);
   private:
     std::string name{"CloudRadProps"};
     std::string liquid_file;
