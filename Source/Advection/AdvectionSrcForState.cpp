@@ -168,7 +168,9 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
                         const bool use_terrain,
-                        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
+                        const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
+                        const Box& domain,
+                        const BCRec* bc_ptr_h)
 {
     BL_PROFILE_VAR("AdvectionSrcForScalars", AdvectionSrcForScalars);
     auto dxInv =     cellSizeInv[0], dyInv =     cellSizeInv[1], dzInv =     cellSizeInv[2];
@@ -176,6 +178,27 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);
     const Box zbx = surroundingNodes(bx,2);
+
+    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
+    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
+    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
+    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
+
+    // Only advection operations in bndry normal direction with OPEN BC
+    Box  bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi;
+    if (xlo_open) {
+        if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));}
+    }
+    if (xhi_open) {
+        if ( bx.bigEnd(0) == domain.bigEnd(0))     {  bx_xhi = makeSlab( bx,0,domain.bigEnd(0)  );}
+    }
+    if (ylo_open) {
+        if ( bx.smallEnd(1) == domain.smallEnd(1)) {  bx_ylo = makeSlab( bx,1,domain.smallEnd(1));}
+    }
+    if (yhi_open) {
+        if ( bx.bigEnd(1) == domain.bigEnd(1))     {  bx_yhi = makeSlab( bx,1,domain.bigEnd(1)  );}
+    }
 
     // Inline with 2nd order for efficiency
     // NOTE: we don't need to weight avg_xmom, avg_ymom, avg_zmom with terrain metrics
@@ -279,4 +302,28 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
           ( (flx_arr[1])(i,j+1,k,cons_index) - (flx_arr[1])(i,j  ,k,cons_index) ) * dyInv +
           ( (flx_arr[2])(i,j,k+1,cons_index) - (flx_arr[2])(i,j,k  ,cons_index) ) * dzInv );
     });
+
+    // Special advection operator for open BC (bndry tangent operations)
+    if (xlo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, use_terrain, do_lo);
+    }
+    if (xhi_open) {
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, use_terrain);
+    }
+    if (ylo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, use_terrain, do_lo);
+    }
+    if (yhi_open) {
+        AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, icomp, ncomp, advectionSrc, cell_prim,
+                                           avg_xmom, avg_ymom, avg_zmom,
+                                           detJ, cellSizeInv, use_terrain);
+    }
 }

@@ -111,7 +111,11 @@ ERF::init_windfarm (int lev)
     power.resize(nlines);
 
     file_turb_table >>     hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
-    std::cout << hub_height << " " << rotor_dia << " " << thrust_coeff_standing << " " << nominal_power << "\n";
+    if(rotor_dia/2.0 > hub_height)
+    {
+        amrex::Abort("The blade length is more than the hub height. Check the second line in wind-turbine-1.tbl. Aborting.....");
+    }
+
     for(int iline=0;iline<nlines;iline++){
         file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline];
     }

@@ -192,21 +192,6 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         Box tbx  = mfi.tilebox();
 
-        // Only advection operations in bndry normal direction with OPEN BC
-        Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
-        if (xlo_open) {
-            if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0)); }
-        }
-        if (xhi_open) {
-            if (tbx.bigEnd(0) == domain.bigEnd(0))     { tbx_xhi = makeSlab(tbx,0,domain.bigEnd(0));   }
-        }
-        if (ylo_open) {
-            if (tbx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(tbx,1,domain.smallEnd(1)); }
-        }
-        if (yhi_open) {
-            if (tbx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(tbx,1,domain.bigEnd(1));   }
-        }
-
         // *************************************************************************
         // Define flux arrays for use in advection
         // *************************************************************************
@@ -359,31 +344,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                        dxInv, mf_m,
                                        horiz_adv_type, vert_adv_type,
                                        horiz_upw_frac, vert_upw_frac,
-                                       l_use_terrain, flx_arr);
-
-                // Special advection operator for open BC (bndry normal operations)
-                if (xlo_open) {
-                    bool do_lo = true;
-                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_xlo, 0, ivar, num_comp, cell_rhs, cur_prim,
-                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                       detJ_arr, dxInv, l_use_terrain, do_lo);
-                }
-                if (xhi_open) {
-                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_xhi, 0, ivar, num_comp, cell_rhs, cur_prim,
-                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                       detJ_arr, dxInv, l_use_terrain);
-                }
-                if (ylo_open) {
-                    bool do_lo = true;
-                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_ylo, 1, ivar, num_comp, cell_rhs, cur_prim,
-                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                       detJ_arr, dxInv, l_use_terrain, do_lo);
-                }
-                if (yhi_open) {
-                    AdvectionSrcForOpenBC_Tangent_Cons(tbx_yhi, 1, ivar, num_comp, cell_rhs, cur_prim,
-                                                       avg_xmom, avg_ymom, avg_zmom,
-                                                       detJ_arr, dxInv, l_use_terrain);
-                }
+                                       l_use_terrain, flx_arr, domain, bc_ptr_h);
 
                 if (l_use_diff) {
 
