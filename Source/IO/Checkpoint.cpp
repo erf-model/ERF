@@ -146,11 +146,21 @@ ERF::WriteCheckpointFile () const
          // Write the precipitation accumulation component only
         if (solverChoice.moisture_type == MoistureType::Kessler) {
             ng = qmoist[lev][0]->nGrowVect();
-            int nvar = 1;
+             int nvar = 1;
              MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
              MultiFab::Copy(moist_vars,*(qmoist[lev][0]),0,0,nvar,ng);
              VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
         }
+
+#if defined(ERF_USE_WINDFARM)
+        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+            ng = Nturb[lev].nGrowVect();
+            MultiFab mf_Nturb(grids[lev],dmap[lev],1,ng);
+            MultiFab::Copy(mf_Nturb,Nturb[lev],0,0,1,ng);
+            VisMF::Write(mf_Nturb, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "NumTurb"));
+        }
+#endif
+
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {
@@ -374,6 +384,16 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
             MultiFab::Copy(*(qmoist[lev][0]),moist_vars,0,0,nvar,ng);
         }
+
+
+#if defined(ERF_USE_WINDFARM)
+        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+            ng = Nturb[lev].nGrowVect();
+            MultiFab mf_Nturb(grids[lev],dmap[lev],1,ng);
+            VisMF::Read(mf_Nturb, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "NumTurb"));
+            MultiFab::Copy(Nturb[lev],mf_Nturb,0,0,1,ng);
+        }
+#endif
 
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int mvar(0); mvar<lsm_data[lev].size(); ++mvar) {

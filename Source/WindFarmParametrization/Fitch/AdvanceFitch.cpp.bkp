@@ -4,7 +4,8 @@ using namespace amrex;
 
 Real R = 30.0;
 Real z_c = 100.0;
-Real C_T = 0.8, C_TKE = 0.0;
+Real C_T = 0.5, C_TKE = 0.0;
+Real Nturb = 2;
 
 Real compute_A(Real z)
 {
@@ -137,17 +138,19 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
             // Compute Fitch source terms
 
+            if((i-10)*(i-12) <= 0.0 and (j-10)*(j-12) <= 0.0 and ((i-10)%2 == 0 or (j-10)%2==0)){
                  Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                       v_vel(i,j,k)*v_vel(i,j,k) +
                                       w_vel(i,j,k)*w_vel(i,j,k), 0.5);
 
                  fitch_array(i,j,k,0) = Vabs;
-                 fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,1) =  -0.5*Nturb*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
                  fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
                  fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-                 fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,4) = 0.5*Nturb*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
+            }
           });
     }
         //std::cout << "Checking sum here...." <<"\n";
