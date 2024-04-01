@@ -1,3 +1,6 @@
+#include "AMReX_BCRec.H"
+
+#include <Advection.H>
 #include <AdvectionSrcForMom_N.H>
 #include <AdvectionSrcForMom_T.H>
 
@@ -30,13 +33,13 @@ using namespace amrex;
  * @param[in] horiz_adv_type sets the spatial order to be used for lateral derivatives
  * @param[in] vert_adv_type  sets the spatial order to be used for vertical derivatives
  * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
- * @param[in] domhi_z maximum k value in the domain
  */
 void
 AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<      Real>& rho_u_rhs,
                     const Array4<      Real>& rho_v_rhs,
                     const Array4<      Real>& rho_w_rhs,
+                    const Array4<const Real>& cell_data,
                     const Array4<const Real>& u,
                     const Array4<const Real>& v,
                     const Array4<const Real>& w,
@@ -54,7 +57,9 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Real horiz_upw_frac,
                     const Real vert_upw_frac,
                     const bool use_terrain,
-                    const int lo_z_face, const int hi_z_face)
+                    const int lo_z_face, const int hi_z_face,
+                    const Box& domain,
+                    const BCRec* bc_ptr_h)
 {
     BL_PROFILE_VAR("AdvectionSrcForMom", AdvectionSrcForMom);
 
@@ -312,6 +317,86 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                 AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
             }
         }
+    }
+
+    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
+    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
+    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
+    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
+
+    // Only advection operations in bndry normal direction with OPEN BC
+    const int domhi_z = domain.bigEnd(2);
+    Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+    Box tby_xlo, tby_xhi, tby_ylo, tby_yhi;
+    Box tbz_xlo, tbz_xhi, tbz_ylo, tbz_yhi;
+    if (xlo_open) {
+        if (bxx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(bxx,0,domain.smallEnd(0)); tbx_xlo.growLo(0,-1); }
+        if (bxy.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(bxy,0,domain.smallEnd(0));                       }
+        if (bxz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(bxz,0,domain.smallEnd(0));                       }
+    }
+    if (xhi_open) {
+        if (bxx.bigEnd(0) == domain.bigEnd(0)+1)   { tbx_xhi = makeSlab(bxx,0,domain.bigEnd(0)+1); tbx_xhi.growHi(0,-1); }
+        if (bxy.bigEnd(0) == domain.bigEnd(0))     { tby_xhi = makeSlab(bxy,0,domain.bigEnd(0)  );                       }
+        if (bxz.bigEnd(0) == domain.bigEnd(0))     { tbz_xhi = makeSlab(bxz,0,domain.bigEnd(0)  );                       }
+    }
+    if (ylo_open) {
+        if (bxx.smallEnd(1) == domain.smallEnd(1)) { tbx_ylo = makeSlab(bxx,1,domain.smallEnd(1));                       }
+        if (bxy.smallEnd(1) == domain.smallEnd(1)) { tby_ylo = makeSlab(bxy,1,domain.smallEnd(1)); tby_ylo.growLo(1,-1); }
+        if (bxz.smallEnd(1) == domain.smallEnd(1)) { tbz_ylo = makeSlab(bxz,1,domain.smallEnd(1));                       }
+    }
+    if (yhi_open) {
+        if (bxx.bigEnd(1) == domain.bigEnd(1))     { tbx_yhi = makeSlab(bxx,1,domain.bigEnd(1)  );                       }
+        if (bxy.bigEnd(1) == domain.bigEnd(1)+1)   { tby_yhi = makeSlab(bxy,1,domain.bigEnd(1)+1); tby_yhi.growHi(1,-1); }
+        if (bxz.bigEnd(1) == domain.bigEnd(1))     { tbz_yhi = makeSlab(bxz,1,domain.bigEnd(1)  );                       }
+    }
+
+    // Special advection operator for open BC (bndry normal/tangent operations)
+    if (xlo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, cellSizeInv, do_lo);
+        AdvectionSrcForOpenBC_Tangent_Ymom(tby_xlo, 0, rho_v_rhs, v,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, do_lo);
+        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xlo, 0, rho_w_rhs, w,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, domhi_z, do_lo);
+    }
+    if (xhi_open) {
+        AdvectionSrcForOpenBC_Normal(tbx_xhi, 0, rho_u_rhs, u, cell_data, cellSizeInv);
+        AdvectionSrcForOpenBC_Tangent_Ymom(tby_xhi, 0, rho_v_rhs, v,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain);
+        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xhi, 0, rho_w_rhs, w,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, domhi_z);
+    }
+    if (ylo_open) {
+        bool do_lo = true;
+        AdvectionSrcForOpenBC_Tangent_Xmom(tbx_ylo, 1, rho_u_rhs, u,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, do_lo);
+        AdvectionSrcForOpenBC_Normal(tby_ylo, 1, rho_v_rhs, v, cell_data, cellSizeInv, do_lo);
+        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_ylo, 1, rho_w_rhs, w,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, domhi_z, do_lo);
+    }
+    if (yhi_open) {
+        AdvectionSrcForOpenBC_Tangent_Xmom(tbx_yhi, 1, rho_u_rhs, u,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain);
+        AdvectionSrcForOpenBC_Normal(tby_yhi, 1, rho_v_rhs, v, cell_data, cellSizeInv);
+        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_yhi, 1, rho_w_rhs, w,
+                                           rho_u, rho_v, Omega,
+                                           z_nd, detJ, cellSizeInv,
+                                           use_terrain, domhi_z);
     }
 }
 

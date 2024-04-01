@@ -47,12 +47,15 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
                              const bool use_terrain,
-                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
+                             const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
+                             const amrex::Box& domain,
+                             const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all components of momentum */
 void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                          const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                          const amrex::Array4<      amrex::Real>& rho_w_rhs,
+                         const amrex::Array4<const amrex::Real>& rho,
                          const amrex::Array4<const amrex::Real>& u        , const amrex::Array4<const amrex::Real>& v,
                          const amrex::Array4<const amrex::Real>& w        ,
                          const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
@@ -64,7 +67,9 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const AdvType horiz_adv_type, const AdvType vert_adv_type,
                          const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-                         const bool use_terrain, const int lo_z_face, const int hi_z_face);
+                         const bool use_terrain, const int lo_z_face, const int hi_z_face,
+                         const amrex::Box& domain,
+                         const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all normal components of momentum */
 void
