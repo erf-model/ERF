@@ -163,6 +163,7 @@ struct SolverChoice {
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
         pp.query("incompressible", incompressible);
+        pp.query("constant_density", constant_density);
 
         // If this is set, it must be even
         if (incompressible != 0 && no_substepping == 0)
@@ -360,7 +361,9 @@ struct SolverChoice {
 
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
+
     int         incompressible              = 0;
+    int         constant_density            = 0;
 
     bool        test_mapfactor         = false;
 

@@ -116,6 +116,7 @@ void erf_slow_rhs_inc (int level, int nrk,
     int   num_comp = 2;
     int   end_comp = start_comp + num_comp - 1;
 
+    const bool    l_const_rho      = solverChoice.constant_density;
     const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
     const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
     const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
@@ -620,11 +621,13 @@ void erf_slow_rhs_inc (int level, int nrk,
         // **************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
-        AdvectionSrcForRho(bx, cell_rhs,
-                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                           l_use_terrain, flx_arr);
+        if (!l_const_rho) {
+            AdvectionSrcForRho(bx, cell_rhs,
+                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                               avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                               z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+                               l_use_terrain, flx_arr);
+        }
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
