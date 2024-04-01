@@ -38,9 +38,6 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                             amrex::MultiFab& Omega,
                       const amrex::MultiFab& source,
                       const amrex::MultiFab& buoyancy,
-#if defined(ERF_USE_RRTMGP)
-                      const amrex::MultiFab& qheating_rates,
-#endif
                             amrex::MultiFab* Tau11,
                             amrex::MultiFab* Tau22,
                             amrex::MultiFab* Tau33,
@@ -70,8 +67,6 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
 #endif
                       amrex::YAFluxRegister* fr_as_crse,
                       amrex::YAFluxRegister* fr_as_fine,
-                      const amrex::Real* dptr_rhotheta_src,
-                      const amrex::Real* dptr_rhoqt_src,
                       const amrex::Real* dptr_u_geos,
                       const amrex::Real* dptr_v_geos,
                       const amrex::Real* dptr_wbar_sub,
@@ -123,8 +118,6 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                        amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi,
 #endif
-                       const amrex::Real* dptr_rhoqt_src,
-                       const amrex::Real* dptr_wbar_sub,
                        amrex::YAFluxRegister* fr_as_crse,
                        amrex::YAFluxRegister* fr_as_fine);
 

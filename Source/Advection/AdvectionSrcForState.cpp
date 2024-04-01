@@ -51,7 +51,6 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& ax_arr,
                     const Array4<const Real>& ay_arr,
                     const Array4<const Real>& az_arr,
-                    const Array4<const Real>& vf_arr,
 #endif
                     const bool use_terrain,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
@@ -116,7 +115,7 @@ AdvectionSrcForRho (const Box& bx,
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
 #ifdef ERF_USE_EB
-        Real invdetJ = (vf_arr(i,j,k) > 0.) ?  1. / vf_arr(i,j,k) : 1.;
+        Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
 #else
         Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
 #endif
@@ -168,9 +167,6 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
-#ifdef ERF_USE_EB
-                        const Array4<const Real>& vf_arr,
-#endif
                         const bool use_terrain,
                         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
 {
@@ -270,7 +266,7 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
 #ifdef ERF_USE_EB
-        Real invdetJ = (vf_arr(i,j,k) > 0.) ?  1. / vf_arr(i,j,k) : 1.;
+        Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
 #else
         Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
 #endif

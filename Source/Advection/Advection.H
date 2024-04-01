@@ -29,7 +29,6 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& ax_arr,
                          const amrex::Array4<const amrex::Real>& ay_arr,
                          const amrex::Array4<const amrex::Real>& az_arr,
-                         const amrex::Array4<const amrex::Real>& vf_arr,
 #endif
                          const bool use_terrain,
                          const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
@@ -42,14 +41,11 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& avg_zmom,
                              const amrex::Array4<const amrex::Real>& cell_prim,
                              const amrex::Array4<amrex::Real>& src,
-                             const amrex::Array4<const amrex::Real>& detJ,
+                             const amrex::Array4<const amrex::Real>& vf_arr,
                              const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-#ifdef ERF_USE_EB
-                             const amrex::Array4<const amrex::Real>& vf_arr,
-#endif
                              const bool use_terrain,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
 

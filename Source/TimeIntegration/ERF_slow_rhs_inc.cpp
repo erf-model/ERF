@@ -137,7 +137,6 @@ void erf_slow_rhs_inc (int level, int nrk,
     Real* ubar     = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
     Real* vbar     = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
     Real* wbar     = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
-    Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
     // *************************************************************************
     // Combine external forcing terms
@@ -636,46 +635,12 @@ void erf_slow_rhs_inc (int level, int nrk,
                                    tm_arr, grav_gpu, bc_ptr_d, use_most);
         }
 
-        if (l_use_ndiff) {
-            NumericalDiffusion(bx, start_comp, num_comp, dt, solverChoice.NumDiffCoeff,
-                               cell_data, cell_rhs, mf_u, mf_v, false, false);
-        }
-
         // Add source terms for (rho theta)
         {
             auto const& src_arr = source.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
-            });
-        }
-
-        // Add custom source terms
-        if (solverChoice.custom_rhotheta_forcing) {
-            const int n = RhoTheta_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += cell_data(i,j,k,nr) * dptr_rhotheta_src[k];
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    cell_rhs(i, j, k, n) += dptr_rhotheta_src[k];
-                });
-            }
-        }
-
-        // Add Rayleigh damping
-        if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_T) {
-            int n  = RhoTheta_comp;
-            int nr = Rho_comp;
-            int np = PrimTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                Real theta = cell_prim(i,j,k,np);
-                cell_rhs(i, j, k, n) -= tau[k] * (theta - thetabar[k]) * cell_data(i,j,k,nr);
             });
         }
 
