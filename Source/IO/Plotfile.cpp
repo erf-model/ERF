@@ -235,6 +235,17 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("QKE",         derived::erf_derQKE);
         calculate_derived("scalar",      derived::erf_derscalar);
 
+        if (containerHasElement(plot_var_names, "divU"))
+        {
+            MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+            Array<MultiFab const*, AMREX_SPACEDIM> u;
+            u[0] = &(vars_new[lev][Vars::xvel]);
+            u[1] = &(vars_new[lev][Vars::yvel]);
+            u[2] = &(vars_new[lev][Vars::zvel]);
+            computeDivergence(dmf, u, geom[lev]);
+            mf_comp += 1;
+        }
+
         MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
         MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
         if (containerHasElement(plot_var_names, "pres_hse"))
