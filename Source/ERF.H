@@ -657,9 +657,9 @@ private:
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
 
     // These are the masks for the thin immersed interface
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> xflux_mask;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> yflux_mask;
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> zflux_mask;
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> xflux_imask;
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> yflux_imask;
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> zflux_imask;
 
     // These are the body forces that result from the thin immersed interface
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;

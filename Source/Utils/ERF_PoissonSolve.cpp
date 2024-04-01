@@ -1,6 +1,7 @@
 #include "ERF.H"
 #include <AMReX_MLMG.H>
 #include <AMReX_MLPoisson.H>
+#include "Utils.H"
 
 #ifdef ERF_USE_POISSON_SOLVE
 
@@ -97,6 +98,17 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     Array<MultiFab const*, AMREX_SPACEDIM> u;
     for (int ilev = 0; ilev < nlevs; ++ilev)
     {
+        // Enforce no penetration for thin immersed interface -- for successive projections (PISO)
+        if (xflux_imask[ilev]) {
+            ApplyMask(vars[ilev][Vars::xvel], *xflux_imask[ilev]);
+        }
+        if (yflux_imask[ilev]) {
+            ApplyMask(vars[ilev][Vars::yvel], *yflux_imask[ilev]);
+        }
+        if (zflux_imask[ilev]) {
+            ApplyMask(vars[ilev][Vars::zvel], *zflux_imask[ilev]);
+        }
+
         u[0] = &(vars[ilev][Vars::xvel]);
         u[1] = &(vars[ilev][Vars::yvel]);
         u[2] = &(vars[ilev][Vars::zvel]);
