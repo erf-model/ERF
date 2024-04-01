@@ -162,8 +162,13 @@ struct SolverChoice {
         pp.query("no_substepping", no_substepping);
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
+
         pp.query("incompressible", incompressible);
         pp.query("constant_density", constant_density);
+        pp.query("project_every_stage", project_every_stage);
+        pp.query("ncorr", ncorr);
+        pp.query("poisson_abstol", poisson_abstol);
+        pp.query("poisson_reltol", poisson_reltol);
 
         // If this is set, it must be even
         if (incompressible != 0 && no_substepping == 0)
@@ -362,8 +367,12 @@ struct SolverChoice {
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
 
-    int         incompressible              = 0;
-    int         constant_density            = 0;
+    int         incompressible      = 0;
+    int         constant_density    = 0;
+    int         project_every_stage = 1;
+    int         ncorr               = 1;
+    amrex::Real poisson_abstol      = 1e-10;
+    amrex::Real poisson_reltol      = 1e-10;
 
     bool        test_mapfactor         = false;
 

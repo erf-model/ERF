@@ -129,7 +129,10 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     mlmg.setVerbose(verbose);
     // mlmg.setBottomVerbose(bottom_verbose);
 
-    mlmg.solve(GetVecOfPtrs(phi), GetVecOfConstPtrs(rhs), tol_rel, tol_abs);
+    mlmg.solve(GetVecOfPtrs(phi),
+               GetVecOfConstPtrs(rhs),
+               solverChoice.poisson_reltol,
+               solverChoice.poisson_abstol);
 
     mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
