@@ -189,11 +189,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     // zhi: ori = 5
 
     Gpu::DeviceVector<BCRec> bcrs_d(ncomp);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
-#else
-    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*ncomp);
-#endif
+    Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>, AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;

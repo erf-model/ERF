@@ -314,11 +314,7 @@ void ERFPhysBCFunct_w_no_terrain::impose_lateral_zvel_bcs (const Array4<Real    
     // zhi: ori = 5
 
     Gpu::DeviceVector<BCRec> bcrs_w_d(ncomp);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
-#else
-    std::memcpy(bcrs_w_d.data(), bcrs_w.data(), sizeof(BCRec));
-#endif
+    Gpu::copyAsync(Gpu::hostToDevice, bcrs_w.begin(), bcrs_w.end(), bcrs_w_d.begin());
     const BCRec* bc_ptr_w = bcrs_w_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
