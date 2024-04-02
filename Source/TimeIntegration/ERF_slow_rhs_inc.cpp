@@ -775,6 +775,94 @@ void erf_slow_rhs_inc (int level, int nrk,
             });
         }
 
+        auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
+
+        {
+        BL_PROFILE("slow_rhs_inc_xmom");
+        // *****************************************************************************
+        // NON-TERRAIN VERSION
+        // *****************************************************************************
+          ParallelFor(tbx,
+          [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          { // x-momentum equation
+
+              Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+
+              // Note we do NOT include a pressure gradient here
+              rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
+                                    + rho_on_u_face * solverChoice.abl_geo_forcing[0];
+
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+              }
+
+              // Add Coriolis forcing (that assumes east is +x, north is +y)
+              if (solverChoice.use_coriolis)
+              {
+                  Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                  Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
+                  rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
+                          (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
+              }
+
+              // Add Rayleigh damping
+              if (use_rayleigh_damping && solverChoice.rayleigh_damp_U)
+              {
+                  Real uu = rho_u(i,j,k) / rho_on_u_face;
+                  rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
+              }
+
+              if (nrk == 1) {
+                rho_u_rhs(i,j,k) *= 0.5;
+                rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+              }
+          });
+        } // end profile
+
+        {
+        BL_PROFILE("slow_rhs_inc_ymom");
+        // *****************************************************************************
+        // NON-TERRAIN VERSION
+        // *****************************************************************************
+          ParallelFor(tby,
+          [=] AMREX_GPU_DEVICE (int i, int j, int k)
+          { // y-momentum equation
+
+              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+
+              // Note we do NOT include a pressure gradient here
+              rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
+                                    + rho_on_v_face * solverChoice.abl_geo_forcing[1];
+
+              if (solverChoice.custom_geostrophic_profile) {
+                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+              }
+
+              // Add Coriolis forcing (that assumes east is +x, north is +y)
+              if (solverChoice.use_coriolis)
+              {
+                  Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                  rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
+              }
+
+              // Add Rayleigh damping
+              if (use_rayleigh_damping && solverChoice.rayleigh_damp_V)
+              {
+                  Real vv = rho_v(i,j,k) / rho_on_v_face;
+                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
+              }
+
+
+              if (nrk == 1) {
+                rho_v_rhs(i,j,k) *= 0.5;
+                rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+              }
+          });
+        } // end profile
+
+        {
+        BL_PROFILE("slow_rhs_inc_zmom_2d");
+
         amrex::Box b2d = tbz;
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
