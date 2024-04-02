@@ -758,8 +758,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                     + rho_on_u_face * solverChoice.abl_geo_forcing[0];
 
               if (solverChoice.custom_geostrophic_profile) {
-                  rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
-                                   + rho_on_u_face * dptr_u_geos[k];
+                  rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)
@@ -801,8 +800,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                     + rho_on_v_face * solverChoice.abl_geo_forcing[1];
 
               if (solverChoice.custom_geostrophic_profile) {
-                  rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
-                                        + rho_on_v_face * dptr_v_geos[k];
+                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
               }
 
               // Add Coriolis forcing (that assumes east is +x, north is +y)

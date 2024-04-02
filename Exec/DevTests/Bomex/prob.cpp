@@ -353,14 +353,14 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
-    const Real coriolis = 0.376E-4;
+    const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
 
     // Only apply temperature source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
-        u_geos[k] =  coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
-        v_geos[k] =  0 ; // coriolis *  u_geo_wind;
+        u_geos[k] =  0 ; //coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
+        v_geos[k] =  coriolis *  u_geo_wind;
     }
 
     // Copy from host version to device version
