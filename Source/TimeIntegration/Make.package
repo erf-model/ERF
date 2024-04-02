@@ -6,12 +6,17 @@ CEXE_sources += ERF_advance_microphysics.cpp
 CEXE_sources += ERF_advance_lsm.cpp
 CEXE_sources += ERF_make_buoyancy.cpp
 CEXE_sources += ERF_make_fast_coeffs.cpp
+CEXE_sources += ERF_make_sources.cpp
 CEXE_sources += ERF_slow_rhs_pre.cpp
 CEXE_sources += ERF_slow_rhs_post.cpp
 CEXE_sources += ERF_fast_rhs_N.cpp
 CEXE_sources += ERF_fast_rhs_T.cpp
 CEXE_sources += ERF_fast_rhs_MT.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
+
+ifeq ($(USE_NETCDF),TRUE)
+CEXE_sources += ERF_moist_set_rhs.cpp
+endif
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_slow_rhs_inc.cpp
@@ -20,6 +25,9 @@ endif
 CEXE_headers += TI_fast_rhs_fun.H
 CEXE_headers += TI_slow_rhs_fun.H
 CEXE_headers += TI_no_substep_fun.H
+CEXE_headers += TI_headers.H
+CEXE_headers += TI_fast_headers.H
+CEXE_headers += TI_slow_headers.H
 CEXE_headers += TI_utils.H
 
 CEXE_headers += ERF_MRI.H

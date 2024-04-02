@@ -49,6 +49,18 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
   endif()
 
+  if(ERF_ENABLE_EB)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/EB/Init_EB.cpp
+                   ${SRC_DIR}/EB/eb_box.cpp
+                   ${SRC_DIR}/EB/eb_cylinder.cpp
+                   ${SRC_DIR}/EB/eb_regular.cpp
+                   ${SRC_DIR}/EB/initEB.cpp
+                   ${SRC_DIR}/EB/writeEBsurface.cpp)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/EB)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
+  endif()
+
   if(ERF_ENABLE_NETCDF)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/IO/NCInterface.cpp
@@ -100,6 +112,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
@@ -147,6 +160,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_make_sources.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_moist_set_rhs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp

@@ -26,7 +26,6 @@ void
 ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
                  Vector<MultiFab>& lev_new, Vector<MultiFab>& lev_old)
 {
-    amrex::Print() <<" IN INIT STUFF " << lev << std::endl;
     if (lev == 0) {
         min_k_at_level[lev] = 0;
         max_k_at_level[lev] = geom[lev].Domain().bigEnd(2);

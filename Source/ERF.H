@@ -28,7 +28,6 @@
 #include "prob_common.H"
 
 #include <IndexDefines.H>
-#include <TimeInterpolatedData.H>
 #include <DataStruct.H>
 #include <InputSoundingData.H>
 #include <ABLMost.H>
@@ -49,10 +48,6 @@
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
-#endif
-
-#ifdef ERF_USE_NETCDF
-#include "NCWpsFile.H"
 #endif
 
 #include <iostream>
@@ -120,6 +115,10 @@ public:
 
     // Initialize multilevel data
     void InitData ();
+
+#ifdef ERF_USE_EB
+    void WriteMyEBSurface ();
+#endif
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
@@ -350,6 +349,13 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
+#endif
+
+#ifdef ERF_USE_EB
+    void MakeEBGeometry ();
+    void make_eb_box ();
+    void make_eb_cylinder ();
+    void make_eb_regular ();
 #endif
 
     // more flexible version of AverageDown() that lets you average down across multiple levels
@@ -592,6 +598,9 @@ private:
 //#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
+    amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
 //#endif
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
@@ -727,7 +736,7 @@ private:
                                                      "rhoQ4", "rhoQ5", "rhoQ6"};
 
     // Note that the order of variable names here must match the order in Derive.cpp
-    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
+    const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar", "vorticity",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
@@ -1070,6 +1079,27 @@ private:
 
     //! The filename of the ith samplelinelog file.
     [[nodiscard]] std::string SampleLineLogName (int i) const noexcept { return samplelinelogname[i]; }
+
+    amrex::Vector<std::unique_ptr<amrex::FabFactory<amrex::FArrayBox> > > m_factory;
+
+    [[nodiscard]] amrex::FabFactory<amrex::FArrayBox> const&
+    Factory (int lev) const noexcept { return *m_factory[lev]; }
+#ifdef ERF_USE_EB
+    [[nodiscard]] amrex::EBFArrayBoxFactory const&
+    EBFactory (int lev) const noexcept {
+        return static_cast<amrex::EBFArrayBoxFactory const&>(*m_factory[lev]);
+    }
+
+    [[nodiscard]] static int nghost_eb_basic ()
+    { return 5; }
+
+    // We need 5 for doing StateRedistribution; otherwise 4 would be enough
+    [[nodiscard]] static int nghost_eb_volume ()
+    { return 5; }
+
+    [[nodiscard]] static int nghost_eb_full ()
+    { return 4; }
+#endif
 
 public:
     void writeJobInfo (const std::string& dir) const;

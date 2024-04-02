@@ -243,6 +243,13 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level);
         }
 
+        // Warn for PBL models and moisture - these may not yet be compatible
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
+                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
+            }
+        }
+
         // Which type of refinement
         static std::string coupling_type_string = "OneWay";
         pp.query("coupling_type",coupling_type_string);

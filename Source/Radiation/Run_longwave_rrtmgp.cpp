@@ -7,16 +7,15 @@
 #include "mo_fluxes_byband.h"
 #include "Rrtmgp.H"
 
-void Rrtmgp::run_longwave_rrtmgp (
-        int ngas, int ncol, int nlay,
-        const real3d& gas_vmr,
-        const real2d& pmid, const real2d& tmid, const real2d& pint, const real2d& tint,
-        const real2d& emis_sfc          ,
-        const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
-        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
-        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
-        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
-        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net)
+void Rrtmgp::run_longwave_rrtmgp (int ngas, int ncol, int nlay,
+                                  const real3d& gas_vmr,
+                                  const real2d& pmid, const real2d& tmid, const real2d& pint, const real2d& tint,
+                                  const real2d& emis_sfc          ,
+                                  const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
+                                  const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
+                                  const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
+                                  const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
+                                  const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net)
 {
     // Wrap pointers in YAKL arrays
     int nlwbands = k_dist_lw.get_nband();
@@ -28,7 +27,8 @@ void Rrtmgp::run_longwave_rrtmgp (
     real2d tmp2d;
     tmp2d = real2d("tmp", ncol, nlay);
     for (int igas = 1; igas <= ngas; igas++) {
-        parallel_for(SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol) {
+        parallel_for(SimpleBounds<2>(nlay,ncol), YAKL_LAMBDA(int ilay, int icol)
+        {
             tmp2d(icol,ilay) = gas_vmr(igas,icol,ilay);
         });
         gas_concs.set_vmr(active_gases(igas), tmp2d);
@@ -66,7 +66,8 @@ void Rrtmgp::run_longwave_rrtmgp (
     boolHost1d top_at_1_h("top_at_1_h",1);
     bool top_at_1;
     real1d t_sfc("t_sfc", ncol);
-    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol) {
+    parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol)
+    {
         t_sfc(icol) = tint(icol,nlay+1);
         top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
     });
@@ -82,12 +83,14 @@ void Rrtmgp::run_longwave_rrtmgp (
     if (false) {
         aerosol_optics.alloc_1scl(ncol, nlay, k_dist_lw);
         auto gpt_bnd = aerosol_optics.get_gpoint_bands();
-        parallel_for(SimpleBounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nlwgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol)
+        {
             aerosol_optics_tau(icol,ilay,igpt) = aer_tau_bnd(icol,ilay,gpt_bnd(igpt));
         });
     } else {
         aerosol_optics.alloc_1scl(ncol, nlay, k_dist_lw.get_band_lims_wavenumber());
-        parallel_for(SimpleBounds<3>(nlwbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol) {
+        parallel_for(SimpleBounds<3>(nlwbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol)
+        {
             aerosol_optics_tau(icol,ilay,ibnd) = aer_tau_bnd(icol,ilay,ibnd);
         });
     }

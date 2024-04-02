@@ -257,6 +257,16 @@ ERF::ERF ()
            Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
        }
     }
+
+    // We define m_factory even with no EB
+    m_factory.resize(max_level+1);
+
+#ifdef AMREX_USE_EB
+    // We will create each of these in MakeNewLevel.../RemakeLevel
+
+    // This is needed before initializing level MultiFabs
+    MakeEBGeometry();
+#endif
 }
 
 ERF::~ERF () = default;
@@ -965,6 +975,13 @@ ERF::InitData ()
     }
 
     BL_PROFILE_VAR_STOP(InitData);
+
+#ifdef ERF_USE_EB
+    bool write_eb_surface = false;
+    pp.query("write_eb_surface", write_eb_surface);
+    if (write_eb_surface) WriteMyEBSurface();
+#endif
+
 }
 
 // Initialize microphysics object
@@ -1585,8 +1602,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rV_new[lev],
                              rW_new[lev],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
+                           domain_bcs_type);
     }
 
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

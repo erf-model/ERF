@@ -10,7 +10,8 @@
 // Rrtmgp
 #include "Rrtmgp.H"
 
-void Rrtmgp::finalize() {
+void Rrtmgp::finalize ()
+{
     k_dist_sw.finalize();
     k_dist_lw.finalize();
     yakl::finalize();

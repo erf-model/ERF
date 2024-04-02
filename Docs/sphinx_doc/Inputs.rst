@@ -825,23 +825,23 @@ List of Parameters
 | **erf.pbl_type**                 | Name of PBL Scheme | "None", "MYNN2.5"   | "None"      |
 |                                  | to be used         |                     |             |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_A1**                   | MYNN Constant A1   | Real                | 1.18        |
+| **erf.pbl_mynn_A1**              | MYNN Constant A1   | Real                | 1.18        |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_A2**                   | MYNN Constant A2   | Real                | 0.665       |
+| **erf.pbl_mynn_A2**              | MYNN Constant A2   | Real                | 0.665       |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_B1**                   | MYNN Constant B1   | Real                | 24.0        |
+| **erf.pbl_mynn_B1**              | MYNN Constant B1   | Real                | 24.0        |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_B2**                   | MYNN Constant B2   | Real                | 15.0        |
+| **erf.pbl_mynn_B2**              | MYNN Constant B2   | Real                | 15.0        |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C1**                   | MYNN Constant C1   | Real                | 0.137       |
+| **erf.pbl_mynn_C1**              | MYNN Constant C1   | Real                | 0.137       |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C2**                   | MYNN Constant C1   | Real                | 0.75        |
+| **erf.pbl_mynn_C2**              | MYNN Constant C1   | Real                | 0.75        |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C3**                   | MYNN Constant C3   | Real                | 0.352       |
+| **erf.pbl_mynn_C3**              | MYNN Constant C3   | Real                | 0.352       |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C4**                   | MYNN Constant C4   | Real                | 0.0         |
+| **erf.pbl_mynn_C4**              | MYNN Constant C4   | Real                | 0.0         |
 +----------------------------------+--------------------+---------------------+-------------+
-| **erf.pbl_C5**                   | MYNN Constant C5   | Real                | 0.2         |
+| **erf.pbl_mynn_C5**              | MYNN Constant C5   | Real                | 0.2         |
 +----------------------------------+--------------------+---------------------+-------------+
 | **erf.advect_QKE**               | Include advection  | bool                | 1           |
 |                                  | terms in QKE eqn   |                     |             |

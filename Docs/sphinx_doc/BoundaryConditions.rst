@@ -150,9 +150,9 @@ the total width of the interior Dirichlet and relaxation region with
 ``erf.real_width = <Int>`` (yellow + blue)
 and analogously the width of the interior Dirichlet region may be specified with
 ``erf.real_set_width = <Int>`` (yellow).
-The real BCs are only imposed for :math:`\psi = \left{ \rho; \; \rho \theta; \; \rho q_v; \; u; \; v \right}`.
+The real BCs are only imposed for :math:`\psi = \left\{ \rho; \; \rho \theta; \; \rho q_v; \; u; \; v \right\}`.
 Due to the staggering of scalars (cell center) and velocities (face center) with an Arakawa C grid,
-we reduce the relaxation width of the scalars :math:`\left{ \rho; \; \rho \theta; \; \rho q_v \right}` by 1
+we reduce the relaxation width of the scalars :math:`\left\{ \rho; \; \rho \theta; \; \rho q_v \right\}` by 1
 to ensure the momentum updates at the last relaxation cell involve a pressure gradient that is computed with
 relaxed and non-relaxed data.
 

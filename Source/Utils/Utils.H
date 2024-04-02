@@ -50,8 +50,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                         bool l_use_ndiff);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
  * Compute boxes for looping over interior/exterior ghost cells
@@ -133,7 +132,7 @@ wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                const amrex::Array4<const amrex::Real>& arr_xhi,
                                const amrex::Array4<const amrex::Real>& arr_ylo,
                                const amrex::Array4<const amrex::Real>& arr_yhi,
-                               const amrex::Array4<amrex::Real>& data_arr,
+                               const amrex::Array4<const amrex::Real>& data_arr,
                                const amrex::Array4<amrex::Real>& rhs_arr)
 {
     int Spec_z  = set_width;
