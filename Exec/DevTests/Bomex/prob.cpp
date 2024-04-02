@@ -109,11 +109,11 @@ Problem::init_custom_pert (
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
-	// Set an initial value for QKE
-	if (parms.custom_TKE) {
+        // Set an initial value for QKE
+        if (parms.custom_TKE) {
             state_pert(i, j, k, RhoQKE_comp) = 1.0 - zc/3000.0; //*state_pert(i, j, k, Rho_comp);
-	}
-	else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
+        }
+        else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = 0.0;
