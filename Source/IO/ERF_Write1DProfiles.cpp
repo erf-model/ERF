@@ -29,7 +29,7 @@ ERF::write_1D_profiles(Real time)
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
         Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs;
         Gpu::HostVector<Real> h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr;
-	Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
+        Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
         Gpu::HostVector<Real> h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw;
@@ -40,7 +40,7 @@ ERF::write_1D_profiles(Real time)
             derive_diag_profiles(h_avg_u, h_avg_v, h_avg_w,
                                  h_avg_rho, h_avg_th, h_avg_ksgs,
                                  h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr,
-				 h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
+                                 h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                  h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                  h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
                                  h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
@@ -167,8 +167,8 @@ ERF::write_1D_profiles(Real time)
 void
 ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
-			  Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
-			  Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
+                          Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
+                          Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
                           Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
                           Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
                           Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
@@ -291,7 +291,7 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
                 fab_arr(i, j, k,17) = p * u_cc_arr(i,j,k);     // p'*u
                 fab_arr(i, j, k,18) = p * v_cc_arr(i,j,k);     // p'*v
                 fab_arr(i, j, k,19) = p * w_cc_arr(i,j,k);     // p'*w
-		fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
+                fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
                 fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
                 fab_arr(i, j, k,22) = cons_arr(i,j,k,RhoQ4_comp) / cons_arr(i,j,k,Rho_comp);  // qr
                 fab_arr(i, j, k,23) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // w*qv
