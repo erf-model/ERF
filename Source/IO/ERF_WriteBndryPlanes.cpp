@@ -51,8 +51,8 @@ int WriteBndryPlanes::bndry_lev = 0;
  * @param grids Vector of BoxArrays containing the grids at each level in the AMR
  * @param geom Vector of Geometry containing the geometry at each level in the AMR
  */
-WriteBndryPlanes::WriteBndryPlanes(Vector<BoxArray>& grids,
-                                   Vector<Geometry>& geom): m_geom(geom)
+WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
+                                    Vector<Geometry>& geom): m_geom(geom)
 {
     ParmParse pp("erf");
 
