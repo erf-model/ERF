@@ -35,7 +35,7 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
     boolHost1d top_at_1_h("top_at_1_h",1);
     bool top_at_1;
     real2d toa_flux("toa_flux", ncol, nswgpts);
-    k_dist_sw.gas_optics(ncol, nlay, &top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
+    k_dist_sw.gas_optics(ncol, nlay, &top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux); // TODO: top_at_1 is not a valid address and this doesn't match longwave call
 
     // Apply TOA flux scaling
     parallel_for(SimpleBounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {

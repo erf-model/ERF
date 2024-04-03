@@ -172,7 +172,7 @@ void Radiation::initialize (const MultiFab& cons_in,
 
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
-        auto ny = box3d.length(1);
+        //auto ny = box3d.length(1);
         // Get pressure, theta, temperature, density, and qt, qp
         amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -283,7 +283,7 @@ void Radiation::run ()
     real3d gas_vmr("gas_vmr", ngas, ncol, nlev);
 
     // Needed for shortwave aerosol;
-    int nday, nnight;     // Number of daylight columns
+    //int nday, nnight;     // Number of daylight columns
     int1d day_indices("day_indices", ncol), night_indices("night_indices", ncol);   // Indicies of daylight coumns
 
     // Flag to carry (QRS,QRL)*dp across time steps.
@@ -783,7 +783,7 @@ void Radiation::get_gas_vmr (const std::vector<std::string>& gas_names, const re
     const std::vector<real> mol_weight_gas = {18.01528, 44.0095, 47.9982, 44.0128,
                                               28.0101, 16.04246, 31.998, 28.0134}; // g/mol
     // Molar weight of air
-    const real mol_weight_air = 28.97; // g/mol
+    //const real mol_weight_air = 28.97; // g/mol
     // Defaults for gases that are not available (TODO: is this still accurate?)
     const real co_vol_mix_ratio = 1.0e-7;
     const real n2_vol_mix_ratio = 0.7906;

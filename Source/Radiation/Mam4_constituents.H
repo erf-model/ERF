@@ -279,8 +279,8 @@ class MamConstituents {
     inline
     void rad_cnst_init ()
     {
-        int num_aerosols;
-        constexpr bool stricttest = true;
+        //int num_aerosols;
+        //constexpr bool stricttest = true;
 
         // memory to point to if zero value requested
         //allocate(zero_cols(pcols,pver))
@@ -567,7 +567,7 @@ class MamConstituents {
     const
     void rad_cnst_out (int list_idx)
     {
-        int ncol;
+        //int ncol;
         int idx;
         std::string name, cbname, source;
 
@@ -645,7 +645,7 @@ class MamConstituents {
 
         // Get data source
         auto source = aerlist.aer[aer_idx].source;
-        auto idx    = aerlist.aer[aer_idx].idx;
+        //auto idx    = aerlist.aer[aer_idx].idx;
     }
 
     // Return pointer to mass mixing ratio for the modal aerosol specie from the specified
@@ -654,7 +654,7 @@ class MamConstituents {
     void rad_cnst_get_mam_mmr_by_idx (int list_idx, int mode_idx, int spec_idx,
                                       const std::string& phase, real2d& mmr)
     {
-        int idx;
+        //int idx;
         std::string source;
         modelist_t mlist;
 
@@ -729,7 +729,7 @@ class MamConstituents {
     {
         modelist_t mlist;
         std::string source;
-        int idx;
+        //int idx;
 
         if (list_idx >= 0 && list_idx <= N_DIAG) {
             mlist = ma_list[list_idx];

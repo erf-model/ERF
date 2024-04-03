@@ -47,10 +47,7 @@ class ModalAeroWateruptake {
 
         real1d es("es",ncol);             // saturation vapor pressure
         real1d qs("qs",ncol);             // saturation specific humidity
-        real cldn_thresh;
         real2d aerosol_water("aerosol_water",ncol,nlev); //sum of aerosol water (wat_a1 + wat_a2 + wat_a3 + wat_a4)
-        bool history_aerosol;      // Output the MAM aerosol variables and tendencies
-        bool history_verbose;      // produce verbose history output
         bool compute_wetdens;
 
         std::string trnum;       // used to hold mode number (as characters)
@@ -276,7 +273,6 @@ class ModalAeroWateruptake {
     {
         const real eps = 1.e-4;
         const real mw = 18.;
-        const real pi = 3.14159;
         const real rhow = 1.;
         const real surften = 76.;
         const real tair = 273.;

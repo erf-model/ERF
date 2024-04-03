@@ -98,7 +98,7 @@ void m2005_effradius (const real2d& ql, const real2d& nl, const real2d& qi,
 
             // set the minimum droplet number as 20/cm3.
             // nlic   = max(nlic,20.e6_r8/rho) ! sghan minimum in #/cm3
-            auto tempnc = nlic/rho/1.0e6;    // #/kg --> #/cm3
+            //auto tempnc = nlic/rho/1.0e6;    // #/kg --> #/cm3
 
             // Should be the in-cloud dropelt number calculated as nlic*rho/1.0e6_r8 ????!!!! +++mhwang
             auto pgam   = 0.0005714*(nlic*rho/1.e6) + 0.2714;
