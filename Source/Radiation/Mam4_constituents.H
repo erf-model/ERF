@@ -10,6 +10,7 @@
 #include "rrtmgp_const.h"
 #include "Phys_prop.H"
 #include "Rad_constants.H"
+#include "ERF_Config.H"
 
 #ifndef ERF_MAM4_CONSTITUENTS_H_
 #define ERF_MAM4_CONSTITUENTS_H_
@@ -123,8 +124,10 @@ class MamConstituents {
         // we hard-coded the use nmodes = 3, and nspeces = {6, 3, 3}
         //
         // allocate components that depend on nmodes
-        const char* erf_home = std::getenv("ERF_HOME");
-        auto erf_rad_data_dir = (std::string)erf_home + "/Source/Radiation/data/";
+        //const char* erf_home = std::getenv("ERF_HOME");
+        //auto erf_rad_data_dir = (std::string)erf_home + "/Source/Radiation/data/";
+        auto erf_rad_data_dir = getRadiationDataDir() + "/";
+
         // initialize yakl
         if (!yakl::isInitialized()) yakl::init();
 
