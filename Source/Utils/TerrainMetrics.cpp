@@ -95,11 +95,7 @@ init_terrain_grid (int lev, const Geometry& geom, MultiFab& z_phys_nd,
 
    Gpu::DeviceVector<Real> z_levels_d;
    z_levels_d.resize(nz);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
-#else
-    std::memcpy(z_levels_d.data(), z_levels_h.data(), sizeof(Real)*nz);
-#endif
+   Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
 
   // Number of ghost cells
   int     ngrow     = z_phys_nd.nGrow();
