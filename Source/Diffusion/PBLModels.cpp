@@ -245,7 +245,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
-        Error("YSU Model not implemented yet");
+        // FIXME
+        // Error("YSU Model not implemented yet");
 
         /*
           YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
@@ -280,11 +281,13 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             //const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             //const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
-            const auto& z_nd_arr = z_phys_nd->array(mfi);
+            const bool use_terrain = (z_phys_nd != nullptr);
+            const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
             const Real most_zref = most->get_zref();
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             if (most_zref != 10.0) {
+                amrex::Print() << "most_zref = " << most_zref << std::endl;
                 Abort("MOST Zref must be 10m for YSU PBL scheme");
             }
 
@@ -357,6 +360,9 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 if (pblh_arr(i,j,0) < 0.5*(zval_up+zval_dn) ) {
                     kpbl = 0;
                 }
+
+                // FIXME: DEBUG
+                std::cout << i << " " << j << " " << pblh_arr(i,j,0) << std::endl;
             });
 
             // -- Compute nonlocal/countergradient mixing parameters
@@ -367,6 +373,8 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             // -- Compute coefficients in free stream above PBL
 
+            // FIXME: DEBUG
+            Error("YSU Model not implemented yet");
         }
 
     }
