@@ -129,6 +129,7 @@ public:
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
+    bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 #endif
 
     // Init (NOT restart or regrid)

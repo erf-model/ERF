@@ -16,21 +16,29 @@ Array<LinOpBCType,AMREX_SPACEDIM>
 ERF::get_projection_bc (Orientation::Side side) const noexcept
 {
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
-    for (int dir = 0; dir < 2; ++dir) {
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (geom[0].isPeriodic(dir)) {
             r[dir] = LinOpBCType::Periodic;
         } else {
             auto bc_type = domain_bc_type[Orientation(dir,side)];
-            if (bc_type == "outflow") {
-                r[dir] = LinOpBCType::Dirichlet;
-            } else {
+            //if (bc_type == "Outflow") {
+            //    r[dir] = LinOpBCType::Dirichlet;
+            //} else
+            {
                 r[dir] = LinOpBCType::Neumann;
             }
         }
     }
-    r[2] = LinOpBCType::Neumann;
-    amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
+    //r[2] = LinOpBCType::Neumann;
+    //amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
     return r;
+}
+bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
+{
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (bcs[dir] == LinOpBCType::Dirichlet) return true;
+    }
+    return false;
 }
 
 
@@ -54,18 +62,15 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
 {
     BL_PROFILE("ERF::project_velocities()");
 
-    const Real tol_rel = 1.e-10;
-    const Real tol_abs = 1.e-10;
-
     const int nlevs = geom.size();
 
     // Use the default settings
     LPInfo info;
     MLPoisson mlpoisson(geom, grids, dmap, info);
 
-    // This is a 3d problem with Dirichlet BC
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
+    bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
     mlpoisson.setDomainBC(bclo, bchi);
 
     for (int ilev = 0; ilev < nlevs; ++ilev) {
@@ -98,21 +103,17 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     Array<MultiFab const*, AMREX_SPACEDIM> u;
     for (int ilev = 0; ilev < nlevs; ++ilev)
     {
-        // Enforce no penetration for thin immersed interface -- for successive projections (PISO)
-        if (xflux_imask[ilev]) {
-            ApplyMask(vars[ilev][Vars::xvel], *xflux_imask[ilev]);
-        }
-        if (yflux_imask[ilev]) {
-            ApplyMask(vars[ilev][Vars::yvel], *yflux_imask[ilev]);
-        }
-        if (zflux_imask[ilev]) {
-            ApplyMask(vars[ilev][Vars::zvel], *zflux_imask[ilev]);
-        }
-
         u[0] = &(vars[ilev][Vars::xvel]);
         u[1] = &(vars[ilev][Vars::yvel]);
         u[2] = &(vars[ilev][Vars::zvel]);
         computeDivergence(rhs[ilev], u, geom[ilev]);
+
+        // If all Neumann BCs, adjust RHS to make sure we can converge
+        if (need_adjust_rhs) {
+            Real offset = volWgtSumMF(ilev, rhs[ilev], 0, *mapfac_m[ilev], false, false);
+            amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
+            rhs[ilev].plus(-offset, 0, 1);
+        }
     }
 
     // Initialize phi to 0
@@ -127,7 +128,7 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
 
     int verbose = 1;
     mlmg.setVerbose(verbose);
-    // mlmg.setBottomVerbose(bottom_verbose);
+    //mlmg.setBottomVerbose(verbose);
 
     mlmg.solve(GetVecOfPtrs(phi),
                GetVecOfConstPtrs(rhs),
