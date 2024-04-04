@@ -6,6 +6,7 @@
 
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
+#include "ERF_Config.H"
 #include "rrtmgp_const.h"
 #include "Water_vapor_saturation.H"
 #include "Linear_interpolate.H"
