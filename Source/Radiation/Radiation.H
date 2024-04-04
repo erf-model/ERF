@@ -44,7 +44,7 @@ class Radiation {
 
     // init
     void initialize (const amrex::MultiFab& cons_in,
-                     const amrex::MultiFab& qmoist,
+                     amrex::Vector<amrex::MultiFab*> qmoist,
                      const amrex::BoxArray& grids,
                      const amrex::Geometry& geom,
                      const amrex::Real& dt_advance,
@@ -176,8 +176,9 @@ class Radiation {
 
     // k-distribution coefficients files to read from. These are set via namelist
     // variables.
-    std::string rrtmgp_coefficients_file_sw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_sw_20181204.nc";
-    std::string rrtmgp_coefficients_file_lw = "/ccs/home/yuanx/erf.git_develop/Source/Radiation/data/rrtmgp_coefficients_lw_20181204.nc";
+    std::string rrtmgp_file_path;
+    std::string rrtmgp_coefficients_file_sw = "rrtmgp_coefficients_sw_20181204.nc";
+    std::string rrtmgp_coefficients_file_lw = "rrtmgp_coefficients_lw_20181204.nc";
 
     // Band midpoints; these need to be module variables because of how cam_history works;
     // add_hist_coord sets up pointers to these, so they need to persist.
