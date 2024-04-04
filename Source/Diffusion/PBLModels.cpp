@@ -285,7 +285,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
             if (most_zref != 10.0) {
-                amrex::Abort("MOST Zref must be 10m for YSU PBL scheme");
+                Abort("MOST Zref must be 10m for YSU PBL scheme");
             }
 
             // create flattened boxes to store PBL height
