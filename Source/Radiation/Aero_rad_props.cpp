@@ -309,8 +309,8 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
     real2d r_lw_abs("r_lw_abs", ncol, nlev);  // radius dependent mass-specific absorption coefficient
     real1d r_mu("r_mu", ncol);        // log(geometric_mean_radius) domain samples of r_lw_abs(:,:)
     real2d mu("mu", ncol, nlev);          // log(geometric_radius)
-    real r_mu_min, r_mu_max, wmu, mutrunc;
-    int nmu, kmu;
+    //real r_mu_min, r_mu_max, wmu, mutrunc;
+    //int nmu, kmu;
 
     // for table lookup into rh grid
     real2d es("es", ncol, nlev);     // saturation vapor pressure
@@ -327,7 +327,7 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
 
     //For cmip6 volcanic file
     int1d trop_level("trop_level", ncol);
-    real lyr_thk;
+    //real lyr_thk;
     real3d ext_cmip6_lw("ext_cmip6_lw", ncol, nlev, nlwbands);
     real3d ext_cmip6_lw_inv_m("ext_cmip6_lw_inv_m",ncol, nlev, nlwbands); //long wave extinction in the units of 1/m
 
@@ -421,7 +421,7 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
         {
             int ilev_tropp = trop_level(icol); //tropopause level
             if (ilev < ilev_tropp) {
-                auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
+                //auto lyr_thk = zi(icol,ilev) - zi(icol,ilev+1);
                 // odap_aer(icol,ilev,ilw) = lyr_thk * ext_cmip6_lw_inv_m(icol,ilev,ilw);
             }
         });
@@ -675,7 +675,7 @@ void AerRadProps::get_volcanic_rad_props(const int& ncol,
                                          const real3d& tau_w,
                                          const real3d& tau_w_g,
                                          const real3d& tau_w_f) {
-   int nswbands;
+   //int nswbands;
    parallel_for(SimpleBounds<3>(nswbands, ncol,nlev), YAKL_LAMBDA (int iswband, int icol, int ilev) {
      real g = 0;
      if (scat(iswband) > 0.)

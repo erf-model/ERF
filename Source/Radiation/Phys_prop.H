@@ -485,7 +485,7 @@ class PhysProp {
         real2d flw_abs;
 
         auto nrh       = RadConstants::nrh;
-        auto nbnd      = prop.getDimSize( "lw_band" );
+        //auto nbnd      = prop.getDimSize( "lw_band" );
         auto nswbands  = prop.getDimSize( "sw_band" );
 
         prop.read( fsw_ext, "ext_sw");
@@ -578,9 +578,9 @@ class PhysProp {
     // Read optics data of type 'volcanic_radius'
     void volcanic_radius_optics_init (physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
-        auto n_mu_samples = prop.getDimSize( "mu_samples" );
-        auto nbnd         = prop.getDimSize( "lw_band" );
-        auto nswbands     = prop.getDimSize( "sw_band" );
+        //auto n_mu_samples = prop.getDimSize( "mu_samples" );
+        //auto nbnd         = prop.getDimSize( "lw_band" );
+        //auto nswbands     = prop.getDimSize( "sw_band" );
 
         prop.read( phys_prop.r_sw_ext,   "bext_sw");
         prop.read( phys_prop.r_sw_scat,  "bsca_sw");
@@ -595,8 +595,8 @@ class PhysProp {
     // Read optics data of type 'volcanic'
     void volcanic_optics_init (physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
-        auto nbnd     = prop.getDimSize( "lw_band" );
-        auto nswbands = prop.getDimSize( "sw_band" );
+        //auto nbnd     = prop.getDimSize( "lw_band" );
+        //auto nswbands = prop.getDimSize( "sw_band" );
 
         prop.read( phys_prop.sw_nonhygro_ext,   "bext_sw");
         prop.read( phys_prop.sw_nonhygro_scat,  "bsca_sw");
@@ -611,7 +611,7 @@ class PhysProp {
     void hygroscopic_optics_init (physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
         // temp data from hygroscopic file before interpolation onto cam-rh-mesh
-        int nfilerh; // number of rh values in file
+        //int nfilerh; // number of rh values in file
         real1d frh;
         real2d fsw_ext, fsw_ssa, fsw_asm, flw_abs;
 
@@ -631,7 +631,7 @@ class PhysProp {
         prop.read( frh,     "rh");
 
         real1d fswe("",nrh), fsws("",nrh),
-            fswa("",nrh), flwa("",nrh);
+               fswa("",nrh), flwa("",nrh);
 
         // interpolate onto cam's rh mesh
         parallel_for (SimpleBounds<2> (nswbands, nrh), YAKL_LAMBDA (int kbnd, int krh)
@@ -671,8 +671,8 @@ class PhysProp {
     // Read optics data of type 'nonhygro'
     void nonhygro_optics_init (physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
-        auto nlwbands = prop.getDimSize( "lw_band" );
-        auto nswbands = prop.getDimSize( "sw_band" );
+        //auto nlwbands = prop.getDimSize( "lw_band" );
+        //auto nswbands = prop.getDimSize( "sw_band" );
 
         prop.read( phys_prop.sw_nonhygro_ext, "ext_sw");
         prop.read( phys_prop.sw_nonhygro_ssa, "ssa_sw");
@@ -833,9 +833,9 @@ class PhysProp {
     void aer_optics_log_rh (std::string name, const real1d& ext, const real1d& ssa, const real1d& asmin)
     {
         const int nrh_test = 36;
-        int krh;
+        //int krh;
         real1d rh_test("rh_test", nrh_test);
-        auto nrh = ext.extent(0);
+        //auto nrh = ext.extent(0);
 
         parallel_for (SimpleBounds<1> (nrh_test), YAKL_LAMBDA (int krh_test)
         {
@@ -845,6 +845,7 @@ class PhysProp {
         // loop through test rh values
         parallel_for (SimpleBounds<1> (nrh_test), YAKL_LAMBDA (int krh_test)
         {
+            /*
             // find corresponding rh index
             auto rh = rh_test(krh_test);
             auto krh = std::min(floor( (rh) * nrh ) + 1, static_cast<real>(nrh - 1));
@@ -852,6 +853,7 @@ class PhysProp {
             auto exti = ext(krh + 1) * (wrh + 1) - ext(krh) * wrh;
             auto ssai = ssa(krh + 1) * (wrh + 1) - ssa(krh) * wrh;
             auto asmi = asmin(krh + 1) * (wrh + 1) - asmin(krh) * wrh;
+            */
         });
     }
 };

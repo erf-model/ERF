@@ -122,7 +122,7 @@ class EbertCurry {
         real2d cldtau("cldtau",ncol,nlev);
 
         // longwave liquid absorption coeff (m**2/g)
-        const real kabsl = 0.090361;
+        //const real kabsl = 0.090361;
 
         // Optical properties for ice are valid only in the range of
         // 13 < rei < 130 micron (Ebert and Curry 92)

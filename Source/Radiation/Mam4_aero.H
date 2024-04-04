@@ -326,7 +326,6 @@ class Mam4_aer {
                          const real3d& fa, const real2d& clear_rh)
     {
         // local variables
-        int ilev_tropp;
         real2d mass("mass",ncol,nlev);               // layer mass
         real2d air_density("air_density",ncol,nlev);  // (kg/m3)
 
@@ -656,7 +655,7 @@ class Mam4_aer {
                 }
             }
 
-            int nlwbands; // add by xyuan to be compiled
+            //int nlwbands; // add by xyuan to be compiled
             for(auto ilw = 1; ilw <= nlwbands; ++ilw) {
                 for(auto k = top_lev; k > nlev; --k) {
                     // form bulk refractive index. Use volume mixing for infrared

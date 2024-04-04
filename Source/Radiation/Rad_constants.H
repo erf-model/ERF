@@ -188,7 +188,7 @@ class RadConstants {
     {
         real1d lower_boundaries("lower_boundaries", nlwbands);
         real1d upper_boundaries("upper_boundaries", nlwbands);
-        int iband;
+        //int iband;
 
         // Get band boundaries
         get_lw_spectral_boundaries(lower_boundaries, upper_boundaries, units);
