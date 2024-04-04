@@ -44,6 +44,8 @@ void ERF::advance_dycore(int level,
 {
     BL_PROFILE_VAR("erf_advance_dycore()",erf_advance_dycore);
 
+    const Box& domain = fine_geom.Domain();
+
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
@@ -133,7 +135,7 @@ void ERF::advance_dycore(int level,
             const Array4<const Real> mf_v = mapfac_v[level]->array(mfi);
 
             if (l_use_terrain) {
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13,
@@ -142,7 +144,7 @@ void ERF::advance_dycore(int level,
                                 z_nd, bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
             } else {
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 tau11, tau22, tau33,
                                 tau12, tau13, tau23,
@@ -226,7 +228,7 @@ void ERF::advance_dycore(int level,
                        state_old[IntVars::xmom],
                        state_old[IntVars::ymom],
                        state_old[IntVars::zmom],
-                       Geom(level).Domain(), domain_bcs_type);
+                       domain, domain_bcs_type);
 
     MultiFab::Copy(xvel_new,xvel_old,0,0,1,xvel_old.nGrowVect());
     MultiFab::Copy(yvel_new,yvel_old,0,0,1,yvel_old.nGrowVect());
