@@ -485,6 +485,71 @@ make_J (const Geometry& geom,
 }
 
 /**
+ * Computation of area fractions on faces
+ */
+void
+make_areas (const Geometry& geom,
+            MultiFab& z_phys_nd, MultiFab& ax,
+            MultiFab& ay, MultiFab& az)
+{
+    const auto* dx = geom.CellSize();
+    Real dzInv = 1.0/dx[2];
+
+    // Domain valid box (z_nd is nodal)
+    const Box& domain = geom.Domain();
+    int domlo_z = domain.smallEnd(2);
+
+    // The z-faces are always full when using terrain-fitted coordinates
+    az.setVal(1.0);
+
+    //
+    // x-areas
+    //
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(ax, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box gbx = mfi.growntilebox(ax.nGrow());
+        if (gbx.smallEnd(2) < domlo_z) {
+            gbx.setSmall(2,domlo_z);
+        }
+
+        Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
+        Array4<Real      > ax_arr = ax.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+               ax_arr(i, j, k) = .5 * dzInv * (
+                       z_nd(i,j,k+1) + z_nd(i,j+1,k+1) - z_nd(i,j,k) - z_nd(i,j+1,k));
+        });
+    }
+
+    //
+    // y-areas
+    //
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for ( MFIter mfi(ay, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+    {
+        Box gbx = mfi.growntilebox(ay.nGrow());
+        if (gbx.smallEnd(2) < domlo_z) {
+            gbx.setSmall(2,domlo_z);
+        }
+
+        Array4<Real const> z_nd = z_phys_nd.const_array(mfi);
+        Array4<Real      > ay_arr = ay.array(mfi);
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+               ay_arr(i, j, k) = .5 * dzInv * (
+                       z_nd(i,j,k+1) + z_nd(i+1,j,k+1) - z_nd(i,j,k) - z_nd(i+1,j,k));
+        });
+    }
+
+    ax.FillBoundary(geom.periodicity());
+    ay.FillBoundary(geom.periodicity());
+    az.FillBoundary(geom.periodicity());
+}
+
+/**
  * Computation of z_phys at cell-center
  */
 void

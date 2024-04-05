@@ -16,6 +16,12 @@ void make_J (const amrex::Geometry& geom,
              amrex::MultiFab& z_phys_nd,
              amrex::MultiFab& detJ_cc);
 
+void make_areas (const amrex::Geometry& geom,
+                 amrex::MultiFab& z_phys_nd,
+                 amrex::MultiFab& ax,
+                 amrex::MultiFab& ay,
+                 amrex::MultiFab& az);
+
 /*
  * Average z_phys_nd on nodes to cell centers
  */

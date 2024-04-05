@@ -221,10 +221,22 @@ ERF::ERF ()
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
+    ax.resize(nlevs_max);
+    ay.resize(nlevs_max);
+    az.resize(nlevs_max);
+
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    ax_new.resize(nlevs_max);
+    ay_new.resize(nlevs_max);
+    az_new.resize(nlevs_max);
+
     z_phys_nd_src.resize(nlevs_max);
     detJ_cc_src.resize(nlevs_max);
+    ax_src.resize(nlevs_max);
+    ay_src.resize(nlevs_max);
+    az_src.resize(nlevs_max);
+
     z_t_rk.resize(nlevs_max);
 
     // Mapfactors

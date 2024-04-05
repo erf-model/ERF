@@ -62,40 +62,58 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     average_face_to_cellcenter(ccvel,0,
                                Array<const MultiFab*,3>{&vars_new[level][Vars::xvel],
-                                                            &vars_new[level][Vars::yvel],
-                                                            &vars_new[level][Vars::zvel]});
+                                                        &vars_new[level][Vars::yvel],
+                                                        &vars_new[level][Vars::zvel]});
 
     int l_no_substepping = solverChoice.no_substepping;
 
+#ifdef ERF_USE_EB
+    EBFArrayBoxFactory ebfact = EBFactory(level);
+    const MultiFab& detJ = ebfact.getVolFrac();
+#endif
+
+#ifdef ERF_USE_EB
+    Real estdt_comp_inv = ReduceMax(S_new, ccvel, detJ, 0,
+       [=] AMREX_GPU_HOST_DEVICE (Box const& b,
+                                  Array4<Real const> const& s,
+                                  Array4<Real const> const& vf,
+                                  Array4<Real const> const& u) -> Real
+#else
     Real estdt_comp_inv = ReduceMax(S_new, ccvel, 0,
        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
                                   Array4<Real const> const& s,
                                   Array4<Real const> const& u) -> Real
+#endif
        {
            Real new_comp_dt = -1.e100;
            amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
            {
-               const Real rho      = s(i, j, k, Rho_comp);
-               const Real rhotheta = s(i, j, k, RhoTheta_comp);
+#ifdef ERF_USE_EB
+               if (vf(i,j,k) > 0.)
+#endif
+               {
+                   const Real rho      = s(i, j, k, Rho_comp);
+                   const Real rhotheta = s(i, j, k, RhoTheta_comp);
 
-               // NOTE: even when moisture is present,
-               //       we only use the partial pressure of the dry air
-               //       to compute the soundspeed
-               Real pressure = getPgivenRTh(rhotheta);
-               Real c = std::sqrt(Gamma * pressure / rho);
+                   // NOTE: even when moisture is present,
+                   //       we only use the partial pressure of the dry air
+                   //       to compute the soundspeed
+                   Real pressure = getPgivenRTh(rhotheta);
+                   Real c = std::sqrt(Gamma * pressure / rho);
 
-               // If we are not doing the acoustic substepping, then the z-direction contributes
-               //    to the computation of the time step
-               if (l_no_substepping) {
-                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
-                                            ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
+                   // If we are not doing the acoustic substepping, then the z-direction contributes
+                   //    to the computation of the time step
+                   if (l_no_substepping) {
+                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]),
+                                                ((amrex::Math::abs(u(i,j,k,2))+c)*dzinv   ), new_comp_dt);
 
-               // If we are     doing the acoustic substepping, then the z-direction does not contribute
-               //    to the computation of the time step
-               } else {
-                   new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
-                                            ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                   // If we are     doing the acoustic substepping, then the z-direction does not contribute
+                   //    to the computation of the time step
+                   } else {
+                       new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv[0]),
+                                                ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv[1]), new_comp_dt);
+                   }
                }
            });
            return new_comp_dt;
