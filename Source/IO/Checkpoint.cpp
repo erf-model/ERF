@@ -149,8 +149,27 @@ ERF::WriteCheckpointFile () const
             int nvar = 1;
             MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
             MultiFab::Copy(moist_vars,*(qmoist[lev][4]),0,0,nvar,ng);
-            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "MoistVars"));
+            VisMF::Write(moist_vars, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RainAccum"));
         }
+
+		if(solverChoice.moisture_type == MoistureType::SAM){
+			ng = qmoist[lev][8]->nGrowVect();
+            int nvar = 1;
+            MultiFab rain_accum(grids[lev],dmap[lev],nvar,ng);
+            MultiFab::Copy(rain_accum,*(qmoist[lev][8]),0,0,nvar,ng);
+            VisMF::Write(rain_accum, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "RainAccum"));
+		
+			ng = qmoist[lev][9]->nGrowVect();
+            MultiFab snow_accum(grids[lev],dmap[lev],nvar,ng);
+            MultiFab::Copy(snow_accum,*(qmoist[lev][9]),0,0,nvar,ng);
+            VisMF::Write(snow_accum, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SnowAccum"));
+	
+			ng = qmoist[lev][10]->nGrowVect();
+            MultiFab graup_accum(grids[lev],dmap[lev],nvar,ng);
+            MultiFab::Copy(graup_accum,*(qmoist[lev][10]),0,0,nvar,ng);
+            VisMF::Write(graup_accum, amrex::MultiFabFileFullPrefix(lev, checkpointname, "Level_", "GraupAccum"));
+		}
+
 
 #if defined(ERF_USE_WINDFARM)
         if(solverChoice.windfarm_type == WindFarmType::Fitch){
@@ -381,10 +400,28 @@ ERF::ReadCheckpointFile ()
             ng = qmoist[lev][4]->nGrowVect();
             int nvar = 1;
             MultiFab moist_vars(grids[lev],dmap[lev],nvar,ng);
-            VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "MoistVars"));
+            VisMF::Read(moist_vars, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RainAccum"));
             MultiFab::Copy(*(qmoist[lev][4]),moist_vars,0,0,nvar,ng);
         }
 
+		 if (solverChoice.moisture_type == MoistureType::SAM) {
+            ng = qmoist[lev][8]->nGrowVect();
+            int nvar = 1;
+            MultiFab rain_accum(grids[lev],dmap[lev],nvar,ng);
+            VisMF::Read(rain_accum, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "RainAccum"));
+            MultiFab::Copy(*(qmoist[lev][8]),rain_accum,0,0,nvar,ng);
+
+			ng = qmoist[lev][9]->nGrowVect();
+            MultiFab snow_accum(grids[lev],dmap[lev],nvar,ng);
+            VisMF::Read(snow_accum, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SnowAccum"));
+            MultiFab::Copy(*(qmoist[lev][9]),snow_accum,0,0,nvar,ng);
+
+			ng = qmoist[lev][10]->nGrowVect();
+            MultiFab graup_accum(grids[lev],dmap[lev],nvar,ng);
+            VisMF::Read(graup_accum, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "GraupAccum"));
+            MultiFab::Copy(*(qmoist[lev][10]),graup_accum,0,0,nvar,ng);
+
+        }
 
 #if defined(ERF_USE_WINDFARM)
         if(solverChoice.windfarm_type == WindFarmType::Fitch){

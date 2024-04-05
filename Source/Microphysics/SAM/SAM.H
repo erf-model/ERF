@@ -43,6 +43,9 @@ namespace MicVar {
       qps,   // precip ice
       qpg,   // graupel
       // derived vars
+	  rain_accum,
+	  snow_accum,
+	  graup_accum,
       omega,
       NumVars
   };
@@ -146,7 +149,7 @@ public:
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
-    int m_qmoist_size = 8;
+    int m_qmoist_size = 11;
 
     // Number of qmoist variables
     int m_qstate_size = 6;

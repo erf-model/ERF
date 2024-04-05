@@ -34,7 +34,7 @@ void SAM::Init (const MultiFab& cons_in,
 
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar::qt, MicVar::qv , MicVar::qcl, MicVar::qci,
-                 MicVar::qp, MicVar::qpr, MicVar::qps, MicVar::qpg};
+                 MicVar::qp, MicVar::qpr, MicVar::qps, MicVar::qpg, MicVar::rain_accum, MicVar::snow_accum, MicVar::graup_accum};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {
