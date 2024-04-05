@@ -265,12 +265,25 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
                 fab_arr(i, j, k,17) = p * u_cc_arr(i,j,k);     // p'*u
                 fab_arr(i, j, k,18) = p * v_cc_arr(i,j,k);     // p'*v
                 fab_arr(i, j, k,19) = p * w_cc_arr(i,j,k);     // p'*w
+                fab_arr(i, j, k,20) = 0.;  // qv
+                fab_arr(i, j, k,21) = 0.;  // qc
+                fab_arr(i, j, k,22) = 0.;  // qr
+                fab_arr(i, j, k,23) = 0.;  // w*qv
+                fab_arr(i, j, k,24) = 0.;  // w*qc
+                fab_arr(i, j, k,25) = 0.;  // w*qr
             }
         });
     } // mfi
 
     if (use_moisture)
     {
+        int RhoQr_comp;
+        int n_qstate = micro->Get_Qstate_Size();
+        if (n_qstate > 3) {
+            RhoQr_comp = RhoQ4_comp;
+        } else {
+            RhoQr_comp = RhoQ3_comp;
+        }
 
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
@@ -294,10 +307,10 @@ ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Rea
                 fab_arr(i, j, k,19) = p * w_cc_arr(i,j,k);     // p'*w
                 fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
                 fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
-                fab_arr(i, j, k,22) = cons_arr(i,j,k,RhoQ4_comp) / cons_arr(i,j,k,Rho_comp);  // qr
+                fab_arr(i, j, k,22) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
                 fab_arr(i, j, k,23) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // w*qv
                 fab_arr(i, j, k,24) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // w*qc
-                fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ4_comp) / cons_arr(i,j,k,Rho_comp);  // w*qr
+                fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // w*qr
             });
         } // mfi
     } // use_moisture
