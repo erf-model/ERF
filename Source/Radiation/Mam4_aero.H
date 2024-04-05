@@ -14,6 +14,7 @@
 #include "Mam4_constituents.H"
 #include "Rad_constants.H"
 #include "ERF_Constants.H"
+#include "ERF_Config.H"
 #include "Modal_aero_wateruptake.H"
 
 using yakl::fortran::parallel_for;
@@ -77,9 +78,8 @@ class Mam4_aer {
             }
         }
 
-        const char* erf_home = std::getenv("ERF_HOME");
-        auto erf_rad_data_dir = (std::string)erf_home + "/Source/Radiation/data/";
-        water_refindex_file = erf_rad_data_dir+"water_refindex_rrtmg_c080910.nc";
+        auto erf_rad_data_dir = getRadiationDataDir() + "/";
+        water_refindex_file   = erf_rad_data_dir + "water_refindex_rrtmg_c080910.nc";
         read_water_refindex(water_refindex_file);
 
         // Allocate dry and wet size variables
@@ -326,7 +326,6 @@ class Mam4_aer {
                          const real3d& fa, const real2d& clear_rh)
     {
         // local variables
-        int ilev_tropp;
         real2d mass("mass",ncol,nlev);               // layer mass
         real2d air_density("air_density",ncol,nlev);  // (kg/m3)
 
@@ -656,7 +655,7 @@ class Mam4_aer {
                 }
             }
 
-            int nlwbands; // add by xyuan to be compiled
+            //int nlwbands; // add by xyuan to be compiled
             for(auto ilw = 1; ilw <= nlwbands; ++ilw) {
                 for(auto k = top_lev; k > nlev; --k) {
                     // form bulk refractive index. Use volume mixing for infrared
