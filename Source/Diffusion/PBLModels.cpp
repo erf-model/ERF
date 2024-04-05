@@ -286,8 +286,16 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const Real most_zref = most->get_zref();
 
             // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
-            if (most_zref != 10.0) {
-                amrex::Print() << "most_zref = " << most_zref << std::endl;
+            bool invalid_zref = false;
+            if (use_terrain) {
+                invalid_zref = most_zref != 10.0;
+            } else {
+                // zref gets reset to nearest cell center, so assert that zref is in the same cell as the 10m point
+                Real dz = geom.CellSize(2);
+                invalid_zref = int((most_zref - 0.5*dz)/dz) != int((10.0 - 0.5*dz)/dz);
+            }
+            if (invalid_zref) {
+                Print() << "most_zref = " << most_zref << std::endl;
                 Abort("MOST Zref must be 10m for YSU PBL scheme");
             }
 
