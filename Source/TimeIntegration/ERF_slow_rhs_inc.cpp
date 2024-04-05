@@ -46,6 +46,9 @@ using namespace amrex;
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
  * @param[in]  domain_bcs_type_h   host vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
  * @param[in] mapfac_m map factor at cell centers
@@ -53,6 +56,7 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_u_geos  custom geostrophic wind profile
  * @param[in] dptr_v_geos  custom geostrophic wind profile
+ * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  * @param[in] xflux_imask_lev thin-body mask on x-faces
  * @param[in] yflux_imask_lev thin-body mask on y-faces
@@ -87,7 +91,11 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
-                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
+                       std::unique_ptr<MultiFab>& z_phys_nd,
+                       std::unique_ptr<MultiFab>& ax,
+                       std::unique_ptr<MultiFab>& ay,
+                       std::unique_ptr<MultiFab>& az,
+                       std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
@@ -305,13 +313,13 @@ void erf_slow_rhs_inc (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_T");
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s13,
                                 s21, s23,
                                 s31, s32,
-                                z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
+                                z_nd, detJ_arr, bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
                 } // profile
 
@@ -355,7 +363,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                             s12, s13,
                                             s21, s23,
                                             s31, s32,
-                                            er_arr, z_nd, dxInv);
+                                            er_arr, z_nd, detJ_arr, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -363,7 +371,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                            s12, s13,
                                            s21, s23,
                                            s31, s32,
-                                           er_arr, z_nd, dxInv);
+                                           er_arr, z_nd, detJ_arr, dxInv);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -417,7 +425,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s13, s23,
@@ -642,20 +650,25 @@ void erf_slow_rhs_inc (int level, int nrk,
         // **************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
+        auto const& ax_arr = ax->const_array(mfi);
+        auto const& ay_arr = ay->const_array(mfi);
+        auto const& az_arr = az->const_array(mfi);
+
         AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                           l_use_terrain, flx_arr,
-                           l_const_rho);
+                           ax_arr, ay_arr, az_arr, detJ_arr,
+                           dxInv, mf_m, mf_u, mf_v,
+                           flx_arr, l_const_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
                                avg_xmom, avg_ymom, avg_zmom,
-                               cell_prim, cell_rhs, detJ_arr, dxInv, mf_m,
+                               cell_prim, cell_rhs, detJ_arr,
+                               dxInv, mf_m,
                                l_horiz_adv_type, l_vert_adv_type,
                                l_horiz_upw_frac, l_vert_upw_frac,
-                               l_use_terrain, flx_arr, domain, bc_ptr_h);
+                               flx_arr, domain, bc_ptr_h);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -718,7 +731,8 @@ void erf_slow_rhs_inc (int level, int nrk,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
-                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+                           ax_arr, ay_arr, az_arr, detJ_arr,
+                           dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            l_use_terrain, lo_z_face, hi_z_face,
