@@ -269,7 +269,7 @@ class ModalAeroWateruptake {
     YAKL_INLINE
     static void modal_aero_kohler (const real& rdry_in,
                                    const real& hygro, const real& s,
-                                  real& rwet_out)
+                                   real& rwet_out)
     {
         const real eps = 1.e-4;
         const real mw = 18.;
@@ -287,8 +287,7 @@ class ModalAeroWateruptake {
         auto b    = vol*hygro;
 
         //quartic
-        auto ss   = std::min(s,1.-eps); // relative humidity
-        ss   = std::max(ss,1.e-10);
+        auto ss   = std::max(std::min(s,1.-eps), 1.e-10); // relative humidity
         auto slog = std::log(ss); // log relative humidity
         auto p43  = -a/slog;
         auto p42  = 0.;
@@ -312,6 +311,7 @@ class ModalAeroWateruptake {
             r=rdry*(1.+p*third/(1.-slog*rdry/a));
         }
         else {
+            // AML TODO: FIX WHATEVER THIS IS TRYING TO DO...
             amrex::GpuComplex<real> cx4[4];
             makoh_quartic(cx4,p43,p42,p41,p40);
             //find smallest real(r8) solution
@@ -422,11 +422,10 @@ class ModalAeroWateruptake {
         const real third=1./3.;
         auto q = -p2*p2/36.+(p3*p1-4*p0)/12.;
         auto r = -std::pow((p2/6), 3.0) + p2*(p3*p1-4.*p0)/48.
-            +(4.*p0*p2-p0*p3*p3-p1*p1)/16.;
+               + (4.*p0*p2-p0*p3*p3-p1*p1)/16.;
 
-        auto crad = amrex::GpuComplex<real>(r*r+q*q*q, 0.);
-        crad = amrex::sqrt(crad);
-        auto cb = r-crad;
+        auto crad = amrex::sqrt(amrex::GpuComplex<real>(r*r+q*q*q, 0.));
+        auto cb   = r-crad;
 
         if (cb.real() == 0. && cb.imag() == 0.) {
             // insoluble particle

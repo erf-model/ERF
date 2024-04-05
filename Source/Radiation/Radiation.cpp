@@ -97,7 +97,7 @@ namespace internal {
 
 // init
 void Radiation::initialize (const MultiFab& cons_in,
-                            const MultiFab& qmoist,
+                            Vector<MultiFab*> qmoist,
                             const BoxArray& grids,
                             const Geometry& geom,
                             const Real& dt_advance,
@@ -116,10 +116,14 @@ void Radiation::initialize (const MultiFab& cons_in,
     dt = dt_advance;
 
     do_short_wave_rad = do_sw_rad;
-    do_long_wave_rad = do_lw_rad;
-    do_aerosol_rad = do_aero_rad;
-    do_snow_optics = do_snow_opt;
-    is_cmip6_volc = is_cmip6_volcano;
+    do_long_wave_rad  = do_lw_rad;
+    do_aerosol_rad    = do_aero_rad;
+    do_snow_optics    = do_snow_opt;
+    is_cmip6_volc     = is_cmip6_volcano;
+
+    rrtmgp_file_path = getRadiationDataDir() + "/";
+    rrtmgp_coefficients_file_sw.insert(0,rrtmgp_file_path);
+    rrtmgp_coefficients_file_lw.insert(0,rrtmgp_file_path);
 
     for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -168,7 +172,9 @@ void Radiation::initialize (const MultiFab& cons_in,
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
         auto states_array = cons_in.array(mfi);
-        auto qmoist_array = qmoist.array(mfi);
+        auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
+        auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
+        auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
@@ -178,10 +184,10 @@ void Radiation::initialize (const MultiFab& cons_in,
         {
             auto icol = j*nx+i+1;
             auto ilev = k+1;
-            qt(icol,ilev)   = qmoist_array(i,j,k,0); //states_array(i,j,k,RhoQt_comp)/states_array(i,j,k,Rho_comp);
-            qc(icol,ilev)   = qmoist_array(i,j,k,2); //qmoist_array(i,j,k,1);
-            qi(icol,ilev)   = qmoist_array(i,j,k,3); //qmoist_array(i,j,k,2);
-            qn(icol,ilev)   = qmoist_array(i,j,k,1) + qmoist_array(i,j,k,2);
+            qt(icol,ilev)   = (qt_array) ? qt_array(i,j,k): 0.0;
+            qc(icol,ilev)   = (qc_array) ? qc_array(i,j,k): 0.0;
+            qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
+            qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
             tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
             pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/1.0e3;
         });

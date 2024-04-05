@@ -221,6 +221,14 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
+
+#if defined(ERF_USE_RRTMGP)
+    //*********************************************************
+    // Radiation heating source terms
+    //*********************************************************
+     qheating_rates[lev].define(ba, dm, 2, ngrow_state);
+     qheating_rates[lev].setVal(0.);
+#endif
 }
 
 void

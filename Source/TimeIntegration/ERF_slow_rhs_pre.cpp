@@ -361,7 +361,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_T");
-                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_T(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s13,
@@ -473,7 +473,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 // *****************************************************************************
                 {
                 BL_PROFILE("slow_rhs_making_strain_N");
-                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz,
+                ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,
                                 u, v, w,
                                 s11, s22, s33,
                                 s12, s13, s23,
