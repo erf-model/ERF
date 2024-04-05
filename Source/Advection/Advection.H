@@ -19,18 +19,14 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<      amrex::Real>& avg_xmom, // These are being defined
                          const amrex::Array4<      amrex::Real>& avg_ymom, //  from the rho fluxes
                          const amrex::Array4<      amrex::Real>& avg_zmom,
-                         const amrex::Array4<const amrex::Real>& z_nd,
+                         const amrex::Array4<const amrex::Real>& ax_arr,
+                         const amrex::Array4<const amrex::Real>& ay_arr,
+                         const amrex::Array4<const amrex::Real>& az_arr,
                          const amrex::Array4<const amrex::Real>& detJ,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
-#ifdef ERF_USE_EB
-                         const amrex::Array4<const amrex::Real>& ax_arr,
-                         const amrex::Array4<const amrex::Real>& ay_arr,
-                         const amrex::Array4<const amrex::Real>& az_arr,
-#endif
-                         const bool use_terrain,
                          const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
@@ -46,7 +42,6 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::Array4<const amrex::Real>& mf_m,
                              const AdvType horiz_adv_type, const AdvType vert_adv_type,
                              const amrex::Real horiz_upw_frac, const amrex::Real vert_upw_frac,
-                             const bool use_terrain,
                              const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr,
                              const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr_h);
@@ -60,7 +55,10 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& w        ,
                          const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
                          const amrex::Array4<const amrex::Real>& Omega    ,
-                         const amrex::Array4<const amrex::Real>& z_nd     , const amrex::Array4<const amrex::Real>& detJ,
+                         const amrex::Array4<const amrex::Real>& ax,
+                         const amrex::Array4<const amrex::Real>& ay,
+                         const amrex::Array4<const amrex::Real>& az,
+                         const amrex::Array4<const amrex::Real>& detJ,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
                          const amrex::Array4<const amrex::Real>& mf_m,
                          const amrex::Array4<const amrex::Real>& mf_u,
@@ -90,10 +88,10 @@ AdvectionSrcForOpenBC_Tangent_Xmom (const amrex::Box& bxx,
                                     const amrex::Array4<const amrex::Real>& rho_u,
                                     const amrex::Array4<const amrex::Real>& rho_v,
                                     const amrex::Array4<const amrex::Real>& Omega,
-                                    const amrex::Array4<const amrex::Real>& z_nd,
+                                    const amrex::Array4<const amrex::Real>& ax,
+                                    const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool use_terrain,
                                     const bool do_lo=false);
 
 /** Compute advection tendencies for v momentum tangent to open bc*/
@@ -105,10 +103,10 @@ AdvectionSrcForOpenBC_Tangent_Ymom (const amrex::Box& bxy,
                                     const amrex::Array4<const amrex::Real>& rho_u,
                                     const amrex::Array4<const amrex::Real>& rho_v,
                                     const amrex::Array4<const amrex::Real>& Omega,
-                                    const amrex::Array4<const amrex::Real>& z_nd,
+                                    const amrex::Array4<const amrex::Real>& ay,
+                                    const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool use_terrain,
                                     const bool do_lo=false);
 
 /** Compute advection tendencies for w momentum tangent to open bc*/
@@ -120,10 +118,12 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const amrex::Box& bxz,
                                     const amrex::Array4<const amrex::Real>& rho_u,
                                     const amrex::Array4<const amrex::Real>& rho_v,
                                     const amrex::Array4<const amrex::Real>& Omega,
-                                    const amrex::Array4<const amrex::Real>& z_nd,
+                                    const amrex::Array4<const amrex::Real>& ax,
+                                    const amrex::Array4<const amrex::Real>& ay,
+                                    const amrex::Array4<const amrex::Real>& az,
                                     const amrex::Array4<const amrex::Real>& detJ,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool use_terrain, const int domhi_z,
+                                    const int domhi_z,
                                     const bool do_lo=false);
 
 /** Compute advection tendencies for cons tangential to BC (2nd order)*/
@@ -139,7 +139,6 @@ AdvectionSrcForOpenBC_Tangent_Cons (const amrex::Box& bx,
                                     const amrex::Array4<const amrex::Real>& avg_zmom,
                                     const amrex::Array4<const amrex::Real>& detJ,
                                     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
-                                    const bool use_terrain,
                                     const bool do_lo=false);
 
 /** Compute advection tendencies in normal dir for vars tangent to open bc */

@@ -141,7 +141,7 @@ void ERF::advance_dycore(int level,
                                 tau12, tau13,
                                 tau21, tau23,
                                 tau31, tau32,
-                                z_nd, bc_ptr_h, dxInv,
+                                z_nd, detJ_cc[level]->const_array(mfi), bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
             } else {
                 ComputeStrain_N(bxcc, tbxxy, tbxxz, tbxyz, domain,

@@ -206,6 +206,7 @@ ERF::init_from_metgrid (int lev)
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
+    make_areas(geom[lev],*z_phys,*ax[lev],*ay[lev],*az[lev]);
 
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);

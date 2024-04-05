@@ -55,6 +55,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_substep_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+            make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
             Real inv_dt   = 1./dtau;
 
