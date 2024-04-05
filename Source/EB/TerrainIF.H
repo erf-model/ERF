@@ -17,7 +17,9 @@ public:
     TerrainIF (amrex::FArrayBox& a_z_terrain, amrex::Geometry& a_geom)
         : m_terr(a_z_terrain),
           m_geom(a_geom)
-        {}
+        {
+            amrex::Print() << " EB type = Terrain " << std::endl;
+        }
 
     AMREX_GPU_HOST_DEVICE inline
     amrex::Real operator() (AMREX_D_DECL(amrex::Real x, amrex::Real y, amrex::Real z))
@@ -30,6 +32,8 @@ public:
         const int j = static_cast<int>(y / dy);
 
         amrex::Array4<amrex::Real const> const& terr_arr = m_terr.const_array();
+
+        if (i == 128 and j == 3) amrex::Print() <<" TERRARR " << amrex::IntVect(i,j,0) << " " << z << " " << terr_arr(i,j,0) << std::endl;
 
         return -(z - terr_arr(i,j,0));
     }

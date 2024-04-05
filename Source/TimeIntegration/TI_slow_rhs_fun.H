@@ -61,16 +61,19 @@
             prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+            make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd_src[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
+            make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+            make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
             Real inv_dt  = 1./slow_dt;
 
@@ -114,7 +117,7 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], detJ_cc_src[level], p0_new,
+                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #ifdef ERF_USE_EB
                              EBFactory(level),
@@ -206,7 +209,7 @@
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], detJ_cc[level], p0,
+                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #ifdef ERF_USE_EB
                              EBFactory(level),
@@ -315,7 +318,7 @@
                               source, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                              z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
+                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #ifdef ERF_USE_EB
                               EBFactory(level),
@@ -333,7 +336,7 @@
                               source, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                              z_phys_nd[level], detJ_cc[level], detJ_cc[level],
+                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
 #ifdef ERF_USE_EB
                               EBFactory(level),
