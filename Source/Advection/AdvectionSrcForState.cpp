@@ -56,8 +56,6 @@ AdvectionSrcForRho (const Box& bx,
     {
         (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_u(i,j,0);
         avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
-        if (i == 27 and j == 0 and k == 0) amrex::Print() << " ADV "
-               << flx_arr[0](i,j,k,0) << " " << ax_arr(i,j,k) << std::endl;
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
