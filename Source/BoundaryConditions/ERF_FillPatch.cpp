@@ -266,7 +266,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
     AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
     AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
 
-    // Enforce no penetration for thin immersed interface
+    // Enforce no penetration for thin immersed body
     if (xflux_imask[lev]) {
         ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
     }

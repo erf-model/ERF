@@ -244,7 +244,7 @@ ERF::ERF ()
     mapfac_u.resize(nlevs_max);
     mapfac_v.resize(nlevs_max);
 
-    // Thin immersed interface
+    // Thin immersed body
     xflux_imask.resize(nlevs_max);
     yflux_imask.resize(nlevs_max);
     zflux_imask.resize(nlevs_max);
@@ -644,9 +644,9 @@ ERF::InitData ()
             (solverChoice.advChoice.zero_zflux.size() > 0))
         {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
-                "Thin immersed interface with refinement not currently supported.");
+                "Thin immersed body with refinement not currently supported.");
             if (solverChoice.use_terrain == 1) {
-                amrex::Print() << "NOTE: Thin immersed interface with terrain has not been tested." << std::endl;
+                amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
             }
         }
 

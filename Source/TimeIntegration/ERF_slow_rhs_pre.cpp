@@ -1286,7 +1286,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         } // end profile
     } // mfi
 
-    // Enforce thin immersed interface condition, save forces
+    // Enforce thin immersed body interface condition, save forces
     if (l_have_thin_xforce) {
         MultiFab::Copy(*thin_xforce_lev, S_rhs[IntVars::xmom], 0, 0, 1, 0);
         thin_xforce_lev->mult(-1., 0, 1, 0);

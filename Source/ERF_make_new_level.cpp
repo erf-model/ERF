@@ -82,7 +82,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
 
     //********************************************************************************************
-    // Thin immersed interface
+    // Thin immersed body
     // *******************************************************************************************
 #if 0
     if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
@@ -95,7 +95,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
 
     if (solverChoice.advChoice.zero_xflux.size() > 0) {
-        amrex::Print() << "Setting up thin immersed interface for "
+        amrex::Print() << "Setting up thin immersed body for "
             << solverChoice.advChoice.zero_xflux.size() << " xfaces" << std::endl;
         BoxArray ba_xf(ba);
         ba_xf.surroundingNodes(0);

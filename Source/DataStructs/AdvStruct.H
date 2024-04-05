@@ -297,7 +297,7 @@ struct AdvChoice {
     amrex::Real moistscal_horiz_upw_frac = 1.0;
     amrex::Real moistscal_vert_upw_frac  = 1.0;
 
-    // Thin immersed interface
+    // Thin immersed body
     amrex::Vector<amrex::IntVect> zero_xflux;
     amrex::Vector<amrex::IntVect> zero_yflux;
     amrex::Vector<amrex::IntVect> zero_zflux;
