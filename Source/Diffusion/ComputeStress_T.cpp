@@ -33,7 +33,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          Array4<Real>& tau21, Array4<Real>& tau23,
                          Array4<Real>& tau31, Array4<Real>& tau32,
                          const Array4<const Real>& er_arr,
-                         const Array4<const Real>& z_nd  ,
+                         const Array4<const Real>& z_nd,
+                         const Array4<const Real>& detJ,
                          const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
@@ -257,8 +258,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(bxcc,tbxxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = detJ(i,j,k);
         Real mu_tot = rhoAlpha(i,j,k);
 
         tau11(i,j,k) *= -mu_tot*met_h_zeta;
@@ -266,8 +266,7 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
         Real mu_tot = 0.25*( rhoAlpha(i-1, j  , k) + rhoAlpha(i, j  , k)
                            + rhoAlpha(i-1, j-1, k) + rhoAlpha(i, j-1, k) );
@@ -309,7 +308,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         Array4<Real>& tau21, Array4<Real>& tau23,
                         Array4<Real>& tau31, Array4<Real>& tau32,
                         const Array4<const Real>& er_arr,
-                        const Array4<const Real>& z_nd  ,
+                        const Array4<const Real>& z_nd,
+                        const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
 {
     // Handle constant alpha case, in which the provided mu_eff is actually
@@ -554,8 +554,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     ParallelFor(bxcc,tbxxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = detJ(i,j,k);
 
         Real mu_tot = rhoAlpha(i,j,k) + 2.0*mu_turb(i, j, k, EddyDiff::Mom_h);
 
@@ -564,8 +563,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     },
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        Real met_h_zeta;
-        met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+        Real met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
         Real mu_bar = 0.25*( mu_turb(i-1, j  , k, EddyDiff::Mom_h) + mu_turb(i, j  , k, EddyDiff::Mom_h)
                            + mu_turb(i-1, j-1, k, EddyDiff::Mom_h) + mu_turb(i, j-1, k, EddyDiff::Mom_h) );

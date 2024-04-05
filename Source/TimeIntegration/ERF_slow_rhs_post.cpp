@@ -36,6 +36,9 @@ using namespace amrex;
  * @param[in]  most  Pointer to MOST class for Monin-Obukhov Similarity Theory boundary condition
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
  * @param[in] detJ     Jacobian of the metric transformation at start of time step (= 1 if use_terrain is false)
  * @param[in] detJ_new Jacobian of the metric transformation at new RK stage time (= 1 if use_terrain is false)
  * @param[in] mapfac_m map factor at cell centers
@@ -67,6 +70,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                         const Vector<BCRec>& domain_bcs_type_h,
                         std::unique_ptr<MultiFab>& z_phys_nd,
+                        std::unique_ptr<MultiFab>& ax,
+                        std::unique_ptr<MultiFab>& ay,
+                        std::unique_ptr<MultiFab>& az,
                         std::unique_ptr<MultiFab>& detJ,
                         std::unique_ptr<MultiFab>& detJ_new,
                         std::unique_ptr<MultiFab>& mapfac_m,
@@ -222,9 +228,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         const Array4<Real const>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-        // Metric terms
         const Array4<const Real>& z_nd         = l_use_terrain    ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_arr     = l_use_terrain    ? detJ->const_array(mfi)        : Array4<const Real>{};
         const Array4<const Real>& detJ_new_arr = l_moving_terrain ? detJ_new->const_array(mfi)    : Array4<const Real>{};
 
         // Map factors
@@ -274,8 +278,17 @@ void erf_slow_rhs_post (int level, int finest_level,
         // **************************************************************************
         // Define updates in the RHS of continuity, temperature, and scalar equations
         // **************************************************************************
+        // Metric terms
 #ifdef ERF_USE_EB
-        const auto& vf_arr = ebfact.getVolFrac().const_array(mfi);
+        auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
+        auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
+        auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
+        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
+#else
+        auto const& ax_arr   = ax->const_array(mfi);
+        auto const& ay_arr   = ay->const_array(mfi);
+        auto const& az_arr   = az->const_array(mfi);
+        auto const& detJ_arr = detJ->const_array(mfi);
 #endif
 
         AdvType horiz_adv_type, vert_adv_type;
@@ -330,15 +343,11 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                 AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
                                        cur_prim, cell_rhs,
-#ifdef ERF_USE_EB
-                                       vf_arr,
-#else
                                        detJ_arr,
-#endif
                                        dxInv, mf_m,
                                        horiz_adv_type, vert_adv_type,
                                        horiz_upw_frac, vert_upw_frac,
-                                       l_use_terrain, flx_arr, domain, bc_ptr_h);
+                                       flx_arr, domain, bc_ptr_h);
 
                 if (l_use_diff) {
 
@@ -347,7 +356,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                     if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
                                                cur_cons, cur_prim, cell_rhs,
-                                               diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
+                                               diffflux_x, diffflux_y, diffflux_z,
+                                               z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, diss,
                                                mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);

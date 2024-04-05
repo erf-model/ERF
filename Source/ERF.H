@@ -639,13 +639,23 @@ private:
     amrex::Vector<amrex::Real> zlevels_stag; // nominal height levels
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
+
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_src;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az_src;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_new;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc_new;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax_new;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay_new;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az_new;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_t_rk;
 
