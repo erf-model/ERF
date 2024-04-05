@@ -195,10 +195,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     // Array of MultiFabs for cell-centered velocity
     Vector<MultiFab> mf_cc_vel(finest_level+1);
 
-    if (containerHasElement(plot_var_names, "x_velocity") ||
-        containerHasElement(plot_var_names, "y_velocity") ||
-        containerHasElement(plot_var_names, "z_velocity") ||
-        containerHasElement(plot_var_names, "vorticity") ) {
+    if (containerHasElement(plot_var_names, "x_velocity" ) ||
+        containerHasElement(plot_var_names, "y_velocity" ) ||
+        containerHasElement(plot_var_names, "z_velocity" ) ||
+        containerHasElement(plot_var_names, "vorticity_x") ||
+        containerHasElement(plot_var_names, "vorticity_y") ||
+        containerHasElement(plot_var_names, "vorticity_z") ) {
 
         for (int lev = 0; lev <= finest_level; ++lev) {
             mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,0));
@@ -209,7 +211,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
         // We need ghost cells if computing vorticity
         amrex::Interpolater* mapper = &cell_cons_interp;
-        if ( containerHasElement(plot_var_names, "vorticity") ) {
+        if ( containerHasElement(plot_var_names, "vorticity_x")||
+             containerHasElement(plot_var_names, "vorticity_y") ||
+             containerHasElement(plot_var_names, "vorticity_z") ) {
             for (int lev = 1; lev <= finest_level; ++lev) {
                 Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
                 Vector<Real> ftime    = {t_new[lev], t_new[lev]};
@@ -255,6 +259,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
         auto calculate_derived = [&](const std::string& der_name,
+                                     MultiFab& src_mf,
                                      decltype(derived::erf_dernull)& der_function)
         {
             if (containerHasElement(plot_var_names, der_name)) {
@@ -266,7 +271,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
-                    auto& sfab = vars_new[lev][Vars::cons][mfi];
+                    auto& sfab = src_mf[mfi];
                     der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
                 }
 
@@ -275,13 +280,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         };
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
-        calculate_derived("soundspeed",  derived::erf_dersoundspeed);
-        calculate_derived("temp",        derived::erf_dertemp);
-        calculate_derived("theta",       derived::erf_dertheta);
-        calculate_derived("KE",          derived::erf_derKE);
-        calculate_derived("QKE",         derived::erf_derQKE);
-        calculate_derived("scalar",      derived::erf_derscalar);
-        calculate_derived("vorticity",   derived::erf_dervort);
+        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
+        calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
+        calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
+        calculate_derived("QKE",         vars_new[lev][Vars::cons], derived::erf_derQKE);
+        calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
+        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
+        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
+        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
 
         MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
         MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
