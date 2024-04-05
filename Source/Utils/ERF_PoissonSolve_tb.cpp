@@ -35,11 +35,13 @@ ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
     // Use the default settings
     LPInfo info;
     std::unique_ptr<MLPoisson> p_mlpoisson;
-//    if (overset_imask[0]) {
-//        // Add overset mask around thin body
-//        p_mlpoisson = std::make_unique<MLPoisson>(geom, grids, dmap, GetVecOfConstPtrs(overset_imask), info);
-//    }
-//    else
+#if 0
+    if (overset_imask[0]) {
+        // Add overset mask around thin body
+        p_mlpoisson = std::make_unique<MLPoisson>(geom, grids, dmap, GetVecOfConstPtrs(overset_imask), info);
+    }
+    else
+#endif
     {
         // Use the default settings
         p_mlpoisson = std::make_unique<MLPoisson>(geom, grids, dmap, info);

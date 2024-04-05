@@ -236,6 +236,7 @@ ERF::ERF ()
     xflux_imask.resize(nlevs_max);
     yflux_imask.resize(nlevs_max);
     zflux_imask.resize(nlevs_max);
+    //overset_imask.resize(nlevs_max);
     thin_xforce.resize(nlevs_max);
     thin_yforce.resize(nlevs_max);
     thin_zforce.resize(nlevs_max);

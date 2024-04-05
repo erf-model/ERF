@@ -665,6 +665,7 @@ private:
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> xflux_imask;
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> yflux_imask;
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> zflux_imask;
+    //amrex::Vector<std::unique_ptr<amrex::iMultiFab>> overset_imask;
 
     // These are the body forces that result from the thin immersed interface
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;
