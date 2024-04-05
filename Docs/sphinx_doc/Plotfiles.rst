@@ -201,6 +201,18 @@ Output Options
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
+| **vorticity_x*              | x-component of   |
+|                             | vorticity        |
+|                             |                  |
++-----------------------------+------------------+
+| **vorticity_y*              | y-component of   |
+|                             | vorticity        |
+|                             |                  |
++-----------------------------+------------------+
+| **vorticity_z*              | z-component of   |
+|                             | vorticity        |
+|                             |                  |
++-----------------------------+------------------+
 | **rhoadv_0**                | Conserved scalar |
 |                             |                  |
 |                             |                  |
