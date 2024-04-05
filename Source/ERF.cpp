@@ -221,10 +221,22 @@ ERF::ERF ()
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
+    ax.resize(nlevs_max);
+    ay.resize(nlevs_max);
+    az.resize(nlevs_max);
+
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    ax_new.resize(nlevs_max);
+    ay_new.resize(nlevs_max);
+    az_new.resize(nlevs_max);
+
     z_phys_nd_src.resize(nlevs_max);
     detJ_cc_src.resize(nlevs_max);
+    ax_src.resize(nlevs_max);
+    ay_src.resize(nlevs_max);
+    az_src.resize(nlevs_max);
+
     z_t_rk.resize(nlevs_max);
 
     // Mapfactors
@@ -266,6 +278,16 @@ ERF::ERF ()
            Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
        }
     }
+
+    // We define m_factory even with no EB
+    m_factory.resize(max_level+1);
+
+#ifdef AMREX_USE_EB
+    // We will create each of these in MakeNewLevel.../RemakeLevel
+
+    // This is needed before initializing level MultiFabs
+    MakeEBGeometry();
+#endif
 }
 
 ERF::~ERF () = default;
@@ -617,10 +639,6 @@ ERF::InitData ()
             AverageDown();
         }
 
-#ifdef ERF_USE_PARTICLES
-        initializeTracers((ParGDBBase*)GetParGDB(),z_phys_nd);
-#endif
-
         if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
             (solverChoice.advChoice.zero_yflux.size() > 0) ||
             (solverChoice.advChoice.zero_zflux.size() > 0))
@@ -670,19 +688,6 @@ ERF::InitData ()
         m_r2d->read_input_files(t_new[0],dt_dummy,m_bc_extdir_vals);
     }
 
-    // Initialize flux registers (whether we start from scratch or restart)
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        advflux_reg[0] = nullptr;
-        int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-        for (int lev = 1; lev <= finest_level; lev++)
-        {
-            advflux_reg[lev] = new YAFluxRegister(grids[lev], grids[lev-1],
-                                                   dmap[lev],  dmap[lev-1],
-                                                   geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, ncomp_reflux);
-        }
-    }
-
     if (solverChoice.custom_rhotheta_forcing)
     {
         h_rhotheta_src.resize(max_level+1, Vector<Real>(0));
@@ -693,6 +698,25 @@ ERF::InitData ()
             d_rhotheta_src[lev].resize(domlen, 0.0_rt);
             prob->update_rhotheta_sources(t_new[0],
                                           h_rhotheta_src[lev], d_rhotheta_src[lev],
+                                          geom[lev], z_phys_cc[lev]);
+        }
+    }
+
+    if (solverChoice.custom_geostrophic_profile)
+    {
+        h_u_geos.resize(max_level+1, Vector<Real>(0));
+        d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        h_v_geos.resize(max_level+1, Vector<Real>(0));
+        d_v_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
+        for (int lev = 0; lev <= finest_level; lev++) {
+            const int domlen = geom[lev].Domain().length(2);
+            h_u_geos[lev].resize(domlen, 0.0_rt);
+            d_u_geos[lev].resize(domlen, 0.0_rt);
+            h_v_geos[lev].resize(domlen, 0.0_rt);
+            d_v_geos[lev].resize(domlen, 0.0_rt);
+            prob->update_geostrophic_profile(t_new[0],
+                                          h_u_geos[lev], d_u_geos[lev],
+                                          h_v_geos[lev], d_v_geos[lev],
                                           geom[lev], z_phys_cc[lev]);
         }
     }
@@ -983,6 +1007,13 @@ ERF::InitData ()
     }
 
     BL_PROFILE_VAR_STOP(InitData);
+
+#ifdef ERF_USE_EB
+    bool write_eb_surface = false;
+    pp.query("write_eb_surface", write_eb_surface);
+    if (write_eb_surface) WriteMyEBSurface();
+#endif
+
 }
 
 // Initialize microphysics object
@@ -1603,8 +1634,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rV_new[lev],
                              rW_new[lev],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
+                           domain_bcs_type);
     }
 
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

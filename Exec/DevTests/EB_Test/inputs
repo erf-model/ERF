@@ -1,0 +1,72 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 100
+max_step = 0
+
+amr.max_grid_size = 256 256 256
+
+eb2.geometry = terrain
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_lo     = 0.   0.  0.
+geometry.prob_hi     = 10.  1.  4.
+
+amr.n_cell           = 256  8   64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Inflow"
+xhi.type = "Outflow"
+
+xlo.velocity = 1. 0. 0.
+xlo.density  = 1.16
+xlo.theta    = 300.
+xlo.scalar   = 0.
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+# TIME STEP CONTROL
+erf.no_substepping = 1
+erf.fixed_dt       = 1.e-5
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v                = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = 100        # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_int_1      = 20         # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure scalar volfrac
+
+# SOLVER CHOICE
+erf.use_gravity = true
+erf.use_coriolis = false
+erf.les_type = "None"
+
+erf.les_type         = "None"
+erf.molec_diff_type  = "None"
+erf.dynamicViscosity = 0.0
+
+erf.alpha_T = 0.0
+erf.alpha_C = 0.0
+
+erf.init_type = "uniform"
+
+# PROBLEM PARAMETERS
+prob.u_0   = 1.0
+
+erf.use_rayleigh_damping = true
+prob.dampcoef = 2000. # ==> time scale = 0.0005 s (for testing)
+prob.zdamp = 1.0

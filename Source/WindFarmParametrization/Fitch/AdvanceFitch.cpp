@@ -4,8 +4,7 @@ using namespace amrex;
 
 Real R = 30.0;
 Real z_c = 100.0;
-Real C_T = 0.5, C_TKE = 0.0;
-Real Nturb = 2;
+Real C_T = 0.8, C_TKE = 0.0;
 
 Real compute_A(Real z)
 {
@@ -42,9 +41,9 @@ void fitch_advance (int lev,
                     const Real& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                    MultiFab& mf_vars_fitch)
+                    MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
 {
-    fitch_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch);
+    fitch_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch, mf_Nturb);
     fitch_update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
 
@@ -85,7 +84,7 @@ void fitch_update (const Real& dt_advance,
 void fitch_source_terms_cellcentered (const Geometry& geom,
                                       const MultiFab& cons_in,
                                       const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                      MultiFab& mf_vars_fitch)
+                                      MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
 {
 
   auto dx = geom.CellSizeArray();
@@ -114,6 +113,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
         const Box& gbx = mfi.growntilebox(1);
         auto cons_array  = cons_in.array(mfi);
         auto fitch_array = mf_vars_fitch.array(mfi);
+        auto Nturb_array = mf_Nturb.array(mfi);
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
         auto w_vel       = W_old.array(mfi);
@@ -124,6 +124,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
+
 
             Real x = (ii+0.5) * dx[0];
             Real y = (jj+0.5) * dx[1];
@@ -136,19 +137,17 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
             // Compute Fitch source terms
 
-            if((i-10)*(i-12) <= 0.0 and (j-10)*(j-12) <= 0.0 and ((i-10)%2 == 0 or (j-10)%2==0)){
                  Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                       v_vel(i,j,k)*v_vel(i,j,k) +
                                       w_vel(i,j,k)*w_vel(i,j,k), 0.5);
 
                  fitch_array(i,j,k,0) = Vabs;
-                 fitch_array(i,j,k,1) =  -0.5*Nturb*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
                  fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
                  fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-                 fitch_array(i,j,k,4) = 0.5*Nturb*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
-            }
           });
     }
         //std::cout << "Checking sum here...." <<"\n";

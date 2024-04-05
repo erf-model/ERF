@@ -129,6 +129,22 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+    if (lev > 0) {
+
+        // Interp all three components: rho, p, pi
+        int  icomp = 0; int bccomp = 0; int  ncomp = 3;
+
+        PhysBCFunctNoOp null_bc;
+        Real time = 0.;
+        Interpolater* mapper = &cell_cons_interp;
+
+        InterpFromCoarseLevel(base_state[lev], time, base_state[lev-1],
+                              icomp, icomp, ncomp,
+                              geom[lev-1], geom[lev],
+                              null_bc, 0, null_bc, 0, refRatio(lev-1),
+                              mapper, domain_bcs_type, bccomp);
+    }
+
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     if (solverChoice.use_moist_background){
         prob->erf_init_dens_hse_moist(r_hse, z_phys_nd[lev], geom[lev]);
@@ -176,23 +192,6 @@ ERF::erf_enforce_hse (int lev,
 
     const Box& domain = geom[lev].Domain();
 
-    if (lev > 0) {
-        int  icomp = 0;
-        int bccomp = 0;
-        int  ncomp = 1;
-        PhysBCFunctNoOp null_bc;
-        Real time = 0.;
-        Interpolater* mapper = &cell_cons_interp;
-
-        MultiFab p_hse_crse (base_state[lev-1], make_alias, 1, 1); // p_0  is second component
-
-        InterpFromCoarseLevel(pres, time, p_hse_crse,
-                              icomp, icomp, ncomp,
-                              geom[lev-1], geom[lev],
-                              null_bc, 0, null_bc, 0, refRatio(lev-1),
-                              mapper, domain_bcs_type, bccomp);
-    }
-
     for ( MFIter mfi(dens, TileNoZ()); mfi.isValid(); ++mfi )
     {
         // Create a flat box with same horizontal extent but only one cell in vertical
@@ -227,17 +226,16 @@ ERF::erf_enforce_hse (int lev,
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // Physical height of the terrain at cell center
-            Real hz;
-            if (l_use_terrain) {
-                hz = .125 * ( znd_arr(i,j,0) + znd_arr(i+1,j,0) + znd_arr(i,j+1,0) + znd_arr(i+1,j+1,0)
-                             +znd_arr(i,j,1) + znd_arr(i+1,j,1) + znd_arr(i,j+1,1) + znd_arr(i+1,j+1,1) );
-            } else {
-                hz = 0.5*dz;
-            }
-
             // Set value at surface from Newton iteration for rho
             if (klo == 0) {
+                // Physical height of the terrain at cell center
+                Real hz;
+                if (l_use_terrain) {
+                    hz = zcc_arr(i,j,klo);
+                } else {
+                    hz = 0.5*dz;
+                }
+
                 pres_arr(i,j,klo  ) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
 
@@ -248,8 +246,14 @@ ERF::erf_enforce_hse (int lev,
             } else {
                 // If klo > 0, we need to use the value of pres_arr(i,j,klo-1) which was
                 //    filled from FillPatch-ing it.
+                Real dz_loc;
+                if (l_use_terrain) {
+                    dz_loc = (zcc_arr(i,j,klo) - zcc_arr(i,j,klo-1));
+                } else {
+                    dz_loc = dz;
+                }
                 Real dens_interp = 0.5*(rho_arr(i,j,klo) + rho_arr(i,j,klo-1));
-                pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz * dens_interp * l_gravity;
+                pres_arr(i,j,klo) = pres_arr(i,j,klo-1) - dz_loc * dens_interp * l_gravity;
 
                 pi_arr(i,j,klo  ) = getExnergivenP(pres_arr(i,j,klo  ), rdOcp);
                 pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);

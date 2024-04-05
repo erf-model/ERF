@@ -13,7 +13,7 @@ using namespace amrex;
  */
 
 void
-ERF::timeStep (int lev, Real time, int iteration)
+ERF::timeStep (int lev, Real time, int /*iteration*/)
 {
     if (regrid_int > 0)  // We may need to regrid
     {
@@ -33,6 +33,12 @@ ERF::timeStep (int lev, Real time, int iteration)
                 int old_finest = finest_level;
 
                 regrid(lev, time);
+
+#ifdef ERF_USE_PARTICLES
+                if (finest_level != old_finest) {
+                    particleData.Redistribute();
+                }
+#endif
 
                 // mark that we have regridded this level already
                 for (int k = lev; k <= finest_level; ++k) {
@@ -58,12 +64,11 @@ ERF::timeStep (int lev, Real time, int iteration)
     }
 
     // Advance a single level for a single time step
-    Advance(lev, time, dt[lev], iteration, nsubsteps[lev]);
+    Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
 
     ++istep[lev];
 
-    if (Verbose())
-    {
+    if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev] << "] ";
         amrex::Print() << "Advanced " << CountCells(lev) << " cells" << std::endl;
     }

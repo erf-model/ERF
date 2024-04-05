@@ -22,7 +22,6 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    int nboxes = num_boxes_at_level[lev];
     int ntimes = num_files_at_level[lev];
 
     if (nc_init_file.empty())
@@ -135,7 +134,6 @@ ERF::init_from_metgrid (int lev)
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-        int lev = 0;
         init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
     } // mf
 
@@ -208,6 +206,7 @@ ERF::init_from_metgrid (int lev)
 
     // This makes the Jacobian.
     make_J(geom[lev],*z_phys,  *detJ_cc[lev]);
+    make_areas(geom[lev],*z_phys,*ax[lev],*ay[lev],*az[lev]);
 
     // This defines z at w-cell faces.
     make_zcc(geom[lev],*z_phys,*z_phys_cc[lev]);
@@ -773,7 +772,7 @@ init_base_state_from_metgrid (const bool use_moisture,
                               FArrayBox& p_hse_fab,
                               FArrayBox& pi_hse_fab,
                               FArrayBox& z_phys_cc_fab,
-                              const Vector<FArrayBox>& NC_ght_fab,
+                              const Vector<FArrayBox>& /*NC_ght_fab*/,
                               const Vector<FArrayBox>& NC_psfc_fab,
                               Vector<Vector<FArrayBox>>& fabs_for_bcs,
                               const amrex::Array4<const int>& mask_c_arr)

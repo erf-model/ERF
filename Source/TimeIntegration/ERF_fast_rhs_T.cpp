@@ -1,14 +1,5 @@
-#include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_MultiFabUtil.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BC_TYPES.H>
-#include <TileNoZ.H>
-#include <ERF_Constants.H>
-#include <IndexDefines.H>
-#include <TerrainMetrics.H>
-#include <TI_headers.H>
-#include <prob_common.H>
+
+#include <TI_fast_headers.H>
 
 using namespace amrex;
 
@@ -548,8 +539,8 @@ void erf_fast_rhs_T (int step, int nrk,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                RHS_a (i,j,0) =  0.0;
-               soln_a(i,j,0) = RHS_a(i,j,0) * inv_coeffB_a(i,j,0);
+                RHS_a(i,j,lo.z) =  0.0;
+               soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
            }
         }
 
@@ -586,7 +577,13 @@ void erf_fast_rhs_T (int step, int nrk,
 
         {
         BL_PROFILE("fast_rhs_new_drhow_t");
+        if (tbz.smallEnd(2) > 0) {
+            tbz.growLo(2,-1);
+        }
         tbz.setBig(2,hi.z);
+        // If operating at lev > 0 where we don't touch the bottom or top boundary,
+        //    the z-momentum is given by interpolation from the coarser level so we
+        //    don't need to update that here
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
               Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),new_drho_u,new_drho_v,z_nd,dxInv);

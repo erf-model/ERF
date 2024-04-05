@@ -1,10 +1,14 @@
 #ifndef ERF_MRI_H
 #define ERF_MRI_H
+
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
-#include <TI_headers.H>
+
+#include <TI_slow_headers.H>
+#include <TI_fast_headers.H>
+
 #include <functional>
 
 template<class T>

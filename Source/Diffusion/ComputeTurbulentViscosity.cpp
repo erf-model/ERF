@@ -16,6 +16,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
                               const std::unique_ptr<MultiFab>& z_phys_nd);
@@ -412,6 +413,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
+                                int level,
                                 const BCRec* bc_ptr,
                                 bool vert_only)
 {
@@ -449,6 +451,6 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
     if (turbChoice.pbl_type != PBLType::None) {
         // NOTE: state_new is passed in for Cons_old (due to ptr swap in advance)
         ComputeTurbulentViscosityPBL(xvel, yvel, cons_in, eddyViscosity,
-                                     geom, turbChoice, most, bc_ptr, vert_only, z_phys_nd);
+                                     geom, turbChoice, most, level, bc_ptr, vert_only, z_phys_nd);
     }
 }

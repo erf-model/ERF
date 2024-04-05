@@ -143,17 +143,17 @@ read_from_metgrid (int lev, const Box& domain, const std::string& fname,
     // Convert the velocities using the map factors
     //
     const Box& uubx = NC_xvel_fab.box();
-    const Array4<Real>    u_arr = NC_xvel_fab.array();
-    const Array4<Real> msfu_arr = NC_msfu_fab.array();
-    ParallelFor(uubx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    // const Array4<Real>    u_arr = NC_xvel_fab.array();
+    // const Array4<Real> msfu_arr = NC_msfu_fab.array();
+    ParallelFor(uubx, [=] AMREX_GPU_DEVICE (int , int , int )
     {
         // u_arr(i,j,k) /= msfu_arr(i,j,0);
     });
 
     const Box& vvbx = NC_yvel_fab.box();
-    const Array4<Real>    v_arr = NC_yvel_fab.array();
-    const Array4<Real> msfv_arr = NC_msfv_fab.array();
-    ParallelFor(vvbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+    // const Array4<Real>    v_arr = NC_yvel_fab.array();
+    // const Array4<Real> msfv_arr = NC_msfv_fab.array();
+    ParallelFor(vvbx, [=] AMREX_GPU_DEVICE (int , int , int )
     {
         // v_arr(i,j,k) /= msfv_arr(i,j,0);
     });

@@ -216,6 +216,48 @@ public:
     }
 
     /**
+     * Function to update user-specified temperature source terms that can
+     * vary with time and height.
+     *
+     * @param[in]  time             current time
+     * @param[out] u_geos           geostrophic wind profile
+     * @param[out] v_geos           geostrophic wind profile
+     * @param[in]  geom             container for geometric information
+     * @param[in]  z_phys_cc        height coordinate at cell centers
+    */
+    virtual void
+    update_geostrophic_profile (const amrex::Real& /*time*/,
+                         amrex::Vector<amrex::Real>& u_geos,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_u_geos,
+                         amrex::Vector<amrex::Real>& v_geos,
+                         amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
+                         const amrex::Geometry& geom,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_cc)
+    {
+        if (u_geos.empty()) return;
+
+        if (z_phys_cc) {
+            // use_terrain=1
+            amrex::Error("Geostrophic wind profile not defined for "+name()+" problem with terrain");
+        } else {
+            const int khi              = geom.Domain().bigEnd()[2];
+            // const amrex::Real* prob_lo = geom.ProbLo();
+            // const auto dx              = geom.CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                // const amrex::Real z_cc = prob_lo[2] + (k+0.5)* dx[2];
+                // set RHS term of RhoTheta equation based on time, z_cc here
+                u_geos[k] = 0.0;
+                v_geos[k] = 0.0;
+            }
+        }
+
+        // Copy from host version to device version
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, u_geos.begin(), u_geos.end(), d_u_geos.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, v_geos.begin(), v_geos.end(), d_v_geos.begin());
+    }
+
+     /**
      * Function to perform custom initialization of terrain
      *
      * Note: Terrain functionality can also be used to provide grid stretching.
@@ -253,6 +295,32 @@ public:
                 });
             }
         }
+    }
+
+    /**
+    * Function to perform custom initialization of terrain
+    *
+    * This version takes a single FArrayBox instead of a MultiFab
+    *
+    */
+    virtual void
+    init_custom_terrain (const amrex::Geometry& /*geom*/,
+                         amrex::FArrayBox& z_phys_nd,
+                         const amrex::Real& /*time*/)
+    {
+        // Note that this only sets the terrain value at the ground IF k=0 is in the box
+        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
+
+        // Bottom of domain
+        int k0 = 0;
+
+        // Grown box with no z range
+        amrex::Box bx = z_phys_nd.box();
+        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            z_arr(i,j,k0) = 0.0;
+        });
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY

@@ -9,5 +9,5 @@
 */
 #ifndef ERF_ALBEDO_H_
 #define ERF_ALBEDO_H_
-void set_albedo(const real1d& coszrs, real2d& albedo_dir, real2d& albedo_dif);
+void set_albedo (const real1d& coszrs, real2d& albedo_dir, real2d& albedo_dif);
 #endif

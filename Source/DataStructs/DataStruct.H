@@ -222,6 +222,7 @@ struct SolverChoice {
         pp.query("add_custom_rhotheta_forcing", custom_rhotheta_forcing);
         pp.query("add_custom_moisture_forcing", custom_moisture_forcing);
         pp.query("add_custom_w_subsidence", custom_w_subsidence);
+        pp.query("add_custom_geostrophic_profile", custom_geostrophic_profile);
         pp.query("custom_forcing_uses_primitive_vars", custom_forcing_prim_vars);
 
         pp.query("Ave_Plane", ave_plane);
@@ -246,6 +247,13 @@ struct SolverChoice {
         turbChoice.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].init_params(lev,max_level);
+        }
+
+        // Warn for PBL models and moisture - these may not yet be compatible
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
+                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
+            }
         }
 
         // Which type of refinement
@@ -415,6 +423,7 @@ struct SolverChoice {
     bool custom_rhotheta_forcing  = false;
     bool custom_moisture_forcing  = false;
     bool custom_w_subsidence      = false;
+    bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
 
     // Numerical diffusion
