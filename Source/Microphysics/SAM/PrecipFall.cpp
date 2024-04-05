@@ -38,9 +38,9 @@ void SAM::PrecipFall ()
     auto rho   = mic_fab_vars[MicVar::rho];
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto theta = mic_fab_vars[MicVar::theta];
-	auto rain_accum = mic_fab_vars[MicVar::rain_accum];
-	auto snow_accum = mic_fab_vars[MicVar::snow_accum];
-	auto graup_accum = mic_fab_vars[MicVar::graup_accum];
+    auto rain_accum = mic_fab_vars[MicVar::rain_accum];
+    auto snow_accum = mic_fab_vars[MicVar::snow_accum];
+    auto graup_accum = mic_fab_vars[MicVar::graup_accum];
 
     auto ba    = tabs->boxArray();
     auto dm    = tabs->DistributionMap();
@@ -55,9 +55,9 @@ void SAM::PrecipFall ()
         auto rho_array  = rho->array(mfi);
         auto tabs_array = tabs->array(mfi);
         auto fz_array   = fz.array(mfi);
-		auto rain_accum_array = rain_accum->array(mfi);
-		auto snow_accum_array = snow_accum->array(mfi);
-		auto graup_accum_array = graup_accum->array(mfi);
+        auto rain_accum_array = rain_accum->array(mfi);
+        auto snow_accum_array = snow_accum->array(mfi);
+        auto graup_accum_array = graup_accum->array(mfi);
 
         const auto& box3d = mfi.tilebox();
 
@@ -97,13 +97,13 @@ void SAM::PrecipFall ()
             //       Therefore, we simply end up with a division by detJ when
             //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
             fz_array(i,j,k) = Pprecip * std::sqrt(rho_0/rho_avg);
-		
-			if(k==k_lo){
-				Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-				Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
-            	rain_accum_array(i,j,k)  = rain_accum_array(i,j,k) +  rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
-            	snow_accum_array(i,j,k)  = snow_accum_array(i,j,k) +  rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vrain*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
-            	graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vrain*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
+
+            if(k==k_lo){
+                Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
+                Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                rain_accum_array(i,j,k)  = rain_accum_array(i,j,k) +  rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
+                snow_accum_array(i,j,k)  = snow_accum_array(i,j,k) +  rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vrain*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
+                graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vrain*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
             }
 
         });

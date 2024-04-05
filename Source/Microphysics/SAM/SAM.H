@@ -43,9 +43,9 @@ namespace MicVar {
       qps,   // precip ice
       qpg,   // graupel
       // derived vars
-	  rain_accum,
-	  snow_accum,
-	  graup_accum,
+      rain_accum,
+      snow_accum,
+      graup_accum,
       omega,
       NumVars
   };

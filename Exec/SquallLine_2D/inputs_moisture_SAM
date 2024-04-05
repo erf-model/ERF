@@ -11,10 +11,10 @@ geometry.prob_lo     = -25000.   0.    0.
 geometry.prob_hi     =  25000. 400. 20000.
 amr.n_cell           =  192    4    128
 
-geometry.is_periodic = 0 1 0
+geometry.is_periodic = 1 1 0
 
-xlo.type = "Open"
-xhi.type = "Open"
+#xlo.type = "Open"
+#xhi.type = "Open"
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
 
@@ -35,11 +35,12 @@ amr.max_level       = 0       # maximum level number allowed
 # CHECKPOINT FILES
 amr.check_file      = chk        # root name of checkpoint file
 amr.check_int       = 1000       # number of timesteps between checkpoints
+#amr.restart			= chk01000
 
 # PLOTFILES
 erf.plot_file_1         = plt        # root name of plotfile
 erf.plot_int_1          = 60         # number of timesteps between plotfiles
-erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain rain_accum pert_dens
+erf.plot_vars_1         = density rhotheta rhoQ1 rhoQ2 rhoQ3 x_velocity y_velocity z_velocity pressure theta temp qv qc qrain qsnow qgraup rain_accum snow_accum graup_accum pert_dens
 
 # SOLVER CHOICE
 erf.use_gravity = true
