@@ -84,6 +84,4 @@ erf.alpha_T = 0.0 # [m^2/s]
 #erf.abl_pressure_grad = -0.2 0. 0.
 
 # PROBLEM PARAMETERS (optional)
-prob.T_0   = 300.0
 prob.U_0   = 1.0
-prob.rho_0 = 1.16

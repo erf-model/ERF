@@ -19,17 +19,11 @@ using namespace amrex;
  * @param[out] avg_xmom x-component of time-averaged momentum defined in this routine
  * @param[out] avg_ymom y-component of time-averaged momentum defined in this routine
  * @param[out] avg_zmom z-component of time-averaged momentum defined in this routine
- * @param[in] z_nd height coordinate at nodes
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing
  * @param[in] mf_m map factor at cell centers
  * @param[in] mf_u map factor at x-faces
  * @param[in] mf_v map factor at y-faces
- * @param[in] horiz_adv_type advection scheme to be used in horiz. directions for dry scalars
- * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
- * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
- * @param[in] vert_upw_frac upwinding fraction to be used in vert. directions for dry scalars (for Blended schemes only)
- * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
  */
 
 void
@@ -41,18 +35,14 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<      Real>& avg_xmom,
                     const Array4<      Real>& avg_ymom,
                     const Array4<      Real>& avg_zmom,
-                    const Array4<const Real>& z_nd,
+                    const Array4<const Real>& ax_arr,
+                    const Array4<const Real>& ay_arr,
+                    const Array4<const Real>& az_arr,
                     const Array4<const Real>& detJ,
                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
-#ifdef ERF_USE_EB
-                    const Array4<const Real>& ax_arr,
-                    const Array4<const Real>& ay_arr,
-                    const Array4<const Real>& az_arr,
-#endif
-                    const bool use_terrain,
                     const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
@@ -64,68 +54,34 @@ AdvectionSrcForRho (const Box& bx,
 
     ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[0])(i,j,k,0) = rho_u(i,j,k) / mf_u(i,j,0);
+        (flx_arr[0])(i,j,k,0) = ax_arr(i,j,k) * rho_u(i,j,k) / mf_u(i,j,0);
         avg_xmom(i,j,k) = (flx_arr[0])(i,j,k,0);
+        if (i == 27 and j == 0 and k == 0) amrex::Print() << " ADV "
+               << flx_arr[0](i,j,k,0) << " " << ax_arr(i,j,k) << std::endl;
     });
     ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        (flx_arr[1])(i,j,k,0) = rho_v(i,j,k) / mf_v(i,j,0);
+        (flx_arr[1])(i,j,k,0) = ay_arr(i,j,k) * rho_v(i,j,k) / mf_v(i,j,0);
         avg_ymom(i,j,k) = (flx_arr[1])(i,j,k,0);
     });
     ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-        (flx_arr[2])(i,j,k,0) = Omega(i,j,k) / mfsq;
+        (flx_arr[2])(i,j,k,0) = az_arr(i,j,k) * Omega(i,j,k) / mfsq;
         avg_zmom(i,j,k  ) = (flx_arr[2])(i,j,k,0);
     });
 
-#ifdef ERF_USE_EB
-    ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        (flx_arr[0])(i,j,k,0) *= ax_arr(i,j,k);
-        avg_xmom(i,j,k)       *= ax_arr(i,j,k);
-    });
-    ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        (flx_arr[1])(i,j,k,0) *= ay_arr(i,j,k);
-        avg_ymom(i,j,k)       *= ay_arr(i,j,k);
-    });
-    ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-    {
-        (flx_arr[2])(i,j,k,0) *= az_arr(i,j,k);
-        avg_zmom(i,j,k)       *= az_arr(i,j,k);
-    });
-#else
-    if (use_terrain) {
-        ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
-            (flx_arr[0])(i,j,k,0) *= h_zeta;
-            avg_xmom(i,j,k)       *= h_zeta;
-        });
-        ParallelFor(ybx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            Real h_zeta =  Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
-            (flx_arr[1])(i,j,k,0) *= h_zeta;
-            avg_ymom(i,j,k)       *= h_zeta;
-        });
-    }
-#endif
-
     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-#ifdef ERF_USE_EB
-        Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-#else
-        Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
-#endif
-
-        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-
-        advectionSrc(i,j,k,0) = - invdetJ * mfsq * (
-          ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
-          ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
-          ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
+        if (detJ(i,j,k) > 0.) {
+            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+            advectionSrc(i,j,k,0) = - mfsq / detJ(i,j,k) * (
+              ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
+              ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
+              ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
+        } else {
+            advectionSrc(i,j,k,0) = 0.;
+        }
     });
 }
 
@@ -150,7 +106,6 @@ AdvectionSrcForRho (const Box& bx,
  * @param[in] vert_adv_type advection scheme to be used in vert. directions for dry scalars
  * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
  * @param[in] vert_upw_frac upwinding fraction to be used in vert. directions for dry scalars (for Blended schemes only)
- * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
  */
 
 void
@@ -167,7 +122,6 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
                         const AdvType vert_adv_type,
                         const Real horiz_upw_frac,
                         const Real vert_upw_frac,
-                        const bool use_terrain,
                         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
                         const Box& domain,
                         const BCRec* bc_ptr_h)
@@ -288,11 +242,7 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
 
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
     {
-#ifdef ERF_USE_EB
         Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-#else
-        Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
-#endif
 
         Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
@@ -308,22 +258,22 @@ AdvectionSrcForScalars (const Box& bx, const int icomp, const int ncomp,
         bool do_lo = true;
         AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, use_terrain, do_lo);
+                                           detJ, cellSizeInv, do_lo);
     }
     if (xhi_open) {
         AdvectionSrcForOpenBC_Tangent_Cons(bx_xhi, 0, icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, use_terrain);
+                                           detJ, cellSizeInv);
     }
     if (ylo_open) {
         bool do_lo = true;
         AdvectionSrcForOpenBC_Tangent_Cons(bx_ylo, 1, icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, use_terrain, do_lo);
+                                           detJ, cellSizeInv, do_lo);
     }
     if (yhi_open) {
         AdvectionSrcForOpenBC_Tangent_Cons(bx_yhi, 1, icomp, ncomp, advectionSrc, cell_prim,
                                            avg_xmom, avg_ymom, avg_zmom,
-                                           detJ, cellSizeInv, use_terrain);
+                                           detJ, cellSizeInv);
     }
 }

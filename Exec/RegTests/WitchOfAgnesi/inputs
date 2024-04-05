@@ -60,9 +60,7 @@ erf.dynamicViscosity = 0.0 # [kg/(m-s)] ==> nu = 75.0 m^2/s
 erf.alpha_T = 0.0 # [m^2/s]
 
 # PROBLEM PARAMETERS (optional)
-prob.T_0   = 300.0
 prob.U_0   = 1.0
-prob.rho_0 = 1.16
 
 erf.use_rayleigh_damping = true
 prob.dampcoef = 2000. # ==> time scale = 0.0005 s (for testing)

@@ -47,6 +47,9 @@ using namespace amrex;
  * @param[in]  domain_bcs_type_d device vector for domain boundary conditions
  * @param[in]  domain_bcs_type_h   host vector for domain boundary conditions
  * @param[in] z_phys_nd height coordinate at nodes
+ * @param[in] ax area fractions on x-faces
+ * @param[in] ay area fractions on y-faces
+ * @param[in] az area fractions on z-faces
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in]  p0     Reference (hydrostatically stratified) pressure
  * @param[in] mapfac_m map factor at cell centers
@@ -85,7 +88,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        std::unique_ptr<ABLMost>& most,
                        const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                        const Vector<BCRec>& domain_bcs_type_h,
-                       std::unique_ptr<MultiFab>& z_phys_nd, std::unique_ptr<MultiFab>& detJ,
+                       std::unique_ptr<MultiFab>& z_phys_nd,
+                       std::unique_ptr<MultiFab>& ax,
+                       std::unique_ptr<MultiFab>& ay,
+                       std::unique_ptr<MultiFab>& az,
+                       std::unique_ptr<MultiFab>& detJ,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
@@ -101,6 +108,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
+
+#ifdef ERF_USE_EB
+    amrex::ignore_unused(ax,ay,az,detJ);
+#endif
 
     const BCRec* bc_ptr_d = domain_bcs_type_d.data();
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
@@ -256,7 +267,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-            const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
             // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
@@ -356,7 +367,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                 s12, s13,
                                 s21, s23,
                                 s31, s32,
-                                z_nd, bc_ptr_h, dxInv,
+                                z_nd, detJ_arr, bc_ptr_h, dxInv,
                                 mf_m, mf_u, mf_v);
                 } // profile
 
@@ -400,7 +411,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                             s12, s13,
                                             s21, s23,
                                             s31, s32,
-                                            er_arr, z_nd, dxInv);
+                                            er_arr, z_nd, detJ_arr, dxInv);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -408,7 +419,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                            s12, s13,
                                            s21, s23,
                                            s31, s32,
-                                           er_arr, z_nd, dxInv);
+                                           er_arr, z_nd, detJ_arr, dxInv);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -617,7 +628,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         // Terrain metrics
         const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -739,38 +749,29 @@ void erf_slow_rhs_pre (int level, int finest_level,
         auto const& ax_arr   = ebfact.getAreaFrac()[0]->const_array(mfi);
         auto const& ay_arr   = ebfact.getAreaFrac()[1]->const_array(mfi);
         auto const& az_arr   = ebfact.getAreaFrac()[2]->const_array(mfi);
-
-        const auto& vf_arr = ebfact.getVolFrac().const_array(mfi);
+        const auto& detJ_arr = ebfact.getVolFrac().const_array(mfi);
+#else
+        auto const& ax_arr   = ax->const_array(mfi);
+        auto const& ay_arr   = ay->const_array(mfi);
+        auto const& az_arr   = az->const_array(mfi);
+        auto const& detJ_arr = detJ->const_array(mfi);
 #endif
 
         AdvectionSrcForRho(bx, cell_rhs,
                            rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                           z_nd,
-#ifdef ERF_USE_EB
-                           vf_arr,
-#else
-                           detJ_arr,
-#endif
+                           ax_arr, ay_arr, az_arr, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
-#ifdef ERF_USE_EB
-                           ax_arr, ay_arr, az_arr,
-#endif
-                           l_use_terrain, flx_arr);
+                           flx_arr);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
                                avg_xmom, avg_ymom, avg_zmom,
-                               cell_prim, cell_rhs,
-#ifdef ERF_USE_EB
-                               vf_arr,
-#else
-                               detJ_arr,
-#endif
+                               cell_prim, cell_rhs, detJ_arr,
                                dxInv, mf_m,
                                l_horiz_adv_type, l_vert_adv_type,
                                l_horiz_upw_frac, l_vert_upw_frac,
-                               l_use_terrain, flx_arr, domain, bc_ptr_h);
+                               flx_arr, domain, bc_ptr_h);
 
         if (l_use_diff) {
             Array4<Real> diffflux_x = dflux_x->array(mfi);
@@ -789,7 +790,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_use_terrain) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
-                                       diffflux_x, diffflux_y, diffflux_z, z_nd, detJ_arr,
+                                       diffflux_x, diffflux_y, diffflux_z,
+                                       z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss, mu_turb, dc, tc,
                                        tm_arr, grav_gpu, bc_ptr_d, use_most);
@@ -836,7 +838,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
-                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+                           ax_arr, ay_arr, az_arr, detJ_arr,
+                           dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
                            l_use_terrain, lo_z_face, hi_z_face,

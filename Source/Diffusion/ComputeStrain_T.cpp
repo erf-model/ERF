@@ -35,7 +35,8 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
                  Array4<Real>& tau12, Array4<Real>& tau13,
                  Array4<Real>& tau21, Array4<Real>& tau23,
                  Array4<Real>& tau31, Array4<Real>& tau32,
-                 const Array4<const Real>& z_nd  ,
+                 const Array4<const Real>& z_nd,
+                 const Array4<const Real>& detJ,
                  const BCRec* bc_ptr, const GpuArray<Real, AMREX_SPACEDIM>& dxInv,
                  const Array4<const Real>& /*mf_m*/,
                  const Array4<const Real>& mf_u,
@@ -314,7 +315,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+            met_h_zeta = detJ(i,j,k);
 
             tau11(i,j,k) = ( (u(i+1, j, k)/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]
                            - (met_h_xi/met_h_zeta)*GradUz ) * mf_u(i,j,0)*mf_u(i,j,0);
@@ -334,7 +335,8 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+            // met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
+            met_h_zeta = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
 
             tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i  , j-1, k)/mf_u(i,j-1,0))*dxInv[1]
                                  + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j  , k)/mf_v(i-1,j,0))*dxInv[0]
@@ -420,7 +422,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz,
         Real met_h_xi,met_h_eta,met_h_zeta;
         met_h_xi   = Compute_h_xi_AtCellCenter  (i,j,k,dxInv,z_nd);
         met_h_eta  = Compute_h_eta_AtCellCenter (i,j,k,dxInv,z_nd);
-        met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd);
+        met_h_zeta = detJ(i,j,k);
 
         tau11(i,j,k) = ( (u(i+1, j, k)/mf_u(i+1,j,0) - u(i, j, k)/mf_u(i,j,0))*dxInv[0]
                        - (met_h_xi/met_h_zeta)*GradUz ) * mf_u(i,j,0)*mf_u(i,j,0);

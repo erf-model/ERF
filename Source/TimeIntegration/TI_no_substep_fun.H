@@ -75,6 +75,7 @@
                         Real h_zeta_new = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd_new);
                         ssum[IntVars::xmom](i,j,k) = ( h_zeta_old *  sold[IntVars::xmom](i,j,k)
                                                        + slow_dt * fslow[IntVars::xmom](i,j,k) ) / h_zeta_new;
+            if (i == 27 and j == 0 and k == 0) amrex::Print() << " SUM " << ssum[IntVars::xmom](i,j,k) << " " << h_zeta_new << std::endl;
                     },
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         Real h_zeta_old = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd_old);

@@ -49,6 +49,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<Real>& yflux,
                         const Array4<Real>& zflux,
                         const Array4<const Real>& z_nd,
+                        const Array4<const Real>& ax,
+                        const Array4<const Real>& ay,
+                        const Array4<const Real>& az,
                         const Array4<const Real>& detJ,
                         const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
                         const Array4<const Real>& SmnSmn_a,
@@ -203,9 +206,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
-            Real met_h_xi,met_h_zeta;
-            met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ax(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -223,9 +225,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
-            Real met_h_eta,met_h_zeta;
-            met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ay(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -243,8 +244,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
-            Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
@@ -285,9 +285,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i  , j, k, d_eddy_diff_idx[prim_index])
                               + mu_turb(i-1, j, k, d_eddy_diff_idx[prim_index]) );
 
-            Real met_h_xi,met_h_zeta;
-            met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ax(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -304,9 +303,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j  , k, d_eddy_diff_idy[prim_index])
                               + mu_turb(i, j-1, k, d_eddy_diff_idy[prim_index]) );
 
-            Real met_h_eta,met_h_zeta;
-            met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ay(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -324,8 +322,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             rhoAlpha += 0.5 * ( mu_turb(i, j, k  , d_eddy_diff_idz[prim_index])
                               + mu_turb(i, j, k-1, d_eddy_diff_idz[prim_index]) );
 
-            Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
@@ -366,9 +363,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            Real met_h_xi,met_h_zeta;
-            met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtIface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_xi   = Compute_h_xi_AtIface  (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ax(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i-1, j, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i-1, j, k-1, prim_index) );
@@ -384,9 +380,8 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j-1, k, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            Real met_h_eta,met_h_zeta;
-            met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
-            met_h_zeta = Compute_h_zeta_AtJface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_eta  = Compute_h_eta_AtJface (i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = ay(i,j,k);
 
             Real GradCz = 0.25 * dz_inv * ( cell_prim(i, j, k+1, prim_index) + cell_prim(i, j-1, k+1, prim_index)
                                           - cell_prim(i, j, k-1, prim_index) - cell_prim(i, j-1, k-1, prim_index) );
@@ -402,8 +397,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
             Real rhoAlpha = rhoFace * d_alpha_eff[prim_index];
 
-            Real met_h_zeta;
-            met_h_zeta = Compute_h_zeta_AtKface(i,j,k,cellSizeInv,z_nd);
+            Real met_h_zeta = az(i,j,k);
 
             Real GradCz;
             bool ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc+qty_index].lo(2) == ERFBCType::ext_dir) && k == 0);
@@ -653,7 +647,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
         ParallelFor(bx,[=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            const Real met_h_zeta = Compute_h_zeta_AtCellCenter(i,j,k,cellSizeInv,z_nd);
+            const Real met_h_zeta = detJ(i,j,k);
             cell_rhs(i, j, k, qty_index) += ComputeQKESourceTerms(i,j,k,u,v,cell_data,cell_prim,
                                                                   mu_turb,cellSizeInv,domain,pbl_mynn_B1_l,tm_arr(i,j,0),
                                                                   c_ext_dir_on_zlo, c_ext_dir_on_zhi,

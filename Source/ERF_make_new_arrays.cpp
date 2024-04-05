@@ -56,11 +56,20 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     if (solverChoice.use_terrain) {
         z_phys_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
-          detJ_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
 
-        if (solverChoice.terrain_type != TerrainType::Static) {
+        if (solverChoice.terrain_type != TerrainType::Static)
+        {
             detJ_cc_new[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
             detJ_cc_src[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+
+            ax_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
+            ay_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
+            az_src[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
+
+            ax_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
+            ay_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
+            az_new[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
+
             z_t_rk[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)), dm, 1, 1 );
         }
 
@@ -78,7 +87,6 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     } else {
             z_phys_nd[lev] = nullptr;
             z_phys_cc[lev] = nullptr;
-              detJ_cc[lev] = nullptr;
 
         z_phys_nd_new[lev] = nullptr;
           detJ_cc_new[lev] = nullptr;
@@ -88,6 +96,17 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
                z_t_rk[lev] = nullptr;
     }
+
+   // We use these area arrays regardless of terrain, EB or none of the above
+   detJ_cc[lev] = std::make_unique<MultiFab>(ba,dm,1,1);
+        ax[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,1);
+        ay[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,1);
+        az[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,1);
+
+   detJ_cc[lev]->setVal(1.0);
+        ax[lev]->setVal(1.0);
+        ay[lev]->setVal(1.0);
+        az[lev]->setVal(1.0);
 
     // ********************************************************************************************
     // These are the persistent containers for the old and new data
@@ -311,6 +330,8 @@ ERF::update_terrain_arrays (int lev, Real time)
         }
 
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
+        make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
+
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
 }
