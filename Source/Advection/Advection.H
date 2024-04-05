@@ -26,7 +26,11 @@ void AdvectionSrcForRho (const amrex::Box& bx,
                          const amrex::Array4<const amrex::Real>& mf_u,
                          const amrex::Array4<const amrex::Real>& mf_v,
                          const bool use_terrain,
-                         const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr);
+                         const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx_arr
+#ifdef ERF_USE_POISSON_SOLVE
+                         ,const bool const_rho = false
+#endif
+                        );
 
 /** Compute advection tendency for all scalars other than density and potential temperature */
 void AdvectionSrcForScalars (const amrex::Box& bx,

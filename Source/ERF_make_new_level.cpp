@@ -140,6 +140,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         BoxArray ba_xf(ba);
         ba_xf.surroundingNodes(0);
         thin_xforce[lev] = std::make_unique<MultiFab>(ba_xf,dm,1,0);
+        thin_xforce[lev]->setVal(0.0);
         xflux_imask[lev] = std::make_unique<iMultiFab>(ba_xf,dm,1,0);
         xflux_imask[lev]->setVal(1);
         for ( MFIter mfi(*xflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -167,6 +168,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         BoxArray ba_yf(ba);
         ba_yf.surroundingNodes(1);
         thin_yforce[lev] = std::make_unique<MultiFab>(ba_yf,dm,1,0);
+        thin_yforce[lev]->setVal(0.0);
         yflux_imask[lev] = std::make_unique<iMultiFab>(ba_yf,dm,1,0);
         yflux_imask[lev]->setVal(1);
         for ( MFIter mfi(*yflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )
@@ -194,6 +196,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         BoxArray ba_zf(ba);
         ba_zf.surroundingNodes(2);
         thin_zforce[lev] = std::make_unique<MultiFab>(ba_zf,dm,1,0);
+        thin_zforce[lev]->setVal(0.0);
         zflux_imask[lev] = std::make_unique<iMultiFab>(ba_zf,dm,1,0);
         zflux_imask[lev]->setVal(1);
         for ( MFIter mfi(*zflux_imask[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi )

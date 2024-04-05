@@ -211,24 +211,6 @@ void ERF::advance_dycore(int level,
     }
 
     // ***********************************************************************************************
-    // Reset forces on thin interface
-    // ***********************************************************************************************
-    // When constructing the slow RHS, this will both be used as a mask during slow_rhs_pre and then
-    // replaced with the RHS value if mask(i,j,k)==0
-    if (thin_xforce[level] != nullptr) {
-        thin_xforce[level]->setVal(1.0);
-        ApplyMask(*thin_xforce[level], *xflux_imask[level]);
-    }
-    if (thin_yforce[level] != nullptr) { 
-        thin_yforce[level]->setVal(1.0);
-        ApplyMask(*thin_yforce[level], *yflux_imask[level]);
-    }
-    if (thin_zforce[level] != nullptr) {
-        thin_zforce[level]->setVal(1.0);
-        ApplyMask(*thin_zforce[level], *zflux_imask[level]);
-    }
-
-    // ***********************************************************************************************
     // Convert old velocity available on faces to old momentum on faces to be used in time integration
     // ***********************************************************************************************
     MultiFab density(state_old[IntVars::cons], make_alias, Rho_comp, 1);

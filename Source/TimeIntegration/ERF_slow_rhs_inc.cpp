@@ -14,6 +14,7 @@
 #include <TerrainMetrics.H>
 #include <IndexDefines.H>
 #include <PlaneAverage.H>
+#include <Utils.H>
 
 using namespace amrex;
 
@@ -62,9 +63,12 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
- * @param[in] thin_xforce x-component of forces on thin immersed interfaces
- * @param[in] thin_yforce y-component of forces on thin immersed interfaces
- * @param[in] thin_zforce z-component of forces on thin immersed interfaces
+ * @param[in] xflux_imask_lev thin-body mask on x-faces
+ * @param[in] yflux_imask_lev thin-body mask on y-faces
+ * @param[in] zflux_imask_lev thin-body mask on z-faces
+ * @param[in] thin_xforce_lev x-component of forces on thin immersed bodies
+ * @param[in] thin_yforce_lev y-component of forces on thin immersed bodies
+ * @param[in] thin_zforce_lev z-component of forces on thin immersed bodies
  */
 
 void erf_slow_rhs_inc (int level, int nrk,
@@ -100,9 +104,12 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const Real* dptr_rhotheta_src,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
-                       std::unique_ptr<MultiFab>& thin_xforce,
-                       std::unique_ptr<MultiFab>& thin_yforce,
-                       std::unique_ptr<MultiFab>& thin_zforce)
+                       std::unique_ptr<iMultiFab>& xflux_imask_lev,
+                       std::unique_ptr<iMultiFab>& yflux_imask_lev,
+                       std::unique_ptr<iMultiFab>& zflux_imask_lev,
+                       std::unique_ptr<MultiFab>& thin_xforce_lev,
+                       std::unique_ptr<MultiFab>& thin_yforce_lev,
+                       std::unique_ptr<MultiFab>& thin_zforce_lev)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
 
@@ -152,9 +159,9 @@ void erf_slow_rhs_inc (int level, int nrk,
     Real* wbar     = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
     Real* thetabar = d_rayleigh_ptrs_at_lev[Rayleigh::thetabar];
 
-    const bool l_have_thin_xforce = (thin_xforce != nullptr);
-    const bool l_have_thin_yforce = (thin_yforce != nullptr);
-    const bool l_have_thin_zforce = (thin_zforce != nullptr);
+    const bool l_have_thin_xforce = (thin_xforce_lev != nullptr);
+    const bool l_have_thin_yforce = (thin_yforce_lev != nullptr);
+    const bool l_have_thin_zforce = (thin_zforce_lev != nullptr);
 
     // *************************************************************************
     // Combine external forcing terms
@@ -554,11 +561,6 @@ void erf_slow_rhs_inc (int level, int nrk,
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
-        // Thin interface forces
-        const Array4<Real>& thin_xforce_arr = l_have_thin_xforce ? thin_xforce->array(mfi) : Array4<Real>{};
-        const Array4<Real>& thin_yforce_arr = l_have_thin_yforce ? thin_yforce->array(mfi) : Array4<Real>{};
-        const Array4<Real>& thin_zforce_arr = l_have_thin_zforce ? thin_zforce->array(mfi) : Array4<Real>{};
-
         // *****************************************************************************
         // *****************************************************************************
         // Define flux arrays for use in advection
@@ -621,13 +623,12 @@ void erf_slow_rhs_inc (int level, int nrk,
         // **************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // **************************************************************************
-        if (!l_const_rho) {
-            AdvectionSrcForRho(bx, cell_rhs,
-                               rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
-                               avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
-                               z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
-                               l_use_terrain, flx_arr);
-        }
+        AdvectionSrcForRho(bx, cell_rhs,
+                           rho_u, rho_v, omega_arr,      // these are being used to build the fluxes
+                           avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
+                           z_nd, detJ_arr, dxInv, mf_m, mf_u, mf_v,
+                           l_use_terrain, flx_arr,
+                           l_const_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
@@ -879,63 +880,5 @@ void erf_slow_rhs_inc (int level, int nrk,
               }
         });
         } // end profile
-
-        // Enforce thin immersed interface condition, save forces
-        // NOTE: For rk < 1, the force array is used as a surface mask (==0 on the surface);
-        //       in the last stage (rk==1), the force is updated (and set to 0 off the surface)
-        if (l_have_thin_xforce) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (thin_xforce_arr(i,j,k) == 0) { // on the surface
-                    // save the body force during the last rk stage only
-                    if (nrk==1) {
-                        thin_xforce_arr(i,j,k) = -rho_u_rhs(i,j,k);
-                        amrex::AllPrint() << "thinbody fx"<<IntVect(i,j,k)<<"= "
-                            << thin_xforce_arr(i,j,k) << std::endl;
-                    }
-                    // keep x-mom on interface constant (every rk stage)
-                    rho_u_rhs(i,j,k) = 0;
-                } else if (nrk==1) {
-                    // off the surface & last rk stage
-                    thin_xforce_arr(i,j,k) = 0;
-                }
-            });
-        }
-        if (l_have_thin_yforce) {
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (thin_yforce_arr(i,j,k) == 0) { // on the surface
-                    // save the body force during the last rk stage only
-                    if (nrk==1) {
-                        thin_yforce_arr(i,j,k) = -rho_v_rhs(i,j,k);
-                        amrex::AllPrint() << "thinbody fy"<<IntVect(i,j,k)<<"= "
-                            << thin_yforce_arr(i,j,k) << std::endl;
-                    }
-                    // keep y-mom on interface constant (every rk stage)
-                    rho_v_rhs(i,j,k) = 0;
-                } else if (nrk==1) {
-                    // off the surface & last rk stage
-                    thin_yforce_arr(i,j,k) = 0;
-                }
-            });
-        }
-        if (l_have_thin_zforce) {
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                if (thin_zforce_arr(i,j,k) == 0) { // on the surface
-                    // save the body force during the last rk stage only
-                    if (nrk==1) {
-                        thin_zforce_arr(i,j,k) = -rho_w_rhs(i,j,k);
-                        amrex::AllPrint() << "thinbody fz"<<IntVect(i,j,k)<<"= "
-                            << thin_zforce_arr(i,j,k) << std::endl;
-                    }
-                    // keep z-mom on interface constant (every rk stage)
-                    rho_w_rhs(i,j,k) = 0;
-                } else if (nrk==1) {
-                    // off the surface & last rk stage
-                    thin_zforce_arr(i,j,k) = 0;
-                }
-            });
-        }
     } // mfi
 }

@@ -112,6 +112,7 @@
                              fr_as_crse, fr_as_fine,
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
                              thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
@@ -207,6 +208,7 @@
                              fr_as_crse, fr_as_fine,
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
                              thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
@@ -368,6 +370,7 @@
                          z_phys_nd[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_rhotheta_src, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                         xflux_imask[level], yflux_imask[level], zflux_imask[level],
                          thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 

@@ -132,8 +132,11 @@
 
 #ifdef ERF_USE_POISSON_SOLVE
         if (solverChoice.incompressible) {
+            bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (solverChoice.project_every_stage || (nrk==1)) {
-                for (int i=0; i < solverChoice.ncorr; ++i) {
+                if (have_tb) {
+                    project_velocities_tb(S_sum, slow_dt);
+                } else {
                     project_velocities(S_sum);
                 }
             }

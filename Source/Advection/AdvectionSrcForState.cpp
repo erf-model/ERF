@@ -30,6 +30,7 @@ using namespace amrex;
  * @param[in] horiz_upw_frac upwinding fraction to be used in horiz. directions for dry scalars (for Blended schemes only)
  * @param[in] vert_upw_frac upwinding fraction to be used in vert. directions for dry scalars (for Blended schemes only)
  * @param[in] use_terrain if true, use the terrain-aware derivatives (with metric terms)
+ * @param[in] const_rho if true, don't update advectionSrc
  */
 
 void
@@ -48,7 +49,11 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
                     const bool use_terrain,
-                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr)
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr
+#ifdef ERF_USE_POISSON_SOLVE
+                    ,const bool const_rho
+#endif
+                   )
 {
     BL_PROFILE_VAR("AdvectionSrcForRhoAndTheta", AdvectionSrcForRhoAndTheta);
     auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
@@ -89,17 +94,27 @@ AdvectionSrcForRho (const Box& bx,
         });
     }
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+#ifdef ERF_USE_POISSON_SOLVE
+    if (const_rho) {
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            advectionSrc(i,j,k,0) = 0.0;
+        });
+    } else
+#endif
     {
-        Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real invdetJ = (use_terrain) ?  1. / detJ(i,j,k) : 1.;
 
-        Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
+            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
 
-        advectionSrc(i,j,k,0) = - invdetJ * mfsq * (
-          ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
-          ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
-          ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
-    });
+            advectionSrc(i,j,k,0) = - invdetJ * mfsq * (
+              ( (flx_arr[0])(i+1,j,k,0) - (flx_arr[0])(i  ,j,k,0) ) * dxInv +
+              ( (flx_arr[1])(i,j+1,k,0) - (flx_arr[1])(i,j  ,k,0) ) * dyInv +
+              ( (flx_arr[2])(i,j,k+1,0) - (flx_arr[2])(i,j,k  ,0) ) * dzInv );
+        });
+    }
 }
 
 /**
