@@ -24,6 +24,7 @@ using namespace amrex;
  * @param[in] rho_u x-component of the momentum
  * @param[in] rho_v y-component of the momentum
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
+ * @param[in] z_nd height coordinate at nodes
  * @param[in] ax   Area fraction of x-faces
  * @param[in] ay   Area fraction of y-faces
  * @param[in] az   Area fraction of z-faces
@@ -48,6 +49,7 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                     const Array4<const Real>& rho_u,
                     const Array4<const Real>& rho_v,
                     const Array4<const Real>& Omega,
+                    const Array4<const Real>& z_nd,
                     const Array4<const Real>& ax,
                     const Array4<const Real>& ay,
                     const Array4<const Real>& az,
@@ -215,11 +217,13 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
                 Real xflux_lo = 0.25 * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i-1,j,k) * mf_u_inv(i-1,j,0)) *
                                        (u(i-1,j,k) + u(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i-1,j,k));
 
-                Real yflux_hi = 0.25 * (rho_v(i,j+1,k) * mf_v_inv(i,j+1,0) + rho_v(i-1,j+1,k) * mf_v_inv(i-1,j+1,0)) *
-                                       (u(i,j+1,k) + u(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j+1,k));
+                Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterK(i,j+1,k,cellSizeInv,z_nd);
+                Real yflux_hi = 0.25 * (rho_v(i,j+1,k)*mf_v_inv(i,j+1,0) + rho_v(i-1,j+1,k)*mf_v_inv(i-1,j+1,0)) *
+                                       (u(i,j+1,k) + u(i,j,k)) * met_h_zeta_yhi;
 
-                Real yflux_lo = 0.25 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i-1,j,k) * mf_v_inv(i-1,j,0)) *
-                                       (u(i,j-1,k) + u(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j-1,k));
+                Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterK(i,j  ,k,cellSizeInv,z_nd);
+                Real yflux_lo = 0.25 * (rho_v(i,j  ,k)*mf_v_inv(i,j  ,0) + rho_v(i-1,j  ,k)*mf_v_inv(i-1,j  ,0)) *
+                                       (u(i,j-1,k) + u(i,j,k)) * met_h_zeta_ylo;
 
                 Real zflux_hi = 0.25 * (Omega(i,j,k+1) + Omega(i-1,j,k+1)) * (u(i,j,k+1) + u(i,j,k)) *
                                         0.5 * (az(i,j,k+1) + az(i-1,j,k+1));
@@ -236,16 +240,19 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real xflux_hi = 0.25 * (rho_u(i+1,j,k) * mf_u_inv(i+1,j,0) + rho_u(i+1,j-1, k) * mf_u_inv(i+1,j-1,0)) *
-                                       (v(i+1,j,k) + v(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i+1,j,k));
 
-                Real xflux_lo = 0.25 * (rho_u(i,j,k) * mf_u_inv(i,j,0) + rho_u(i  ,j-1, k) * mf_u_inv(i-1,j  ,0)) *
-                                       (v(i-1,j,k) + v(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i-1,j,k));
+                Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterK(i+1,j,k,cellSizeInv,z_nd);
+                Real xflux_hi = 0.25 * (rho_u(i+1,j,k)*mf_u_inv(i+1,j,0) + rho_u(i+1,j-1,k)*mf_u_inv(i+1,j-1,0)) *
+                                       (v(i+1,j,k) + v(i,j,k)) * met_h_zeta_xhi;
 
-                Real yflux_hi = 0.25 * (rho_v(i,j+1,k) * mf_v_inv(i,j+1,0) + rho_v(i  ,j  ,k) * mf_v_inv(i  ,j  ,0)) *
+                Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterK(i  ,j,k,cellSizeInv,z_nd);
+                Real xflux_lo = 0.25 * (rho_u(i, j, k)*mf_u_inv(i  ,j,0) + rho_u(i  ,j-1,k)*mf_u_inv(i-1,j  ,0)) *
+                                       (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
+
+                Real yflux_hi = 0.25 * (rho_v(i,j+1,k)*mf_v_inv(i,j+1,0) + rho_v(i,j  ,k) * mf_v_inv(i,j  ,0)) *
                                        (v(i,j+1,k) + v(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j+1,k));
 
-                Real yflux_lo = 0.25 * (rho_v(i,j,k) * mf_v_inv(i,j,0) + rho_v(i  , j-1, k) * mf_v_inv(i  ,j-1,0)) *
+                Real yflux_lo = 0.25 * (rho_v(i,j  ,k)*mf_v_inv(i,j  ,0) + rho_v(i,j-1,k) * mf_v_inv(i,j-1,0)) *
                                        (v(i,j-1,k) + v(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j-1,k));
 
                 Real zflux_hi = 0.25 * (Omega(i,j,k+1) + Omega(i, j-1, k+1)) * (v(i,j,k+1) + v(i,j,k)) *
@@ -263,17 +270,21 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                Real xflux_hi = 0.25*(rho_u(i+1,j,k) + rho_u(i+1,j,k-1)) * mf_u_inv(i+1,j  ,0) *
-                                     (w(i+1,j,k) + w(i,j,k)) * 0.5 * (ax(i+1,j,k) + ax(i+1,j,k-1));
+                Real met_h_zeta_xhi = Compute_h_zeta_AtEdgeCenterJ(i+1,j  ,k  ,cellSizeInv,z_nd);
+                Real xflux_hi = 0.25*(rho_u(i+1,j  ,k) + rho_u(i+1,j,k-1)) * mf_u_inv(i+1,j,0) *
+                                     (w(i+1,j,k) + w(i,j,k)) * met_h_zeta_xhi;
 
-                Real xflux_lo = 0.25*(rho_u(i,j,k) + rho_u(i,j,k-1)) * mf_u_inv(i  ,j  ,0) *
-                                     (w(i-1,j,k) + w(i,j,k)) * 0.5 * (ax(i,j,k) + ax(i,j,k-1));
+                Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
+                Real xflux_lo = 0.25*(rho_u(i  ,j  ,k) + rho_u(i  ,j,k-1)) * mf_u_inv(i  ,j,0) *
+                                     (w(i-1,j,k) + w(i,j,k)) * met_h_zeta_xlo;
 
-                Real yflux_hi = 0.25*(rho_v(i  ,j+1,k) + rho_v(i, j+1, k-1)) * mf_v_inv(i  ,j+1,0) *
-                                     (w(i,j+1,k) + w(i,j,k)) * 0.5 * (ay(i,j+1,k) + ay(i,j+1,k-1));
+                Real met_h_zeta_yhi = Compute_h_zeta_AtEdgeCenterI(i  ,j+1,k  ,cellSizeInv,z_nd);
+                Real yflux_hi = 0.25*(rho_v(i,j+1,k) + rho_v(i,j+1,k-1)) * mf_v_inv(i,j+1,0) *
+                                     (w(i,j+1,k) + w(i,j,k)) * met_h_zeta_yhi;
 
-                Real yflux_lo = 0.25*(rho_v(i  ,j  ,k) + rho_v(i, j  , k-1)) * mf_v_inv(i  ,j  ,0) *
-                                     (w(i,j-1,k) + w(i,j,k)) * 0.5 * (ay(i,j,k) + ay(i,j,k-1));
+                Real met_h_zeta_ylo = Compute_h_zeta_AtEdgeCenterI(i  ,j  ,k  ,cellSizeInv,z_nd);
+                Real yflux_lo = 0.25*(rho_v(i,j  ,k) + rho_v(i,j  ,k-1)) * mf_v_inv(i,j  ,0) *
+                                     (w(i,j-1,k) + w(i,j,k)) * met_h_zeta_ylo;
 
                 Real zflux_lo = 0.25 * (Omega(i,j,k) + Omega(i,j,k-1)) * (w(i,j,k) + w(i,j,k-1));
 
@@ -294,35 +305,35 @@ AdvectionSrcForMom (const Box& bxx, const Box& bxy, const Box& bxz,
             if (horiz_adv_type == AdvType::Centered_2nd) {
                 AdvectionSrcForMomVert<CENTERED2>(bxx, bxy, bxz,
                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                rho_u, rho_v, Omega, u, v, w, ax, ay, az, detJ,
+                                                rho_u, rho_v, Omega, u, v, w, z_nd, ax, ay, az, detJ,
                                                 cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                 horiz_upw_frac, vert_upw_frac,
                                                 vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_3rd) {
                 AdvectionSrcForMomVert<UPWIND3>(bxx, bxy, bxz,
                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                rho_u, rho_v, Omega, u, v, w, ax, ay, az, detJ,
+                                                rho_u, rho_v, Omega, u, v, w, z_nd, ax, ay, az, detJ,
                                                 cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                 horiz_upw_frac, vert_upw_frac,
                                                 vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_4th) {
                 AdvectionSrcForMomVert<CENTERED4>(bxx, bxy, bxz,
                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                rho_u, rho_v, Omega, u, v, w, ax, ay, az, detJ,
+                                                rho_u, rho_v, Omega, u, v, w, z_nd, ax, ay, az, detJ,
                                                 cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                 horiz_upw_frac, vert_upw_frac,
                                                 vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Upwind_5th) {
                 AdvectionSrcForMomVert<UPWIND5>(bxx, bxy, bxz,
                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                rho_u, rho_v, Omega, u, v, w, ax, ay, az, detJ,
+                                                rho_u, rho_v, Omega, u, v, w, z_nd, ax, ay, az, detJ,
                                                 cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                 horiz_upw_frac, vert_upw_frac,
                                                 vert_adv_type, lo_z_face, hi_z_face);
             } else if (horiz_adv_type == AdvType::Centered_6th) {
                 AdvectionSrcForMomVert<CENTERED6>(bxx, bxy, bxz,
                                                 rho_u_rhs, rho_v_rhs, rho_w_rhs,
-                                                rho_u, rho_v, Omega, u, v, w, ax, ay, az, detJ,
+                                                rho_u, rho_v, Omega, u, v, w, z_nd, ax, ay, az, detJ,
                                                 cellSizeInv, mf_m, mf_u_inv, mf_v_inv,
                                                 horiz_upw_frac, vert_upw_frac,
                                                 vert_adv_type, lo_z_face, hi_z_face);
