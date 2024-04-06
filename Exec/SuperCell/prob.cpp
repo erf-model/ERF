@@ -189,7 +189,7 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  amrex::ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     const amrex::Real z = prob_lo_z + (k+0.5) * dz;
     if (z < zs-deltaz) {
       x_vel_pert(i, j, k) = us*(z/zs) - uc;
@@ -206,7 +206,7 @@ Problem::init_custom_pert(
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     z_vel_pert(i, j, k) = 0.0;
   });
 

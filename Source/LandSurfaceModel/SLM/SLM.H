@@ -129,10 +129,10 @@ private:
     int khi_lsm;
 
     // constants
-    amrex::Real m_fac_cond;
-    amrex::Real m_fac_fus;
-    amrex::Real m_fac_sub;
-    amrex::Real m_gOcp;
+    // amrex::Real m_fac_cond;
+    // amrex::Real m_fac_fus;
+    // amrex::Real m_fac_sub;
+    // amrex::Real m_gOcp;
 
     // independent variables
     amrex::Array<FabPtr, LsmVar_SLM::NumVars> lsm_fab_vars;

@@ -752,11 +752,11 @@ fine_compute_interior_ghost_rhs (const Real& time,
                if (mask_arr(i,j,k) == relax_mask_val) {
 
                    // Indices
-                   Real n_ind;
-                   int ii{width-1}; int jj{width-1};
-                   bool near_x_lo_wall{false}; bool near_x_hi_wall{false};
-                   bool near_y_lo_wall{false}; bool near_y_hi_wall{false};
-                   bool mask_x_found{false};   bool mask_y_found{false};
+                   Real n_ind(-1); // Set to -1 to quiet compiler warning
+                   int ii(width-1); int jj(width-1);
+                   bool near_x_lo_wall(false); bool near_x_hi_wall(false);
+                   bool near_y_lo_wall(false); bool near_y_hi_wall(false);
+                   bool mask_x_found(false);   bool mask_y_found(false);
 
                    // Near x-wall
                    if ((i-vbx_lo.x) < width) {

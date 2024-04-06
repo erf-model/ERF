@@ -327,7 +327,6 @@ Problem::init_custom_pert (
     //const Real x_c = 0.0, z_c = 2.0e3, x_r = 10.0e3, z_r = 1.5e3, r_c = 1.0, theta_c = 3.0;
 
     Real Rd_by_Cp = sc.rdOcp;
-    Rd_by_Cp = Rd_by_Cp;
 
     Real height = parms.height;
     Real z_tr = parms.z_tr;
