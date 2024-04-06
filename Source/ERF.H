@@ -414,6 +414,9 @@ private:
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
     void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
 
+    // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
+    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
+
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.
     // This is to support filling boundary cells at an intermediate time between old/new times

@@ -203,10 +203,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         containerHasElement(plot_var_names, "vorticity_z") ) {
 
         for (int lev = 0; lev <= finest_level; ++lev) {
-            mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,0));
+            mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
             average_face_to_cellcenter(mf_cc_vel[lev],0,
-                                       Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-            mf_cc_vel[lev].FillBoundary(geom[lev].periodicity());
+                                       Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
+                                                                &vars_new[lev][Vars::yvel],
+                                                                &vars_new[lev][Vars::zvel]});
         } // lev
 
         // We need ghost cells if computing vorticity
@@ -226,8 +227,11 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                           null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
                                           mapper, domain_bcs_type, 0);
             } // lev
-        } // if
-    } // if
+
+            // Impose bc's at domain boundaries at all levels
+            FillBdyCCVels(mf_cc_vel);
+        } // if (vort)
+    } // if (vel or vort)
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
