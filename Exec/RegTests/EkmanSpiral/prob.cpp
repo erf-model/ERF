@@ -42,65 +42,71 @@ Problem::init_custom_pert(
     const SolverChoice& sc)
 {
     //
-    // NOTE: this routine is only called when doing custom initialization!
+    // NOTE: this is only used when doing custom initialization!
     //
-    // In the case of initializng from an input sounding or from a wrfinput file,
-    // this routine will not be called.
+    // When initializng from an input sounding or from a wrfinput file,
+    // we bypass the code below
     //
-
-    const bool use_moisture = (sc.moisture_type != MoistureType::None);
-
-    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    {
-        // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = 0.0;
-
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
-    });
 
     ParmParse pp("erf");
-    Real rot_time_period;
-    pp.get("rotational_time_period", rot_time_period);
-    Real coriolis_factor = 4.0 * PI / rot_time_period;
+    std::string init_type;
+    pp.query("init_type", init_type);
 
-    Real Az;
-    pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
-    Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
+    if (init_type == "uniform") {
 
-    Vector<Real> abl_geo_wind(3);
-    pp.queryarr("abl_geo_wind",abl_geo_wind);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                                     (amrex::Math::abs(abl_geo_wind[1]) < 1.0e-15) &&
-                                     (amrex::Math::abs(abl_geo_wind[2]) < 1.0e-15),
-                                     "Ekman Spiral uses geostrophic forcing of the form (V_0, 0, 0)");
-    const Real u_0 = abl_geo_wind[0];
+        const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-    const Real DE = std::sqrt(2.0 * Az / coriolis_factor);
-    const Real a = 1.0 / DE;
+        ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            // Set scalar = 0 everywhere
+            state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
-    // Set the x-velocity
-    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        const auto dx = geomdata.CellSize();
-        const Real z = (k + 0.5) * dx[2];
+            if (use_moisture) {
+                state_pert(i, j, k, RhoQ1_comp) = 0.0;
+                state_pert(i, j, k, RhoQ2_comp) = 0.0;
+            }
+        });
+
+        Real rot_time_period;
+        pp.get("rotational_time_period", rot_time_period);
+        Real coriolis_factor = 4.0 * PI / rot_time_period;
+
+        Real Az;
+        pp.get("dynamicViscosity", Az); // dynamic viscosity [kg-m/s]
+        Az = Az / parms.rho_0; // kinematic viscosity [m^2/s]
+
+        Vector<Real> abl_geo_wind(3);
+        pp.queryarr("abl_geo_wind",abl_geo_wind);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                                         (amrex::Math::abs(abl_geo_wind[1]) < 1.0e-15) &&
+                                         (amrex::Math::abs(abl_geo_wind[2]) < 1.0e-15),
+                                         "Ekman Spiral uses geostrophic forcing of the form (V_0, 0, 0)");
+        const Real u_0 = abl_geo_wind[0];
+
+        const Real DE = std::sqrt(2.0 * Az / coriolis_factor);
+        const Real a = 1.0 / DE;
 
         // Set the x-velocity
-        x_vel_pert(i, j, k) = u_0 * (1.0 - std::exp(-a * z) * std::cos(-a * z));
-    });
+        ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const auto dx = geomdata.CellSize();
+            const Real z = (k + 0.5) * dx[2];
 
-    // Set the y-velocity
-    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        const auto dx = geomdata.CellSize();
-        const Real z = (k + 0.5) * dx[2];
+            // Set the x-velocity
+            x_vel_pert(i, j, k) = u_0 * (1.0 - std::exp(-a * z) * std::cos(-a * z));
+        });
 
         // Set the y-velocity
-        y_vel_pert(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
-    });
+        ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const auto dx = geomdata.CellSize();
+            const Real z = (k + 0.5) * dx[2];
 
-    // Set the z-velocity
-    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        z_vel_pert(i, j, k) = 0.0;
-    });
+            // Set the y-velocity
+            y_vel_pert(i, j, k) = -u_0 * std::exp(-a * z) * std::sin(-a * z);
+        });
+
+        // Set the z-velocity
+        ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            z_vel_pert(i, j, k) = 0.0;
+        });
+    } // end if uniform
 }
