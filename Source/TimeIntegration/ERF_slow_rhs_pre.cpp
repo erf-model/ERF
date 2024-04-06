@@ -1294,6 +1294,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         MultiFab::Add(S_rhs[IntVars::xmom], *thin_xforce_lev, 0, 0, 1, 0);
 
         // TODO: Implement particles to better track and output these data
+#ifndef AMREX_USE_GPU
         if (nrk==2) {
             for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
             {
@@ -1307,6 +1308,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 });
             }
         }
+#endif
     }
     if (l_have_thin_yforce) {
         MultiFab::Copy(*thin_yforce_lev, S_rhs[IntVars::ymom], 0, 0, 1, 0);
@@ -1315,6 +1317,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         MultiFab::Add(S_rhs[IntVars::ymom], *thin_yforce_lev, 0, 0, 1, 0);
 
         // TODO: Implement particles to better track and output these data
+#ifndef AMREX_USE_GPU
         if (nrk==2) {
             for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
             {
@@ -1328,6 +1331,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 });
             }
         }
+#endif
     }
     if (l_have_thin_zforce) {
         MultiFab::Copy(*thin_zforce_lev, S_rhs[IntVars::zmom], 0, 0, 1, 0);
@@ -1336,6 +1340,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         MultiFab::Add(S_rhs[IntVars::zmom], *thin_zforce_lev, 0, 0, 1, 0);
 
         // TODO: Implement particles to better track and output these data
+#ifndef AMREX_USE_GPU
         if (nrk==2) {
             for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
             {
@@ -1349,6 +1354,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 });
             }
         }
+#endif
     }
     } // OMP
 }

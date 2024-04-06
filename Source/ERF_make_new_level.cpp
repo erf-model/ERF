@@ -89,7 +89,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
         (solverChoice.advChoice.zero_yflux.size() > 0) ||
         (solverChoice.advChoice.zero_zflux.size() > 0))
     {
-        overset_imask[lev] = std::make_unique<iMultiFab>(ba,dm,1,0); 
+        overset_imask[lev] = std::make_unique<iMultiFab>(ba,dm,1,0);
         overset_imask[lev]->setVal(1); // == value is unknown (to be solved)
     }
 #endif
