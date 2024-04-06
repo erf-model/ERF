@@ -55,6 +55,7 @@ void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amr
                          const amrex::Array4<const amrex::Real>& w        ,
                          const amrex::Array4<const amrex::Real>& rho_u    , const amrex::Array4<const amrex::Real>& rho_v,
                          const amrex::Array4<const amrex::Real>& Omega    ,
+                         const amrex::Array4<const amrex::Real>& z_nd,
                          const amrex::Array4<const amrex::Real>& ax,
                          const amrex::Array4<const amrex::Real>& ay,
                          const amrex::Array4<const amrex::Real>& az,

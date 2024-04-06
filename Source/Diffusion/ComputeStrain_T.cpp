@@ -234,9 +234,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real GradWz = 0.25 * dxInv[2] * ( w(i  ,j  ,k+1) + w(i  ,j-1,k+1)
                                             - w(i  ,j  ,k-1) - w(i  ,j-1,k-1) );
 
-             Real met_h_eta,met_h_zeta;
-             met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
-             met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
+            Real met_h_eta,met_h_zeta;
+            met_h_eta  = Compute_h_eta_AtEdgeCenterI (i,j,k,dxInv,z_nd);
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterI(i,j,k,dxInv,z_nd);
 
             tau23(i,j,k) = 0.5 * ( (v(i, j, k) - v(i, j, k-1))*dxInv[2]/met_h_zeta
                                  + ( (-(8./3.) * w(i,j-1,k) + 3. * w(i,j  ,k) - (1./3.) * w(i,j+1,k))*dxInv[1]*mf_v(i,j,0)
@@ -358,8 +358,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real met_h_xi,met_h_eta,met_h_zeta;
             met_h_xi   = Compute_h_xi_AtEdgeCenterK  (i,j,k,dxInv,z_nd);
             met_h_eta  = Compute_h_eta_AtEdgeCenterK (i,j,k,dxInv,z_nd);
-            // met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
-            met_h_zeta = 0.5 * (detJ(i,j,k) + detJ(i,j,k-1));
+            met_h_zeta = Compute_h_zeta_AtEdgeCenterK(i,j,k,dxInv,z_nd);
 
             tau12(i,j,k) = 0.5 * ( (u(i, j, k)/mf_u(i,j,0) - u(i  , j-1, k)/mf_u(i,j-1,0))*dxInv[1]
                                  + (v(i, j, k)/mf_v(i,j,0) - v(i-1, j  , k)/mf_v(i-1,j,0))*dxInv[0]
