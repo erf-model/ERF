@@ -209,29 +209,30 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                                                 &vars_new[lev][Vars::yvel],
                                                                 &vars_new[lev][Vars::zvel]});
         } // lev
-
-        // We need ghost cells if computing vorticity
-        amrex::Interpolater* mapper = &cell_cons_interp;
-        if ( containerHasElement(plot_var_names, "vorticity_x")||
-             containerHasElement(plot_var_names, "vorticity_y") ||
-             containerHasElement(plot_var_names, "vorticity_z") ) {
-            for (int lev = 1; lev <= finest_level; ++lev) {
-                Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
-                Vector<Real> ftime    = {t_new[lev], t_new[lev]};
-                Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
-                Vector<Real> ctime    = {t_new[lev], t_new[lev]};
-
-                MultiFab mf_to_fill;
-                amrex::FillPatchTwoLevels(mf_cc_vel[lev], t_new[lev], cmf, ctime, fmf, ftime,
-                                          0, 0, AMREX_SPACEDIM, geom[lev-1], geom[lev],
-                                          null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
-                                          mapper, domain_bcs_type, 0);
-            } // lev
-
-            // Impose bc's at domain boundaries at all levels
-            FillBdyCCVels(mf_cc_vel);
-        } // if (vort)
     } // if (vel or vort)
+
+    // We need ghost cells if computing vorticity
+    if ( containerHasElement(plot_var_names, "vorticity_x")||
+         containerHasElement(plot_var_names, "vorticity_y") ||
+         containerHasElement(plot_var_names, "vorticity_z") )
+    {
+        amrex::Interpolater* mapper = &cell_cons_interp;
+        for (int lev = 1; lev <= finest_level; ++lev)
+        {
+            Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
+            Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+            Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
+            Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+
+            amrex::FillPatchTwoLevels(mf_cc_vel[lev], t_new[lev], cmf, ctime, fmf, ftime,
+                                      0, 0, AMREX_SPACEDIM, geom[lev-1], geom[lev],
+                                      null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
+                                      mapper, domain_bcs_type, 0);
+        } // lev
+
+        // Impose bc's at domain boundaries at all levels
+        FillBdyCCVels(mf_cc_vel);
+    } // if (vort)
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {

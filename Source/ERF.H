@@ -147,6 +147,9 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
+    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
+
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
@@ -413,9 +416,6 @@ private:
 
     // Compute a new MultiFab by copying from valid region and filling ghost cells -
     void FillPatchMoistVars (int lev, amrex::MultiFab& mf);
-
-    // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
-    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
     // Unlike FillPatch, FillIntermediatePatch will use the supplied multifabs instead of fine level data.

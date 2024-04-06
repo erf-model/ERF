@@ -536,7 +536,7 @@ ERF::FillCoarsePatch (int lev, Real time)
 void
 ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel)
 {
-    // Impose bc's at top and bottom boundaries if needed
+    // Impose bc's at domain boundaries
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         Box domain(Geom(lev).Domain());
