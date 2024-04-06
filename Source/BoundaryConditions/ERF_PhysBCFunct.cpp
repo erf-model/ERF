@@ -285,7 +285,6 @@ void ERFPhysBCFunct_w_no_terrain::operator() (MultiFab& mf, int /*icomp*/, int /
             //
             Box zbx = surroundingNodes(bx,2); zbx.grow(0,nghost[0]);
                                               zbx.grow(1,nghost[1]);
-            Array4<const Real> z_nd_arr;
 
             if (!m_use_real_bcs)
             {

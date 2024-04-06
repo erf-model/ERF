@@ -56,7 +56,7 @@ Problem::init_custom_pert(
 
         const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-        ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             // Set scalar = 0 everywhere
             state_pert(i, j, k, RhoScalar_comp) = 0.0;

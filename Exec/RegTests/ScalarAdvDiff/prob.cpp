@@ -157,7 +157,7 @@ Problem::init_custom_pert(
   });
 
   // Set the z-velocity
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  amrex::ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       z_vel_pert(i, j, k) = parms.w_0;
   });

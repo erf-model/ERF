@@ -216,10 +216,8 @@ ERF::erf_enforce_hse (int lev,
         Array4<Real> pres_arr = pres.array(mfi);
         Array4<Real>   pi_arr =   pi.array(mfi);
         Array4<Real> zcc_arr;
-        Array4<Real> znd_arr;
         if (l_use_terrain) {
            zcc_arr = z_cc->array(mfi);
-           znd_arr = z_nd->array(mfi);
         }
 
         const Real rdOcp = solverChoice.rdOcp;

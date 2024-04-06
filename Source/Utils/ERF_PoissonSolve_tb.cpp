@@ -9,7 +9,7 @@ using namespace amrex;
 
 /**
  * Project the single-level velocity field to enforce incompressibility with a
- * thin body 
+ * thin body
  */
 void ERF::project_velocities_tb (Vector<MultiFab>& vmf, const Real dt)
 {
