@@ -147,6 +147,9 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
+    void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
+
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 

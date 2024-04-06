@@ -1,11 +1,13 @@
 HyperCLaw-V1.1
-8
+10
 density
 x_velocity
 y_velocity
 z_velocity
 temp
 theta
+vorticity_x
+vorticity_y
 vorticity_z
 pressure
 3
