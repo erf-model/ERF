@@ -452,4 +452,4 @@ Test Location: `Tests/test_files/EkmanSpiral`_
 
 Problem Location: `Exec/RegTests/EkmanSpiral`_
 
-.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral_ideal
+.. _`Exec/RegTests/EkmanSpiral`: https://github.com/erf-model/ERF/tree/development/Exec/RegTests/EkmanSpiral
