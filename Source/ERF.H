@@ -128,6 +128,11 @@ public:
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
+    bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
+
+    // Project the velocities to be divergence-free with a thin body
+    void project_velocities_tb (              amrex::Vector<amrex::MultiFab >& vars, const amrex::Real dt);
+    void project_velocities_tb (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars, const amrex::Real dt);
 #endif
 
     // Init (NOT restart or regrid)
@@ -690,6 +695,17 @@ private:
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
 
+    // These are the masks for the thin immersed body
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> xflux_imask;
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> yflux_imask;
+    amrex::Vector<std::unique_ptr<amrex::iMultiFab>> zflux_imask;
+    //amrex::Vector<std::unique_ptr<amrex::iMultiFab>> overset_imask;
+
+    // These are the body forces that result from the thin immersed body
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_xforce;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_yforce;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> thin_zforce;
+
     int last_plot_file_step_1;
     int last_plot_file_step_2;
 
@@ -751,6 +767,7 @@ private:
     // Note that the order of variable names here must match the order in Derive.cpp
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
+                                                    "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",

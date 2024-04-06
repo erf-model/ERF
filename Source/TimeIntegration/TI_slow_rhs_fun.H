@@ -123,7 +123,9 @@
                              EBFactory(level),
 #endif
                              fr_as_crse, fr_as_fine,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -215,7 +217,9 @@
                              EBFactory(level),
 #endif
                              fr_as_crse, fr_as_fine,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -387,9 +391,11 @@
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], detJ_cc[level], p0,
+                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                         xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                         thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 
 #ifdef ERF_USE_NETCDF

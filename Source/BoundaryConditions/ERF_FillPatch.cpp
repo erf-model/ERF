@@ -266,6 +266,17 @@ ERF::FillIntermediatePatch (int lev, Real time,
     AMREX_ALWAYS_ASSERT(mfs_mom.size() == IntVars::NumTypes);
     AMREX_ALWAYS_ASSERT(mfs_vel.size() == Vars::NumTypes);
 
+    // Enforce no penetration for thin immersed body
+    if (xflux_imask[lev]) {
+        ApplyMask(*mfs_mom[IntVars::xmom], *xflux_imask[lev]);
+    }
+    if (yflux_imask[lev]) {
+        ApplyMask(*mfs_mom[IntVars::ymom], *yflux_imask[lev]);
+    }
+    if (zflux_imask[lev]) {
+        ApplyMask(*mfs_mom[IntVars::zmom], *zflux_imask[lev]);
+    }
+
     // We always come in to this call with updated momenta but we need to create updated velocity
     //    in order to impose the rest of the bc's
     if (!cons_only) {

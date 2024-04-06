@@ -73,7 +73,13 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::Real* dptr_u_geos,
                       const amrex::Real* dptr_v_geos,
                       const amrex::Real* dptr_wbar_sub,
-                      const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                      const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                      std::unique_ptr<amrex::iMultiFab>& xflux_imask_lev,
+                      std::unique_ptr<amrex::iMultiFab>& yflux_imask_lev,
+                      std::unique_ptr<amrex::iMultiFab>& zflux_imask_lev,
+                      std::unique_ptr<amrex::MultiFab>& thin_xforce_lev,
+                      std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
+                      std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
@@ -166,6 +172,9 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                        const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                       std::unique_ptr<amrex::MultiFab>& ax,
+                       std::unique_ptr<amrex::MultiFab>& ay,
+                       std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* p0,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
@@ -174,7 +183,13 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::Real* dptr_u_geos,
                        const amrex::Real* dptr_v_geos,
                        const amrex::Real* dptr_wbar_sub,
-                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                       std::unique_ptr<amrex::iMultiFab>& xflux_imask_lev,
+                       std::unique_ptr<amrex::iMultiFab>& yflux_imask_lev,
+                       std::unique_ptr<amrex::iMultiFab>& zflux_imask_lev,
+                       std::unique_ptr<amrex::MultiFab>& thin_xforce_lev,
+                       std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
+                       std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 #endif
 
 void ApplySpongeZoneBCs (const SpongeChoice& spongeChoice,

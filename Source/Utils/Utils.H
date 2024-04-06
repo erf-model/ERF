@@ -330,4 +330,51 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         rhs_arr(i,j,k,n+icomp) += Temp;
     });
 }
+
+/*
+ * Effectively a Multiply for a MultiFab and an iMultiFab mask
+ */
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+ApplyMask (amrex::MultiFab& dst,
+           const amrex::iMultiFab& imask,
+           const int nghost = 0)
+{
+    for (amrex::MFIter mfi(dst,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.growntilebox(nghost);
+        if (bx.ok())
+        {
+            auto        dstFab = dst.array(mfi);
+            const auto maskFab = imask.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dstFab(i,j,k) *= maskFab(i,j,k);
+            });
+        }
+    }
+}
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+ApplyInvertedMask (amrex::MultiFab& dst,
+                   const amrex::iMultiFab& imask,
+                   const int nghost = 0)
+{
+    for (amrex::MFIter mfi(dst,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.growntilebox(nghost);
+        if (bx.ok())
+        {
+            auto        dstFab = dst.array(mfi);
+            const auto maskFab = imask.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dstFab(i,j,k) *= (1-maskFab(i,j,k));
+            });
+        }
+    }
+}
+
 #endif

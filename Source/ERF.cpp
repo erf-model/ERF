@@ -244,6 +244,15 @@ ERF::ERF ()
     mapfac_u.resize(nlevs_max);
     mapfac_v.resize(nlevs_max);
 
+    // Thin immersed body
+    xflux_imask.resize(nlevs_max);
+    yflux_imask.resize(nlevs_max);
+    zflux_imask.resize(nlevs_max);
+    //overset_imask.resize(nlevs_max);
+    thin_xforce.resize(nlevs_max);
+    thin_yforce.resize(nlevs_max);
+    thin_zforce.resize(nlevs_max);
+
     // Base state
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
@@ -628,6 +637,17 @@ ERF::InitData ()
 
         if (solverChoice.coupling_type == CouplingType::TwoWay) {
             AverageDown();
+        }
+
+        if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
+            (solverChoice.advChoice.zero_yflux.size() > 0) ||
+            (solverChoice.advChoice.zero_zflux.size() > 0))
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+                "Thin immersed body with refinement not currently supported.");
+            if (solverChoice.use_terrain == 1) {
+                amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
+            }
         }
 
     } else { // Restart from a checkpoint

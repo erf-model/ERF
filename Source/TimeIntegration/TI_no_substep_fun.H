@@ -4,7 +4,8 @@
     auto no_substep_fun = [&](Vector<MultiFab>& S_sum,
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
-                              const Real time_for_fp, const Real slow_dt)
+                              const Real time_for_fp, const Real slow_dt,
+                              const int nrk)
     {
         BL_PROFILE("no_substep_fun");
         int n_data = IntVars::NumTypes;
@@ -131,7 +132,14 @@
 
 #ifdef ERF_USE_POISSON_SOLVE
         if (solverChoice.incompressible) {
-            project_velocities(S_sum);
+            bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
+            if (solverChoice.project_every_stage || (nrk==1)) {
+                if (have_tb) {
+                    project_velocities_tb(S_sum, slow_dt);
+                } else {
+                    project_velocities(S_sum);
+                }
+            }
         }
 #endif
     };

@@ -21,4 +21,5 @@ CEXE_headers += DirectionSelector.H
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp
+CEXE_sources += ERF_PoissonSolve_tb.cpp
 endif
