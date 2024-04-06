@@ -2,9 +2,6 @@
 COMP = gnu
 PRECISION = DOUBLE
 
-TEST = TRUE
-USE_ASSERTION = TRUE
-
 # Profiling
 PROFILE       = FALSE
 TINY_PROFILE  = FALSE
@@ -24,12 +21,13 @@ USE_SYCL = FALSE
 # Debugging
 DEBUG = FALSE
 
-USE_NETCDF  = FALSE
+TEST = TRUE
+USE_ASSERTION = TRUE
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 
 ERF_HOME := ../../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/EkmanSpiral_input_sounding
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/RegTests/EkmanSpiral
 include $(ERF_HOME)/Exec/Make.ERF

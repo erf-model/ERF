@@ -41,17 +41,17 @@ Problem::init_custom_pert(
     Array4<Real const> const& /*mf_v*/,
     const SolverChoice& sc)
 {
+    //
+    // NOTE: this routine is only called when doing custom initialization!
+    //
+    // In the case of initializng from an input sounding or from a wrfinput file,
+    // this routine will not be called.
+    //
+
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        // Geometry
-        //const Real* prob_lo = geomdata.ProbLo();
-        //const auto dx = geomdata.CellSize();
-        //const Real x = prob_lo[0] + (i + 0.5) * dx[0];
-        //const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        //const Real z = prob_lo[2] + (k + 0.5) * dx[2];
-
         // Set scalar = 0 everywhere
         state_pert(i, j, k, RhoScalar_comp) = 0.0;
 
@@ -79,7 +79,6 @@ Problem::init_custom_pert(
     const Real u_0 = abl_geo_wind[0];
 
     const Real DE = std::sqrt(2.0 * Az / coriolis_factor);
-    //amrex::Print() << "Ekman depth = " << DE << " m" << std::endl;
     const Real a = 1.0 / DE;
 
     // Set the x-velocity
