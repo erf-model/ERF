@@ -188,21 +188,20 @@ void make_mom_sources (int /*level*/,
         // Add CORIOLIS forcing (this assumes east is +x, north is +y)
         // *****************************************************************************
         if (use_coriolis) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            ParallelFor(tbx, tby, tbz,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
                 Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
                 xmom_src_arr(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
-            });
+            },
 
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
                 ymom_src_arr(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
-            });
+            },
 
-            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
                 zmom_src_arr(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
             });
