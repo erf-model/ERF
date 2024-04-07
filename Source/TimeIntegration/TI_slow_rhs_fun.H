@@ -1,4 +1,4 @@
-#include "prob_common.H"
+#include "Src_headers.H"
 
 /**
  *  Wrapper for calling the routine that creates the slow RHS
@@ -38,7 +38,7 @@
         }
 
         // Construct the source terms for the cell-centered (conserved) variables
-        make_sources(level, nrk, slow_dt, S_data, S_prim, source,
+        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level],
 #endif
@@ -107,12 +107,19 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(S_data, S_prim, buoyancy, fine_geom,
-                          solverChoice, r0_new, micro->Get_Qstate_Size());
+            int n_qstate = micro->Get_Qstate_Size();
+            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                             xvel_new, yvel_new,
+                             xmom_src, ymom_src, zmom_src,
+                             r0_new, fine_geom, solverChoice,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             dptr_rhotheta_src, dptr_rhoqt_src,
+                             dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy,
+                             z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
@@ -201,12 +208,19 @@
 
         } else { // If not moving_terrain
 
-            make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
+            int n_qstate = micro->Get_Qstate_Size();
+            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                             xvel_new, yvel_new,
+                             xmom_src, ymom_src, zmom_src,
+                             r0, fine_geom, solverChoice,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             dptr_rhotheta_src, dptr_rhoqt_src,
+                             dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                             n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy,
+                             z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                              Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                              Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
@@ -319,7 +333,7 @@
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, SmnSmn, eddyDiffs,
+                              cc_src, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
@@ -337,7 +351,7 @@
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, SmnSmn, eddyDiffs,
+                              cc_src, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
                               fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                               z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
@@ -370,11 +384,7 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
-        // If not moving_terrain
-        make_buoyancy(S_data, S_prim, buoyancy,
-                      fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
-
-        make_sources(level, nrk, slow_dt, S_data, S_prim, source,
+        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level],
 #endif
@@ -383,17 +393,26 @@
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
 
+        int n_qstate = micro->Get_Qstate_Size();
+        make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                         xvel_new, yvel_new,
+                         xmom_src, ymom_src, zmom_src,
+                         r0, fine_geom, solverChoice,
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                         dptr_rhotheta_src, dptr_rhoqt_src,
+                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
+                         n_qstate);
+
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
-                         z_t_rk[level], Omega, source, buoyancy,
+                         Omega, cc_src, xmom_src, ymom_src, zmom_src,
                          Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                          xflux_imask[level], yflux_imask[level], zflux_imask[level],
                          thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 

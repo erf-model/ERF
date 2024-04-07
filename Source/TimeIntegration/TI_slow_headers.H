@@ -11,7 +11,6 @@
 #include <Advection.H>
 #include <Diffusion.H>
 #include <EddyViscosity.H>
-#include <NumericalDiffusion.H>
 #include <PlaneAverage.H>
 #include <TerrainMetrics.H>
 #include <TileNoZ.H>
@@ -36,8 +35,10 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       const amrex::MultiFab& zvel,
                       std::unique_ptr<amrex::MultiFab>& z_t,
                             amrex::MultiFab& Omega,
-                      const amrex::MultiFab& source,
-                      const amrex::MultiFab& buoyancy,
+                      const amrex::MultiFab& cc_src,
+                      const amrex::MultiFab& xmom_src,
+                      const amrex::MultiFab& ymom_src,
+                      const amrex::MultiFab& zmom_src,
                             amrex::MultiFab* Tau11,
                             amrex::MultiFab* Tau22,
                             amrex::MultiFab* Tau33,
@@ -149,10 +150,11 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const amrex::MultiFab& xvel,
                        const amrex::MultiFab& yvel,
                        const amrex::MultiFab& zvel,
-                       std::unique_ptr<amrex::MultiFab>& z_t,
                        amrex::MultiFab& Omega,
-                       const amrex::MultiFab& source,
-                       const amrex::MultiFab& buoyancy,
+                       const amrex::MultiFab& cc_src,
+                       const amrex::MultiFab& xmom_src,
+                       const amrex::MultiFab& ymom_src,
+                       const amrex::MultiFab& zmom_src,
                        amrex::MultiFab* Tau11,
                        amrex::MultiFab* Tau22,
                        amrex::MultiFab* Tau33,
@@ -180,10 +182,6 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                       const amrex::Real* dptr_u_geos,
-                       const amrex::Real* dptr_v_geos,
-                       const amrex::Real* dptr_wbar_sub,
-                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
                        std::unique_ptr<amrex::iMultiFab>& xflux_imask_lev,
                        std::unique_ptr<amrex::iMultiFab>& yflux_imask_lev,
                        std::unique_ptr<amrex::iMultiFab>& zflux_imask_lev,
@@ -191,19 +189,4 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
                        std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 #endif
-
-void ApplySpongeZoneBCs (const SpongeChoice& spongeChoice,
-                         const amrex::Geometry geom,
-                         const amrex::Box& tbx,
-                         const amrex::Box& tby,
-                         const amrex::Box& tbz,
-                         const amrex::Array4<amrex::Real>& rho_u_rhs,
-                         const amrex::Array4<amrex::Real>& rho_v_rhs,
-                         const amrex::Array4<amrex::Real>& rho_w_rhs,
-                         const amrex::Array4<const amrex::Real>& rho_u,
-                         const amrex::Array4<const amrex::Real>& rho_v,
-                         const amrex::Array4<const amrex::Real>& rho_w,
-                         const amrex::Box& bx,
-                         const amrex::Array4<amrex::Real>& cell_rhs,
-                         const amrex::Array4<const amrex::Real>& cell_data);
 #endif

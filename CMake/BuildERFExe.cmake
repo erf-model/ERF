@@ -134,7 +134,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
        ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
@@ -152,6 +151,12 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/IO/console_io.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
+       ${SRC_DIR}/SourceTerms/NumericalDiffusion.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -159,12 +164,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_advance_microphysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_lsm.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_sources.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_moist_set_rhs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
@@ -221,6 +222,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Initialization)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SourceTerms)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})

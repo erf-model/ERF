@@ -27,8 +27,10 @@ using namespace amrex;
  * @param[in]  qv   water vapor
  * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
- * @param[in] source source terms for conserved variables
- * @param[in] buoyancy buoyancy source term
+ * @param[in] cc_src source terms for conserved variables
+ * @param[in] xmom_src source terms for x-momentum
+ * @param[in] ymom_src source terms for y-momentum
+ * @param[in] zmom_src source terms for z-momentum
  * @param[in] Tau11 tau_11 component of stress tensor
  * @param[in] Tau22 tau_22 component of stress tensor
  * @param[in] Tau33 tau_33 component of stress tensor
@@ -82,8 +84,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        const MultiFab& zvel,
                        std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
-                       const MultiFab& source,
-                       const MultiFab& buoyancy,
+                       const MultiFab& cc_src,
+                       const MultiFab& xmom_src,
+                       const MultiFab& ymom_src,
+                       const MultiFab& zmom_src,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -149,7 +153,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
 
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
@@ -184,6 +187,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
+#if 0
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
@@ -232,6 +236,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             dptr_v_plane(k-v_offset) = dptr_v[k];
         });
     }
+#endif
 
     // *****************************************************************************
     // Pre-computed quantities
@@ -610,7 +615,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
-        const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
+
+        const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
+        const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
+        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
 
         Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
@@ -823,7 +831,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
-        const Array4<Real const>& source_arr   = source.const_array(mfi);
+        const Array4<Real const>& source_arr   = cc_src.const_array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             cell_rhs(i,j,k,Rho_comp)      += source_arr(i,j,k,Rho_comp);
@@ -887,56 +895,38 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
-        if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_w, rho_w_rhs, mf_u, mf_v, false, false);
-        }
-
         auto abl_pressure_grad    = solverChoice.abl_pressure_grad;
-        auto abl_geo_forcing      = solverChoice.abl_geo_forcing;
-        auto use_coriolis         = solverChoice.use_coriolis;
-        auto coriolis_factor      = solverChoice.coriolis_factor;
-        auto cosphi               = solverChoice.cosphi;
-        auto sinphi               = solverChoice.sinphi;
-        auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
 
-        {
-        BL_PROFILE("slow_rhs_pre_xmom");
-        auto rayleigh_damp_U  = solverChoice.rayleigh_damp_U;
-        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
-        // *****************************************************************************
-        // TERRAIN VERSION
-        // *****************************************************************************
-        if (l_use_terrain) {
-          ParallelFor(tbx,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // x-momentum equation
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // x-momentum equation
 
             Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-            Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
-            Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
 
             //Note : mx/my == 1, so no map factor needed here
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-            Real gp_zeta_on_iface;
-            if (k==0) {
-                gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                  - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
-            } else if (k==domhi_z) {
-                gp_zeta_on_iface = 0.5 * dxInv[2] * (
-                                                    pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
-                                                  - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
-            } else {
-                gp_zeta_on_iface = 0.25 * dxInv[2] * (
-                                                     pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
-                                                   - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+            Real gpx = gp_xi;
+
+            if (l_use_terrain) {
+                Real met_h_xi   = Compute_h_xi_AtIface  (i, j, k, dxInv, z_nd);
+                Real met_h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
+
+                Real gp_zeta_on_iface;
+                if (k==0) {
+                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                      - pp_arr(i-1,j,k  ) - pp_arr(i,j,k  ) );
+                } else if (k==domhi_z) {
+                    gp_zeta_on_iface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i-1,j,k  ) + pp_arr(i,j,k  )
+                                                      - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                } else {
+                    gp_zeta_on_iface = 0.25 * dxInv[2] * (
+                                                         pp_arr(i-1,j,k+1) + pp_arr(i,j,k+1)
+                                                       - pp_arr(i-1,j,k-1) - pp_arr(i,j,k-1) );
+                }
+                gpx -= (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
             }
-            Real gpx = gp_xi - (met_h_xi/ met_h_zeta) * gp_zeta_on_iface;
+
             gpx *= mf_u(i,j,0);
 
             Real q = 0.0;
@@ -946,25 +936,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
 
             rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                  + rho_on_u_face * abl_geo_forcing[0];
-
-            // Add geostrophic wind
-            if (geostrophic_wind) {
-                rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
-            }
-
-            // Add Coriolis forcing (that assumes east is +x, north is +y)
-            if (use_coriolis) {
-                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
-            }
-
-            // Add Rayleigh damping
-            if (use_rayleigh_damping && rayleigh_damp_U) {
-                Real uu = rho_u(i,j,k) / rho_on_u_face;
-                rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
-            }
+                                  + xmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
@@ -972,157 +944,52 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         });
 
-        } else {
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-          ParallelFor(tbx,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // x-momentum equation
+        ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // y-momentum equation
 
-              Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-              Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
-              gpx *= mf_u(i,j,0);
+            Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
-              Real q = 0.0;
-              if (use_moisture) {
-                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
-                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
-              }
+            //Note : mx/my == 1, so no map factor needed here
+            Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+            Real gpy = gp_eta;
 
-              rho_u_rhs(i, j, k) += (-gpx - abl_pressure_grad[0]) / (1.0 + q)
-                                    + rho_on_u_face * abl_geo_forcing[0];
+            if (l_use_terrain) {
+                Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
+                Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                Real gp_zeta_on_jface;
+                if(k==0) {
+                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                    pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                  - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
+                } else if (k==domhi_z) {
+                    gp_zeta_on_jface = 0.5 * dxInv[2] * (
+                                                        pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
+                                                      - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                } else {
+                    gp_zeta_on_jface = 0.25 * dxInv[2] * (
+                                                         pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
+                                                       - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
+                }
+                gpy -= (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
+            } // l_use_terrain
 
-              // Add geostrophic wind
-              if (geostrophic_wind) {
-                    rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
-              }
+            gpy *= mf_v(i,j,0);
 
-              // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis) {
-                  Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                  Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                  rho_u_rhs(i, j, k) += coriolis_factor * (rho_v_loc * sinphi - rho_w_loc * cosphi);
-              }
+            Real q = 0.0;
+            if (use_moisture) {
+                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
+                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
+            }
 
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_U) {
-                  Real uu = rho_u(i,j,k) / cell_data(i,j,k,Rho_comp);
-                  rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
-              }
-          });
-        } // no terrain
-        } // end profile
+            rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q) + ymom_src_arr(i,j,k);
 
-        {
-        BL_PROFILE("slow_rhs_pre_ymom");
-        auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
-        auto geostrophic_wind = solverChoice.custom_geostrophic_profile;
-        // *****************************************************************************
-        // TERRAIN VERSION
-        // *****************************************************************************
-        if (l_use_terrain) {
-          ParallelFor(tby,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // y-momentum equation
+            if (l_moving_terrain) {
+                Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                rho_v_rhs(i, j, k) *= h_zeta;
+            }
+        });
 
-              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-              Real met_h_eta  = Compute_h_eta_AtJface (i, j, k, dxInv, z_nd);
-              Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-
-              //Note : mx/my == 1, so no map factor needed here
-              Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-              Real gp_zeta_on_jface;
-              if(k==0) {
-                  gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                      pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                    - pp_arr(i,j,k  ) - pp_arr(i,j-1,k  ) );
-              } else if (k==domhi_z) {
-                  gp_zeta_on_jface = 0.5 * dxInv[2] * (
-                                                      pp_arr(i,j,k  ) + pp_arr(i,j-1,k  )
-                                                    - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
-              } else {
-                  gp_zeta_on_jface = 0.25 * dxInv[2] * (
-                                                       pp_arr(i,j,k+1) + pp_arr(i,j-1,k+1)
-                                                     - pp_arr(i,j,k-1) - pp_arr(i,j-1,k-1) );
-              }
-
-              Real gpy = gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
-              gpy *= mf_v(i,j,0);
-
-              Real q = 0.0;
-              if (use_moisture) {
-                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
-              }
-
-              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                    + rho_on_v_face * abl_geo_forcing[1];
-
-              // Add geostrophic wind
-              if (geostrophic_wind) {
-                   rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
-              }
-
-              // Add Coriolis forcing (that assumes east is +x, north is +y) if (use_coriolis)
-              {
-                  Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                  rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
-              }
-
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V) {
-                  Real vv = rho_v(i,j,k) / rho_on_v_face;
-                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
-              }
-
-              if (l_moving_terrain) {
-                  Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                  rho_v_rhs(i, j, k) *= h_zeta;
-              }
-          });
-
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-        } else {
-          ParallelFor(tby,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // y-momentum equation
-
-              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-              Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
-              gpy *= mf_v(i,j,0);
-
-              Real q = 0.0;
-              if (use_moisture) {
-                  q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
-                             +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
-              }
-
-              rho_v_rhs(i, j, k) += (-gpy - abl_pressure_grad[1]) / (1.0_rt + q)
-                                    + rho_on_v_face * abl_geo_forcing[1];
-
-              // Add geostrophic wind
-              if (geostrophic_wind) {
-                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
-              }
-
-              // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (use_coriolis) {
-                  Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                  rho_v_rhs(i, j, k) += -coriolis_factor * rho_u_loc * sinphi;
-              }
-
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && rayleigh_damp_V) {
-                  Real vv = rho_v(i,j,k) / rho_on_v_face;
-                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
-              }
-          });
-        } // no terrain
-        } // end profile
-
+#if 0
         // Add custom subsidence source terms
         if (solverChoice.custom_w_subsidence) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -1136,6 +1003,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
             });
         }
+#endif
 
         // *****************************************************************************
         // Zero out source terms for x- and y- momenta if at walls or inflow
@@ -1176,7 +1044,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Zero out source term for z-momentum at top and bottom of grid
         // *****************************************************************************
-        {
         Box b2d = tbz;
         b2d.setSmall(2,lo_z_face);
         b2d.setBig(2,lo_z_face);
@@ -1188,81 +1055,24 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_w_rhs(i,j,lo_z_face) = 0.;
             rho_w_rhs(i,j,hi_z_face) = 0.;
         });
-        } // end profile
 
-        {
-        BL_PROFILE("slow_rhs_pre_zmom");
-        auto rayleigh_damp_W      = solverChoice.rayleigh_damp_W;
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
 
-        // *****************************************************************************
-        // TERRAIN VERSION
-        // *****************************************************************************
-        if (l_use_terrain) {
-          ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
+            Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+            Real met_h_zeta = (l_use_terrain) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
+            Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real met_h_zeta = Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd);
-                Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
+            Real q = 0.0;
+            if (use_moisture) {
+                q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
+                           +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
+            }
+            rho_w_rhs(i, j, k) += (zmom_src_arr(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q);
 
-                Real q = 0.0;
-                if (use_moisture) {
-                    q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                               +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
-                }
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
-                                     + rho_on_w_face * abl_geo_forcing[2];
-
-                // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis) {
-                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
-                }
-
-                // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W) {
-                    Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
-                }
-
-                if (l_use_terrain && l_moving_terrain) {
-                     rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
-                }
-          });
-
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-        } else {
-          ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // z-momentum equation
-
-                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) );
-
-                Real q = 0.0;
-                if (use_moisture) {
-                    q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
-                               +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
-                }
-                rho_w_rhs(i, j, k) += (buoyancy_fab(i,j,k) - gpz - abl_pressure_grad[2]) / (1.0_rt + q)
-                                     + rho_on_w_face * abl_geo_forcing[2];
-
-                // Add Coriolis forcing (that assumes east is +x, north is +y)
-                if (use_coriolis) {
-                    Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                    rho_w_rhs(i, j, k) += coriolis_factor * rho_u_loc * cosphi;
-                }
-
-                // Add Rayleigh damping
-                if (use_rayleigh_damping && rayleigh_damp_W) {
-                    Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
-                }
+            if (l_use_terrain && l_moving_terrain) {
+                 rho_w_rhs(i, j, k) *= 0.5 * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
+            }
         });
-        } // no terrain
-            ApplySpongeZoneBCs(solverChoice.spongeChoice, geom, tbx, tby, tbz, rho_u_rhs, rho_v_rhs, rho_w_rhs, rho_u, rho_v,
-                               rho_w, bx, cell_rhs, cell_data);
-        } // end profile
 
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");

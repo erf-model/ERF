@@ -1,5 +1,4 @@
 #include <ERF.H>
-#include <TileNoZ.H>
 #include <Utils.H>
 
 #ifdef ERF_USE_WINDFARM
@@ -82,16 +81,19 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 
     int nvars = S_old.nComp();
 
-    // Place-holder for source array -- for now just set to 0
-    MultiFab source(ba,dm,nvars,1);
-    source.setVal(0.0);
+    // Source array for conserved cell-centered quantities -- this will be filled
+    //     in the call to make_sources in TI_slow_rhs_fun.H
+    MultiFab cc_source(ba,dm,nvars,1); cc_source.setVal(0.0);
+
+    // Source arrays for momenta -- these will be filled
+    //     in the call to make_mom_sources in TI_slow_rhs_fun.H
+    MultiFab xmom_source(ba,dm,nvars,1); xmom_source.setVal(0.0);
+    MultiFab ymom_source(ba,dm,nvars,1); ymom_source.setVal(0.0);
+    MultiFab zmom_source(ba,dm,nvars,1); zmom_source.setVal(0.0);
 
     // We don't need to call FillPatch on cons_mf because we have fillpatch'ed S_old above
     MultiFab cons_mf(ba,dm,nvars,S_old.nGrowVect());
     MultiFab::Copy(cons_mf,S_old,0,0,S_old.nComp(),S_old.nGrowVect());
-
-    // Define Multifab for buoyancy term -- only added to vertical velocity
-    MultiFab buoyancy(W_old.boxArray(),W_old.DistributionMap(),1,1);
 
     amrex::Vector<MultiFab> state_old;
     amrex::Vector<MultiFab> state_new;
@@ -119,7 +121,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     advance_dycore(lev, state_old, state_new,
                    U_old, V_old, W_old,
                    U_new, V_new, W_new,
-                   source, buoyancy,
+                   cc_source, xmom_source, ymom_source, zmom_source,
                    Geom(lev), dt_lev, time);
 
     // **************************************************************************************

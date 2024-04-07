@@ -4,8 +4,9 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
+#include <NumericalDiffusion.H>
+#include <Src_headers.H>
 #include <TI_slow_headers.H>
-#include <EOS.H>
 
 using namespace amrex;
 
@@ -24,10 +25,8 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
- * @param[in] dptr_u_geos  custom geostrophic wind profile
- * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
- * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
+ * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
  */
 
 void make_sources (int level,
@@ -263,6 +262,11 @@ void make_sources (int level,
                                    cell_data, cell_src, mf_u, mf_v, false, false);
             }
         }
+
+        // *************************************************************************************
+        // Add sponging
+        // *************************************************************************************
+        ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
 
     } // mfi
     } // OMP

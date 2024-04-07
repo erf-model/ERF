@@ -1,18 +1,13 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
-#include <AMReX_BCRec.H>
 #include <AMReX_GpuContainers.H>
-#include <ERF_Constants.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <EOS.H>
-#include <ERF.H>
 
-#include <TerrainMetrics.H>
+#include <ERF_Constants.H>
+#include <EOS.H>
 #include <IndexDefines.H>
 #include <PlaneAverage.H>
+#include <Src_headers.H>
+//#include <TerrainMetrics.H>
 
 using namespace amrex;
 

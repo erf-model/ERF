@@ -5,8 +5,8 @@
 #include <EOS.H>
 #include <ERF.H>
 #include <TerrainMetrics.H>
-#include <TI_headers.H>
-#include <PlaneAverage.H>
+//#include <TI_headers.H>
+//#include <PlaneAverage.H>
 #include <Diffusion.H>
 #include <TileNoZ.H>
 #include <Utils.H>
@@ -26,8 +26,10 @@ using namespace amrex;
  * @param[in] xvel_new new-time x-component of velocity
  * @param[in] yvel_new new-time y-component of velocity
  * @param[in] zvel_new new-time z-component of velocity
- * @param[in] source source term for conserved variables
- * @param[in] buoyancy buoyancy source term for z-component of momentum
+ * @param[in] cc_src source term for conserved variables
+ * @param[in] xmom_src source term for x-momenta
+ * @param[in] ymom_src source term for y-momenta
+ * @param[in] zmom_src source term for z-momenta
  * @param[in] fine_geom container for geometry information at current level
  * @param[in] dt_advance time step for this time advance
  * @param[in] old_time old time for this time advance
@@ -38,7 +40,8 @@ void ERF::advance_dycore(int level,
                          Vector<MultiFab>& state_new,
                          MultiFab& xvel_old, MultiFab& yvel_old, MultiFab& zvel_old,
                          MultiFab& xvel_new, MultiFab& yvel_new, MultiFab& zvel_new,
-                         MultiFab& source, MultiFab& buoyancy,
+                         MultiFab&   cc_src, MultiFab& xmom_src,
+                         MultiFab& ymom_src, MultiFab& zmom_src,
                          const Geometry fine_geom,
                          const Real dt_advance, const Real old_time)
 {
