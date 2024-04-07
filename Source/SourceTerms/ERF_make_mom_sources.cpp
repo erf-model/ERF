@@ -37,8 +37,7 @@ using namespace amrex;
  */
 
 void make_mom_sources (int /*level*/,
-                       int /*nrk*/,
-                       Real dt,
+                       int /*nrk*/, Real dt,
                        Vector<MultiFab>& S_data,
                        const  MultiFab & S_prim,
                        const  MultiFab & xvel,

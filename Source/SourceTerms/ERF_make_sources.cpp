@@ -30,8 +30,7 @@ using namespace amrex;
  */
 
 void make_sources (int level,
-                   int /*nrk*/,
-                   Real dt,
+                   int /*nrk*/, Real dt,
                    Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -49,7 +48,9 @@ void make_sources (int level,
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
+    // *****************************************************************************
     // Initialize source to zero since we re-compute it ever RK stage
+    // *****************************************************************************
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -121,12 +122,17 @@ void make_sources (int level,
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
+    //    1. user-defined source terms for (rho theta) and (rho q_t)
     //    1. radiation           for (rho theta)
     //    2. Rayleigh damping    for (rho theta)
     //    3. custom forcing      for (rho theta) and (rho Q1)
     //    4. custom subsidence   for (rho theta) and (rho Q1)
     //    5. numerical diffusion for (rho theta)
     // *****************************************************************************
+
+    // ***********************************************************************************************
+    // Add remaining source terms
+    // ***********************************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif

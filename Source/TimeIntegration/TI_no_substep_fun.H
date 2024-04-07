@@ -5,7 +5,7 @@
                               Vector<MultiFab>& S_old,
                               Vector<MultiFab>& F_slow,
                               const Real time_for_fp, const Real slow_dt,
-                              const int nrk)
+                              const int /*nrk*/)
     {
         BL_PROFILE("no_substep_fun");
         int n_data = IntVars::NumTypes;

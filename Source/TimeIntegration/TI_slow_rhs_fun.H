@@ -130,7 +130,6 @@
                              EBFactory(level),
 #endif
                              fr_as_crse, fr_as_fine,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                              xflux_imask[level], yflux_imask[level], zflux_imask[level],
                              thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
@@ -231,7 +230,6 @@
                              EBFactory(level),
 #endif
                              fr_as_crse, fr_as_fine,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
                              xflux_imask[level], yflux_imask[level], zflux_imask[level],
                              thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }

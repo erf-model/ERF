@@ -60,10 +60,6 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
- * @param[in] dptr_u_geos  custom geostrophic wind profile
- * @param[in] dptr_v_geos  custom geostrophic wind profile
- * @param[in] dptr_wbar_sub  subsidence source term
- * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  * @param[in] xflux_imask_lev thin-body mask on x-faces
  * @param[in] yflux_imask_lev thin-body mask on y-faces
  * @param[in] zflux_imask_lev thin-body mask on z-faces
@@ -113,10 +109,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 #endif
                        YAFluxRegister* fr_as_crse,
                        YAFluxRegister* fr_as_fine,
-                       const Real* dptr_u_geos,
-                       const Real* dptr_v_geos,
-                       const Real* dptr_wbar_sub,
-                       const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        std::unique_ptr<iMultiFab>& xflux_imask_lev,
                        std::unique_ptr<iMultiFab>& yflux_imask_lev,
                        std::unique_ptr<iMultiFab>& zflux_imask_lev,
@@ -172,11 +164,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
 
-    Real*      tau = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
-    Real*     ubar = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
-    Real*     vbar = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
-    Real*     wbar = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
-
     const bool l_have_thin_xforce = (thin_xforce_lev != nullptr);
     const bool l_have_thin_yforce = (thin_yforce_lev != nullptr);
     const bool l_have_thin_zforce = (thin_zforce_lev != nullptr);
@@ -186,57 +173,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
-
-#if 0
-    // *****************************************************************************
-    // Planar averages for subsidence terms
-    // *****************************************************************************
-    Table1D<Real> dptr_u_plane;
-    Table1D<Real> dptr_v_plane;
-    TableData<Real, 1> u_plane_tab, v_plane_tab;
-    if (dptr_wbar_sub) {
-        PlaneAverage u_ave(&xvel  , geom, solverChoice.ave_plane, true);
-        PlaneAverage v_ave(&yvel  , geom, solverChoice.ave_plane, true);
-
-        u_ave.compute_averages(ZDir(), u_ave.field());
-        v_ave.compute_averages(ZDir(), v_ave.field());
-
-        int u_ncell = u_ave.ncell_line();
-        int v_ncell = v_ave.ncell_line();
-        Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
-        Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
-
-        u_ave.line_average(0             , u_plane_h);
-        v_ave.line_average(0             , v_plane_h);
-
-        Gpu::copyAsync(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
-        Gpu::copyAsync(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
-
-        Real* dptr_u = u_plane_d.data();
-        Real* dptr_v = v_plane_d.data();
-
-        IntVect ng_u = xvel.nGrowVect();
-        IntVect ng_v = yvel.nGrowVect();
-        Box udomain = domain; udomain.grow(2,ng_u[2]);
-        Box vdomain = domain; vdomain.grow(2,ng_v[2]);
-        u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
-        v_plane_tab.resize({vdomain.smallEnd(2)}, {vdomain.bigEnd(2)});
-
-        int u_offset = ng_u[2];
-        dptr_u_plane = u_plane_tab.table();
-        ParallelFor(u_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_u_plane(k-u_offset) = dptr_u[k];
-        });
-
-        int v_offset = ng_v[2];
-        dptr_v_plane = v_plane_tab.table();
-        ParallelFor(v_ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-        {
-            dptr_v_plane(k-v_offset) = dptr_v[k];
-        });
-    }
-#endif
 
     // *****************************************************************************
     // Pre-computed quantities
@@ -900,8 +836,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
-            Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-
             //Note : mx/my == 1, so no map factor needed here
             Real gp_xi = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
             Real gpx = gp_xi;
@@ -947,8 +881,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
-            Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-
             //Note : mx/my == 1, so no map factor needed here
             Real gp_eta = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
             Real gpy = gp_eta;
@@ -988,22 +920,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 rho_v_rhs(i, j, k) *= h_zeta;
             }
         });
-
-#if 0
-        // Add custom subsidence source terms
-        if (solverChoice.custom_w_subsidence) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                rho_u_rhs(i, j, k) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                rho_v_rhs(i, j, k) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
-            });
-        }
-#endif
 
         // *****************************************************************************
         // Zero out source terms for x- and y- momenta if at walls or inflow
@@ -1056,9 +972,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
             rho_w_rhs(i,j,hi_z_face) = 0.;
         });
 
-        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) { // z-momentum equation
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // z-momentum equation
 
-            Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
             Real met_h_zeta = (l_use_terrain) ? Compute_h_zeta_AtKface(i, j, k, dxInv, z_nd) : 1;
             Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 

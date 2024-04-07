@@ -36,7 +36,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     const MultiFab* r0,
                     const int& qstate_size)
 {
-    BL_PROFILE_REGION("make_buoyancy()");
+    BL_PROFILE("make_buoyancy()");
 
     const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
     const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
