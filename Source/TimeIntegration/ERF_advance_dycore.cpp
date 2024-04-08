@@ -67,11 +67,13 @@ void ERF::advance_dycore(int level,
 
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
-    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
-    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.use_rayleigh_damping ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+    bool rayleigh_damp_any = (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
+                              solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T);
+    d_rayleigh_ptrs_at_lev[Rayleigh::tau]      =              rayleigh_damp_any ? d_rayleigh_ptrs[level][Rayleigh::tau ].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::ubar]     = solverChoice.rayleigh_damp_U   ? d_rayleigh_ptrs[level][Rayleigh::ubar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
+    d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||

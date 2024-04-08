@@ -179,8 +179,7 @@ struct SolverChoice {
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
 
-        // Include Rayleigh damping?
-        pp.query("use_rayleigh_damping", use_rayleigh_damping);
+        // Include Rayleigh damping (separate flags for each variable)
         pp.query("rayleigh_damp_U", rayleigh_damp_U);
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
@@ -288,7 +287,6 @@ struct SolverChoice {
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         amrex::Print() << "incompressible              : "  << incompressible << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
-        amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
         if (coupling_type == CouplingType::TwoWay) {
@@ -390,11 +388,10 @@ struct SolverChoice {
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
-    bool        use_rayleigh_damping   = false;
 
     bool        rayleigh_damp_U        = false;
     bool        rayleigh_damp_V        = false;
-    bool        rayleigh_damp_W        = true;
+    bool        rayleigh_damp_W        = false;
     bool        rayleigh_damp_T        = false;
 
     // This defaults to true but can be set to false for moving terrain cases only

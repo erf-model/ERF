@@ -17,8 +17,6 @@ using namespace amrex;
 void
 ERF::initRayleigh ()
 {
-    AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
-
     h_rayleigh_ptrs.resize(max_level+1);
     d_rayleigh_ptrs.resize(max_level+1);
 
@@ -27,8 +25,6 @@ ERF::initRayleigh ()
         // These have 5 components: tau, ubar, vbar, wbar, thetabar
         h_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
         d_rayleigh_ptrs[lev].resize(Rayleigh::nvars);
-
-        AMREX_ALWAYS_ASSERT(solverChoice.use_rayleigh_damping);
 
         const int zlen_rayleigh = geom[lev].Domain().length(2);
 

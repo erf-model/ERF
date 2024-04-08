@@ -1,5 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step  = 10
+max_step  = 2000
+max_step  = 20
 stop_time = 3600.0
 
 amrex.fpe_trap_invalid = 1
@@ -7,11 +8,15 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent = 20000.0 400.0  10000.0
-amr.n_cell           = 200     4      100
+geometry.prob_extent = 10000.0 400.0  10000.0
+amr.n_cell           = 100     4      100
 geometry.is_periodic = 0 1 0
+
 xlo.type = "SlipWall"
 xhi.type = "SlipWall"    
+#xlo.type = "Outflow"
+#xhi.type = "Outflow"    
+
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
@@ -53,6 +58,7 @@ erf.moistscal_vert_adv_type  = "Upwind_3rd"
 erf.les_type        = "None"
 erf.pbl_type        = "None"
 erf.moisture_model  = "Kessler_NoRain"
+erf.moisture_model  = "Kessler"
 erf.buoyancy_type   = 1
 erf.use_moist_background = true
 
@@ -69,7 +75,7 @@ erf.alpha_C          = 0.0
 
 # PROBLEM PARAMETERS (optional)
 # warm bubble input
-prob.x_c    = 10000.0
+prob.x_c    =  5000.0
 prob.z_c    =  2000.0
 prob.x_r    =  2000.0
 prob.z_r    =  2000.0

@@ -1,6 +1,10 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 max_step = 2000
 
+erf.coupling_type = TwoWay
+erf.cf_width     = 0 # Internal relaxation
+erf.cf_set_width = 0 # Internal Dirichlet
+
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024
@@ -10,8 +14,12 @@ geometry.prob_lo     =  -6  -6  -1
 geometry.prob_hi     =   6   6   1
 amr.n_cell           =  96  96   4
 
-amr.blocking_factor_x = 32 32
-amr.blocking_factor_y = 32 32
+amr.max_grid_size_x = 128 128
+amr.max_grid_size_y = 128 128
+
+amr.max_grid_size_x = 128 128
+amr.max_grid_size_y = 128 32
+
 amr.blocking_factor_z = 1 1    
 
 geometry.is_periodic = 1 1 0
@@ -20,8 +28,9 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.no_substepping = 0
+erf.no_substepping = 1
 erf.fixed_dt       = 0.000015
+erf.fixed_fast_dt  = 0.000005
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -30,6 +39,7 @@ amr.v               = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level      = 1       # maximum level number allowed
+amr.ref_ratio_vect = 3 3 1
 amr.ref_ratio_vect = 2 2 1
 erf.refinement_indicators  = hi_scal1
 erf.hi_scal1.max_level     = 1
@@ -37,15 +47,13 @@ erf.hi_scal1.field_name    = scalar
 erf.hi_scal1.value_greater = 1. 
 amr.n_error_buf  = 4
 erf.regrid_int   = 2 
-erf.cf_width     = 0 # Internal relaxation
-erf.cf_set_width = 0 # Internal Dirichlet
 
 # CHECKPOINT FILES
 erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = -100        # number of timesteps between checkpoints
+erf.check_int       = 200        # number of timesteps between checkpoints
 
 # PLOTFILES
-erf.plot_file_1     = plt        # prefix of plotfile name
+erf.plot_file_1     = plt       # prefix of plotfile name
 erf.plot_int_1      = 50        # number of timesteps between plotfiles
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta temp scalar pres_hse dens_hse pert_pres pert_dens
 

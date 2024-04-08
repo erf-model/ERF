@@ -29,7 +29,10 @@ zhi.theta_grad   = 0.003    # for case N02
 
 zlo.type = "SlipWall"
 
-erf.use_rayleigh_damping = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
 
 # TIME STEP CONTROL
 erf.cfl             = 0.5
