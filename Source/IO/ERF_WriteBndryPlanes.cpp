@@ -171,14 +171,60 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
                 derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+        } else if (var_name == "scalar") {
 
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
+        } else if (var_name == "ke") {
+
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoKE_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
+        } else if (var_name == "qke") {
+
+            MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+            for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQKE_comp);
+            }
+            bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+
+        } else if (var_name == "qv") {
+            if (S.nComp() > RhoQ2_comp) {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ1_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            }
+        } else if (var_name == "qc") {
+            if (S.nComp() > RhoQ2_comp) {
+                MultiFab Temp(S.boxArray(),S.DistributionMap(),ncomp,0);
+                for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    derived::erf_derrhodivide(bx, Temp[mfi], S[mfi], RhoQ2_comp);
+                }
+                bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
+            }
         } else if (var_name == "velocity") {
-
             MultiFab Vel(S.boxArray(), S.DistributionMap(), 3, m_out_rad);
             average_face_to_cellcenter(Vel,0,Array<const MultiFab*,3>{&xvel,&yvel,&zvel});
-
             bndry.copyFrom(Vel, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
-
         } else {
             //Print() << "Trying to write planar output for " << var_name << std::endl;
             Error("Don't know how to output this variable");
