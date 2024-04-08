@@ -82,7 +82,11 @@ erf.sigma_k  = 0.5  # TKE diffusion coeff = 2*Km = Km * inv_sigma_k, Moeng1984, 
 #erf.rho0_trans      = 1.3223 # from Beare et al. 2006
 #erf.theta_ref       = 263.5 # from Beare et al. 2006
 
-erf.use_rayleigh_damping = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
+
 prob.dampcoef = 0.2 # [1/s] following FastEddy
 prob.zdamp = 100. # from Beare et al. 2006, "most models applied gravity wave damping above 300 m"
 

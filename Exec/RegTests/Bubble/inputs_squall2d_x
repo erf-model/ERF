@@ -41,7 +41,6 @@ erf.use_gravity = true
 erf.use_coriolis = true
 erf.latitude = 40.0  # hard-coded in dyn_em/module_initialize_ideal.F
 erf.rotational_time_period = 86400.0
-erf.use_rayleigh_damping = false # TODO: enable
 
 # PHYSICS OPTIONS
 erf.les_type        = "Deardorff"

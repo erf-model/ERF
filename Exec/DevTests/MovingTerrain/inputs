@@ -2,9 +2,6 @@
 stop_time = 120.
 max_step = 24000
 
-# RAYLEIGH DAMPING option
-erf.use_rayleigh_damping = false
-
 amrex.fpe_trap_invalid = 1
 
 fabarray.mfiter_tile_size = 1024 1024 1024

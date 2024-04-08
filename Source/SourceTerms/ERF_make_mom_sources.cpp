@@ -94,8 +94,6 @@ void make_mom_sources (int /*level*/,
     // *****************************************************************************
     // Data for Rayleigh damping
     // *****************************************************************************
-    auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
-
     auto rayleigh_damp_U  = solverChoice.rayleigh_damp_U;
     auto rayleigh_damp_V  = solverChoice.rayleigh_damp_V;
     auto rayleigh_damp_W  = solverChoice.rayleigh_damp_W;
@@ -168,6 +166,7 @@ void make_mom_sources (int /*level*/,
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
+        if (tbz.bigEnd(2) == domain.bigEnd(2)+1) tbz.growHi(2,-1);
 
         const Array4<const Real>& cell_data = S_data[IntVars::cons].array(mfi);
         const Array4<const Real>&     rho_u = S_data[IntVars::xmom].array(mfi);
@@ -209,37 +208,32 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         // Add RAYLEIGH damping
         // *****************************************************************************
-        if (use_rayleigh_damping) {
+        if (rayleigh_damp_U) {
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                Real uu = rho_u(i,j,k) / rho_on_u_face;
+                xmom_src_arr(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
+            });
+        }
 
-            if (rayleigh_damp_U) {
-                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                    Real uu = rho_u(i,j,k) / rho_on_u_face;
-                    xmom_src_arr(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
-                });
-            }
+        if (rayleigh_damp_V) {
+            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                Real vv = rho_v(i,j,k) / rho_on_v_face;
+                ymom_src_arr(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
+            });
+        }
 
-            if (rayleigh_damp_V) {
-                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                    Real vv = rho_v(i,j,k) / rho_on_v_face;
-                    ymom_src_arr(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
-                });
-            }
-
-            if (rayleigh_damp_W) {
+        if (rayleigh_damp_W) {
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                {
-                    Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
-                    Real ww = rho_w(i,j,k) / rho_on_w_face;
-                    zmom_src_arr(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
-                });
-            }
-
-
-        } // use_rayleigh_damping
+            {
+                Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+                Real ww = rho_w(i,j,k) / rho_on_w_face;
+                zmom_src_arr(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
+            });
+        }
 
         // *****************************************************************************
         // Add constant GEOSTROPHIC forcing

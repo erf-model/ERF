@@ -14,7 +14,10 @@ geometry.is_periodic = 1 1 0
 zhi.type = "SlipWall"
 zlo.type = "SlipWall"
 
-erf.use_rayleigh_damping = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
 
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0

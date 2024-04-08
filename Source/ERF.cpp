@@ -749,7 +749,8 @@ ERF::InitData ()
         }
     }
 
-    if (solverChoice.use_rayleigh_damping)
+    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_U ||
+        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
         if (init_type == "input_sounding")

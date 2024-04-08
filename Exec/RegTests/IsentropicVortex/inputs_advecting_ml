@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 200
+max_step = 800
 
 amrex.fpe_trap_invalid = 1
 
@@ -20,6 +20,7 @@ zhi.type = "SlipWall"
 erf.no_substepping = 1
 erf.fixed_dt           = 0.0005
 erf.fixed_dt           = 0.00025
+erf.fixed_dt           = 0.000125
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval    = 1       # timesteps between computing mass
@@ -29,7 +30,7 @@ amr.v               = 1       # verbosity in Amr.cpp
 amr.max_level = 0
 
 ################################ MULTILEVEL ################################
-amr.max_level = 1
+amr.max_level = 2
 amr.ref_ratio_vect = 2 2 1 2 2 1
 
 erf.coupling_type = "TwoWay"
@@ -41,7 +42,7 @@ erf.lo_scalar.max_level     = 2
 erf.lo_scalar.field_name    = scalar
 erf.lo_scalar.value_greater = 0.1
 
-amr.n_error_buf  = 3 3
+amr.n_error_buf  = 5 5
 amr.grid_eff     = 0.8
 ################################ MULTILEVEL ################################
 

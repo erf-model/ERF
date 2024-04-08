@@ -38,7 +38,6 @@ erf2.plot_vars_1         = density x_velocity y_velocity z_velocity
 # SOLVER CHOICE
 erf2.use_gravity          = true
 erf2.use_coriolis         = false
-erf2.use_rayleigh_damping = false
 erf2.les_type             = "None"
 
 # DIFFUSION COEFF

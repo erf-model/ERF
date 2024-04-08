@@ -162,7 +162,7 @@ void make_sources (int level,
         // *************************************************************************************
         // Add Rayleigh damping for (rho theta)
         // *************************************************************************************
-        if (solverChoice.use_rayleigh_damping && solverChoice.rayleigh_damp_T) {
+        if (solverChoice.rayleigh_damp_T) {
             int n  = RhoTheta_comp;
             int nr = Rho_comp;
             int np = PrimTheta_comp;
