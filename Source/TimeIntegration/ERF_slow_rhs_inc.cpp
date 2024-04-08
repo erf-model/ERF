@@ -23,10 +23,11 @@ using namespace amrex;
  * @param[in]  yvel y-component of velocity
  * @param[in]  zvel z-component of velocity
  * @param[in]  qv   water vapor
- * @param[in]  z_t_ mf rate of change of grid height -- only relevant for moving terrain
  * @param[in] Omega component of the momentum normal to the z-coordinate surface
- * @param[in] source source terms for conserved variables
- * @param[in] buoyancy buoyancy source term
+ * @param[in] cc_src source terms for conserved variables
+ * @param[in] xmom_src source terms for x-momentum
+ * @param[in] ymom_src source terms for y-momentum
+ * @param[in] zmom_src source terms for z-momentum
  * @param[in] Tau11 tau_11 component of stress tensor
  * @param[in] Tau22 tau_22 component of stress tensor
  * @param[in] Tau33 tau_33 component of stress tensor
@@ -54,10 +55,6 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
- * @param[in] dptr_u_geos  custom geostrophic wind profile
- * @param[in] dptr_v_geos  custom geostrophic wind profile
- * @param[in] dptr_wbar_sub  subsidence source term
- * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
  * @param[in] xflux_imask_lev thin-body mask on x-faces
  * @param[in] yflux_imask_lev thin-body mask on y-faces
  * @param[in] zflux_imask_lev thin-body mask on z-faces
@@ -76,10 +73,11 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const MultiFab& xvel,
                        const MultiFab& yvel,
                        const MultiFab& zvel,
-                       std::unique_ptr<MultiFab>& z_t_mf,
                        MultiFab& Omega,
-                       const MultiFab& source,
-                       const MultiFab& buoyancy,
+                       const MultiFab& cc_src,
+                       const MultiFab& xmom_src,
+                       const MultiFab& ymom_src,
+                       const MultiFab& zmom_src,
                        MultiFab* Tau11, MultiFab* Tau22, MultiFab* Tau33,
                        MultiFab* Tau12, MultiFab* Tau13, MultiFab* Tau21,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
@@ -100,10 +98,6 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
                        std::unique_ptr<MultiFab>& mapfac_v,
-                       const Real* dptr_u_geos,
-                       const Real* dptr_v_geos,
-                       const Real* dptr_wbar_sub,
-                       const Vector<Real*> d_rayleigh_ptrs_at_lev,
                        std::unique_ptr<iMultiFab>& xflux_imask_lev,
                        std::unique_ptr<iMultiFab>& yflux_imask_lev,
                        std::unique_ptr<iMultiFab>& zflux_imask_lev,
@@ -132,7 +126,6 @@ void erf_slow_rhs_inc (int level, int nrk,
 
     AMREX_ALWAYS_ASSERT (!l_use_terrain);
 
-    const bool l_use_ndiff      = solverChoice.use_NumDiff;
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
@@ -152,11 +145,6 @@ void erf_slow_rhs_inc (int level, int nrk,
     const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-
-    Real*  tau     = d_rayleigh_ptrs_at_lev[Rayleigh::tau];
-    Real* ubar     = d_rayleigh_ptrs_at_lev[Rayleigh::ubar];
-    Real* vbar     = d_rayleigh_ptrs_at_lev[Rayleigh::vbar];
-    Real* wbar     = d_rayleigh_ptrs_at_lev[Rayleigh::wbar];
 
     const bool l_have_thin_xforce = (thin_xforce_lev != nullptr);
     const bool l_have_thin_yforce = (thin_yforce_lev != nullptr);
@@ -535,7 +523,6 @@ void erf_slow_rhs_inc (int level, int nrk,
         const Array4<const Real> & cell_data  = S_data[IntVars::cons].array(mfi);
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real> &       cell_rhs   = S_rhs[IntVars::cons].array(mfi);
-        const Array4<const Real> & buoyancy_fab = buoyancy.const_array(mfi);
 
         const Array4<const Real> & cell_data_old  = S_old[IntVars::cons].array(mfi);
 
@@ -560,18 +547,16 @@ void erf_slow_rhs_inc (int level, int nrk,
         const Array4<const Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
         const Array4<const Real>& rho_w_old = S_old[IntVars::zmom].array(mfi);
 
+        const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
+        const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
+        const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+
         // Map factors
         const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
         const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
         const Array4<const Real>& mf_v   = mapfac_v->const_array(mfi);
 
         const Array4<      Real>& omega_arr = Omega.array(mfi);
-
-        Array4<const Real> z_t;
-        if (z_t_mf)
-            z_t = z_t_mf->array(mfi);
-        else
-            z_t = Array4<const Real>{};
 
         const Array4<Real>& rho_u_rhs = S_rhs[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_rhs = S_rhs[IntVars::ymom].array(mfi);
@@ -695,7 +680,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
         // Add source terms for (rho theta)
         {
-            auto const& src_arr = source.const_array(mfi);
+            auto const& src_arr = cc_src.const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
                 cell_rhs(i,j,k,RhoTheta_comp) += src_arr(i,j,k,RhoTheta_comp);
@@ -731,7 +716,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
-                           ax_arr, ay_arr, az_arr, detJ_arr,
+                           z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
                            l_horiz_adv_type, l_vert_adv_type,
                            l_horiz_upw_frac, l_vert_upw_frac,
@@ -747,102 +732,30 @@ void erf_slow_rhs_inc (int level, int nrk,
                                  mf_m, mf_u, mf_v);
         }
 
-        if (l_use_ndiff) {
-            NumericalDiffusion(tbx, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_u, rho_u_rhs, mf_m, mf_v, false, true);
-            NumericalDiffusion(tby, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_v, rho_v_rhs, mf_u, mf_m, true, false);
-            NumericalDiffusion(tbz, 0, 1, dt, solverChoice.NumDiffCoeff,
-                               rho_w, rho_w_rhs, mf_u, mf_v, false, false);
-        }
+        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // x-momentum equation
 
-        auto use_rayleigh_damping = solverChoice.use_rayleigh_damping;
+            // Note we do NOT include a pressure gradient here
+            rho_u_rhs(i, j, k) += xmom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[0];
 
-        {
-        BL_PROFILE("slow_rhs_inc_xmom");
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-          ParallelFor(tbx,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // x-momentum equation
+            if (nrk == 1) {
+              rho_u_rhs(i,j,k) *= 0.5;
+              rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+            }
+        });
 
-              Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+        ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // y-momentum equation
 
-              // Note we do NOT include a pressure gradient here
-              rho_u_rhs(i, j, k) += - solverChoice.abl_pressure_grad[0]
-                                    + rho_on_u_face * solverChoice.abl_geo_forcing[0];
+            // Note we do NOT include a pressure gradient here
+            rho_v_rhs(i, j, k) += ymom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[1];
 
-              if (solverChoice.custom_geostrophic_profile) {
-                  rho_u_rhs(i, j, k) += rho_on_u_face * dptr_u_geos[k];
-              }
+            if (nrk == 1) {
+              rho_v_rhs(i,j,k) *= 0.5;
+              rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
+            }
+        });
 
-              // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (solverChoice.use_coriolis)
-              {
-                  Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
-                  Real rho_w_loc = 0.25 * (rho_w(i,j,k+1) + rho_w(i,j,k) + rho_w(i,j-1,k+1) + rho_w(i,j-1,k));
-                  rho_u_rhs(i, j, k) += solverChoice.coriolis_factor *
-                          (rho_v_loc * solverChoice.sinphi - rho_w_loc * solverChoice.cosphi);
-              }
-
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && solverChoice.rayleigh_damp_U)
-              {
-                  Real uu = rho_u(i,j,k) / rho_on_u_face;
-                  rho_u_rhs(i, j, k) -= tau[k] * (uu - ubar[k]) * rho_on_u_face;
-              }
-
-              if (nrk == 1) {
-                rho_u_rhs(i,j,k) *= 0.5;
-                rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
-              }
-          });
-        } // end profile
-
-        {
-        BL_PROFILE("slow_rhs_inc_ymom");
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-          ParallelFor(tby,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // y-momentum equation
-
-              Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-
-              // Note we do NOT include a pressure gradient here
-              rho_v_rhs(i, j, k) += - solverChoice.abl_pressure_grad[1]
-                                    + rho_on_v_face * solverChoice.abl_geo_forcing[1];
-
-              if (solverChoice.custom_geostrophic_profile) {
-                  rho_v_rhs(i, j, k) += rho_on_v_face * dptr_v_geos[k];
-              }
-
-              // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (solverChoice.use_coriolis)
-              {
-                  Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
-                  rho_v_rhs(i, j, k) += -solverChoice.coriolis_factor * rho_u_loc * solverChoice.sinphi;
-              }
-
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && solverChoice.rayleigh_damp_V)
-              {
-                  Real vv = rho_v(i,j,k) / rho_on_v_face;
-                  rho_v_rhs(i, j, k) -= tau[k] * (vv - vbar[k]) * rho_on_v_face;
-              }
-
-
-              if (nrk == 1) {
-                rho_v_rhs(i,j,k) *= 0.5;
-                rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
-              }
-          });
-        } // end profile
-
-        {
-        BL_PROFILE("slow_rhs_inc_zmom_2d");
         amrex::Box b2d = tbz;
         b2d.setSmall(2,0);
         b2d.setBig(2,0);
@@ -851,43 +764,20 @@ void erf_slow_rhs_inc (int level, int nrk,
             rho_w_rhs(i,j,        0) = 0.;
             rho_w_rhs(i,j,domhi_z+1) = 0.;
         });
-        } // end profile
 
-        {
-        BL_PROFILE("slow_rhs_pre_zmom");
-        // *****************************************************************************
-        // NON-TERRAIN VERSION
-        // *****************************************************************************
-          ParallelFor(tbz,
-          [=] AMREX_GPU_DEVICE (int i, int j, int k)
-          { // z-momentum equation
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { // z-momentum equation
 
               Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
 
-              // Note we do NOT include a pressure gradient or buoyancy here
-              rho_w_rhs(i, j, k) += - solverChoice.abl_pressure_grad[2]
-                                    + rho_on_w_face * solverChoice.abl_geo_forcing[2];
-
-              // Add Coriolis forcing (that assumes east is +x, north is +y)
-              if (solverChoice.use_coriolis)
-              {
-                  Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j,k-1) + rho_u(i,j,k-1));
-                  rho_w_rhs(i, j, k) += solverChoice.coriolis_factor * rho_u_loc * solverChoice.cosphi;
-              }
-
-              // Add Rayleigh damping
-              if (use_rayleigh_damping && solverChoice.rayleigh_damp_W)
-              {
-                  Real ww = rho_w(i,j,k) / rho_on_w_face;
-                  rho_w_rhs(i, j, k) -= tau[k] * (ww - wbar[k]) * rho_on_w_face;
-              }
-
+              // Note we do NOT include a pressure gradient here
+              // HOWEVER: there may be a buoyancy term inside of zmom_src_arr ...
+              rho_w_rhs(i, j, k) += zmom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[2];
 
               if (nrk == 1) {
                 rho_w_rhs(i,j,k) *= 0.5;
                 rho_w_rhs(i,j,k) += 0.5 / dt * (rho_w(i,j,k) - rho_w_old(i,j,k));
               }
         });
-        } // end profile
     } // mfi
 }

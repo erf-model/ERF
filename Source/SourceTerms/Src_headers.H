@@ -25,7 +25,7 @@ void make_sources (int level, int nrk,
                    amrex::Real dt,
                    amrex::Vector<amrex::MultiFab>& S_data,
                    const amrex::MultiFab& S_prim,
-                         amrex::MultiFab& source,
+                         amrex::MultiFab& cc_source,
 #if defined(ERF_USE_RRTMGP)
                    const amrex::MultiFab& qheating_rates,
 #endif
@@ -37,7 +37,27 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
-#endif
+
+void make_mom_sources (int level, int nrk,
+                       amrex::Real dt,
+                       amrex::Vector<amrex::MultiFab>& S_data,
+                       const amrex::MultiFab& S_prim,
+                       const amrex::MultiFab& xvel,
+                       const amrex::MultiFab& yvel,
+                             amrex::MultiFab& xmom_source,
+                             amrex::MultiFab& ymom_source,
+                             amrex::MultiFab& zmom_source,
+                       amrex::MultiFab* r0,
+                       const amrex::Geometry geom,
+                       const SolverChoice& solverChoice,
+                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
+                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
+                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
+                       const amrex::Real* dptr_rhotheta_src,
+                       const amrex::Real* dptr_rhoqt_src,
+                       const amrex::Real* dptr_wbar_sub,
+                       const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                       const int n_qstate);
 
 #if defined(ERF_USE_NETCDF)
 void
@@ -56,4 +76,23 @@ moist_set_rhs (
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xhi,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_ylo,
                amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_yhi);
+#endif
+
+void ApplySpongeZoneBCsForCC (const SpongeChoice& spongeChoice,
+                              const amrex::Geometry geom,
+                              const amrex::Box& bx,
+                              const amrex::Array4<amrex::Real>& cell_rhs,
+                              const amrex::Array4<const amrex::Real>& cell_data);
+
+void ApplySpongeZoneBCsForMom (const SpongeChoice& spongeChoice,
+                               const amrex::Geometry geom,
+                               const amrex::Box& tbx,
+                               const amrex::Box& tby,
+                               const amrex::Box& tbz,
+                               const amrex::Array4<amrex::Real>& rho_u_rhs,
+                               const amrex::Array4<amrex::Real>& rho_v_rhs,
+                               const amrex::Array4<amrex::Real>& rho_w_rhs,
+                               const amrex::Array4<const amrex::Real>& rho_u,
+                               const amrex::Array4<const amrex::Real>& rho_v,
+                               const amrex::Array4<const amrex::Real>& rho_w);
 #endif

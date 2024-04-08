@@ -4,8 +4,9 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
+#include <NumericalDiffusion.H>
+#include <Src_headers.H>
 #include <TI_slow_headers.H>
-#include <EOS.H>
 
 using namespace amrex;
 
@@ -24,15 +25,12 @@ using namespace amrex;
  * @param[in] mapfac_v map factor at y-faces
  * @param[in] dptr_rhotheta_src  custom temperature source term
  * @param[in] dptr_rhoqt_src  custom moisture source term
- * @param[in] dptr_u_geos  custom geostrophic wind profile
- * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
- * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
+ * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
  */
 
 void make_sources (int level,
-                   int /*nrk*/,
-                   Real dt,
+                   int /*nrk*/, Real dt,
                    Vector<MultiFab>& S_data,
                    const  MultiFab & S_prim,
                           MultiFab & source,
@@ -50,7 +48,9 @@ void make_sources (int level,
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
+    // *****************************************************************************
     // Initialize source to zero since we re-compute it ever RK stage
+    // *****************************************************************************
     source.setVal(0.0);
 
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
@@ -122,12 +122,17 @@ void make_sources (int level,
 
     // *****************************************************************************
     // Define source term for cell-centered conserved variables, from
+    //    1. user-defined source terms for (rho theta) and (rho q_t)
     //    1. radiation           for (rho theta)
     //    2. Rayleigh damping    for (rho theta)
     //    3. custom forcing      for (rho theta) and (rho Q1)
     //    4. custom subsidence   for (rho theta) and (rho Q1)
     //    5. numerical diffusion for (rho theta)
     // *****************************************************************************
+
+    // ***********************************************************************************************
+    // Add remaining source terms
+    // ***********************************************************************************************
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -263,6 +268,11 @@ void make_sources (int level,
                                    cell_data, cell_src, mf_u, mf_v, false, false);
             }
         }
+
+        // *************************************************************************************
+        // Add sponging
+        // *************************************************************************************
+        ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
 
     } // mfi
     } // OMP

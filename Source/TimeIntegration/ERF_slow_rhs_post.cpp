@@ -1,7 +1,5 @@
 #include <AMReX.H>
-#include <AMReX_TableData.H>
-
-#include <TI_headers.H>
+#include <Src_headers.H>
 #include <TI_slow_headers.H>
 
 #if defined(ERF_USE_NETCDF)

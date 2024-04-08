@@ -154,7 +154,7 @@ ERF::initHSE (int lev)
 
     // This integrates up through column to update p_hse, pi_hse;
     // r_hse is not const b/c FillBoundary is called at the end for r_hse and p_hse
-    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev], z_phys_nd[lev]);
+    erf_enforce_hse(lev, r_hse, p_hse, pi_hse, z_phys_cc[lev]);
 
 }
 
@@ -176,13 +176,11 @@ ERF::initHSE ()
  * @param[out] pres MultiFab storing base state pressure
  * @param[out] pi   MultiFab storing base state Exner function
  * @param[in]  z_cc Pointer to MultiFab storing cell centered z-coordinates
- * @param[in]  z_nd Pointer to MultiFab storing node centered z-coordinates
  */
 void
 ERF::erf_enforce_hse (int lev,
                       MultiFab& dens, MultiFab& pres, MultiFab& pi,
-                      std::unique_ptr<MultiFab>& z_cc,
-                      std::unique_ptr<MultiFab>& z_nd)
+                      std::unique_ptr<MultiFab>& z_cc)
 {
     Real l_gravity = solverChoice.gravity;
     bool l_use_terrain = solverChoice.use_terrain;

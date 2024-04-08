@@ -1,35 +1,16 @@
 #include <AMReX_MultiFab.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BCRec.H>
-#include <AMReX_GpuContainers.H>
-#include <ERF_Constants.H>
-#include <Advection.H>
-#include <Diffusion.H>
-#include <NumericalDiffusion.H>
-#include <TI_headers.H>
-#include <TileNoZ.H>
-#include <EOS.H>
-#include <ERF.H>
+#include <Src_headers.H>
 
-#include <TerrainMetrics.H>
-#include <IndexDefines.H>
-#include <PlaneAverage.H>
+//#include <TerrainMetrics.H>
+//#include <IndexDefines.H>
+//#include <PlaneAverage.H>
 
 using namespace amrex;
 
 void
-ApplySpongeZoneBCs (
+ApplySpongeZoneBCsForCC (
   const SpongeChoice& spongeChoice,
   const Geometry geom,
-  const Box& tbx,
-  const Box& tby,
-  const Box& tbz,
-  const Array4<Real>& rho_u_rhs,
-  const Array4<Real>& rho_v_rhs,
-  const Array4<Real>& rho_w_rhs,
-  const Array4<const Real>& rho_u,
-  const Array4<const Real>& rho_v,
-  const Array4<const Real>& rho_w,
   const Box& bx,
   const Array4<Real>& cell_rhs,
   const Array4<const Real>& cell_data)
@@ -55,9 +36,6 @@ ApplySpongeZoneBCs (
     const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
 
     const Real sponge_density = spongeChoice.sponge_density;
-    const Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
-    const Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
-    const Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
 
     // Domain valid box
     const Box& domain = geom.Domain();
@@ -130,6 +108,62 @@ ApplySpongeZoneBCs (
             }
         }
     });
+}
+
+void
+ApplySpongeZoneBCsForMom (
+  const SpongeChoice& spongeChoice,
+  const Geometry geom,
+  const Box& tbx,
+  const Box& tby,
+  const Box& tbz,
+  const Array4<Real>& rho_u_rhs,
+  const Array4<Real>& rho_v_rhs,
+  const Array4<Real>& rho_w_rhs,
+  const Array4<const Real>& rho_u,
+  const Array4<const Real>& rho_v,
+  const Array4<const Real>& rho_w)
+{
+    // Domain cell size and real bounds
+    auto dx = geom.CellSizeArray();
+    auto ProbHiArr = geom.ProbHiArray();
+    auto ProbLoArr = geom.ProbLoArray();
+
+    const Real sponge_strength = spongeChoice.sponge_strength;
+    const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
+    const int use_xhi_sponge_damping = spongeChoice.use_xhi_sponge_damping;
+    const int use_ylo_sponge_damping = spongeChoice.use_ylo_sponge_damping;
+    const int use_yhi_sponge_damping = spongeChoice.use_yhi_sponge_damping;
+    const int use_zlo_sponge_damping = spongeChoice.use_zlo_sponge_damping;
+    const int use_zhi_sponge_damping = spongeChoice.use_zhi_sponge_damping;
+
+    const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+    const Real xhi_sponge_start = spongeChoice.xhi_sponge_start;
+    const Real ylo_sponge_end   = spongeChoice.ylo_sponge_end;
+    const Real yhi_sponge_start = spongeChoice.yhi_sponge_start;
+    const Real zlo_sponge_end   = spongeChoice.zlo_sponge_end;
+    const Real zhi_sponge_start = spongeChoice.zhi_sponge_start;
+
+    const Real sponge_density = spongeChoice.sponge_density;
+    const Real sponge_x_velocity = spongeChoice.sponge_x_velocity;
+    const Real sponge_y_velocity = spongeChoice.sponge_y_velocity;
+    const Real sponge_z_velocity = spongeChoice.sponge_z_velocity;
+
+    // Domain valid box
+    const Box& domain = geom.Domain();
+    int domlo_x = domain.smallEnd(0);
+    int domhi_x = domain.bigEnd(0) + 1;
+    int domlo_y = domain.smallEnd(1);
+    int domhi_y = domain.bigEnd(1) + 1;
+    int domlo_z = domain.smallEnd(2);
+    int domhi_z = domain.bigEnd(2) + 1;
+
+    if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
+    if(use_xhi_sponge_damping)AMREX_ALWAYS_ASSERT(xhi_sponge_start < ProbHiArr[0]);
+    if(use_ylo_sponge_damping)AMREX_ALWAYS_ASSERT(ylo_sponge_end   > ProbLoArr[1]);
+    if(use_yhi_sponge_damping)AMREX_ALWAYS_ASSERT(yhi_sponge_start < ProbHiArr[1]);
+    if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
+    if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {

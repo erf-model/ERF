@@ -241,7 +241,8 @@ public:
                          amrex::Vector<amrex::MultiFab>& state_new,
                          amrex::MultiFab& xvel_old,  amrex::MultiFab& yvel_old,  amrex::MultiFab& zvel_old,
                          amrex::MultiFab& xvel_new,  amrex::MultiFab& yvel_new,  amrex::MultiFab& zvel_new,
-                         amrex::MultiFab& source,    amrex::MultiFab& buoyancy,
+                         amrex::MultiFab& source,    amrex::MultiFab& xmom_src,
+                         amrex::MultiFab& ymom_src,  amrex::MultiFab& zmom_src,
                          amrex::Geometry fine_geom,
                          amrex::Real dt, amrex::Real time);
 
@@ -295,8 +296,7 @@ public:
 
     void erf_enforce_hse (int lev,
                           amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
-                          std::unique_ptr<amrex::MultiFab>& z_cc,
-                          std::unique_ptr<amrex::MultiFab>& z_nd);
+                          std::unique_ptr<amrex::MultiFab>& z_cc);
 
 #ifdef ERF_USE_NETCDF
     //! Write a timestep to 1D vertical column output for coupling
