@@ -121,19 +121,19 @@ void ERF::init_bcs ()
             }
 
             if (solverChoice.moisture_type != MoistureType::None) {
-                Real qt_in = 0.;
+                Real qv_in = 0.;
                 if (input_bndry_planes && m_r2d->ingested_q1()) {
                     m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = 0.;
                 } else {
-                    if (pp.query("qt", qt_in))
-                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qt_in;
+                    if (pp.query("qv", qv_in))
+                    m_bc_extdir_vals[BCVars::RhoQ1_bc_comp][ori] = rho_in*qv_in;
                 }
-                Real qp_in = 0.;
+                Real qc_in = 0.;
                 if (input_bndry_planes && m_r2d->ingested_q2()) {
                     m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = 0.;
                 } else {
-                    if (pp.query("qp", qp_in))
-                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qp_in;
+                    if (pp.query("qc", qc_in))
+                    m_bc_extdir_vals[BCVars::RhoQ2_bc_comp][ori] = rho_in*qc_in;
                 }
             }
 
