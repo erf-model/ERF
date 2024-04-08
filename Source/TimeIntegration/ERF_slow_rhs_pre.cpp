@@ -795,7 +795,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             lo_z_face = mfi.validbox().smallEnd(2);
             hi_z_face = mfi.validbox().bigEnd(2)+1;
         }
-        AdvectionSrcForMom(tbx, tby, tbz,
+        AdvectionSrcForMom(bx, tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,

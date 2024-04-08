@@ -51,7 +51,8 @@ void AdvectionSrcForScalars (const amrex::Box& bx,
                              const amrex::BCRec* bc_ptr_h);
 
 /** Compute advection tendencies for all components of momentum */
-void AdvectionSrcForMom (const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
+void AdvectionSrcForMom (const amrex::Box& bx,
+                         const amrex::Box& bxx, const amrex::Box& bxy, const amrex::Box& bxz,
                          const amrex::Array4<      amrex::Real>& rho_u_rhs, const amrex::Array4<      amrex::Real>& rho_v_rhs,
                          const amrex::Array4<      amrex::Real>& rho_w_rhs,
                          const amrex::Array4<const amrex::Real>& rho,
