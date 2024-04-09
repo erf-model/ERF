@@ -115,7 +115,9 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                             n_qstate);
+                             n_qstate,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -129,9 +131,7 @@
 #ifdef ERF_USE_EB
                              EBFactory(level),
 #endif
-                             fr_as_crse, fr_as_fine,
-                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+                             fr_as_crse, fr_as_fine);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -215,7 +215,9 @@
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_rhotheta_src, dptr_rhoqt_src,
                              dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                             n_qstate);
+                             n_qstate,
+                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -229,9 +231,7 @@
 #ifdef ERF_USE_EB
                              EBFactory(level),
 #endif
-                             fr_as_crse, fr_as_fine,
-                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+                             fr_as_crse, fr_as_fine);
         }
 
 #ifdef ERF_USE_NETCDF

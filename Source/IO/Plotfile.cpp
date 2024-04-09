@@ -198,6 +198,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (containerHasElement(plot_var_names, "x_velocity" ) ||
         containerHasElement(plot_var_names, "y_velocity" ) ||
         containerHasElement(plot_var_names, "z_velocity" ) ||
+        containerHasElement(plot_var_names, "magvel"     ) ||
         containerHasElement(plot_var_names, "vorticity_x") ||
         containerHasElement(plot_var_names, "vorticity_y") ||
         containerHasElement(plot_var_names, "vorticity_z") ) {
@@ -294,6 +295,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
         calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
         calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
+        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
         {

@@ -561,7 +561,9 @@ ERF::FillBdyCCVels (Vector<MultiFab>& mf_cc_vel)
 
         for (MFIter mfi(mf_cc_vel[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.growntilebox(1);
+            // Note that we don't fill corners here -- only the cells that share a face
+            //      with interior cells -- this is all that is needed to calculate vorticity
+            const Box& bx = mfi.tilebox();
             const Array4<Real>& vel_arr = mf_cc_vel[lev].array(mfi);
 
             if (!Geom(lev).isPeriodic(0)) {

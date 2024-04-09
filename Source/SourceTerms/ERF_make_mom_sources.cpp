@@ -34,6 +34,13 @@ using namespace amrex;
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
+ * @param[in] n_qstate number of moisture components
+ * @param[in] xflux_imask_lev thin-body mask on x-faces
+ * @param[in] yflux_imask_lev thin-body mask on y-faces
+ * @param[in] zflux_imask_lev thin-body mask on z-faces
+ * @param[in] thin_xforce_lev x-component of forces on thin immersed bodies
+ * @param[in] thin_yforce_lev y-component of forces on thin immersed bodies
+ * @param[in] thin_zforce_lev z-component of forces on thin immersed bodies
  */
 
 void make_mom_sources (int /*level*/,
@@ -55,7 +62,13 @@ void make_mom_sources (int /*level*/,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
-                       int n_qstate)
+                       int n_qstate,
+                       std::unique_ptr<iMultiFab>& xflux_imask_lev,
+                       std::unique_ptr<iMultiFab>& yflux_imask_lev,
+                       std::unique_ptr<iMultiFab>& zflux_imask_lev,
+                       std::unique_ptr<MultiFab>& thin_xforce_lev,
+                       std::unique_ptr<MultiFab>& thin_yforce_lev,
+                       std::unique_ptr<MultiFab>& thin_zforce_lev)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
 
@@ -68,14 +81,21 @@ void make_mom_sources (int /*level*/,
     zmom_src.setVal(0.0);
 
     // *****************************************************************************
-    // Define source term for all three components of momenta  from
+    // Define source term for all three components of momenta from
     //    1. buoyancy           for (zmom)
     //    2. Coriolis forcing   for (xmom,ymom,zmom)
     //    3. Rayleigh damping   for (xmom,ymom,zmom)
-    //    4.
-    //    5. numerical diffusion for (xmom,ymom,zmom)
+    //    4. Constant / height-dependent geostrophic forcing
+    //    5. subsidence
+    //    6. numerical diffusion for (xmom,ymom,zmom)
+    //    7. sponge
+    //    8. thin body immersed boundary forcing
     // *****************************************************************************
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
+
+    const bool l_have_thin_xforce = (thin_xforce_lev != nullptr);
+    const bool l_have_thin_yforce = (thin_yforce_lev != nullptr);
+    const bool l_have_thin_zforce = (thin_zforce_lev != nullptr);
 
     // *****************************************************************************
     // Data for Coriolis forcing
@@ -303,6 +323,93 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+
     } // mfi
 
+    // *****************************************************************************
+    // If a thin immersed body is present, add forcing terms
+    // *****************************************************************************
+    if (l_have_thin_xforce) {
+        MultiFab::Copy(*thin_xforce_lev, xmom_src, 0, 0, 1, 0);
+        thin_xforce_lev->mult(-1., 0, 1, 0);
+        ApplyInvertedMask(*thin_xforce_lev, *xflux_imask_lev, 0);
+        MultiFab::Add(xmom_src, *thin_xforce_lev, 0, 0, 1, 0);
+    }
+
+    if (l_have_thin_yforce) {
+        MultiFab::Copy(*thin_yforce_lev, ymom_src, 0, 0, 1, 0);
+        thin_yforce_lev->mult(-1., 0, 1, 0);
+        ApplyInvertedMask(*thin_yforce_lev, *yflux_imask_lev, 0);
+        MultiFab::Add(ymom_src, *thin_yforce_lev, 0, 0, 1, 0);
+    }
+
+    if (l_have_thin_zforce) {
+        MultiFab::Copy(*thin_zforce_lev, zmom_src, 0, 0, 1, 0);
+        thin_zforce_lev->mult(-1., 0, 1, 0);
+        ApplyInvertedMask(*thin_zforce_lev, *zflux_imask_lev, 0);
+        MultiFab::Add(zmom_src, *thin_zforce_lev, 0, 0, 1, 0);
+    }
+
+#if 0
+#ifndef AMREX_USE_GPU
+    if (l_have_thin_xforce) {
+        // TODO: Implement particles to better track and output these data
+        if (nrk==2) {
+            for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+            {
+                const Box& tbx = mfi.nodaltilebox(0);
+                const Array4<const Real> & fx = thin_xforce_lev->const_array(mfi);
+                const Array4<const int> & mask = xflux_imask_lev->const_array(mfi);
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (mask(i,j,k)==0) {
+                        amrex::AllPrint() << "thin body fx"<<IntVect(i,j,k)<<" = " << fx(i,j,k) << std::endl;
+                    }
+                });
+            }
+        }
+    }
+#endif
+#endif
+
+#if 0
+#ifndef AMREX_USE_GPU
+    if (l_have_thin_yforce) {
+        // TODO: Implement particles to better track and output these data
+        if (nrk==2) {
+            for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+            {
+                const Box& tby = mfi.nodaltilebox(1);
+                const Array4<const Real> & fy = thin_yforce_lev->const_array(mfi);
+                const Array4<const int> & mask = yflux_imask_lev->const_array(mfi);
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (mask(i,j,k)==0) {
+                        amrex::AllPrint() << "thin body fy"<<IntVect(i,j,k)<<" = " << fy(i,j,k) << std::endl;
+                    }
+                });
+            }
+        }
+    }
+#endif
+#endif
+
+#if 0
+#ifndef AMREX_USE_GPU
+    if (l_have_thin_zforce) {
+        // TODO: Implement particles to better track and output these data
+        if (nrk==2) {
+            for ( MFIter mfi(S_data[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
+            {
+                const Box& tbz = mfi.nodaltilebox(2);
+                const Array4<const Real> & fz = thin_zforce_lev->const_array(mfi);
+                const Array4<const int> & mask = zflux_imask_lev->const_array(mfi);
+                ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    if (mask(i,j,k)==0) {
+                        amrex::AllPrint() << "thin body fz"<<IntVect(i,j,k)<<" = " << fz(i,j,k) << std::endl;
+                    }
+                });
+            }
+        }
+    }
+#endif
+#endif
 }

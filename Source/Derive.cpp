@@ -278,5 +278,31 @@ erf_dervortz (
     });
 }
 
+void
+erf_dermagvel (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+    AMREX_ALWAYS_ASSERT(dcomp == 0);
+    AMREX_ALWAYS_ASSERT(ncomp == 1);
+
+    auto const dat = datfab.array(); // cell-centered velocity
+    auto tfab      = derfab.array(); // cell-centered magvel
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        Real u = dat(i,j,k,0);
+        Real v = dat(i,j,k,1);
+        Real w = dat(i,j,k,2);
+        tfab(i,j,k,dcomp) = std::sqrt(u*u + v*v + w*w);
+    });
+}
 
 } // namespace
