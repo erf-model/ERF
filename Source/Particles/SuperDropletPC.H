@@ -144,7 +144,9 @@ namespace SuperDropletsUtils
                 }
 
                 RT slope = 1.0 - a_dt * m_jac( a_u, a_T, a_e_s, a_M_s );
-                RT du = - residual / slope;
+                RT du = 0.0;
+                if (slope*slope <  1.0e-40) { du = 0.0; }
+                else                        { du = - residual / slope; }
 
                 RT du_norm = std::sqrt(du*du);
                 if (du_norm <= m_stol) {
@@ -153,6 +155,8 @@ namespace SuperDropletsUtils
                 }
 
                 a_u += du;
+                // positivity-preserving floor for a_u
+                a_u = std::max(1.0e-40, a_u);
             }
         }
     };
