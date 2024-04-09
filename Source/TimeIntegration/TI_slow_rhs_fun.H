@@ -37,6 +37,9 @@
             }
         }
 
+        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+
         // Construct the source terms for the cell-centered (conserved) variables
         make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
@@ -113,9 +116,8 @@
                              xmom_src, ymom_src, zmom_src,
                              r0_new, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             dptr_rhotheta_src, dptr_rhoqt_src,
-                             dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                             n_qstate);
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             d_rayleigh_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -129,9 +131,11 @@
 #ifdef ERF_USE_EB
                              EBFactory(level),
 #endif
-                             fr_as_crse, fr_as_fine,
-                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+                             fr_as_crse, fr_as_fine);
+
+            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -154,7 +158,6 @@
 #endif
            for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
            {
-
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
 
@@ -213,9 +216,8 @@
                              xmom_src, ymom_src, zmom_src,
                              r0, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             dptr_rhotheta_src, dptr_rhoqt_src,
-                             dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                             n_qstate);
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             d_rayleigh_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -229,9 +231,11 @@
 #ifdef ERF_USE_EB
                              EBFactory(level),
 #endif
-                             fr_as_crse, fr_as_fine,
-                             xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                             thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+                             fr_as_crse, fr_as_fine);
+
+            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -382,6 +386,9 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
+        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+
         make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
                      qheating_rates[level],
@@ -397,9 +404,8 @@
                          xmom_src, ymom_src, zmom_src,
                          r0, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_rhotheta_src, dptr_rhoqt_src,
-                         dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                         n_qstate);
+                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                         d_rayleigh_ptrs_at_lev, n_qstate);
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
@@ -410,10 +416,11 @@
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         xflux_imask[level], yflux_imask[level], zflux_imask[level],
-                         thin_xforce[level], thin_yforce[level], thin_zforce[level]);
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level]);
 
+         add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                               xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
@@ -426,17 +433,6 @@
                                                        bdy_data_xlo, bdy_data_xhi,
                                                        bdy_data_ylo, bdy_data_yhi);
             }
-        }
-#endif
-
-#if 0
-        // HACK -- NO RELAXATION INSIDE FINE GRIDS
-        // Compute RHS for fine interior ghost
-        if (level > 0 && cf_width>0) {
-            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
-                                            cf_width, cf_set_width, fine_geom,
-                                            &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
-                                            domain_bcs_type, S_rhs, S_data);
         }
 #endif
     }; // end slow_rhs_fun_inc

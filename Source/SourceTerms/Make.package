@@ -1,3 +1,4 @@
+CEXE_sources += ERF_add_thin_body_sources.cpp
 CEXE_sources += ERF_make_buoyancy.cpp
 CEXE_sources += ERF_make_mom_sources.cpp
 CEXE_sources += ERF_make_sources.cpp

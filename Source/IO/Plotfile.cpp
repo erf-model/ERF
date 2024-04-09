@@ -198,6 +198,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
     if (containerHasElement(plot_var_names, "x_velocity" ) ||
         containerHasElement(plot_var_names, "y_velocity" ) ||
         containerHasElement(plot_var_names, "z_velocity" ) ||
+        containerHasElement(plot_var_names, "magvel"     ) ||
         containerHasElement(plot_var_names, "vorticity_x") ||
         containerHasElement(plot_var_names, "vorticity_y") ||
         containerHasElement(plot_var_names, "vorticity_z") ) {
@@ -294,6 +295,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
         calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
         calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
+        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
 
         if (containerHasElement(plot_var_names, "divU"))
         {
@@ -1256,10 +1258,10 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
 {
     BL_PROFILE("WriteMultiLevelPlotfileWithTerrain()");
 
-    BL_ASSERT(nlevels <= mf.size());
-    BL_ASSERT(nlevels <= ref_ratio.size()+1);
-    BL_ASSERT(nlevels <= level_steps.size());
-    BL_ASSERT(mf[0]->nComp() == varnames.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= mf.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= ref_ratio.size()+1);
+    AMREX_ALWAYS_ASSERT(nlevels <= level_steps.size());
+    AMREX_ALWAYS_ASSERT(mf[0]->nComp() == varnames.size());
 
     bool callBarrier(false);
     PreBuildDirectorHierarchy(plotfilename, levelPrefix, nlevels, callBarrier);
@@ -1338,78 +1340,78 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const std::string &levelPrefix,
                                             const std::string &mfPrefix) const
 {
-        BL_ASSERT(nlevels <= bArray.size());
-        BL_ASSERT(nlevels <= ref_ratio.size()+1);
-        BL_ASSERT(nlevels <= level_steps.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= bArray.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= ref_ratio.size()+1);
+    AMREX_ALWAYS_ASSERT(nlevels <= level_steps.size());
 
-        HeaderFile.precision(17);
+    HeaderFile.precision(17);
 
-        // ---- this is the generic plot file type name
-        HeaderFile << versionName << '\n';
+    // ---- this is the generic plot file type name
+    HeaderFile << versionName << '\n';
 
-        HeaderFile << varnames.size() << '\n';
+    HeaderFile << varnames.size() << '\n';
 
-        for (int ivar = 0; ivar < varnames.size(); ++ivar) {
-            HeaderFile << varnames[ivar] << "\n";
-        }
-        HeaderFile << AMREX_SPACEDIM << '\n';
-        HeaderFile << time << '\n';
-        HeaderFile << finest_level << '\n';
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            HeaderFile << geom[0].ProbLo(i) << ' ';
+    for (int ivar = 0; ivar < varnames.size(); ++ivar) {
+        HeaderFile << varnames[ivar] << "\n";
+    }
+    HeaderFile << AMREX_SPACEDIM << '\n';
+    HeaderFile << time << '\n';
+    HeaderFile << finest_level << '\n';
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        HeaderFile << geom[0].ProbLo(i) << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        HeaderFile << geom[0].ProbHi(i) << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i < finest_level; ++i) {
+        HeaderFile << ref_ratio[i][0] << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        HeaderFile << geom[i].Domain() << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        HeaderFile << level_steps[i] << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        for (int k = 0; k < AMREX_SPACEDIM; ++k) {
+            HeaderFile << geom[i].CellSize()[k] << ' ';
         }
         HeaderFile << '\n';
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            HeaderFile << geom[0].ProbHi(i) << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i < finest_level; ++i) {
-            HeaderFile << ref_ratio[i][0] << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            HeaderFile << geom[i].Domain() << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            HeaderFile << level_steps[i] << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            for (int k = 0; k < AMREX_SPACEDIM; ++k) {
-                HeaderFile << geom[i].CellSize()[k] << ' ';
+    }
+    HeaderFile << (int) geom[0].Coord() << '\n';
+    HeaderFile << "0\n";
+
+    for (int level = 0; level <= finest_level; ++level) {
+        HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
+        HeaderFile << level_steps[level] << '\n';
+
+        const IntVect& domain_lo = geom[level].Domain().smallEnd();
+        for (int i = 0; i < bArray[level].size(); ++i)
+        {
+            // Need to shift because the RealBox ctor we call takes the
+            // physical location of index (0,0,0).  This does not affect
+            // the usual cases where the domain index starts with 0.
+            const Box& b = shift(bArray[level][i], -domain_lo);
+            RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
+            for (int n = 0; n < AMREX_SPACEDIM; ++n) {
+                HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
             }
-            HeaderFile << '\n';
         }
-        HeaderFile << (int) geom[0].Coord() << '\n';
-        HeaderFile << "0\n";
 
-        for (int level = 0; level <= finest_level; ++level) {
-            HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
-            HeaderFile << level_steps[level] << '\n';
-
-            const IntVect& domain_lo = geom[level].Domain().smallEnd();
-            for (int i = 0; i < bArray[level].size(); ++i)
-            {
-                // Need to shift because the RealBox ctor we call takes the
-                // physical location of index (0,0,0).  This does not affect
-                // the usual cases where the domain index starts with 0.
-                const Box& b = shift(bArray[level][i], -domain_lo);
-                RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
-                for (int n = 0; n < AMREX_SPACEDIM; ++n) {
-                    HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
-                }
-            }
-
-            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mfPrefix) << '\n';
-        }
-        HeaderFile << "1" << "\n";
-        HeaderFile << "3" << "\n";
-        HeaderFile << "amrexvec_nu_x" << "\n";
-        HeaderFile << "amrexvec_nu_y" << "\n";
-        HeaderFile << "amrexvec_nu_z" << "\n";
-        std::string mf_nodal_prefix = "Nu_nd";
-        for (int level = 0; level <= finest_level; ++level) {
-            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
-        }
+        HeaderFile << MultiFabHeaderPath(level, levelPrefix, mfPrefix) << '\n';
+    }
+    HeaderFile << "1" << "\n";
+    HeaderFile << "3" << "\n";
+    HeaderFile << "amrexvec_nu_x" << "\n";
+    HeaderFile << "amrexvec_nu_y" << "\n";
+    HeaderFile << "amrexvec_nu_z" << "\n";
+    std::string mf_nodal_prefix = "Nu_nd";
+    for (int level = 0; level <= finest_level; ++level) {
+        HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
+    }
 }

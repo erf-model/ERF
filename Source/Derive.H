@@ -122,5 +122,15 @@ void erf_dervortz (
   const int* bcrec,
   const int level);
 
+void erf_dermagvel (
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
 }
 #endif

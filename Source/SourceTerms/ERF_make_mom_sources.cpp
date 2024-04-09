@@ -34,6 +34,7 @@ using namespace amrex;
  * @param[in] dptr_v_geos  custom geostrophic wind profile
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value for xvel/yvel/zvel/theta} used to define Rayleigh damping
+ * @param[in] n_qstate number of moisture components
  */
 
 void make_mom_sources (int /*level*/,
@@ -68,12 +69,14 @@ void make_mom_sources (int /*level*/,
     zmom_src.setVal(0.0);
 
     // *****************************************************************************
-    // Define source term for all three components of momenta  from
+    // Define source term for all three components of momenta from
     //    1. buoyancy           for (zmom)
     //    2. Coriolis forcing   for (xmom,ymom,zmom)
     //    3. Rayleigh damping   for (xmom,ymom,zmom)
-    //    4.
-    //    5. numerical diffusion for (xmom,ymom,zmom)
+    //    4. Constant / height-dependent geostrophic forcing
+    //    5. subsidence
+    //    6. numerical diffusion for (xmom,ymom,zmom)
+    //    7. sponge
     // *****************************************************************************
     const bool l_use_ndiff      = solverChoice.use_NumDiff;
 
@@ -303,6 +306,6 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
-    } // mfi
 
+    } // mfi
 }
