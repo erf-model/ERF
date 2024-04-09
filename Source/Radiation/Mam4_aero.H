@@ -464,6 +464,7 @@ class Mam4_aer {
                         refr(i)        = crefin_real(i);
                         refi(i)        = std::abs(crefin_im(i));
                     }
+
                     // interpolate coefficients linear in refractive index
                     // first call calcs itab,jtab,ttab,utab
                     real3d extpswr("extpswr", ncoef, prefr, prefi);
@@ -538,13 +539,13 @@ class Mam4_aer {
                                 exit(0);
                             }
                         }
+                    }
 
-                        for(auto i=1; i <= ncol; ++i) {
-                            tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
-                            wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i);
-                            ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i);
-                            fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i);
-                        }
+                    for(auto i=1; i <= ncol; ++i) {
+                        tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
+                        wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i);
+                        ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i);
+                        fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i);
                     }
                 } //end do ! nlev
             } //end do ! swbands
