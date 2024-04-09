@@ -1199,13 +1199,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             // Do piecewise interpolation of mf into mf2
             for (int lev = 1; lev <= finest_level; ++lev) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
-                    pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
-                }
+                Interpolater* mapper_c = &pc_interp;
+                InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
+                                      0, 0, ncomp_mf,
+                                      geom[lev], g2[lev],
+                                      null_bc_for_fill, 0, null_bc_for_fill, 0,
+                                      r2[lev-1], mapper_c, domain_bcs_type, 0);
             }
 
             // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
