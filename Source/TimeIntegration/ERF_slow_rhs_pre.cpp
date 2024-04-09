@@ -1,7 +1,6 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_ArrayLim.H>
 #include <AMReX_BCRec.H>
-#include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
 #include <TI_slow_headers.H>

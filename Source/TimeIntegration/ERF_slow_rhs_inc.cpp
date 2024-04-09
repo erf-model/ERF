@@ -55,12 +55,6 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
- * @param[in] xflux_imask_lev thin-body mask on x-faces
- * @param[in] yflux_imask_lev thin-body mask on y-faces
- * @param[in] zflux_imask_lev thin-body mask on z-faces
- * @param[in] thin_xforce_lev x-component of forces on thin immersed bodies
- * @param[in] thin_yforce_lev y-component of forces on thin immersed bodies
- * @param[in] thin_zforce_lev z-component of forces on thin immersed bodies
  */
 
 void erf_slow_rhs_inc (int level, int nrk,
@@ -97,15 +91,12 @@ void erf_slow_rhs_inc (int level, int nrk,
                        const MultiFab* p0,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
-                       std::unique_ptr<iMultiFab>& xflux_imask_lev,
-                       std::unique_ptr<iMultiFab>& yflux_imask_lev,
-                       std::unique_ptr<iMultiFab>& zflux_imask_lev,
-                       std::unique_ptr<MultiFab>& thin_xforce_lev,
-                       std::unique_ptr<MultiFab>& thin_yforce_lev,
-                       std::unique_ptr<MultiFab>& thin_zforce_lev)
+                       std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
+
+    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
+    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
@@ -137,18 +128,11 @@ void erf_slow_rhs_inc (int level, int nrk,
 
     const bool use_most     = (most != nullptr);
 
-    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
-    const BCRec* bc_ptr_h = domain_bcs_type_h.data();
-
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
     const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-
-    const bool l_have_thin_xforce = (thin_xforce_lev != nullptr);
-    const bool l_have_thin_yforce = (thin_yforce_lev != nullptr);
-    const bool l_have_thin_zforce = (thin_zforce_lev != nullptr);
 
     // *****************************************************************************
     // Combine external forcing terms
@@ -712,7 +696,7 @@ void erf_slow_rhs_inc (int level, int nrk,
             lo_z_face = mfi.validbox().smallEnd(2);
             hi_z_face = mfi.validbox().bigEnd(2)+1;
         }
-        AdvectionSrcForMom(tbx, tby, tbz,
+        AdvectionSrcForMom(bx, tbx, tby, tbz,
                            rho_u_rhs, rho_v_rhs, rho_w_rhs,
                            cell_data, u, v, w,
                            rho_u, rho_v, omega_arr,
@@ -755,6 +739,41 @@ void erf_slow_rhs_inc (int level, int nrk,
               rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
+
+        // *****************************************************************************
+        // Zero out source terms for x- and y- momenta if at walls or inflow
+        // We need to do this -- even though we call the boundary conditions later --
+        // because the slow source is used to update the state in the fast interpolater.
+        // *****************************************************************************
+        {
+        if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
+             (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
+            Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
+            ParallelFor(lo_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_u_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
+             (bc_ptr_h[BCVars::xvel_bc].hi(0) == ERFBCType::ext_dir) ) {
+            Box hi_x_dom_face(bx); hi_x_dom_face.setSmall(0,bx.bigEnd(0)+1); hi_x_dom_face.setBig(0,bx.bigEnd(0)+1);
+            ParallelFor(hi_x_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_u_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.smallEnd(1) == domain.smallEnd(1)) &&
+             (bc_ptr_h[BCVars::yvel_bc].lo(1) == ERFBCType::ext_dir) ) {
+            Box lo_y_dom_face(bx); lo_y_dom_face.setBig(1,bx.smallEnd(1));
+            ParallelFor(lo_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_v_rhs(i,j,k) = 0.;
+            });
+        }
+        if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
+             (bc_ptr_h[BCVars::yvel_bc].hi(1) == ERFBCType::ext_dir) ) {
+            Box hi_y_dom_face(bx); hi_y_dom_face.setSmall(1,bx.bigEnd(1)+1); hi_y_dom_face.setBig(1,bx.bigEnd(1)+1);;
+            ParallelFor(hi_y_dom_face, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                rho_v_rhs(i,j,k) = 0.;
+            });
+        }
 
         amrex::Box b2d = tbz;
         b2d.setSmall(2,0);

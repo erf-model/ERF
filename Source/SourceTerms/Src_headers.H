@@ -57,13 +57,17 @@ void make_mom_sources (int level, int nrk,
                        const amrex::Real* dptr_rhoqt_src,
                        const amrex::Real* dptr_wbar_sub,
                        const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
-                       const int n_qstate,
-                       std::unique_ptr<amrex::iMultiFab>& xflux_imask_lev,
-                       std::unique_ptr<amrex::iMultiFab>& yflux_imask_lev,
-                       std::unique_ptr<amrex::iMultiFab>& zflux_imask_lev,
-                       std::unique_ptr<amrex::MultiFab>& thin_xforce_lev,
-                       std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
-                       std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
+                       const int n_qstate);
+
+void add_thin_body_sources (amrex::MultiFab& xmom_source,
+                            amrex::MultiFab& ymom_source,
+                            amrex::MultiFab& zmom_source,
+                            std::unique_ptr<amrex::iMultiFab>& xflux_imask_lev,
+                            std::unique_ptr<amrex::iMultiFab>& yflux_imask_lev,
+                            std::unique_ptr<amrex::iMultiFab>& zflux_imask_lev,
+                            std::unique_ptr<amrex::MultiFab>& thin_xforce_lev,
+                            std::unique_ptr<amrex::MultiFab>& thin_yforce_lev,
+                            std::unique_ptr<amrex::MultiFab>& thin_zforce_lev);
 
 #if defined(ERF_USE_NETCDF)
 void
