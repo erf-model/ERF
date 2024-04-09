@@ -151,7 +151,7 @@ class Mam4_aer {
                 // chebyshev polynomials
                 cheb(1,i,k) = 1.;
                 cheb(2,i,k) = xrad(i);
-                for(auto nc = 3; nc < ncoef; ++nc) {
+                for(auto nc = 3; nc <= ncoef; ++nc) {
                     cheb(nc,i,k) = 2.*xrad(i)*cheb(nc-1,i,k)-cheb(nc-2,i,k);
                 }
             }
@@ -425,7 +425,7 @@ class Mam4_aer {
             // calc size parameter for all columns
             modal_size_parameters(sigma_logr_aer, dgnumwet, radsurf, logradsurf, cheb);
 
-            for(auto isw = 1; isw <= nswbands; isw++) {
+            for(auto isw = 1; isw <= nswbands; ++isw) {
                 for(auto k = top_lev; k <= nlev; ++k) {
                     // form bulk refractive index
                     yakl::memset(crefin_real, 0.);
@@ -464,6 +464,7 @@ class Mam4_aer {
                         refr(i)        = crefin_real(i);
                         refi(i)        = std::abs(crefin_im(i));
                     }
+
                     // interpolate coefficients linear in refractive index
                     // first call calcs itab,jtab,ttab,utab
                     real3d extpswr("extpswr", ncoef, prefr, prefi);
@@ -506,7 +507,7 @@ class Mam4_aer {
                         pext(i) = pext(i)*wetvol(i)*rhoh2o;
                         pabs(i) = 0.5*cabs(i,1);
                         pasm(i) = 0.5*casm(i,1);
-                        for(auto nc = 2; nc < ncoef; ++nc) {
+                        for(auto nc = 2; nc <= ncoef; ++nc) {
                             pabs(i) = pabs(i) + cheb(nc,i,k)*cabs(i,nc);
                             pasm(i) = pasm(i) + cheb(nc,i,k)*casm(i,nc);
                         }
@@ -538,13 +539,13 @@ class Mam4_aer {
                                 exit(0);
                             }
                         }
+                    }
 
-                        for(auto i=1; i <= ncol; ++i) {
-                            tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
-                            wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i);
-                            ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i);
-                            fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i);
-                        }
+                    for(auto i=1; i <= ncol; ++i) {
+                        tauxar(i,k,isw) = tauxar(i,k,isw) + dopaer(i);
+                        wa(i,k,isw)     = wa(i,k,isw)     + dopaer(i)*palb(i);
+                        ga(i,k,isw)     = ga(i,k,isw)     + dopaer(i)*palb(i)*pasm(i);
+                        fa(i,k,isw)     = fa(i,k,isw)     + dopaer(i)*palb(i)*pasm(i)*pasm(i);
                     }
                 } //end do ! nlev
             } //end do ! swbands
