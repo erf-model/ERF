@@ -123,17 +123,16 @@ void SuperDropletPC::MassChange ( int                                         a_
 
                 amrex::Gpu::Atomic::Add(unconverged_particles_ptr, amrex::Long(1));
 
-            } else {
-
-                // update particle radius
-                radius_ptr[i] = std::sqrt(r_sq);
-
-                // update mass of particle
-                mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
-
-                // update superdroplet total mass
-                supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
             }
+
+            // update particle radius
+            radius_ptr[i] = std::sqrt(r_sq);
+
+            // update mass of particle
+            mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
+
+            // update superdroplet total mass
+            supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
 
         });
 
