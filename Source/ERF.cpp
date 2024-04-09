@@ -749,7 +749,7 @@ ERF::InitData ()
         }
     }
 
-    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_U ||
+    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
         solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
