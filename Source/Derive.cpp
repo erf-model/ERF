@@ -285,7 +285,7 @@ erf_dermagvel (
   int dcomp,
   int ncomp,
   const amrex::FArrayBox& datfab,
-  const amrex::Geometry& geomdata,
+  const amrex::Geometry& /*geomdata*/,
   amrex::Real /*time*/,
   const int* /*bcrec*/,
   const int /*level*/)

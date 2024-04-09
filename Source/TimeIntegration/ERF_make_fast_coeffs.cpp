@@ -214,13 +214,7 @@ void make_fast_coeffs (int /*level*/,
           coeffC_a(i,j,lo.z) =  0.0;
 
           // w_khi = 0
-          if (outflow) {
-              // This imposes a simple FOextrap condition, setting the
-              //      value at hi.z+1 equal to the value at hi.z
-              coeffA_a(i,j,hi.z+1) = -1.0;
-          } else {
-              coeffA_a(i,j,hi.z+1) =  0.0;
-          }
+          coeffA_a(i,j,hi.z+1) =  0.0;
           coeffB_a(i,j,hi.z+1) =  1.0;
           coeffC_a(i,j,hi.z+1) =  0.0;
 

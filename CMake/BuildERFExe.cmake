@@ -153,6 +153,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/console_io.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
