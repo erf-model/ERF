@@ -9,7 +9,8 @@
 using namespace amrex;
 
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
-void SuperDropletPC::Diagnostics(const int& a_iter)
+void SuperDropletPC::Diagnostics( const int& a_iter,
+                                  const bool a_flag )
 {
     BL_PROFILE("SuperDropletPC::Diagnostics()");
     using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
@@ -66,7 +67,9 @@ void SuperDropletPC::Diagnostics(const int& a_iter)
             << "    particle radius (min,max,avg): "
             << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n";
 
-    MassDensityDistribution( a_iter, min_par_radius, max_par_radius );
+    if (a_flag) {
+        MassDensityDistribution( a_iter, min_par_radius, max_par_radius );
+    }
 }
 
 /*! Compute and write the mass density distribution (as a function of the log of
