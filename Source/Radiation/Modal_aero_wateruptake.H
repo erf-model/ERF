@@ -311,13 +311,12 @@ class ModalAeroWateruptake {
             r=rdry*(1.+p*third/(1.-slog*rdry/a));
         }
         else {
-            // AML TODO: FIX WHATEVER THIS IS TRYING TO DO...
             amrex::GpuComplex<real> cx4[4];
             makoh_quartic(cx4,p43,p42,p41,p40);
             //find smallest real(r8) solution
             r = 1000.*rdry;
-            auto nsol = 0;
-            for(auto n=0; n<4; ++n) {
+            int nsol = -1;
+            for(int n=0; n<4; ++n) {
                 auto xr=cx4[n].real();
                 auto xi=cx4[n].imag();
                 if(abs(xi) > abs(xr)*eps) continue;
@@ -327,7 +326,7 @@ class ModalAeroWateruptake {
                 r=xr;
                 nsol=n;
             }
-            if(nsol != 0) {
+            if(nsol == -1) {
                 amrex::Print() << "kohlerc: no real solution found(quartic), nsol= " << nsol << "\n";
                 r=rdry;
             }
@@ -346,7 +345,7 @@ class ModalAeroWateruptake {
                 makoh_cubic(cx3,p32,p31,p30);
                 //find smallest real(r8) solution
                 r=1000.*rdry;
-                auto nsol = 0;
+                int nsol = -1;
                 for(auto n=0; n<3; ++n) {
                     auto xr = cx3[n].real();
                     auto xi = cx3[n].imag();
@@ -357,8 +356,8 @@ class ModalAeroWateruptake {
                     r=xr;
                     nsol=n;
                 }
-                if(nsol == 0) {
-                    amrex::Print() << "kohlerc: no real solution found (cubic)\n";
+                if(nsol == -1) {
+                    amrex::Print() << "kohlerc: no real solution found (cubic), nsol= " << nsol << "\n";
                     r=rdry;
                 }
             }
@@ -374,10 +373,10 @@ class ModalAeroWateruptake {
     // solves  x**3 + p2 x**2 + p1 x + p0 = 0
     // where p0, p1, p2 are real
     static
-    void makoh_cubic(amrex::GpuComplex<real> cx[],
-                     const real& p2,
-                     const real& p1,
-                     const real& p0)
+    void makoh_cubic (amrex::GpuComplex<real> cx[],
+                      const real& p2,
+                      const real& p1,
+                      const real& p0)
     {
         const real eps = 1.0e-20;
         const real third=1./3.;
@@ -413,11 +412,11 @@ class ModalAeroWateruptake {
     // solves x**4 + p3 x**3 + p2 x**2 + p1 x + p0 = 0
     // where p0, p1, p2, p3 are real
     static
-    void makoh_quartic(amrex::GpuComplex<real> cx[],
-                       const real& p3,
-                       const real& p2,
-                       const real& p1,
-                       const real& p0)
+    void makoh_quartic (amrex::GpuComplex<real> cx[],
+                        const real& p3,
+                        const real& p2,
+                        const real& p1,
+                        const real& p0)
     {
         const real third=1./3.;
         auto q = -p2*p2/36.+(p3*p1-4*p0)/12.;

@@ -714,6 +714,39 @@ class PhysProp {
         prop.read(asmpsw, "asmpsw" );
         prop.read(absplw, "absplw" );
 
+        /*
+        // DEBUG NETCDF READ ORDER
+        {
+        auto lb = asmpsw.get_lbounds();
+        auto ub = asmpsw.get_ubounds();
+        amrex::Print() << "CHECK: " << ub.size() << "\n";
+        for (int ind(1); ind<=ub.size(); ++ind) {
+          amrex::Print() << "BNDS asmpsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
+                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
+        }
+        }
+
+        {
+        auto lb = abspsw.get_lbounds();
+        auto ub = abspsw.get_ubounds();
+        amrex::Print() << "CHECK: " << ub.size() << "\n";
+        for (int ind(1); ind<=ub.size(); ++ind) {
+          amrex::Print() << "BNDS abspsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
+                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
+        }
+        }
+
+        {
+        auto lb = extpsw.get_lbounds();
+        auto ub = extpsw.get_ubounds();
+        amrex::Print() << "CHECK: " << ub.size() << "\n";
+        for (int ind(1); ind<=ub.size(); ++ind) {
+          amrex::Print() << "BNDS extpsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
+                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
+        }
+        }
+        */
+
         phys_prop.extpsw = real4d("extpsw", nswbnd, prefi, prefr, ncoef);
         phys_prop.abspsw = real4d("abspsw", nswbnd, prefi, prefr, ncoef);
         phys_prop.asmpsw = real4d("asmpsw", nswbnd, prefi, prefr, ncoef);
@@ -722,15 +755,15 @@ class PhysProp {
         parallel_for (SimpleBounds<4>(nswbnd, prefi, prefr, ncoef),
                       YAKL_LAMBDA (int i, int j, int k, int l)
         {
-            phys_prop.extpsw(i,j,k,l) = extpsw(i,1,j,k,l);
-            phys_prop.abspsw(i,j,k,l) = abspsw(i,1,j,k,l);
-            phys_prop.asmpsw(i,j,k,l) = asmpsw(i,1,j,k,l);
+            phys_prop.extpsw(i,j,k,l) = extpsw(l,k,j,1,i); //extpsw(i,1,j,k,l);
+            phys_prop.abspsw(i,j,k,l) = abspsw(l,k,j,1,i); //abspsw(i,1,j,k,l);
+            phys_prop.asmpsw(i,j,k,l) = asmpsw(l,k,j,1,i); //asmpsw(i,1,j,k,l);
         });
 
         parallel_for (SimpleBounds<4>(nlwbnd, prefi, prefr, ncoef),
                       YAKL_LAMBDA (int i, int j, int k, int l)
         {
-            phys_prop.absplw(i,j,k,l) = absplw(i,1,j,k,l);
+            phys_prop.absplw(i,j,k,l) = absplw(l,k,j,1,i); //absplw(i,1,j,k,l);
         });
 
         prop.read(phys_prop.refrtabsw,   "refindex_real_sw" );
