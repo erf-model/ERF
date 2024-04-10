@@ -32,9 +32,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
         m_super_droplets->Coalescence(0,a_dt,*m_mic_fab_vars[MicVar_SD::temperature]);
     }
 
-    if ((a_iter+1)%m_diagnostics_iter == 0) {
-        m_super_droplets->Diagnostics(a_iter);
-    }
+    m_super_droplets->Diagnostics(a_iter, ((a_iter+1)%m_diagnostics_iter == 0));
 }
 
 #endif
