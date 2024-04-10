@@ -16,6 +16,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
 
     auto num_total_particles = TotalNumberOfParticles();
+    auto num_superdroplets = static_cast<Real>(NumSuperDroplets());
 
     auto min_par_radius = ReduceMin( *this,
                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
@@ -33,6 +34,18 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                          return n*r;
                                      } );
 
+    auto min_multiplic  = ReduceMin( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
+
+    auto max_multiplic  = ReduceMax( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
+
+    auto avg_multiplic  = ReduceSum( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i]; } );
+
     auto min_par_mass   = ReduceMin( *this,
                                      [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
                                      { return ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i]; } );
@@ -49,23 +62,95 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                          return n*m;
                                      } );
 
+    auto min_par_vx = ReduceMin( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
+
+    auto max_par_vx = ReduceMax( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
+
+    auto avg_par_vx = ReduceSum( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 {
+                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i];
+                                     return n*m;
+                                 } );
+
+    auto min_par_vy = ReduceMin( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
+
+    auto max_par_vy = ReduceMax( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i]; } );
+
+    auto avg_par_vy = ReduceSum( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 {
+                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vy][i];
+                                     return n*m;
+                                 } );
+
+    auto min_par_vz = ReduceMin( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
+
+    auto max_par_vz = ReduceMax( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i]; } );
+
+    auto avg_par_vz = ReduceSum( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 {
+                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                     auto m = ptd.m_rdata[SuperDropletsRealIdxSoA::vz][i];
+                                     return n*m;
+                                 } );
 
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_multiplic,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_par_vx,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_par_vy,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_par_vz,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealMax(&max_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_radius,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_multiplic,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_par_vx,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_par_vy,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_par_vz,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_radius,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_multiplic,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_par_vx,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
     avg_par_mass /= num_total_particles;
     avg_par_radius /= num_total_particles;
+    avg_multiplic /= num_superdroplets;
+    avg_par_vx /= num_total_particles;
+    avg_par_vy /= num_total_particles;
+    avg_par_vz /= num_total_particles;
 
-    Print() << "SuperDropletPC(" << m_name << ") diagnostics:\n"
-            << "    particle mass (min,max,avg): "
+    Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
+            << "    mass: "
             << min_par_mass << ", " << max_par_mass << ", " << avg_par_mass << "\n"
-            << "    particle radius (min,max,avg): "
-            << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n";
+            << "    radius: "
+            << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n"
+            << "    multiplicity: "
+            << min_multiplic << ", " << max_multiplic << ", " << avg_multiplic << "\n"
+            << "    velocity components:\n"
+            << "        x: "
+            << min_par_vx << ", " << max_par_vx << ", " << avg_par_vx << "\n"
+            << "        y: "
+            << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
+            << "        z: "
+            << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n";
 
     if (a_flag) {
         MassDensityDistribution( a_iter, min_par_radius, max_par_radius );
