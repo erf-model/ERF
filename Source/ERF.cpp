@@ -221,16 +221,37 @@ ERF::ERF ()
     z_phys_nd.resize(nlevs_max);
     z_phys_cc.resize(nlevs_max);
     detJ_cc.resize(nlevs_max);
+    ax.resize(nlevs_max);
+    ay.resize(nlevs_max);
+    az.resize(nlevs_max);
+
     z_phys_nd_new.resize(nlevs_max);
     detJ_cc_new.resize(nlevs_max);
+    ax_new.resize(nlevs_max);
+    ay_new.resize(nlevs_max);
+    az_new.resize(nlevs_max);
+
     z_phys_nd_src.resize(nlevs_max);
     detJ_cc_src.resize(nlevs_max);
+    ax_src.resize(nlevs_max);
+    ay_src.resize(nlevs_max);
+    az_src.resize(nlevs_max);
+
     z_t_rk.resize(nlevs_max);
 
     // Mapfactors
     mapfac_m.resize(nlevs_max);
     mapfac_u.resize(nlevs_max);
     mapfac_v.resize(nlevs_max);
+
+    // Thin immersed body
+    xflux_imask.resize(nlevs_max);
+    yflux_imask.resize(nlevs_max);
+    zflux_imask.resize(nlevs_max);
+    //overset_imask.resize(nlevs_max);
+    thin_xforce.resize(nlevs_max);
+    thin_yforce.resize(nlevs_max);
+    thin_zforce.resize(nlevs_max);
 
     // Base state
     base_state.resize(nlevs_max);
@@ -257,6 +278,16 @@ ERF::ERF ()
            Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
        }
     }
+
+    // We define m_factory even with no EB
+    m_factory.resize(max_level+1);
+
+#ifdef AMREX_USE_EB
+    // We will create each of these in MakeNewLevel.../RemakeLevel
+
+    // This is needed before initializing level MultiFabs
+    MakeEBGeometry();
+#endif
 }
 
 ERF::~ERF () = default;
@@ -608,6 +639,17 @@ ERF::InitData ()
             AverageDown();
         }
 
+        if ((solverChoice.advChoice.zero_xflux.size() > 0) ||
+            (solverChoice.advChoice.zero_yflux.size() > 0) ||
+            (solverChoice.advChoice.zero_zflux.size() > 0))
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(finest_level == 0,
+                "Thin immersed body with refinement not currently supported.");
+            if (solverChoice.use_terrain == 1) {
+                amrex::Print() << "NOTE: Thin immersed body with terrain has not been tested." << std::endl;
+            }
+        }
+
     } else { // Restart from a checkpoint
 
         restart();
@@ -707,7 +749,8 @@ ERF::InitData ()
         }
     }
 
-    if (solverChoice.use_rayleigh_damping)
+    if (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
+        solverChoice.rayleigh_damp_W ||solverChoice.rayleigh_damp_T)
     {
         initRayleigh();
         if (init_type == "input_sounding")
@@ -965,6 +1008,13 @@ ERF::InitData ()
     }
 
     BL_PROFILE_VAR_STOP(InitData);
+
+#ifdef ERF_USE_EB
+    bool write_eb_surface = false;
+    pp.query("write_eb_surface", write_eb_surface);
+    if (write_eb_surface) WriteMyEBSurface();
+#endif
+
 }
 
 // Initialize microphysics object
@@ -1585,8 +1635,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp) // NOLINT
                              rV_new[lev],
                              rW_new[lev],
                            Geom(lev).Domain(),
-                           domain_bcs_type,
-                           true);
+                           domain_bcs_type);
     }
 
     average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);

@@ -39,87 +39,87 @@ using yakl::fortran::SimpleBounds;
 class Rrtmgp {
   public:
     // constructor
-    Rrtmgp() = default;
+    Rrtmgp () = default;
 
     // deconstructor
-    ~Rrtmgp() = default;
+    ~Rrtmgp () = default;
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize(int num_gas, const std::vector<std::string>& active_gas_names,
-                    const char* rrtmgp_coefficients_file_sw,
-                    const char* rrtmgp_coefficients_file_lw);
+    void initialize (int num_gas, const std::vector<std::string>& active_gas_names,
+                     const char* rrtmgp_coefficients_file_sw,
+                     const char* rrtmgp_coefficients_file_lw);
 
     // finalize/clean up
-    void finalize();
+    void finalize ();
 
     // run rrtmgp short wave model
     void run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
-        const real3d& gas_vmr, const real2d& pmid, const real2d& tmid, const real2d& pint,
-        const real1d& coszrs , const real2d& albedo_dir, const real2d& albedo_dif,
-        const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
-        const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
-        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    , const real2d& allsky_flux_dn_dir,
-        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net, const real3d& allsky_bnd_flux_dn_dir,
-        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    , const real2d& clrsky_flux_dn_dir,
-        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net, const real3d& clrsky_bnd_flux_dn_dir,
-        double tsi_scaling);
+                               const real3d& gas_vmr, const real2d& pmid, const real2d& tmid, const real2d& pint,
+                               const real1d& coszrs , const real2d& albedo_dir, const real2d& albedo_dif,
+                               const real3d& cld_tau_gpt, const real3d& cld_ssa_gpt, const real3d& cld_asm_gpt,
+                               const real3d& aer_tau_bnd, const real3d& aer_ssa_bnd, const real3d& aer_asm_bnd,
+                               const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    , const real2d& allsky_flux_dn_dir,
+                               const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net, const real3d& allsky_bnd_flux_dn_dir,
+                               const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    , const real2d& clrsky_flux_dn_dir,
+                               const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net, const real3d& clrsky_bnd_flux_dn_dir,
+                               double tsi_scaling);
 
     // run rrtmgp long wave model
     void run_longwave_rrtmgp (int ngas, int ncol, int nlay, const real3d& gas_vmr,
-        const real2d& pmid, const real2d& tmid, const real2d& pint , const real2d& tint,
-        const real2d& emis_sfc,
-        const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
-        const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
-        const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
-        const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
-        const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net);
+                              const real2d& pmid, const real2d& tmid, const real2d& pint , const real2d& tint,
+                              const real2d& emis_sfc,
+                              const real3d& cld_tau_gpt       , const real3d& aer_tau_bnd       ,
+                              const real2d& allsky_flux_up    , const real2d& allsky_flux_dn    , const real2d& allsky_flux_net    ,
+                              const real3d& allsky_bnd_flux_up, const real3d& allsky_bnd_flux_dn, const real3d& allsky_bnd_flux_net,
+                              const real2d& clrsky_flux_up    , const real2d& clrsky_flux_dn    , const real2d& clrsky_flux_net    ,
+                              const real3d& clrsky_bnd_flux_up, const real3d& clrsky_bnd_flux_dn, const real3d& clrsky_bnd_flux_net);
 
-    int get_nband_sw() {
-       return k_dist_sw.get_nband();
+    int get_nband_sw () {
+        return k_dist_sw.get_nband();
     }
 
-    int get_nband_lw() {
-       return k_dist_lw.get_nband();
+    int get_nband_lw () {
+        return k_dist_lw.get_nband();
     }
 
-    int get_ngpt_sw() {
-       return k_dist_sw.get_ngpt();
+    int get_ngpt_sw () {
+        return k_dist_sw.get_ngpt();
     }
 
-    int get_ngpt_lw() {
-       return k_dist_lw.get_ngpt();
+    int get_ngpt_lw () {
+        return k_dist_lw.get_ngpt();
     }
 
-    double get_min_temperature() {
-      return std::min(k_dist_sw.temp_ref_min, k_dist_lw.temp_ref_min);
+    double get_min_temperature () {
+        return std::min(k_dist_sw.temp_ref_min, k_dist_lw.temp_ref_min);
     }
 
-    double get_max_temperature() {
-       return std::max(k_dist_sw.temp_ref_max, k_dist_lw.temp_ref_max);
+    double get_max_temperature () {
+        return std::max(k_dist_sw.temp_ref_max, k_dist_lw.temp_ref_max);
     }
 
-    void get_gpoint_bands_sw(int1d& gpoint_bands) {
-       gpoint_bands = k_dist_sw.get_gpoint_bands();
-       yakl::fence();
+    void get_gpoint_bands_sw (int1d& gpoint_bands) {
+        gpoint_bands = k_dist_sw.get_gpoint_bands();
+        yakl::fence();
     }
 
-    void get_gpoint_bands_lw(int1d& gpoint_bands) {
-       gpoint_bands = k_dist_lw.get_gpoint_bands();
-       yakl::fence();
+    void get_gpoint_bands_lw (int1d& gpoint_bands) {
+        gpoint_bands = k_dist_lw.get_gpoint_bands();
+        yakl::fence();
     }
 
   private:
-   // number of gas for radiation model
-   int ngas;
-   string1d active_gases;
+    // number of gas for radiation model
+    int ngas;
+    string1d active_gases;
 
-   // coefficient files
-   char const *coefficients_file_sw;  // short wave gas optics coefficient files
-   char const *coefficients_file_lw;  // long wave gas optics coefficient files
+    // coefficient files
+    char const *coefficients_file_sw;  // short wave gas optics coefficient files
+    char const *coefficients_file_lw;  // long wave gas optics coefficient files
 
-   // Objects for gas optics data
-   GasOpticsRRTMGP k_dist_sw;
-   GasOpticsRRTMGP k_dist_lw;
+    // Objects for gas optics data
+    GasOpticsRRTMGP k_dist_sw;
+    GasOpticsRRTMGP k_dist_lw;
 };
 
 #endif // ERF_RRTMGP_H

@@ -163,7 +163,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+# html_static_path = ['_static']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -328,9 +328,15 @@ linkcheck_ignore = [
     'https://link.springer.com/article/10.1007/BF00240838',
     'https://onlinelibrary.wiley.com/doi/10.1029/2021MS002904',
     'https://link.springer.com/article/10.1023/B:BOUN.0000020164.04146.98',
-    'https://doi.org/10.1029/RG020i004p00851'
+    'https://doi.org/10.1029/RG020i004p00851',
+    'https://doi.org/10.1002/qj.665'
 ]
 
+linkcheck_allowed_redirects = {
+    r'https://doi\.org/*' : '.*',
+    r'https://dx\.doi\.org/*' : '.*',
+    r'http://dx\.doi\.org/*' : '.*'
+}
 
 # -- Options for Texinfo output -------------------------------------------
 

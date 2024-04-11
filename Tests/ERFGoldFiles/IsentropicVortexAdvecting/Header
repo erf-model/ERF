@@ -1,11 +1,14 @@
 HyperCLaw-V1.1
-7
+10
 density
 x_velocity
 y_velocity
 z_velocity
 temp
 theta
+vorticity_x
+vorticity_y
+vorticity_z
 pressure
 3
 0.005000000000000001
@@ -18,18 +21,12 @@ pressure
 0.5 0.5 0.5 
 0
 0
-0 4 0.005000000000000001
+0 2 0.005000000000000001
 10
--12 0
--12 0
--1 1
-0 12
+-12 12
 -12 0
 -1 1
--12 0
-0 12
--1 1
-0 12
+-12 12
 0 12
 -1 1
 Level_0/Cell

@@ -421,6 +421,9 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
 
+        int m_ppc_seed; /*!< Number of seed particles per cell */
+        amrex::Real m_seed_mass; /*!< Condensate mass of seed */
+
         /*! Initial aerosol masses of each physical particle */
         std::vector<amrex::Real> m_mass_aerosol_init;
         /*! Initial distribution type for aerosol masses */

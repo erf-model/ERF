@@ -26,6 +26,7 @@ Problem::Problem (const Real* problo, const Real* probhi)
     pp.query("V_0_Pert_Mag", parms.V_0_Pert_Mag);
     pp.query("W_0_Pert_Mag", parms.W_0_Pert_Mag);
     pp.query("T_0_Pert_Mag", parms.T_0_Pert_Mag);
+    pp.query("qv_0_Pert_Mag", parms.qv_0_Pert_Mag);
 
     pp.query("pert_deltaU", parms.pert_deltaU);
     pp.query("pert_deltaV", parms.pert_deltaV);
@@ -53,6 +54,7 @@ Problem::Problem (const Real* problo, const Real* probhi)
     pp.query("wbar_cutoff_max", parms.wbar_cutoff_max);
     pp.query("wbar_cutoff_min", parms.wbar_cutoff_min);
     AMREX_ASSERT_WITH_MESSAGE(parms.wbar_cutoff_min > parms.wbar_cutoff_max, "ERROR: wbar_cutoff_min < wbar_cutoff_max");
+    pp.query("custom_TKE", parms.custom_TKE);
     //===========================================================================
 
     init_base_parms(parms.rho_0, parms.T_0);
@@ -101,18 +103,25 @@ Problem::init_custom_pert (
         // Add temperature perturbations
         if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+            state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag; //*state_pert(i, j, k, Rho_comp);
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
         state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
 
         // Set an initial value for QKE
-        state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
+        if (parms.custom_TKE) {
+            state_pert(i, j, k, RhoQKE_comp) = 1.0 - zc/3000.0; //*state_pert(i, j, k, Rho_comp);
+        }
+        else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = 0.0;
             state_pert(i, j, k, RhoQ2_comp) = 0.0;
+            if ((z <= parms.pert_ref_height) && (parms.qv_0_Pert_Mag != 0.0)) {
+                Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
+                state_pert(i, j, k, RhoQ1_comp) = (rand_double*2.0 - 1.0)*parms.qv_0_Pert_Mag; //*state_pert(i, j, k, Rho_comp);
+            }
         }
     });
 
@@ -344,13 +353,13 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
-    const Real coriolis = 0.376E-4;
+    const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
 
     // Only apply temperature source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
-        u_geos[k] =  0; //  -coriolis_factor * v_geo_wind
+        u_geos[k] =  0 ; //coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
         v_geos[k] =  coriolis *  u_geo_wind;
     }
 

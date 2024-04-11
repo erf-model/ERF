@@ -35,7 +35,8 @@ function(build_erf_lib erf_lib_name)
   if(ERF_ENABLE_POISSON_SOLVE)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_inc.cpp
-                   ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp)
+                   ${SRC_DIR}/Utils/ERF_PoissonSolve.cpp
+                   ${SRC_DIR}/Utils/ERF_PoissonSolve_tb.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_POISSON_SOLVE)
   endif()
 
@@ -53,6 +54,18 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/Particles/SuperDropletPCUtils.cpp)
     target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Particles)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_PARTICLES)
+  endif()
+
+  if(ERF_ENABLE_EB)
+    target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/EB/Init_EB.cpp
+                   ${SRC_DIR}/EB/eb_box.cpp
+                   ${SRC_DIR}/EB/eb_cylinder.cpp
+                   ${SRC_DIR}/EB/eb_regular.cpp
+                   ${SRC_DIR}/EB/initEB.cpp
+                   ${SRC_DIR}/EB/writeEBsurface.cpp)
+    target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/EB)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_EB)
   endif()
 
   if(ERF_ENABLE_NETCDF)
@@ -106,6 +119,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
+       ${SRC_DIR}/Advection/AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ABLMost.cpp
        ${SRC_DIR}/BoundaryConditions/MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/BoundaryConditions_cons.cpp
@@ -126,7 +140,6 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diffusion/ComputeStrain_N.cpp
        ${SRC_DIR}/Diffusion/ComputeStrain_T.cpp
        ${SRC_DIR}/Diffusion/ComputeTurbulentViscosity.cpp
-       ${SRC_DIR}/Diffusion/NumericalDiffusion.cpp
        ${SRC_DIR}/Diffusion/PBLModels.cpp
        ${SRC_DIR}/Initialization/ERF_init_custom.cpp
        ${SRC_DIR}/Initialization/ERF_init_from_hse.cpp
@@ -144,6 +157,13 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/Plotfile.cpp
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/IO/console_io.cpp
+       ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
+       ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_make_sources.cpp
+       ${SRC_DIR}/SourceTerms/ERF_moist_set_rhs.cpp
+       ${SRC_DIR}/SourceTerms/NumericalDiffusion.cpp
        ${SRC_DIR}/TimeIntegration/ERF_ComputeTimestep.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Advance.cpp
        ${SRC_DIR}/TimeIntegration/ERF_TimeStep.cpp
@@ -151,10 +171,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_advance_microphysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_lsm.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_make_buoyancy.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
-       ${SRC_DIR}/TimeIntegration/ERF_ApplySpongeZoneBCs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_T.cpp
@@ -216,6 +234,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Diffusion)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Initialization)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/IO)
+  target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/SourceTerms)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/TimeIntegration)
   target_include_directories(${erf_lib_name} PUBLIC ${SRC_DIR}/Utils)
   target_include_directories(${erf_lib_name} PUBLIC ${CMAKE_BINARY_DIR})

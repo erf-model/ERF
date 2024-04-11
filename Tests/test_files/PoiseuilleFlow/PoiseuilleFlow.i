@@ -53,6 +53,7 @@ erf.abl_driver_type = "PressureGradient"
 erf.abl_pressure_grad = -0.2 0. 0.
 
 # PROBLEM PARAMETERS
+prob.prob_type = 10
+
 prob.rho_0 = 1.0
 prob.T_0 = 300.0
-prob.prob_type = 10

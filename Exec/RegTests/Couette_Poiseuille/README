@@ -1,0 +1,13 @@
+This directory has two problem setups: Couette flow and Poiseuille flow.
+These problems primarily test the implementation of the viscous terms,
+in particular the discretization at the boundaries.
+
+If prob_type == 1 in the inputs file, then the problem setup is for classic Couette flow.
+The domain is periodic in the x- and y-directions and has no slip walls on the top and bottom.
+The velocity is specified to be (2,0,0) (for inputs_couette_x) or
+(0,2,0) (for inputs_couette_y) at the top wall.
+
+If prob_type == 10 or 11 in the inputs file, then the problem setup is for classic Poiseuille flow.
+The domain is periodic in the x- and y-directions and has no slip walls on the top and bottom.
+The flow is driven by a pressure gradient in the x-direction if prob_type == 10, 
+or in the y-direction if prob_type = 11.

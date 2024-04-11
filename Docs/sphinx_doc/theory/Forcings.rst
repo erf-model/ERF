@@ -50,13 +50,18 @@ There is no dependence on the radial distance from the center of the earth, thus
 Rayleigh Damping
 ----------------
 
-If
+Rayleigh damping can be imposed on any or all of :math:`u, v, w, T` and is controlled by
+setting
 
 ::
 
-      use_rayleigh_damping == true
+      rayleigh_damp_U = true
+      rayleigh_damp_V = true
+      rayleigh_damp_W = true
+      rayleigh_damp_T = true
 
-then explicit Rayleigh damping is included in the energy and momentum equations
+in the inputs file.  When one or more of those is true,
+explicit Rayleigh damping is included in the energy and/or momentum equations
 as described in Section 4.4.3 of the WRF Model Version 4 documentation (p40), i.e. :
 
 .. math::

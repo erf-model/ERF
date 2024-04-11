@@ -14,8 +14,6 @@ geometry.is_periodic = 1 1 0
 zhi.type = "SlipWall"
 zlo.type = "SlipWall"
 
-erf.use_rayleigh_damping = true
-
 # TIME STEP CONTROL
 erf.fixed_dt = 1.0
 erf.fixed_mri_dt_ratio = 4
@@ -45,6 +43,11 @@ erf.Cs       = 0.25
 
 erf.moisture_model  = "Kessler"
 erf.buoyancy_type   = 1
+
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
     
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true

@@ -1,9 +1,7 @@
 #include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <IndexDefines.H>
-#include <TI_headers.H>
+
+#include <TI_fast_headers.H>
 #include <prob_common.H>
-#include <TileNoZ.H>
 
 using namespace amrex;
 
@@ -16,7 +14,7 @@ using namespace amrex;
  * @param[in]  S_stage_data solution at the last stage
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
- * @param[in]  geom   Container for geometric informaiton
+ * @param[in]  geom   Container for geometric information
  * @param[in]  l_use_terrain Are we using terrain-fitted coordinates
  * @param[in]  gravity       Magnitude of gravity
  * @param[in]  c_p           Coefficient at constant pressure

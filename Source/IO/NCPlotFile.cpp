@@ -22,7 +22,7 @@ void
 ERF::writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                       const Vector<const MultiFab*> &plotMF,
                       const Vector<std::string> &plot_var_names,
-                      const Vector<int>& level_steps, const Real time) const
+                      const Vector<int>& /*level_steps*/, const Real time) const
 {
      // get the processor number
      int iproc = amrex::ParallelContext::MyProcAll();

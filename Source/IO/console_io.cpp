@@ -23,7 +23,7 @@ const std::string dbl_line = std::string(78, '=') + "\n";
 const std::string dash_line = "\n" + std::string(78, '-') + "\n";
 } // namespace
 
-void ERF::print_usage(MPI_Comm comm, std::ostream& out)
+void ERF::print_usage (MPI_Comm comm, std::ostream& out)
 {
 #ifdef AMREX_USE_MPI
     int irank = 0;
@@ -48,7 +48,7 @@ Optional:
 )doc" << std::endl;
 }
 
-void ERF::print_error(MPI_Comm comm, const std::string& msg)
+void ERF::print_error (MPI_Comm comm, const std::string& msg)
 {
 #ifdef AMREX_USE_MPI
     int irank = 0;
@@ -65,7 +65,7 @@ void ERF::print_error(MPI_Comm comm, const std::string& msg)
     std::cout << "ERROR: " << msg << std::endl;
 }
 
-void ERF::print_banner(MPI_Comm comm, std::ostream& out)
+void ERF::print_banner (MPI_Comm comm, std::ostream& out)
 {
 #ifdef AMREX_USE_MPI
     int irank = 0;
@@ -142,7 +142,7 @@ void ERF::print_banner(MPI_Comm comm, std::ostream& out)
     // clang-format on
 }
 
-void ERF::print_tpls(std::ostream& out)
+void ERF::print_tpls (std::ostream& out)
 {
     amrex::Vector<std::string> tpls;
 

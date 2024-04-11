@@ -51,7 +51,8 @@ erf.plot_vars_1     = x_velocity
 
 # SOLVER CHOICE
 erf.molec_diff_type = "None"
-erf.use_rayleigh_damping = true
+
+# RAYLEIGH DAMPING
 erf.rayleigh_damp_U = true
 
 # PROBLEM CHOICE

@@ -11,7 +11,7 @@ using namespace amrex;
  * @param time Current time
  */
 void
-ERF::sum_integrated_quantities(Real time)
+ERF::sum_integrated_quantities (Real time)
 {
     BL_PROFILE("ERF::sum_integrated_quantities()");
 
@@ -181,7 +181,7 @@ ERF::sum_integrated_quantities(Real time)
  * @param mf MultiFab from which we wish to sample data
  */
 void
-ERF::sample_points(int /*lev*/, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_points (int /*lev*/, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
 
@@ -219,7 +219,7 @@ ERF::sample_points(int /*lev*/, Real time, IntVect cell, MultiFab& mf)
  * @param mf MultiFab from which we sample the data
  */
 void
-ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
+ERF::sample_lines (int lev, Real time, IntVect cell, MultiFab& mf)
 {
     int datwidth = 14;
     int datprecision = 6;
@@ -310,9 +310,9 @@ ERF::sample_lines(int lev, Real time, IntVect cell, MultiFab& mf)
  * @param finemask If a finer level is available, determines whether we mask fine data
  */
 Real
-ERF::volWgtSumMF(int lev,
-  const MultiFab& mf, int comp,
-  const MultiFab& mapfac, bool local, bool finemask)
+ERF::volWgtSumMF (int lev,
+                  const MultiFab& mf, int comp,
+                  const MultiFab& mapfac, bool local, bool finemask)
 {
     BL_PROFILE("ERF::volWgtSumMF()");
 
@@ -359,7 +359,7 @@ ERF::volWgtSumMF(int lev,
  * @param level Fine level index which masks underlying coarser data
  */
 MultiFab&
-ERF::build_fine_mask(int level)
+ERF::build_fine_mask (int level)
 {
     // Mask for zeroing covered cells
     AMREX_ASSERT(level > 0);
@@ -396,7 +396,7 @@ ERF::build_fine_mask(int level)
  * @param action_per Interval in simulation time for taking action
  */
 bool
-ERF::is_it_time_for_action(int nstep, Real time, Real dtlev, int action_interval, Real action_per)
+ERF::is_it_time_for_action (int nstep, Real time, Real dtlev, int action_interval, Real action_per)
 {
   bool int_test = (action_interval > 0 && nstep % action_interval == 0);
 

@@ -2,6 +2,7 @@
 #define PlaneAverage_H
 
 #include "AMReX_Gpu.H"
+#include "AMReX_iMultiFab.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_GpuContainers.H"
 #include "DirectionSelector.H"

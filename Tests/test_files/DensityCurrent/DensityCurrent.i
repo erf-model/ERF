@@ -47,7 +47,6 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 
 erf.les_type         = "None"
 erf.molec_diff_type  = "ConstantAlpha"

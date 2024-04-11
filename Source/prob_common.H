@@ -297,6 +297,32 @@ public:
         }
     }
 
+    /**
+    * Function to perform custom initialization of terrain
+    *
+    * This version takes a single FArrayBox instead of a MultiFab
+    *
+    */
+    virtual void
+    init_custom_terrain (const amrex::Geometry& /*geom*/,
+                         amrex::FArrayBox& z_phys_nd,
+                         const amrex::Real& /*time*/)
+    {
+        // Note that this only sets the terrain value at the ground IF k=0 is in the box
+        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
+
+        // Bottom of domain
+        int k0 = 0;
+
+        // Grown box with no z range
+        amrex::Box bx = z_phys_nd.box();
+        amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array();
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            z_arr(i,j,k0) = 0.0;
+        });
+    }
+
 #ifdef ERF_USE_TERRAIN_VELOCITY
     virtual amrex::Real compute_terrain_velocity(const amrex::Real /*time*/)
     {

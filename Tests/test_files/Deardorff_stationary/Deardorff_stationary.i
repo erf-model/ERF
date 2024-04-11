@@ -50,7 +50,6 @@ erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rh
 # SOLVER CHOICES
 erf.use_gravity = false
 erf.use_coriolis = false
-erf.use_rayleigh_damping = false
 
 erf.abl_driver_type = "GeostrophicWind"
 erf.abl_geo_wind = 0. 0. 0.  # no background pressure gradient

@@ -148,7 +148,7 @@ AdvectionSrcForYMom_N (int i, int j, int k,
                  + (yflux_hi - yflux_lo) * dyInv * mfsq
                  + (zflux_hi - zflux_lo) * dzInv;
 
-   return advectionSrc;
+    return advectionSrc;
 }
 
 /**
@@ -270,7 +270,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
                  + (yflux_hi - yflux_lo) * dyInv * mfsq
                  + (zflux_hi - zflux_lo) * dzInv;
 
-   return advectionSrc;
+    return advectionSrc;
 }
 
 /**

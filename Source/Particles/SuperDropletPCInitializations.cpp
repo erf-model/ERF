@@ -42,6 +42,8 @@ void SuperDropletPC::readInputs ()
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
+    m_ppc_seed = 0;
+    m_seed_mass = 0.0;
 
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
@@ -64,6 +66,9 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_maxits", m_newton_maxits);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
+
+    pp.query("initial_seeds_per_cell", m_ppc_seed);
+    pp.query("seed_condensate_mass", m_seed_mass);
 
     {
         Vector<int> bin_size = {1,1,1};
@@ -174,6 +179,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     const int n_aerosols_max = SupDropInit::num_aerosols_max;
     const Real mat_density = m_vapour_mat->density();
 
+    const int n_seeds = m_ppc_seed;
+    const Real condensate_mass_seed = m_seed_mass;
+
     Print() << "SuperDropletPC(" << m_name << "):\n"
             << "    Number of physical particles per cell: " << num_par_per_cell << "\n"
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
@@ -187,6 +195,8 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             Print() << "        " << m_aerosol_mat[i]->name() << "\n";
         }
     }
+    Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
+            << "    Seed condensate mass: " << m_seed_mass << "\n";
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
@@ -376,7 +386,26 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 mass_ptr[n] = par_mass;
                 radius_ptr[n] = par_radius;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
-           }
+            }
+
+            /* Seed particles */
+            for (int ns = 0; ns < n_seeds; ns++) {
+                int n = start + Random_int(num_sd_per_cell, rnd_engine);
+
+                ParticleReal aerosol_mass_total = 0.0;
+                for (int ctr = 0; ctr < n_aerosols; ctr++) {
+                    aerosol_mass_total += aerosol_mass_ptrs[ctr][n];
+                }
+                auto par_mass = condensate_mass_seed + aerosol_mass_total;
+                auto par_radius = std::exp(std::log(par_mass/((4.0/3.0)*PI*mat_density))/3.0);
+                if (par_radius == 0.0) {
+                    par_radius = 1.0e-16;
+                }
+
+                mass_ptr[n] = par_mass;
+                radius_ptr[n] = par_radius;
+                supdrop_mass_ptr[n] = par_mass*mult_ptr[n];
+            }
         });
         Gpu::synchronize();
 

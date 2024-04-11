@@ -14,6 +14,7 @@ struct ProbParm : ProbParmDefaults {
   amrex::Real B_0   = 0.0;
   amrex::Real u_0   = 0.0;
   amrex::Real v_0   = 0.0;
+  amrex::Real w_0   = 0.0;
   amrex::Real rad_0 = 0.0;
   amrex::Real z0    = 0.1;  // Surface Roughness
   amrex::Real zRef  = 80.0; // Reference Height
