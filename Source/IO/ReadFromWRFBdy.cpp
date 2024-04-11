@@ -529,7 +529,7 @@ read_from_wrfbdy (const std::string& nc_bdy_file, const Box& domain,
 }
 
 void
-convert_wrfbdy_data (int which, const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
+convert_wrfbdy_data (const Box& domain, Vector<Vector<FArrayBox>>& bdy_data,
                      const FArrayBox& NC_MUB_fab,
                      const FArrayBox& NC_PH_fab, const FArrayBox& NC_PHB_fab,
                      const FArrayBox& NC_C1H_fab, const FArrayBox& NC_C2H_fab,

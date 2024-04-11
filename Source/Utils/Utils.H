@@ -16,6 +16,12 @@ void make_J (const amrex::Geometry& geom,
              amrex::MultiFab& z_phys_nd,
              amrex::MultiFab& detJ_cc);
 
+void make_areas (const amrex::Geometry& geom,
+                 amrex::MultiFab& z_phys_nd,
+                 amrex::MultiFab& ax,
+                 amrex::MultiFab& ay,
+                 amrex::MultiFab& az);
+
 /*
  * Average z_phys_nd on nodes to cell centers
  */
@@ -50,8 +56,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          amrex::MultiFab& ymom_out,
                          amrex::MultiFab& zmom_out,
                          const amrex::Box& domain,
-                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
-                         bool l_use_ndiff);
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type_h);
 
 /*
  * Compute boxes for looping over interior/exterior ghost cells
@@ -133,7 +138,7 @@ wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
                                const amrex::Array4<const amrex::Real>& arr_xhi,
                                const amrex::Array4<const amrex::Real>& arr_ylo,
                                const amrex::Array4<const amrex::Real>& arr_yhi,
-                               const amrex::Array4<amrex::Real>& data_arr,
+                               const amrex::Array4<const amrex::Real>& data_arr,
                                const amrex::Array4<amrex::Real>& rhs_arr)
 {
     int Spec_z  = set_width;
@@ -325,4 +330,51 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
         rhs_arr(i,j,k,n+icomp) += Temp;
     });
 }
+
+/*
+ * Effectively a Multiply for a MultiFab and an iMultiFab mask
+ */
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+ApplyMask (amrex::MultiFab& dst,
+           const amrex::iMultiFab& imask,
+           const int nghost = 0)
+{
+    for (amrex::MFIter mfi(dst,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.growntilebox(nghost);
+        if (bx.ok())
+        {
+            auto        dstFab = dst.array(mfi);
+            const auto maskFab = imask.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dstFab(i,j,k) *= maskFab(i,j,k);
+            });
+        }
+    }
+}
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+void
+ApplyInvertedMask (amrex::MultiFab& dst,
+                   const amrex::iMultiFab& imask,
+                   const int nghost = 0)
+{
+    for (amrex::MFIter mfi(dst,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const amrex::Box& bx = mfi.growntilebox(nghost);
+        if (bx.ok())
+        {
+            auto        dstFab = dst.array(mfi);
+            const auto maskFab = imask.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                dstFab(i,j,k) *= (1-maskFab(i,j,k));
+            });
+        }
+    }
+}
+
 #endif

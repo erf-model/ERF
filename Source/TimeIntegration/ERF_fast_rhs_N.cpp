@@ -1,13 +1,5 @@
-#include <AMReX.H>
-#include <AMReX_MultiFab.H>
-#include <AMReX_MultiFabUtil.H>
-#include <AMReX_ArrayLim.H>
-#include <AMReX_BC_TYPES.H>
-#include <TileNoZ.H>
-#include <ERF_Constants.H>
-#include <IndexDefines.H>
-#include <TI_headers.H>
-#include <prob_common.H>
+
+#include <TI_fast_headers.H>
 
 using namespace amrex;
 

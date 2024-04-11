@@ -10,9 +10,9 @@
 // Rrtmgp
 #include "Rrtmgp.H"
 
-void Rrtmgp::initialize(int num_gas, const std::vector<std::string>& active_gas_names,
-                        const char* rrtmgp_coefficients_file_sw,
-                        const char* rrtmgp_coefficients_file_lw)
+void Rrtmgp::initialize (int num_gas, const std::vector<std::string>& active_gas_names,
+                         const char* rrtmgp_coefficients_file_sw,
+                         const char* rrtmgp_coefficients_file_lw)
 {
     // Read gas optics coefficients from file
     // Need to initialize available_gases here! The only field of the

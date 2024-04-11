@@ -1,4 +1,4 @@
-#include "prob_common.H"
+#include "Src_headers.H"
 
 /**
  *  Wrapper for calling the routine that creates the slow RHS
@@ -37,6 +37,19 @@
             }
         }
 
+        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+
+        // Construct the source terms for the cell-centered (conserved) variables
+        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
+#if defined(ERF_USE_RRTMGP)
+                     qheating_rates[level],
+#endif
+                     fine_geom, solverChoice,
+                     mapfac_u[level], mapfac_v[level],
+                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
         {
@@ -51,16 +64,19 @@
             prob->init_custom_terrain(fine_geom,*z_phys_nd[level],old_step_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd[level], *detJ_cc[level]);
+            make_areas         (fine_geom,*z_phys_nd[level], *ax[level], *ay[level], *az[level]);
 
             if (verbose) Print() << "Making src geometry at old_stage_time:  " << old_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_src[level],old_stage_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd_src[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_src[level], *detJ_cc_src[level]);
+            make_areas         (fine_geom,*z_phys_nd_src[level], *ax_src[level], *ay_src[level], *az_src[level]);
 
             if (verbose) Print() << "Making new geometry at new_stage_time: " << new_stage_time << std::endl;
             prob->init_custom_terrain(fine_geom,*z_phys_nd_new[level],new_stage_time);
             init_terrain_grid  (level,fine_geom,*z_phys_nd_new[level], zlevels_stag);
             make_J             (fine_geom,*z_phys_nd_new[level], *detJ_cc_new[level]);
+            make_areas         (fine_geom,*z_phys_nd_new[level], *ax_new[level], *ay_new[level], *az_new[level]);
 
             Real inv_dt  = 1./slow_dt;
 
@@ -94,24 +110,32 @@
             MultiFab* r0_new = &r_hse_new;
             MultiFab* p0_new = &p_hse_new;
 
-            make_buoyancy(S_data, S_prim, buoyancy, fine_geom,
-                          solverChoice, r0_new, micro->Get_Qstate_Size());
+            int n_qstate = micro->Get_Qstate_Size();
+            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                             xvel_new, yvel_new,
+                             xmom_src, ymom_src, zmom_src,
+                             r0_new, fine_geom, solverChoice,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             d_rayleigh_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy,
-#if defined(ERF_USE_RRTMGP)
-                             qheating_rates[level],
-#endif
-                             Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx3, Diss,
+                             z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
+                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
+                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd_src[level], detJ_cc_src[level], p0_new,
+                             z_phys_nd_src[level], ax_src[level], ay_src[level], az_src[level], detJ_cc_src[level], p0_new,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_rhoqt_src,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+#ifdef ERF_USE_EB
+                             EBFactory(level),
+#endif
+                             fr_as_crse, fr_as_fine);
+
+            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
             // We define and evolve (rho theta)_0 in order to re-create p_0 in a way that is consistent
             //    with our update of (rho theta) but does NOT maintain dp_0 / dz = -rho_0 g.  This is why
@@ -134,7 +158,6 @@
 #endif
            for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
            {
-
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
 
@@ -185,27 +208,34 @@
             r0_new->FillBoundary(fine_geom.periodicity());
             p0_new->FillBoundary(fine_geom.periodicity());
 
-        } else {
+        } else { // If not moving_terrain
 
-            // If not moving_terrain
-            make_buoyancy(S_data, S_prim, buoyancy,
-                          fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
+            int n_qstate = micro->Get_Qstate_Size();
+            make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                             xvel_new, yvel_new,
+                             xmom_src, ymom_src, zmom_src,
+                             r0, fine_geom, solverChoice,
+                             mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                             d_rayleigh_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
-                             z_t_rk[level], Omega, source, buoyancy,
-#if defined(ERF_USE_RRTMGP)
-                             qheating_rates[level],
-#endif
-                             Tau11, Tau22, Tau33, Tau12,
-                             Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                             Hfx3, Diss,
+                             z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                             Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
+                             Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
+                             Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                             z_phys_nd[level], detJ_cc[level], p0,
+                             z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                             fr_as_crse, fr_as_fine,
-                             dptr_rhotheta_src, dptr_rhoqt_src,
-                             dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+#ifdef ERF_USE_EB
+                             EBFactory(level),
+#endif
+                             fr_as_crse, fr_as_fine);
+
+            add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                                  xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                                  thin_xforce[level], thin_yforce[level], thin_zforce[level]);
         }
 
 #ifdef ERF_USE_NETCDF
@@ -305,33 +335,37 @@
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, SmnSmn, eddyDiffs,
+                              cc_src, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
-                              fine_geom, solverChoice, m_most, domain_bcs_type_d,
-                              z_phys_nd_src[level], detJ_cc[level], detJ_cc_new[level],
+                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc_new[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                              EBFactory(level),
+#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              dptr_rhoqt_src, dptr_wbar_sub,
                               fr_as_crse, fr_as_fine);
         } else {
             erf_slow_rhs_post(level, finest_level, nrk, slow_dt,
                               S_rhs, S_old, S_new, S_data, S_prim, S_scratch,
                               xvel_new, yvel_new, zvel_new,
-                              source, SmnSmn, eddyDiffs,
+                              cc_src, SmnSmn, eddyDiffs,
                               Hfx3, Diss,
-                              fine_geom, solverChoice, m_most, domain_bcs_type_d,
-                              z_phys_nd[level], detJ_cc[level], detJ_cc[level],
+                              fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
+                              z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], detJ_cc[level],
                               mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                              EBFactory(level),
+#endif
 #if defined(ERF_USE_NETCDF)
                               moist_set_rhs, bdy_time_interval, start_bdy_time, new_stage_time,
                               real_width, real_set_width,
                               bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
 #endif
-                              dptr_rhoqt_src, dptr_wbar_sub,
                               fr_as_crse, fr_as_fine);
         }
     }; // end slow_rhs_fun_post
@@ -352,21 +386,41 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
-        // If not moving_terrain
-        make_buoyancy(S_data, S_prim, buoyancy,
-                      fine_geom, solverChoice, r0, micro->Get_Qstate_Size());
+        Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
+        Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
+
+        make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
+#if defined(ERF_USE_RRTMGP)
+                     qheating_rates[level],
+#endif
+                     fine_geom, solverChoice,
+                     mapfac_u[level], mapfac_v[level],
+                     dptr_rhotheta_src, dptr_rhoqt_src,
+                     dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+
+        int n_qstate = micro->Get_Qstate_Size();
+        make_mom_sources(level, nrk, slow_dt, S_data, S_prim,
+                         xvel_new, yvel_new,
+                         xmom_src, ymom_src, zmom_src,
+                         r0, fine_geom, solverChoice,
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
+                         dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
+                         d_rayleigh_ptrs_at_lev, n_qstate);
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
-                         z_t_rk[level], Omega, source, buoyancy, Tau11, Tau22, Tau33, Tau12,
-                         Tau13, Tau21,  Tau23, Tau31, Tau32, SmnSmn, eddyDiffs,
-                         Hfx3, Diss,
+                         Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                         Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
+                         Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
+                         Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], detJ_cc[level], p0,
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
-                         dptr_rhotheta_src, dptr_u_geos, dptr_v_geos, dptr_wbar_sub, d_rayleigh_ptrs_at_lev);
+                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level]);
 
+         add_thin_body_sources(xmom_src, ymom_src, zmom_src,
+                               xflux_imask[level], yflux_imask[level], zflux_imask[level],
+                               thin_xforce[level], thin_yforce[level], thin_zforce[level]);
 
 #ifdef ERF_USE_NETCDF
         // Populate RHS for relaxation zones if using real bcs
@@ -379,18 +433,6 @@
                                                        bdy_data_xlo, bdy_data_xhi,
                                                        bdy_data_ylo, bdy_data_yhi);
             }
-        }
-#endif
-
-#if 0
-        // HACK -- NO RELAXATION INSIDE FINE GRIDS
-        // Compute RHS for fine interior ghost
-        if (level > 0 && cf_width>0) {
-            fine_compute_interior_ghost_rhs(new_stage_time, slow_dt,
-                                            cf_width, cf_set_width,
-                                            &FPr_c[level-1], &FPr_u[level-1], &FPr_v[level-1], &FPr_w[level-1],
-                                            boxes_at_level[level], domain_bcs_type,
-                                            S_rhs, S_data);
         }
 #endif
     }; // end slow_rhs_fun_inc

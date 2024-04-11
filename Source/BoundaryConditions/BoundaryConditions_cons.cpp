@@ -36,11 +36,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
 
     Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
-#else
-    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
-#endif
+    Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
@@ -106,6 +102,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int iflip = dom_lo.x - 1 - i;
                 if (bc_ptr[icomp+n].lo(0) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(dom_lo.x,j,k,icomp+n);
+                } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::open) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(dom_lo.x,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_odd) {
@@ -115,6 +113,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip =  2*dom_hi.x + 1 - i;
                 if (bc_ptr[icomp+n].hi(0) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x,j,k,icomp+n);
+                } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::open) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
@@ -135,6 +135,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int jflip = dom_lo.y - 1 - j;
                 if (bc_ptr[icomp+n].lo(1) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_lo.y,k,icomp+n);
+                } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::open) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_lo.y,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::reflect_odd) {
@@ -144,6 +146,8 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int jflip =  2*dom_hi.y + 1 - j;
                 if (bc_ptr[icomp+n].hi(1) == ERFBCType::foextrap) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_hi.y,k,icomp+n);
+                } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::open) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,dom_hi.y,k,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,jflip,k,icomp+n);
@@ -195,11 +199,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
     setBC(bx, domain, bccomp, 0, icomp+ncomp, m_domain_bcs_type, bcrs);
 
     Gpu::DeviceVector<BCRec> bcrs_d(icomp+ncomp);
-#ifdef AMREX_USE_GPU
-    Gpu::htod_memcpy_async(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
-#else
-    std::memcpy(bcrs_d.data(), bcrs.data(), sizeof(BCRec)*(icomp+ncomp));
-#endif
+    Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
     GpuArray<GpuArray<Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NVAR_max> l_bc_extdir_vals_d;
@@ -239,6 +239,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int kflip = dom_lo.z - 1 - i;
                 if (bc_ptr[icomp+n].lo(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_lo.z,icomp+n);
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::open) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_lo.z,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::reflect_odd) {
@@ -253,7 +255,8 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 int kflip =  2*dom_hi.z + 1 - i;
                 if (bc_ptr[icomp+n].hi(2) == ERFBCType::foextrap) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z,icomp+n);
-
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::open) {
+                    dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,dom_hi.z,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_even) {
                     dest_arr(i,j,k,icomp+n) =  dest_arr(i,j,kflip,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::reflect_odd) {

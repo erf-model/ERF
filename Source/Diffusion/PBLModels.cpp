@@ -26,6 +26,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                               const Geometry& geom,
                               const TurbChoice& turbChoice,
                               std::unique_ptr<ABLMost>& most,
+                              int level,
                               const BCRec* bc_ptr,
                               bool /*vert_only*/,
                               const std::unique_ptr<MultiFab>& z_phys_nd)
@@ -35,15 +36,15 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
     // MYNN Level 2.5 PBL Model
     if (turbChoice.pbl_type == PBLType::MYNN25) {
 
-        const Real A1 = turbChoice.pbl_A1;
-        const Real A2 = turbChoice.pbl_A2;
-        const Real B1 = turbChoice.pbl_B1;
-        const Real B2 = turbChoice.pbl_B2;
-        const Real C1 = turbChoice.pbl_C1;
-        const Real C2 = turbChoice.pbl_C2;
-        const Real C3 = turbChoice.pbl_C3;
-        //const Real C4 = turbChoice.pbl_C4;
-        const Real C5 = turbChoice.pbl_C5;
+        const Real A1 = turbChoice.pbl_mynn_A1;
+        const Real A2 = turbChoice.pbl_mynn_A2;
+        const Real B1 = turbChoice.pbl_mynn_B1;
+        const Real B2 = turbChoice.pbl_mynn_B2;
+        const Real C1 = turbChoice.pbl_mynn_C1;
+        const Real C2 = turbChoice.pbl_mynn_C2;
+        const Real C3 = turbChoice.pbl_mynn_C3;
+        //const Real C4 = turbChoice.pbl_mynn_C4;
+        const Real C5 = turbChoice.pbl_mynn_C5;
 
         // Dirichlet flags to switch derivative stencil
         bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -131,9 +132,9 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             Real d_kappa   = KAPPA;
             Real d_gravity = CONST_GRAV;
 
-            const auto& t_mean_mf = most->get_mac_avg(0,2); // TODO: IS THIS ACTUALLY RHOTHETA
-            const auto& u_star_mf = most->get_u_star(0);    // Use coarsest level
-            const auto& t_star_mf = most->get_t_star(0);    // Use coarsest level
+            const auto& t_mean_mf = most->get_mac_avg(level,2); // TODO: IS THIS ACTUALLY RHOTHETA
+            const auto& u_star_mf = most->get_u_star(level);    // Use desired level
+            const auto& t_star_mf = most->get_t_star(level);    // Use desired level
 
             const auto& tm_arr     = t_mean_mf->array(mfi); // TODO: IS THIS ACTUALLY RHOTHETA
             const auto& u_star_arr = u_star_mf->array(mfi);
@@ -245,5 +246,128 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
         Error("YSU Model not implemented yet");
+
+        /*
+          YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
+
+          Further Modifications from S.-Y. Hong, Q. J. R. Meteorol. Soc., 2010 [H10]
+
+          Implementation follows WRF as of early 2024 with some simplifications
+         */
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+            // Pull out the box we're working on, make sure it covers full domain in z-direction
+            const Box &bx = mfi.growntilebox(1);
+            const Box &dbx = geom.Domain();
+            Box sbx(bx.smallEnd(), bx.bigEnd());
+            sbx.grow(2,-1);
+            AMREX_ALWAYS_ASSERT(sbx.smallEnd(2) == dbx.smallEnd(2) && sbx.bigEnd(2) == dbx.bigEnd(2));
+
+            // Get some data in arrays
+            const auto& cell_data = cons_in.const_array(mfi);
+            //const auto& K_turb = eddyViscosity.array(mfi);
+            const auto& uvel = xvel.const_array(mfi);
+            const auto& vvel = yvel.const_array(mfi);
+
+            const auto& z0_arr = most->get_z0(level)->const_array();
+            const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
+            const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
+            //const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
+            //const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
+            const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
+            //const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+            const auto& z_nd_arr = z_phys_nd->array(mfi);
+            const Real most_zref = most->get_zref();
+
+            // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
+            if (most_zref != 10.0) {
+                amrex::Abort("MOST Zref must be 10m for YSU PBL scheme");
+            }
+
+            // create flattened boxes to store PBL height
+            const GeometryData gdata = geom.data();
+            const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
+            FArrayBox pbl_height(xybx,1);
+            const auto& pblh_arr = pbl_height.array();
+
+            // -- Diagnose PBL height - starting out assuming non-moist
+            // loop is only over i,j in order to find height at each x,y
+            const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
+            const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
+            const Real land_Ribcr = turbChoice.pbl_ysu_land_Ribcr;
+            const Real unst_Ribcr = turbChoice.pbl_ysu_unst_Ribcr;
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+            {
+                // Reconstruct a surface bulk Richardson number from the surface layer model
+                // In WRF, this value is supplied to YSU by the MM5 surface layer model
+                const Real t_surf = t_surf_arr(i,j,0);
+                const Real t_layer = t10av_arr(i,j,0);
+                const Real ws_layer = ws10av_arr(i,j,0);
+                const Real Rib_layer = CONST_GRAV * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
+
+                // For now, we only support stable boundary layers
+                if (Rib_layer < unst_Ribcr) {
+                    Abort("For now, YSU PBL only supports stable conditions");
+                }
+
+                // TODO: unstable BLs
+
+                // PBL Height: Stable Conditions
+                Real Rib_cr;
+                if (over_land) {
+                    Rib_cr = land_Ribcr;
+                } else { // over water
+                    // Velocity at z=10 m comes from MOST -> currently the average using whatever averaging MOST uses.
+                    // TODO: Revisit this calculation with local ws10?
+                    const Real z0 = z0_arr(i,j,0);
+                    const Real Rossby = ws_layer/(f0*z0);
+                    Rib_cr = min(0.16*std::pow(1.0e-7*Rossby,-0.18),0.3); // Note: upper bound in WRF code, but not H10 paper
+                }
+
+                bool above_critical = false;
+                int kpbl = 0;
+                Real Rib_up = Rib_layer, Rib_dn;
+                const Real base_theta = cell_data(i,j,0,RhoTheta_comp) / cell_data(i,j,0,Rho_comp);
+                while (!above_critical and bx.contains(i,j,kpbl+1)) {
+                    kpbl += 1;
+                    const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                    const Real ws2_level = (uvel(i,j,kpbl)+uvel(i+1,j,kpbl))*(uvel(i,j,kpbl)+uvel(i+1,j,kpbl)) + (vvel(i,j,kpbl)+vvel(i,j+1,kpbl))*(uvel(i,j,kpbl)+uvel(i,j+1,kpbl));
+                    const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
+                    Rib_dn = Rib_up;
+                    Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;
+                    above_critical = Rib_up >= Rib_cr;
+                }
+
+                Real interp_fact;
+                if (Rib_dn >= Rib_cr) {
+                    interp_fact = 0.0;
+                } else if (Rib_up <= Rib_cr)
+                    interp_fact = 1.0;
+                else {
+                    interp_fact = (Rib_cr - Rib_dn) / (Rib_up - Rib_dn);
+                }
+
+                const Real zval_up = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
+                const Real zval_dn = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + 0.5)*gdata.CellSize(2);
+                pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
+                if (pblh_arr(i,j,0) < 0.5*(zval_up+zval_dn) ) {
+                    kpbl = 0;
+                }
+            });
+
+            // -- Compute nonlocal/countergradient mixing parameters
+
+            // -- Compute entrainment parameters
+
+            // -- Compute diffusion coefficients within PBL
+
+            // -- Compute coefficients in free stream above PBL
+
+        }
+
     }
 }

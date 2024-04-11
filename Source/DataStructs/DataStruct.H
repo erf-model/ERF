@@ -162,7 +162,13 @@ struct SolverChoice {
         pp.query("no_substepping", no_substepping);
 
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
+
         pp.query("incompressible", incompressible);
+        pp.query("constant_density", constant_density);
+        pp.query("project_every_stage", project_every_stage);
+        pp.query("ncorr", ncorr);
+        pp.query("poisson_abstol", poisson_abstol);
+        pp.query("poisson_reltol", poisson_reltol);
 
         // If this is set, it must be even
         if (incompressible != 0 && no_substepping == 0)
@@ -173,8 +179,7 @@ struct SolverChoice {
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
 
-        // Include Rayleigh damping?
-        pp.query("use_rayleigh_damping", use_rayleigh_damping);
+        // Include Rayleigh damping (separate flags for each variable)
         pp.query("rayleigh_damp_U", rayleigh_damp_U);
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
@@ -243,6 +248,13 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level);
         }
 
+        // Warn for PBL models and moisture - these may not yet be compatible
+        for (int lev = 0; lev <= max_level; lev++) {
+            if ((moisture_type != MoistureType::None) && (turbChoice[lev].pbl_type != PBLType::None)) {
+                amrex::Warning("\n*** WARNING: Moisture may not yet be compatible with PBL models, \n    proceed with caution ***");
+            }
+        }
+
         // Which type of refinement
         static std::string coupling_type_string = "OneWay";
         pp.query("coupling_type",coupling_type_string);
@@ -275,7 +287,6 @@ struct SolverChoice {
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         amrex::Print() << "incompressible              : "  << incompressible << std::endl;
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
-        amrex::Print() << "use_rayleigh_damping        : " << use_rayleigh_damping << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
         if (coupling_type == CouplingType::TwoWay) {
@@ -361,7 +372,13 @@ struct SolverChoice {
 
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
-    int         incompressible              = 0;
+
+    int         incompressible      = 0;
+    int         constant_density    = 0;
+    int         project_every_stage = 1;
+    int         ncorr               = 1;
+    amrex::Real poisson_abstol      = 1e-10;
+    amrex::Real poisson_reltol      = 1e-10;
 
     bool        test_mapfactor         = false;
 
@@ -371,11 +388,10 @@ struct SolverChoice {
     // Specify what additional physics/forcing modules we use
     bool        use_gravity            = false;
     bool        use_coriolis           = false;
-    bool        use_rayleigh_damping   = false;
 
     bool        rayleigh_damp_U        = false;
     bool        rayleigh_damp_V        = false;
-    bool        rayleigh_damp_W        = true;
+    bool        rayleigh_damp_W        = false;
     bool        rayleigh_damp_T        = false;
 
     // This defaults to true but can be set to false for moving terrain cases only

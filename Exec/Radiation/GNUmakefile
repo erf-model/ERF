@@ -24,9 +24,11 @@ DEBUG = FALSE
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+USE_RADIATION = TRUE
+
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/SuperCell
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/Radiation
 include $(ERF_HOME)/Exec/Make.ERF

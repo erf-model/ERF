@@ -13,10 +13,10 @@ using namespace amrex;
  * @param yloc Location of the column in the y-dimension
  */
 void
-ERF::createNCColumnFile(int lev,
-                        const std::string& colfile_name,
-                        const Real xloc,
-                        const Real yloc)
+ERF::createNCColumnFile (int lev,
+                         const std::string& colfile_name,
+                         const Real xloc,
+                         const Real yloc)
 {
   // Create file to which column data will be written every timestep
   if (amrex::ParallelDescriptor::IOProcessor()) {
@@ -62,9 +62,9 @@ ERF::createNCColumnFile(int lev,
  * @param cumtime Current time
  */
 void
-ERF::writeToNCColumnFile(const int lev,
-                         const std::string& colfile_name, const Real xloc, const Real yloc,
-                         const Real cumtime)
+ERF::writeToNCColumnFile (const int lev,
+                          const std::string& colfile_name, const Real xloc, const Real yloc,
+                          const Real cumtime)
 {
   //
   // This routine assumes that we can grab the whole column of data from the MultiFabs at

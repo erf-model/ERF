@@ -64,6 +64,10 @@ prob.T_0   = 300.0
 prob.U_0   = 1.0
 prob.rho_0 = 1.16
 
-erf.use_rayleigh_damping = true
+erf.rayleigh_damp_U = true
+erf.rayleigh_damp_V = true
+erf.rayleigh_damp_W = true
+erf.rayleigh_damp_T = true
+
 prob.dampcoef = 2000. # ==> time scale = 0.0005 s (for testing)
 prob.zdamp = 1.0

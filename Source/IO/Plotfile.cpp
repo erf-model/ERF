@@ -7,6 +7,8 @@
 
 using namespace amrex;
 
+PhysBCFunctNoOp null_bc_for_fill;
+
 template<typename V, typename T>
 bool containerHasElement (const V& iterable, const T& query) {
     return std::find(iterable.begin(), iterable.end(), query) != iterable.end();
@@ -75,6 +77,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         if (containerHasElement(plot_var_names, tmp) ) {
             tmp_plot_names.push_back(tmp);
         }
+    }
+#endif
+
+#ifdef ERF_USE_EB
+    if (containerHasElement(plot_var_names, "volfrac")) {
+        tmp_plot_names.push_back("volfrac");
     }
 #endif
 
@@ -178,11 +186,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         }
     }
 
+    // Vector of MultiFabs for cell-centered data
     Vector<MultiFab> mf(finest_level+1);
     for (int lev = 0; lev <= finest_level; ++lev) {
         mf[lev].define(grids[lev], dmap[lev], ncomp_mf, 0);
     }
 
+    // Vector of MultiFabs for nodal data
     Vector<MultiFab> mf_nd(finest_level+1);
     if (solverChoice.use_terrain) {
         for (int lev = 0; lev <= finest_level; ++lev) {
@@ -191,6 +201,49 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_nd[lev].setVal(0.);
         }
     }
+
+    // Array of MultiFabs for cell-centered velocity
+    Vector<MultiFab> mf_cc_vel(finest_level+1);
+
+    if (containerHasElement(plot_var_names, "x_velocity" ) ||
+        containerHasElement(plot_var_names, "y_velocity" ) ||
+        containerHasElement(plot_var_names, "z_velocity" ) ||
+        containerHasElement(plot_var_names, "magvel"     ) ||
+        containerHasElement(plot_var_names, "vorticity_x") ||
+        containerHasElement(plot_var_names, "vorticity_y") ||
+        containerHasElement(plot_var_names, "vorticity_z") ) {
+
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            mf_cc_vel[lev].define(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(1,1,1));
+            average_face_to_cellcenter(mf_cc_vel[lev],0,
+                                       Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],
+                                                                &vars_new[lev][Vars::yvel],
+                                                                &vars_new[lev][Vars::zvel]});
+        } // lev
+    } // if (vel or vort)
+
+    // We need ghost cells if computing vorticity
+    if ( containerHasElement(plot_var_names, "vorticity_x")||
+         containerHasElement(plot_var_names, "vorticity_y") ||
+         containerHasElement(plot_var_names, "vorticity_z") )
+    {
+        amrex::Interpolater* mapper = &cell_cons_interp;
+        for (int lev = 1; lev <= finest_level; ++lev)
+        {
+            Vector<MultiFab*> fmf = {&(mf_cc_vel[lev]), &(mf_cc_vel[lev])};
+            Vector<Real> ftime    = {t_new[lev], t_new[lev]};
+            Vector<MultiFab*> cmf = {&mf_cc_vel[lev-1], &mf_cc_vel[lev-1]};
+            Vector<Real> ctime    = {t_new[lev], t_new[lev]};
+
+            amrex::FillPatchTwoLevels(mf_cc_vel[lev], t_new[lev], cmf, ctime, fmf, ftime,
+                                      0, 0, AMREX_SPACEDIM, geom[lev-1], geom[lev],
+                                      null_bc_for_fill, 0, null_bc_for_fill, 0, refRatio(lev-1),
+                                      mapper, domain_bcs_type, 0);
+        } // lev
+
+        // Impose bc's at domain boundaries at all levels
+        FillBdyCCVels(mf_cc_vel);
+    } // if (vort)
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
@@ -205,19 +258,24 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         }
 
-        // Next, check for velocities and if desired, output them -- note we output none or all, not just some
-        if (containerHasElement(plot_var_names, "x_velocity") ||
-            containerHasElement(plot_var_names, "y_velocity") ||
-            containerHasElement(plot_var_names, "z_velocity")) {
-
-            average_face_to_cellcenter(mf[lev],mf_comp,
-                Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-            mf_comp += AMREX_SPACEDIM;
+        // Next, check for velocities
+        if (containerHasElement(plot_var_names, "x_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "y_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 1, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+        if (containerHasElement(plot_var_names, "z_velocity")) {
+            MultiFab::Copy(mf[lev], mf_cc_vel[lev], 2, mf_comp, 1, 0);
+            mf_comp += 1;
         }
 
         // Finally, check for any derived quantities and compute them, inserting
         // them into our output multifab
         auto calculate_derived = [&](const std::string& der_name,
+                                     MultiFab& src_mf,
                                      decltype(derived::erf_dernull)& der_function)
         {
             if (containerHasElement(plot_var_names, der_name)) {
@@ -229,7 +287,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 {
                     const Box& bx = mfi.tilebox();
                     auto& dfab = dmf[mfi];
-                    auto& sfab = vars_new[lev][Vars::cons][mfi];
+                    auto& sfab = src_mf[mfi];
                     der_function(bx, dfab, 0, 1, sfab, Geom(lev), t_new[0], nullptr, lev);
                 }
 
@@ -238,12 +296,27 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
         };
 
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
-        calculate_derived("soundspeed",  derived::erf_dersoundspeed);
-        calculate_derived("temp",        derived::erf_dertemp);
-        calculate_derived("theta",       derived::erf_dertheta);
-        calculate_derived("KE",          derived::erf_derKE);
-        calculate_derived("QKE",         derived::erf_derQKE);
-        calculate_derived("scalar",      derived::erf_derscalar);
+        calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
+        calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
+        calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
+        calculate_derived("QKE",         vars_new[lev][Vars::cons], derived::erf_derQKE);
+        calculate_derived("scalar",      vars_new[lev][Vars::cons], derived::erf_derscalar);
+        calculate_derived("vorticity_x", mf_cc_vel[lev]           , derived::erf_dervortx);
+        calculate_derived("vorticity_y", mf_cc_vel[lev]           , derived::erf_dervorty);
+        calculate_derived("vorticity_z", mf_cc_vel[lev]           , derived::erf_dervortz);
+        calculate_derived("magvel"     , mf_cc_vel[lev]           , derived::erf_dermagvel);
+
+        if (containerHasElement(plot_var_names, "divU"))
+        {
+            MultiFab dmf(mf[lev], make_alias, mf_comp, 1);
+            Array<MultiFab const*, AMREX_SPACEDIM> u;
+            u[0] = &(vars_new[lev][Vars::xvel]);
+            u[1] = &(vars_new[lev][Vars::yvel]);
+            u[2] = &(vars_new[lev][Vars::zvel]);
+            computeDivergence(dmf, u, geom[lev]);
+            mf_comp += 1;
+        }
 
         MultiFab r_hse(base_state[lev], make_alias, 0, 1); // r_0 is first  component
         MultiFab p_hse(base_state[lev], make_alias, 1, 1); // p_0 is second component
@@ -800,12 +873,35 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 mf_comp += 1;
             }
 
+        if(solverChoice.moisture_type == MoistureType::Kessler){
             if (containerHasElement(plot_var_names, "rain_accum"))
             {
-                MultiFab rain_accum_mf(*(qmoist[lev][0]), make_alias, 0, 1);
+                MultiFab rain_accum_mf(*(qmoist[lev][4]), make_alias, 0, 1);
                 MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
                 mf_comp += 1;
             }
+        }
+        else if(solverChoice.moisture_type == MoistureType::SAM)
+        {
+            if (containerHasElement(plot_var_names, "rain_accum"))
+            {
+                MultiFab rain_accum_mf(*(qmoist[lev][8]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
+                mf_comp += 1;
+            }
+            if (containerHasElement(plot_var_names, "snow_accum"))
+            {
+                MultiFab snow_accum_mf(*(qmoist[lev][9]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],snow_accum_mf,0,mf_comp,1,0);
+                mf_comp += 1;
+            }
+            if (containerHasElement(plot_var_names, "graup_accum"))
+            {
+                MultiFab graup_accum_mf(*(qmoist[lev][10]), make_alias, 0, 1);
+                MultiFab::Copy(mf[lev],graup_accum_mf,0,mf_comp,1,0);
+                mf_comp += 1;
+            }
+        }
         }
 
 #ifdef ERF_USE_PARTICLES
@@ -831,6 +927,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 MultiFab::Copy(mf[lev], temp_dat, 0, mf_comp, 1, 0);
                 mf_comp += 1;
             }
+        }
+#endif
+
+#ifdef ERF_USE_EB
+        if (containerHasElement(plot_var_names, "volfrac")) {
+            MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            mf_comp += 1;
         }
 #endif
 
@@ -998,6 +1101,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #endif
     }
 
+#ifdef EB_USE_EB
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        EB_set_covered(mf[lev], 0.0);
+    }
+#endif
+
     // Fill terrain distortion MF
     if (solverChoice.use_terrain) {
         for (int lev(0); lev <= finest_level; ++lev) {
@@ -1100,13 +1209,12 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
             // Do piecewise interpolation of mf into mf2
             for (int lev = 1; lev <= finest_level; ++lev) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                for (MFIter mfi(mf2[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                    const Box& bx = mfi.tilebox();
-                    pcinterp_interp(bx,mf2[lev].array(mfi), 0, mf[lev].nComp(), mf[lev].const_array(mfi),0,r2[lev-1]);
-                }
+                Interpolater* mapper_c = &pc_interp;
+                InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
+                                      0, 0, ncomp_mf,
+                                      geom[lev], g2[lev],
+                                      null_bc_for_fill, 0, null_bc_for_fill, 0,
+                                      r2[lev-1], mapper_c, domain_bcs_type, 0);
             }
 
             // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
@@ -1159,10 +1267,10 @@ ERF::WriteMultiLevelPlotfileWithTerrain (const std::string& plotfilename, int nl
 {
     BL_PROFILE("WriteMultiLevelPlotfileWithTerrain()");
 
-    BL_ASSERT(nlevels <= mf.size());
-    BL_ASSERT(nlevels <= ref_ratio.size()+1);
-    BL_ASSERT(nlevels <= level_steps.size());
-    BL_ASSERT(mf[0]->nComp() == varnames.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= mf.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= ref_ratio.size()+1);
+    AMREX_ALWAYS_ASSERT(nlevels <= level_steps.size());
+    AMREX_ALWAYS_ASSERT(mf[0]->nComp() == varnames.size());
 
     bool callBarrier(false);
     PreBuildDirectorHierarchy(plotfilename, levelPrefix, nlevels, callBarrier);
@@ -1241,78 +1349,78 @@ ERF::WriteGenericPlotfileHeaderWithTerrain (std::ostream &HeaderFile,
                                             const std::string &levelPrefix,
                                             const std::string &mfPrefix) const
 {
-        BL_ASSERT(nlevels <= bArray.size());
-        BL_ASSERT(nlevels <= ref_ratio.size()+1);
-        BL_ASSERT(nlevels <= level_steps.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= bArray.size());
+    AMREX_ALWAYS_ASSERT(nlevels <= ref_ratio.size()+1);
+    AMREX_ALWAYS_ASSERT(nlevels <= level_steps.size());
 
-        HeaderFile.precision(17);
+    HeaderFile.precision(17);
 
-        // ---- this is the generic plot file type name
-        HeaderFile << versionName << '\n';
+    // ---- this is the generic plot file type name
+    HeaderFile << versionName << '\n';
 
-        HeaderFile << varnames.size() << '\n';
+    HeaderFile << varnames.size() << '\n';
 
-        for (int ivar = 0; ivar < varnames.size(); ++ivar) {
-            HeaderFile << varnames[ivar] << "\n";
-        }
-        HeaderFile << AMREX_SPACEDIM << '\n';
-        HeaderFile << time << '\n';
-        HeaderFile << finest_level << '\n';
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            HeaderFile << geom[0].ProbLo(i) << ' ';
+    for (int ivar = 0; ivar < varnames.size(); ++ivar) {
+        HeaderFile << varnames[ivar] << "\n";
+    }
+    HeaderFile << AMREX_SPACEDIM << '\n';
+    HeaderFile << time << '\n';
+    HeaderFile << finest_level << '\n';
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        HeaderFile << geom[0].ProbLo(i) << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i < AMREX_SPACEDIM; ++i) {
+        HeaderFile << geom[0].ProbHi(i) << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i < finest_level; ++i) {
+        HeaderFile << ref_ratio[i][0] << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        HeaderFile << geom[i].Domain() << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        HeaderFile << level_steps[i] << ' ';
+    }
+    HeaderFile << '\n';
+    for (int i = 0; i <= finest_level; ++i) {
+        for (int k = 0; k < AMREX_SPACEDIM; ++k) {
+            HeaderFile << geom[i].CellSize()[k] << ' ';
         }
         HeaderFile << '\n';
-        for (int i = 0; i < AMREX_SPACEDIM; ++i) {
-            HeaderFile << geom[0].ProbHi(i) << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i < finest_level; ++i) {
-            HeaderFile << ref_ratio[i][0] << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            HeaderFile << geom[i].Domain() << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            HeaderFile << level_steps[i] << ' ';
-        }
-        HeaderFile << '\n';
-        for (int i = 0; i <= finest_level; ++i) {
-            for (int k = 0; k < AMREX_SPACEDIM; ++k) {
-                HeaderFile << geom[i].CellSize()[k] << ' ';
+    }
+    HeaderFile << (int) geom[0].Coord() << '\n';
+    HeaderFile << "0\n";
+
+    for (int level = 0; level <= finest_level; ++level) {
+        HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
+        HeaderFile << level_steps[level] << '\n';
+
+        const IntVect& domain_lo = geom[level].Domain().smallEnd();
+        for (int i = 0; i < bArray[level].size(); ++i)
+        {
+            // Need to shift because the RealBox ctor we call takes the
+            // physical location of index (0,0,0).  This does not affect
+            // the usual cases where the domain index starts with 0.
+            const Box& b = shift(bArray[level][i], -domain_lo);
+            RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
+            for (int n = 0; n < AMREX_SPACEDIM; ++n) {
+                HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
             }
-            HeaderFile << '\n';
         }
-        HeaderFile << (int) geom[0].Coord() << '\n';
-        HeaderFile << "0\n";
 
-        for (int level = 0; level <= finest_level; ++level) {
-            HeaderFile << level << ' ' << bArray[level].size() << ' ' << time << '\n';
-            HeaderFile << level_steps[level] << '\n';
-
-            const IntVect& domain_lo = geom[level].Domain().smallEnd();
-            for (int i = 0; i < bArray[level].size(); ++i)
-            {
-                // Need to shift because the RealBox ctor we call takes the
-                // physical location of index (0,0,0).  This does not affect
-                // the usual cases where the domain index starts with 0.
-                const Box& b = shift(bArray[level][i], -domain_lo);
-                RealBox loc = RealBox(b, geom[level].CellSize(), geom[level].ProbLo());
-                for (int n = 0; n < AMREX_SPACEDIM; ++n) {
-                    HeaderFile << loc.lo(n) << ' ' << loc.hi(n) << '\n';
-                }
-            }
-
-            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mfPrefix) << '\n';
-        }
-        HeaderFile << "1" << "\n";
-        HeaderFile << "3" << "\n";
-        HeaderFile << "amrexvec_nu_x" << "\n";
-        HeaderFile << "amrexvec_nu_y" << "\n";
-        HeaderFile << "amrexvec_nu_z" << "\n";
-        std::string mf_nodal_prefix = "Nu_nd";
-        for (int level = 0; level <= finest_level; ++level) {
-            HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
-        }
+        HeaderFile << MultiFabHeaderPath(level, levelPrefix, mfPrefix) << '\n';
+    }
+    HeaderFile << "1" << "\n";
+    HeaderFile << "3" << "\n";
+    HeaderFile << "amrexvec_nu_x" << "\n";
+    HeaderFile << "amrexvec_nu_y" << "\n";
+    HeaderFile << "amrexvec_nu_z" << "\n";
+    std::string mf_nodal_prefix = "Nu_nd";
+    for (int level = 0; level <= finest_level; ++level) {
+        HeaderFile << MultiFabHeaderPath(level, levelPrefix, mf_nodal_prefix) << '\n';
+    }
 }

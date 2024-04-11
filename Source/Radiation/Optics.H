@@ -24,63 +24,63 @@
 class Optics {
   public:
     // constructor
-    Optics() = default;
+    Optics () = default;
     explicit Optics(int ngases, char* gas_names[]);
     // deconstructor
-    ~Optics() = default;
+    ~Optics () = default;
 
     // get short wave cloud optics property
-    void get_cloud_optics_sw(int ncol, int nlev, int nbnd,
-         bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
-         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu,
-         const real2d& dei, const real2d& des, const real2d& rel, const real2d& rei,
-         const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
-         const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
+    void get_cloud_optics_sw (int ncol, int nlev, int nbnd,
+                              bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+                              const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu,
+                              const real2d& dei, const real2d& des, const real2d& rel, const real2d& rei,
+                              const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
+                              const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
 
     // get long wave cloud optics property
-    void get_cloud_optics_lw(int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
-         const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des,
-         const real2d& rei, const real3d& tau_out, const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
+    void get_cloud_optics_lw (int ncol, int nlev, int nbnd, bool do_snow, const real2d& cld, const real2d& cldfsnow, const real2d& iclwp,
+                              const real2d& iciwp, const real2d& icswp, const real2d& lambdac, const real2d& mu, const real2d& dei, const real2d& des,
+                              const real2d& rei, const real3d& tau_out, const real3d& liq_tau_out, const real3d& ice_tau_out, const real3d& snw_tau_out);
 
     // sample short wave cloud optics property
-    void sample_cloud_optics_sw(int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
-         const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
-         const real3d& tau_bnd, const real3d& ssa_bnd, const real3d& asm_bnd,
-         const real3d& tau_gpt, const real3d& ssa_gpt, const real3d& asm_gpt);
+    void sample_cloud_optics_sw (int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
+                                 const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
+                                 const real3d& tau_bnd, const real3d& ssa_bnd, const real3d& asm_bnd,
+                                 const real3d& tau_gpt, const real3d& ssa_gpt, const real3d& asm_gpt);
 
     // sample long wave cloud optics property
-    void sample_cloud_optics_lw(int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
-         const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
-         const real3d& tau_bnd, const real3d& tau_gpt);
+    void sample_cloud_optics_lw (int ncol, int nlev, int ngpt, const int1d& gpt2bnd,
+                                 const real2d& pmid, const real2d& cld, const real2d& cldfsnow,
+                                 const real3d& tau_bnd, const real3d& tau_gpt);
 
     // set the short wave aerosol optics property
-    void set_aerosol_optics_sw(int icall, int ncol, int nlev, int nswbands, real dt, const int1d& night_indices,
-             bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
-             const real2d& clear_rh);
+    void set_aerosol_optics_sw (int icall, int ncol, int nlev, int nswbands, real dt, const int1d& night_indices,
+                                bool is_cmip6_volc, const real3d& tau_out, const real3d& ssa_out, const real3d& asm_out,
+                                const real2d& clear_rh);
 
     // set the long wave aerosol optics property
-    void set_aerosol_optics_lw(int icall, real dt, bool is_cmip6_volc, const real2d& zi,
-             const real3d& tau, const real2d& clear_rh);
+    void set_aerosol_optics_lw (int icall, real dt, bool is_cmip6_volc, const real2d& zi,
+                                const real3d& tau, const real2d& clear_rh);
 
     // mcica subcol mask
-    void mcica_subcol_mask(int ngpt, int ncol, int nlev, const real2d& cldfrac, const bool3d& iscloudy);
+    void mcica_subcol_mask (int ngpt, int ncol, int nlev, const real2d& cldfrac, const bool3d& iscloudy);
 
     // combine properties
-    void combine_properties(int nbands, int ncols, int nlevs,
-                            const real2d& fraction1, const real3d& property1,
-                            const real2d& fraction2, const real3d& property2,
-                            const real3d& combined_property);
+    void combine_properties (int nbands, int ncols, int nlevs,
+                             const real2d& fraction1, const real3d& property1,
+                             const real2d& fraction2, const real3d& property2,
+                             const real3d& combined_property);
 
     // initialize and load gas property data for rrtmgp radiation
-    void initialize(int ngas, int nmodes, int num_aeros,
-                    int nswbands, int nlwbands,
-                    int ncol, int nlev, int nrh, int top_lev,
-                    const std::vector<std::string>& aero_names,
-                    const real2d& zi, const real2d& pmid, const real2d& temp,
-                    const real2d& qi, const real2d& geom_radius);
+    void initialize (int ngas, int nmodes, int num_aeros,
+                     int nswbands, int nlwbands,
+                     int ncol, int nlev, int nrh, int top_lev,
+                     const std::vector<std::string>& aero_names,
+                     const real2d& zi, const real2d& pmid, const real2d& temp,
+                     const real2d& qi, const real2d& geom_radius);
 
     // finalize/clean up
-    void finalize();
+    void finalize ();
 
   private:
    // number of gas for radiation model

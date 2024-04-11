@@ -34,8 +34,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
                          const MultiFab& density,
                          MultiFab& xmom, MultiFab& ymom, MultiFab& zmom,
                          const Box& domain,
-                         const Vector<BCRec>& domain_bcs_type_h,
-                         bool l_use_ndiff)
+                         const Vector<BCRec>& domain_bcs_type_h)
 {
     BL_PROFILE_VAR("VelocityToMomentum()",VelocityToMomentum);
 
@@ -50,6 +49,12 @@ void VelocityToMomentum (const MultiFab& xvel_in,
         // We need momentum in the interior ghost cells (init == real)
         const Box& bx = mfi.tilebox();
         Box tbx, tby, tbz;
+
+        tbx = mfi.tilebox(IntVect(1,0,0),xvel_ngrow);
+        tby = mfi.tilebox(IntVect(0,1,0),yvel_ngrow);
+        tbz = mfi.tilebox(IntVect(0,0,1),zvel_ngrow);
+
+#if 0
         if (l_use_ndiff) {
             tbx = mfi.tilebox(IntVect(1,0,0),xvel_ngrow);
             tby = mfi.tilebox(IntVect(0,1,0),yvel_ngrow);
@@ -61,6 +66,7 @@ void VelocityToMomentum (const MultiFab& xvel_in,
             if (tby.smallEnd(2) < 0) tby.setSmall(2,0);
             tbz = mfi.tilebox(IntVect(0,0,1),IntVect(1,1,0));
         }
+#endif
 
         // Conserved/state variables on cell centers -- we use this for density
         const Array4<const Real>& dens_arr = density.array(mfi);

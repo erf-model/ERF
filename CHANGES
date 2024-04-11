@@ -1,3 +1,18 @@
+# 24.04
+    -- AMReX submodule set to 24.03 release hash (bb7d5cf)
+
+    -- Start of EB functionality (#1541)
+
+    -- Start of YSU PBL scheme (#1540)
+
+    -- Open boundary condition (#1524)
+
+    -- Incompressible pathway fixes (#1525)
+
+    -- Wind farm parametrization (#1511)
+
+    -- Explicit MOST stress pathway (#1472)
+    
 # 24.03
     -- AMReX submodule set to 24.03 release hash (d737886)
 

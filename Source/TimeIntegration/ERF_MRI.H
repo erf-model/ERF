@@ -1,10 +1,14 @@
 #ifndef ERF_MRI_H
 #define ERF_MRI_H
+
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_IntegratorBase.H>
-#include <TI_headers.H>
+
+#include <TI_slow_headers.H>
+#include <TI_fast_headers.H>
+
 #include <functional>
 
 template<class T>
@@ -57,7 +61,7 @@ private:
     */
     std::function<void (T&, int)> pre_update;
     std::function<void (T&, amrex::Real, int, int)> post_update;
-    std::function<void (T&, T&, T&, amrex::Real, amrex::Real)>   no_substep;
+    std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> no_substep;
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
@@ -170,7 +174,7 @@ public:
         post_update = F;
     }
 
-    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real)> F)
+    void set_no_substep (std::function<void (T&, T&, T&, amrex::Real, amrex::Real, int)> F)
     {
         no_substep = F;
     }
@@ -292,7 +296,7 @@ public:
                 } // ks
 
             } else {
-                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+                no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
             }
 
             // ****************************************************
@@ -332,7 +336,7 @@ public:
 
             slow_rhs_inc(*F_slow, S_old, S_new, *S_scratch, time, old_time_stage, time_stage, nrk);
 
-            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau);
+            no_substep(*S_sum, S_old, *F_slow, time + nsubsteps*dtau, nsubsteps*dtau, nrk);
 
             slow_rhs_post(*F_slow, S_old, S_new, *S_sum, *S_scratch, time, old_time_stage, time_stage, nrk);
 
