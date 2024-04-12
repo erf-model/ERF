@@ -107,6 +107,7 @@ void SuperDropletPC::AdvectParticles ( int                                      
                     update_location_idata(p,plo,dxi,zheight);
                 }
             });
+            Gpu::synchronize();
         }
     }
 

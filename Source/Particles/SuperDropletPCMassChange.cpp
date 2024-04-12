@@ -20,6 +20,8 @@ void SuperDropletPC::MassChange ( int                                         a_
     BL_PROFILE("SuperDropletPC::MassChange()");
     AMREX_ASSERT( a_lev == m_lev );
 
+    const int max_substeps = m_mass_change_max_substeps;
+
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
     const auto dxi = geom.InvCellSizeArray();
@@ -29,8 +31,6 @@ void SuperDropletPC::MassChange ( int                                         a_
     const int num_aerosols = m_num_aerosols;
     const Real mat_density = m_vapour_mat->density();
     const std::string vap_name = m_vapour_mat->name();
-
-    long num_unconverged_particles = 0;
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -88,8 +88,11 @@ void SuperDropletPC::MassChange ( int                                         a_
                                                                          m_newton_stol,
                                                                          m_newton_maxits };
 
-        amrex::Gpu::Buffer<amrex::Long> unconverged_particles({0});
-        amrex::Long* unconverged_particles_ptr = unconverged_particles.data();
+        Gpu::Buffer<Long> unconverged_particles({0});
+        Long* unconverged_particles_ptr = unconverged_particles.data();
+
+        Gpu::Buffer<int> max_substeps_d({1});
+        int* max_substeps_actual_ptr = max_substeps_d.data();
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -111,19 +114,23 @@ void SuperDropletPC::MassChange ( int                                         a_
             for (int j = 0; j < num_aerosols; j++) { solute_mass += aerosol_mass_ptrs[j][i]; }
 
             ParticleReal r_sq = radius_ptr[i]*radius_ptr[i];
-            ParticleReal r_sq_0 = r_sq;
 
             bool converged = false;
-            newton_solver ( r_sq, r_sq_0,
-                            a_dt,
-                            sat_ratio, temperature, e_sat, solute_mass,
-                            converged );
-
-            if (!converged) {
-
-                amrex::Gpu::Atomic::Add(unconverged_particles_ptr, amrex::Long(1));
-
+            int n_substeps = 1;
+            while (!converged) {
+                for (int step = 0; step < n_substeps; step++) {
+                    ParticleReal r_sq_0 = r_sq;
+                    newton_solver ( r_sq, r_sq_0,
+                                    (a_dt/static_cast<ParticleReal>(n_substeps)),
+                                    sat_ratio, temperature, e_sat, solute_mass,
+                                    converged );
+                }
+                n_substeps *= 2;
+                if (n_substeps > max_substeps) { break; }
             }
+
+            if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
+            if (!converged) { Gpu::Atomic::Add(unconverged_particles_ptr, Long(1)); }
 
             // update particle radius
             radius_ptr[i] = std::sqrt(r_sq);
@@ -135,17 +142,12 @@ void SuperDropletPC::MassChange ( int                                         a_
             supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
 
         });
+        Gpu::synchronize();
 
-        num_unconverged_particles += *(unconverged_particles.copyToHost());
+        m_num_unconverged_particles += *(unconverged_particles.copyToHost());
+        m_max_substeps_actual = std::max(m_max_substeps_actual,*(max_substeps_d.copyToHost()));
     }
 
-    ParallelDescriptor::ReduceLongSum(  &num_unconverged_particles,
-                                        1,
-                                        ParallelDescriptor::IOProcessorNumber() );
-    if (num_unconverged_particles > 0) {
-        Print() << "SuperDropletPC::MassChange(): Warning - " << num_unconverged_particles
-                << " particles did not converge during Newton solve.\n";
-    }
 }
 
 #endif
