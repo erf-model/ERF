@@ -145,8 +145,11 @@ namespace SuperDropletsUtils
 
                 RT slope = 1.0 - a_dt * m_jac( a_u, a_T, a_e_s, a_M_s );
                 RT du = 0.0;
-                if (slope*slope <  1.0e-40) { du = 0.0; }
-                else                        { du = - residual / slope; }
+                if (slope*slope <  1.0e-40) {
+                    du = 0.0;
+                } else {
+                    du = - residual / slope;
+                }
 
                 RT du_norm = std::sqrt(du*du);
                 if (du_norm <= m_stol) {
@@ -154,9 +157,11 @@ namespace SuperDropletsUtils
                     break;
                 }
 
-                a_u += du;
-                // positivity-preserving floor for a_u
-                a_u = std::max(1.0e-40, a_u);
+                if (a_u + du < 1e-16) {
+                    a_u += 0.01*a_u;
+                } else {
+                    a_u += du;
+                }
             }
         }
     };
@@ -443,6 +448,10 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_newton_stol;  /*!< Newton solver - step tolerance */
         int m_newton_maxits;        /*!< Newton solver - maximum iterations */
 
+        int m_mass_change_max_substeps; /*!< Max substeps for mass change update */
+        int m_max_substeps_actual; /*!< Actual max substeps taken by mass change function */
+        long m_num_unconverged_particles; /*!< total number of unconverged particles */
+
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
 
         int m_distribution_grid_size; /*!< Size of 1D grid to compute distributions on */
@@ -459,6 +468,9 @@ class SuperDropletPC : public ERFPC
         inline void define ( const std::string& a_vap_mat,
                              const std::vector<std::string>& a_aerosol_mat)
         {
+            m_num_unconverged_particles = 0;
+            m_max_substeps_actual = 1;
+
             m_aerosol_mat.clear();
 
             setVapourMaterial( a_vap_mat );

@@ -152,6 +152,27 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << "        z: "
             << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n";
 
+    Long num_unconverged_particles = m_num_unconverged_particles;
+    m_num_unconverged_particles = 0;
+    ParallelDescriptor::ReduceLongSum(  &num_unconverged_particles,
+                                        1,
+                                        ParallelDescriptor::IOProcessorNumber() );
+    int max_substeps_actual = m_max_substeps_actual;
+    m_max_substeps_actual = 1;
+    ParallelDescriptor::ReduceIntMax( &max_substeps_actual,
+                                      1,
+                                      ParallelDescriptor::IOProcessorNumber() );
+
+    if (max_substeps_actual > 1) {
+        Print() << "SuperDropletPC::MassChange(): max substeps = "
+                << max_substeps_actual << "\n";
+    }
+    if (num_unconverged_particles > 0) {
+        Print() << "SuperDropletPC::MassChange(): Warning - "
+                << num_unconverged_particles
+                << " particles did not converge during Newton solve.\n";
+    }
+
     if (a_flag) {
         MassDensityDistribution( a_iter, min_par_radius, max_par_radius );
     }

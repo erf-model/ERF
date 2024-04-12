@@ -51,6 +51,8 @@ void SuperDropletPC::readInputs ()
     m_newton_stol = 1.0e-99;
     m_newton_maxits = 10;
 
+    m_mass_change_max_substeps = 100;
+
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
     pp.query("initial_number_density", m_numdens_init);
@@ -64,6 +66,7 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);
     pp.query("newton_solver_maxits", m_newton_maxits);
+    pp.query("mass_change_max_particle_substeps", m_mass_change_max_substeps);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
 
@@ -195,8 +198,10 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             Print() << "        " << m_aerosol_mat[i]->name() << "\n";
         }
     }
-    Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
-            << "    Seed condensate mass: " << m_seed_mass << "\n";
+    Print()
+        << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
+        << "    Seed condensate mass: " << m_seed_mass << "\n"
+        << "    Max particle substeps (mass change): " << m_mass_change_max_substeps << "\n";
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),
@@ -294,9 +299,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
                 std::random_device rd;
                 std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/m_mass_aerosol_init[i]);
+                std::exponential_distribution<Real> ed(1.0/(0.5*m_mass_aerosol_init[i]));
                 for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = ed(rng);
+                    aerosol_mass_h[n] = 0.5*m_mass_aerosol_init[i] + ed(rng);
                 }
             } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
@@ -319,9 +324,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             if (m_mass_condensate_init_type == SupDropInit::attrib_init_exp) {
                 std::random_device rd;
                 std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/m_mass_condensate_init);
+                std::exponential_distribution<Real> ed(1.0/(0.5*m_mass_condensate_init));
                 for (int n = 0; n < np; n++) {
-                    condensate_mass_h[n] = ed(rng);
+                    condensate_mass_h[n] = 0.5*m_mass_condensate_init + ed(rng);
                 }
             } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
