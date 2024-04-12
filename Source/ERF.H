@@ -30,6 +30,7 @@
 #include <IndexDefines.H>
 #include <DataStruct.H>
 #include <InputSoundingData.H>
+#include <InputSpongeData.H>
 #include <ABLMost.H>
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
@@ -529,6 +530,10 @@ private:
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
+
+
+    // Struct for working with the sponge data we take as an input
+    InputSpongeData input_sponge_data;
 
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
