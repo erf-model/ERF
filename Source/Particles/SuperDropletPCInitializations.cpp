@@ -407,6 +407,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                     par_radius = 1.0e-16;
                 }
 
+                mult_ptr[n] = std::max( 1.0,
+                                        std::floor(supdrop_mass_ptr[n]/par_mass) );
+
                 mass_ptr[n] = par_mass;
                 radius_ptr[n] = par_radius;
                 supdrop_mass_ptr[n] = par_mass*mult_ptr[n];
