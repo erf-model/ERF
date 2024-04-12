@@ -13,3 +13,4 @@ CEXE_headers += ParticleData.H
 CEXE_headers += ERFPC.H
 CEXE_headers += SuperDropletPC.H
 CEXE_headers += SuperDropletPCCoalescence.H
+CEXE_headers += SuperDropletPCMassChange.H
