@@ -1,11 +1,11 @@
 #include "SuperDropletPC.H"
-
-#ifdef ERF_USE_PARTICLES
-
 #include <AMReX_GpuAtomic.H>
 #include <AMReX_GpuBuffer.H>
 #include <AMReX_TracerParticle_mod_K.H>
 #include "ERF_Constants.H"
+#include "SuperDropletPCMassChange.H"
+
+#ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
 
@@ -64,29 +64,32 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
 
-        SuperDropletsUtils::dRsqdt_RHSFunc drsqdt_rhsfun{m_vapour_mat->coeffCurv(),
-                                                         m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
-                                                         m_vapour_mat->latHeatVap(),
-                                                         therco, // ERF_Constants.H
-                                                         m_vapour_mat->Rv(),
-                                                         mat_density,
-                                                         m_vapour_mat->molDiffCoeff()};
+        SDMassChangeUtils::dRsqdt_RHSFunc<ParticleReal>
+            drsqdt_rhsfun{m_vapour_mat->coeffCurv(),
+                          m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
+                          m_vapour_mat->latHeatVap(),
+                          therco, // ERF_Constants.H
+                          m_vapour_mat->Rv(),
+                          mat_density,
+                          m_vapour_mat->molDiffCoeff()};
 
-        SuperDropletsUtils::dRsqdt_RHSJac drsqdt_rhsjac{m_vapour_mat->coeffCurv(),
-                                                        m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
-                                                        m_vapour_mat->latHeatVap(),
-                                                        therco, // ERF_Constants.H
-                                                        m_vapour_mat->Rv(),
-                                                        mat_density,
-                                                        m_vapour_mat->molDiffCoeff()};
+        SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>
+            drsqdt_rhsjac{m_vapour_mat->coeffCurv(),
+                          m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
+                          m_vapour_mat->latHeatVap(),
+                          therco, // ERF_Constants.H
+                          m_vapour_mat->Rv(),
+                          mat_density,
+                          m_vapour_mat->molDiffCoeff()};
 
-        SuperDropletsUtils::NewtonSolver< SuperDropletsUtils::dRsqdt_RHSFunc,
-                                          SuperDropletsUtils::dRsqdt_RHSJac,
-                                          ParticleReal > newton_solver { drsqdt_rhsfun, drsqdt_rhsjac,
-                                                                         m_newton_rtol,
-                                                                         m_newton_atol,
-                                                                         m_newton_stol,
-                                                                         m_newton_maxits };
+        SDMassChangeUtils::NewtonSolver< SDMassChangeUtils::dRsqdt_RHSFunc<ParticleReal>,
+                                         SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>,
+                                         ParticleReal >
+            newton_solver { drsqdt_rhsfun, drsqdt_rhsjac,
+                            m_newton_rtol,
+                            m_newton_atol,
+                            m_newton_stol,
+                            m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
         Long* unconverged_particles_ptr = unconverged_particles.data();
