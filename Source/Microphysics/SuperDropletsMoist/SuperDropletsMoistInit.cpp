@@ -39,6 +39,8 @@ void SuperDropletsMoist::readInputs ()
     m_diagnostics_iter = 1;
     pp.query("diagnostics_interval", m_diagnostics_iter);
 
+    m_num_substeps_phase_change = 1;
+    pp.query("num_substeps_phase_change", m_num_substeps_phase_change);
     return;
 }
 
@@ -95,6 +97,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
+                   << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "

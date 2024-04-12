@@ -186,6 +186,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! names of aerosols */
         std::vector<std::string> m_aerosols;
 
+        /*! number of substeps for phase change */
+        int m_num_substeps_phase_change;
+
         /*! \brief read inputs */
         virtual void readInputs();
 
