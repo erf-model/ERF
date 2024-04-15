@@ -115,6 +115,99 @@ ERF::setRayleighRefFromSounding (bool restarting)
 }
 
 /**
+ * Initialization function for host and device vectors
+ * used to store averaged quantities when calculating
+ * the effects of Rayleigh Damping.
+ */
+void
+ERF::initSponge ()
+{
+    h_sponge_ptrs.resize(max_level+1);
+    d_sponge_ptrs.resize(max_level+1);
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        // These have 5 components: tau, ubar, vbar, wbar, thetabar
+        h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+        d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
+
+        const int zlen_sponge = geom[lev].Domain().length(2);
+
+        // Allocate space for these 1D vectors
+        for (int n = 0; n < Sponge::nvars_sponge; n++) {
+            h_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
+            d_sponge_ptrs[lev][n].resize(zlen_sponge, 0.0_rt);
+        }
+
+    }
+}
+
+/**
+ * Sets the sponge damping averaged quantities from an
+ * externally supplied input sponge data file.
+ *
+ * @param[in] restarting Boolean parameter that indicates whether
+                         we are currently restarting from a checkpoint file.
+ */
+void
+ERF::setSpongeRefFromSounding (bool restarting)
+{
+    // If we are restarting then we haven't read the input_sponge file yet
+    //    so we need to read it here
+    // TODO: should we store this information in the checkpoint file instead?
+    if (restarting) {
+        input_sponge_data.read_from_file(input_sponge_file, geom[0], zlevels_stag);
+    }
+
+    const Real* z_inp_sound     = input_sponge_data.z_inp_sound.dataPtr();
+    const Real* U_inp_sound     = input_sponge_data.U_inp_sound.dataPtr();
+    const Real* V_inp_sound     = input_sponge_data.V_inp_sound.dataPtr();
+    const int   inp_sound_size  = input_sounding_data.size();
+
+    for (int lev = 0; lev <= finest_level; lev++)
+    {
+        const int khi = geom[lev].Domain().bigEnd()[2];
+        Vector<Real> zcc(khi+1);
+
+        if (z_phys_cc[lev]) {
+            // use_terrain=1
+            // calculate the damping strength based on the max height at each k
+            reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+        } else {
+            const auto *const prob_lo = geom[lev].ProbLo();
+            const auto *const dx = geom[lev].CellSize();
+            for (int k = 0; k <= khi; k++)
+            {
+                zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
+            }
+        }
+
+        for (int k = 0; k <= khi; k++)
+        {
+            h_sponge_ptrs[lev][Sponge::ubar_sponge][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
+            h_sponge_ptrs[lev][Sponge::vbar_sponge][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
+        }
+
+        // Copy from host version to device version
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Rayleigh::ubar].begin(), h_sponge_ptrs[lev][Rayleigh::ubar].end(),
+                         d_sponge_ptrs[lev][Rayleigh::ubar].begin());
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Rayleigh::vbar].begin(), h_sponge_ptrs[lev][Rayleigh::vbar].end(),
+                         d_sponge_ptrs[lev][Rayleigh::vbar].begin());
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/**
  * Initialize density and pressure base state in
  * hydrostatic equilibrium.
  */
