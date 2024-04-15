@@ -30,9 +30,9 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_ml = 0.0;
 
 #if 1
-    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],false,false);
+    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],true,false);
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],false,true);
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],true,true);
     }
 #else
     for (int lev = 0; lev <= finest_level; lev++) {
@@ -51,18 +51,18 @@ ERF::sum_integrated_quantities (Real time)
             });
         }
         if (lev == 0) {
-            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],false,false);
+            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],true,false);
         }
-        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],false,true);
+        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],true,true);
     } // lev
 #endif
 
-    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],false,false);
-    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],false,false);
+    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],true,false);
+    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],true,false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],false,true);
-        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],false,true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],true,true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],true,true);
     }
 
     if (verbose > 0) {
