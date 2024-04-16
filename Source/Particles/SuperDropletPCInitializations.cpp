@@ -50,8 +50,7 @@ void SuperDropletPC::readInputs ()
     m_newton_atol = 1.0e-99;
     m_newton_stol = 1.0e-99;
     m_newton_maxits = 10;
-
-    m_mass_change_max_substeps = 100;
+    m_mass_change_max_substeps = 1;
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
@@ -299,9 +298,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
                 std::random_device rd;
                 std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/(0.5*m_mass_aerosol_init[i]));
+                std::exponential_distribution<Real> ed(1.0/m_mass_aerosol_init[i]);
                 for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = 0.5*m_mass_aerosol_init[i] + ed(rng);
+                    aerosol_mass_h[n] = ed(rng);
                 }
             } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
@@ -324,9 +323,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             if (m_mass_condensate_init_type == SupDropInit::attrib_init_exp) {
                 std::random_device rd;
                 std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/(0.5*m_mass_condensate_init));
+                std::exponential_distribution<Real> ed(1.0/m_mass_condensate_init);
                 for (int n = 0; n < np; n++) {
-                    condensate_mass_h[n] = 0.5*m_mass_condensate_init + ed(rng);
+                    condensate_mass_h[n] = ed(rng);
                 }
             } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
