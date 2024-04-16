@@ -50,8 +50,7 @@ void SuperDropletPC::readInputs ()
     m_newton_atol = 1.0e-99;
     m_newton_stol = 1.0e-99;
     m_newton_maxits = 10;
-
-    m_mass_change_max_substeps = 100;
+    m_mass_change_max_substeps = 1;
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);

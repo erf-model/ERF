@@ -15,12 +15,13 @@ void SuperDropletPC::MassChange ( int                                         a_
                                   const MultiFab&                             a_temperature,
                                   const MultiFab&                             a_sat_pressure,
                                   const MultiFab&                             a_sat_ratio,
-                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
+                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd,
+                                  int                                         a_max_substeps )
 {
     BL_PROFILE("SuperDropletPC::MassChange()");
     AMREX_ASSERT( a_lev == m_lev );
 
-    const int max_substeps = m_mass_change_max_substeps;
+    if (a_max_substeps < 0) { a_max_substeps = m_mass_change_max_substeps; }
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
@@ -129,7 +130,7 @@ void SuperDropletPC::MassChange ( int                                         a_
                                     converged );
                 }
                 n_substeps *= 2;
-                if (n_substeps > max_substeps) { break; }
+                if (n_substeps > a_max_substeps) { break; }
             }
 
             if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
