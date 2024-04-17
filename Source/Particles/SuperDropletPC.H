@@ -316,6 +316,8 @@ class SuperDropletPC : public ERFPC
         int m_mass_change_max_substeps; /*!< Max substeps for mass change update */
         int m_max_substeps_actual; /*!< Actual max substeps taken by mass change function */
         long m_num_unconverged_particles; /*!< total number of unconverged particles */
+        amrex::Real m_abs_norm_unconverged; /*!< max abs norm for unconverged particles */
+        amrex::Real m_rel_norm_unconverged; /*!< max rel norm for unconverged particles */
 
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
 

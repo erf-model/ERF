@@ -93,7 +93,11 @@ void SuperDropletPC::MassChange ( int                                         a_
                             m_newton_maxits };
 
         Gpu::Buffer<Long> unconverged_particles({0});
-        Long* unconverged_particles_ptr = unconverged_particles.data();
+        Gpu::Buffer<Real> unconverged_max_absnorm({0});
+        Gpu::Buffer<Real> unconverged_max_relnorm({0});
+        auto* unconverged_particles_ptr = unconverged_particles.data();
+        auto* unconverged_max_absnorm_ptr = unconverged_max_absnorm.data();
+        auto* unconverged_max_relnorm_ptr = unconverged_max_relnorm.data();
 
         Gpu::Buffer<int> max_substeps_d({1});
         int* max_substeps_actual_ptr = max_substeps_d.data();
@@ -120,6 +124,8 @@ void SuperDropletPC::MassChange ( int                                         a_
             ParticleReal r_sq = radius_ptr[i]*radius_ptr[i];
 
             bool converged = false;
+            ParticleReal abs_norm = DBL_MAX;
+            ParticleReal rel_norm = DBL_MAX;
             int n_substeps = 1;
             while (!converged) {
                 for (int step = 0; step < n_substeps; step++) {
@@ -127,14 +133,19 @@ void SuperDropletPC::MassChange ( int                                         a_
                     newton_solver ( r_sq, r_sq_0,
                                     (a_dt/static_cast<ParticleReal>(n_substeps)),
                                     sat_ratio, temperature, e_sat, solute_mass,
+                                    abs_norm, rel_norm,
                                     converged );
                 }
+                if (2*n_substeps > a_max_substeps) { break; }
                 n_substeps *= 2;
-                if (n_substeps > a_max_substeps) { break; }
             }
 
             if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
-            if (!converged) { Gpu::Atomic::Add(unconverged_particles_ptr, Long(1)); }
+            if (!converged) {
+                Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
+                Gpu::Atomic::Max(unconverged_max_absnorm_ptr, abs_norm);
+                Gpu::Atomic::Max(unconverged_max_relnorm_ptr, rel_norm);
+            }
 
             // update particle radius
             radius_ptr[i] = std::sqrt(r_sq);
@@ -149,6 +160,8 @@ void SuperDropletPC::MassChange ( int                                         a_
         Gpu::synchronize();
 
         m_num_unconverged_particles += *(unconverged_particles.copyToHost());
+        m_abs_norm_unconverged = std::max(m_abs_norm_unconverged, *(unconverged_max_absnorm.copyToHost()));
+        m_rel_norm_unconverged = std::max(m_rel_norm_unconverged, *(unconverged_max_relnorm.copyToHost()));
         m_max_substeps_actual = std::max(m_max_substeps_actual,*(max_substeps_d.copyToHost()));
     }
 
