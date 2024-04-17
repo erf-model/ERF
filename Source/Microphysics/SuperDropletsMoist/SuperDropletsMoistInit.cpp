@@ -15,16 +15,25 @@ void SuperDropletsMoist::readInputs ()
     BL_PROFILE("SuperDropletsMoist::readInputs");
     ParmParse pp(m_name);
 
-    m_flag_phase_change = true;
-    m_flag_advection = true;
-    m_flag_coalescence = true;
+    // include phase change in super-droplet dynamics?
+    m_flag_phase_change = true; //default
     pp.query("include_phase_change", m_flag_phase_change);
+    // include advection in super-droplet dynamics?
+    m_flag_advection = true; //default
     pp.query("include_advection", m_flag_advection);
+    // include coalescence in super-droplet dynamics?
+    m_flag_coalescence = true; //default
     pp.query("include_coalescence", m_flag_coalescence);
 
+    // let superdroplets relax to a physically correct size at initialization?
+    m_init_phase_change = false; //default
+    pp.query("initial_phase_change_relaxation", m_init_phase_change);
+
+    // initial distribution type
     m_init_type = SupDropInit::init_uniform;
     pp.query("initial_distribution_type", m_init_type);
 
+    // get aerosol names
     m_aerosols.clear();
     std::string aerosol_input = "aerosols";
     if (pp.contains(aerosol_input.c_str())) {
@@ -36,10 +45,12 @@ void SuperDropletsMoist::readInputs ()
         }
     }
 
-    m_diagnostics_iter = 1;
+    // number of time steps between writing distribution  diagnostics to file
+    m_diagnostics_iter = 1; //default
     pp.query("diagnostics_interval", m_diagnostics_iter);
 
-    m_num_substeps_phase_change = 1;
+    // number of substeps for phase change process
+    m_num_substeps_phase_change = 1; //default
     pp.query("num_substeps_phase_change", m_num_substeps_phase_change);
     return;
 }
@@ -133,8 +144,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
 
         /* call the phase change function so that the super-droplets "relax" to their
          * physical size corresponding to the initial flow */
-        if (m_flag_phase_change) {
-            // TODO: fake_terrain should be terrain
+        if (m_flag_phase_change && m_init_phase_change) {
             phaseChange(1.0, a_z_phys_nd, false, 2000);
         }
     }

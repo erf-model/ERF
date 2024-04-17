@@ -160,6 +160,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
+        /*! let initial superdroplets "relax" to a physically-appropriate size? */
+        bool m_init_phase_change;
+
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
         /*! initialization type */
