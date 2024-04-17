@@ -121,9 +121,9 @@ void Radiation::initialize (const MultiFab& cons_in,
     do_snow_optics    = do_snow_opt;
     is_cmip6_volc     = is_cmip6_volcano;
 
-    rrtmgp_file_path = getRadiationDataDir() + "/";
-    rrtmgp_coefficients_file_sw.insert(0,rrtmgp_file_path);
-    rrtmgp_coefficients_file_lw.insert(0,rrtmgp_file_path);
+    rrtmgp_data_path = getRadiationDataDir() + "/";
+    rrtmgp_coefficients_file_sw = rrtmgp_data_path + rrtmgp_coefficients_file_name_sw;
+    rrtmgp_coefficients_file_lw = rrtmgp_data_path + rrtmgp_coefficients_file_name_lw;
 
     for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
