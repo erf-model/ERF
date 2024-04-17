@@ -64,7 +64,7 @@ static bool binary_coalescence (const int a_i, /*!< index of first particle */
 
             ParticleReal r3 = gamma_t*a_radius[i]*a_radius[i]*a_radius[i]
                                     + a_radius[j]*a_radius[j]*a_radius[j];
-            a_radius[j] = std::exp(std::log(r3)/3.0);
+            a_radius[j] = std::cbrt(r3);
 
             a_mass[j] += gamma_t*a_mass[i];
             for (int n = 0; n < a_n_aerosols; n++) {
@@ -82,7 +82,7 @@ static bool binary_coalescence (const int a_i, /*!< index of first particle */
 
             ParticleReal r3 = gamma_t*a_radius[i]*a_radius[i]*a_radius[i]
                                     + a_radius[j]*a_radius[j]*a_radius[j];
-            a_radius[i] = a_radius[j] = std::exp(std::log(r3)/3.0);
+            a_radius[i] = a_radius[j] = std::cbrt(r3);
 
             a_mass[j] += gamma_t*a_mass[i];
             a_mass[i] = a_mass[j];
