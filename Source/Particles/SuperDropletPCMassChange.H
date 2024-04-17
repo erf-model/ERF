@@ -96,6 +96,8 @@ namespace SDMassChangeUtils
                             const RT&       a_T,
                             const RT&       a_e_s,
                             const RT&       a_M_s,
+                            RT&             a_res_norm_a,
+                            RT&             a_res_norm_r,
                             bool&           a_converged ) const
         {
             a_converged = false;
@@ -103,23 +105,23 @@ namespace SDMassChangeUtils
 
             for (int k = 0; k < m_maxits; k++) {
                 RT residual = a_u - (a_r + a_dt * m_rhs( a_u, a_S, a_T, a_e_s, a_M_s ));
-                RT res_norm_a = std::sqrt(residual*residual);
+                a_res_norm_a = std::sqrt(residual*residual);
 
-                if (k == 0) { res_norm0 = res_norm_a; }
-                RT res_norm_r = res_norm_a / res_norm0;
+                if (k == 0) { res_norm0 = a_res_norm_a; }
+                a_res_norm_r = a_res_norm_a / res_norm0;
 
-                if (res_norm_a <= m_atol) {
+                if (a_res_norm_a <= m_atol) {
                     a_converged = true;
                     break;
                 }
-                if (res_norm_r <= m_rtol) {
+                if (a_res_norm_r <= m_rtol) {
                     a_converged = true;
                     break;
                 }
 
                 RT slope = 1.0 - a_dt * m_jac( a_u, a_T, a_e_s, a_M_s );
                 RT du = 0.0;
-                if (slope*slope <  1.0e-40) {
+                if ((slope*slope) < (1.0e-12*residual*residual)) {
                     du = 0.0;
                 } else {
                     du = - residual / slope;
@@ -131,8 +133,8 @@ namespace SDMassChangeUtils
                     break;
                 }
 
-                if (a_u + du < 1e-16) {
-                    a_u += 0.01*a_u;
+                if (a_u + du < 0) {
+                    a_u *= 0.99;
                 } else {
                     a_u += du;
                 }

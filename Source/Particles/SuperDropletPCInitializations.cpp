@@ -382,7 +382,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                     aerosol_mass_total += aerosol_mass[ctr*np+n];
                 }
                 auto par_mass = condensate_mass[n] + aerosol_mass_total;
-                auto par_radius = std::exp(std::log(par_mass/((4.0/3.0)*PI*mat_density))/3.0);
+                auto par_radius = std::cbrt(par_mass/((4.0/3.0)*PI*mat_density));
                 if (par_radius == 0.0) {
                     par_radius = 1.0e-16;
                 }
@@ -401,7 +401,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                     aerosol_mass_total += aerosol_mass_ptrs[ctr][n];
                 }
                 auto par_mass = condensate_mass_seed + aerosol_mass_total;
-                auto par_radius = std::exp(std::log(par_mass/((4.0/3.0)*PI*mat_density))/3.0);
+                auto par_radius = std::cbrt(par_mass/((4.0/3.0)*PI*mat_density));
                 if (par_radius == 0.0) {
                     par_radius = 1.0e-16;
                 }
@@ -521,7 +521,7 @@ void SuperDropletPC::SetAttributes (MultiFab& a_rhoc /*!< mass density of conden
             mass_ptr[i] = mass_particle;
 
             Real radius_cubed = mass_particle / ((4.0/3.0)*PI*mat_density);
-            Real radius = (radius_cubed == 0.0 ? 0.0 : std::exp(std::log(radius_cubed)/3.0) );
+            Real radius = (radius_cubed == 0.0 ? 0.0 : std::cbrt(radius_cubed));
             radius_ptr[i] = radius;
             supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
         });
