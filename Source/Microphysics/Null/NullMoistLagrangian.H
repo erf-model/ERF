@@ -36,6 +36,11 @@ public:
         return m_name;
     }
 
+    /*! \brief finish initializations steps that require flow variables */
+    virtual void FinishInit (const int&, /* AMR level */
+                             amrex::MultiFab&, /* Conserved state variable */
+                             const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& /*terrain*/) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");

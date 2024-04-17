@@ -55,6 +55,11 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                             MFPtr&,
                             MFPtr& ) override;
 
+        /*! \brief finish initializations */
+        virtual void FinishInit(const int&,
+                                MultiFab&,
+                                const Vector<MFPtr>&) override;
+
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
             amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
@@ -71,10 +76,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override
         {
             Copy_State_to_Micro(a_cons_vars);
-
-            static bool first_call(true);
-            if (first_call) { FinishInit(a_cons_vars); }
-            first_call = false;
         }
 
         /*! \brief state variables from microphysics variables */
@@ -141,8 +142,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             }
         }
 
-        /*! \brief finish initializations */
-        void FinishInit(MultiFab&);
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
@@ -151,7 +150,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! \brief Compute phase changes (vapour <--> cloud water) */
         virtual void phaseChange (  const Real&,
-                                    const Vector<MFPtr>& );
+                                    const Vector<MFPtr>&,
+                                    const bool,
+                                    const int a_max_particle_substeps = -1);
 
     protected:
 

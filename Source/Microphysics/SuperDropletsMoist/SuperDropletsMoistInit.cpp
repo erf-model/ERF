@@ -50,7 +50,7 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                                 const BoxArray&,                /*!< Grids */
                                 const Geometry&   a_geom,       /*!< Computational domain */
                                 const Real&       a_dt,         /*!< Timestep */
-                                MFPtr&            a_z_phys_nd,   /*!< terrain */
+                                MFPtr&            a_z_phys_nd,  /*!< terrain */
                                 MFPtr& )
 {
     BL_PROFILE("SuperDropletsMoist::Init()");
@@ -93,8 +93,6 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                        << " particles in super-droplets moisture model.\n";
     }
 
-    m_super_droplets->Diagnostics(-1, true);
-
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
                    << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
@@ -110,9 +108,12 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 /*! Finish any initializations that depend on the conserved state variables
     that were not available during Init(); also, overwrite the rhoq2 component
     with the quantity computed from the this model. */
-void SuperDropletsMoist::FinishInit (MultiFab& a_cons_vars /*!< Conserved variables */)
+void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
+                                     MultiFab& a_cons_vars, /*!< Conserved variables */
+                                     const Vector<MFPtr>& a_z_phys_nd /*!< terrain */)
 {
     if (m_init_type == SuperDropletsMoistInitializations::init_rhoc) {
+
         /* initial super-droplets attributes computed from condensate mass density */
         MultiFab rho_c ( m_mic_fab_vars[MicVar_SD::q_c]->boxArray(),
                          m_mic_fab_vars[MicVar_SD::q_c]->DistributionMap(),
@@ -127,6 +128,15 @@ void SuperDropletsMoist::FinishInit (MultiFab& a_cons_vars /*!< Conserved variab
                        << " super-droplets representing "
                        << m_super_droplets->TotalNumberOfParticles()
                        << " particles in super-droplets moisture model.\n";
+
+    } else {
+
+        /* call the phase change function so that the super-droplets "relax" to their
+         * physical size corresponding to the initial flow */
+        if (m_flag_phase_change) {
+            // TODO: fake_terrain should be terrain
+            phaseChange(1.0, a_z_phys_nd, false, 2000);
+        }
     }
 
     computeQc();
@@ -141,6 +151,8 @@ void SuperDropletsMoist::FinishInit (MultiFab& a_cons_vars /*!< Conserved variab
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
         });
     }
+
+    m_super_droplets->Diagnostics(-1, true);
 
     return;
 }

@@ -897,9 +897,12 @@ ERF::InitData ()
         }
     }
 
-    // Update micro vars before first plot file
+    // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
-        for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+        }
     }
 
     // check for additional plotting variables that are available after particle containers

@@ -69,6 +69,15 @@ public:
                             z_phys_nd, detJ_cc);
     }
 
+    /*! \brief finish initializations steps that require flow variables */
+    void FinishInit (const int& lev, /*!< AMR level */
+                     amrex::MultiFab& cons_in, /*!< Conserved state variable */
+                     const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
+    {
+        if (lev > 0) return;
+        m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
+    }
+
     /*! \brief Advance the moisture model for one time step */
     void Advance (const int& lev, /*!< AMR level */
                   const amrex::Real& dt_advance, /*!< Time step */

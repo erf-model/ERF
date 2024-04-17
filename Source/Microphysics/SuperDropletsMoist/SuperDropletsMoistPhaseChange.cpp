@@ -8,7 +8,9 @@
     saturation pressure, and temperature). Update the Eulerial vapour and condensate
     mixing ratios accordingly. */
 void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
-                                       const Vector<std::unique_ptr<MultiFab>>& a_z /*!< terrain */)
+                                       const Vector<std::unique_ptr<MultiFab>>& a_z, /*!< terrain */
+                                       const bool a_update_qv,
+                                       const int a_max_particle_substeps )
 {
     // Get vapour material properties object
     auto& vapour_mat = m_super_droplets->getVapourMaterial();
@@ -56,24 +58,26 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                         (*m_mic_fab_vars[MicVar_SD::temperature]),
                                         mf_sat_pressure,
                                         mf_sat_ratio,
-                                        a_z );
+                                        a_z,
+                                        a_max_particle_substeps );
 
-        // Compute new condensate mixing ratio
-        computeQc();
+        if (a_update_qv) {
+            // Compute new condensate mixing ratio
+            computeQc();
+            // Update vapour mixing ratio
+            for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
 
-        // Update vapour mixing ratio
-        for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
 
-            Box bx = mfi.tilebox();
-            bx.grow(m_mic_fab_vars[MicVar_SD::q_v]->nGrowVect());
+                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
+                auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
+                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
 
-            auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
-            auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->const_array(mfi);
-            auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+                ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                { q_v_arr(i,j,k) = std::max(0.0, q_t_arr(i,j,k) - q_c_arr(i,j,k)); });
 
-            ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            { q_v_arr(i,j,k) = std::max(0.0, q_t_arr(i,j,k) - q_c_arr(i,j,k)); });
-
+            }
         }
     }
 

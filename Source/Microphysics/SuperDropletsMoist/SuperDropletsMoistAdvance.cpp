@@ -19,7 +19,7 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
 
     // Compute mass/size change due to evaporation/condensation
     if (m_flag_phase_change) {
-        phaseChange ( a_dt, a_z );
+        phaseChange ( a_dt, a_z, true );
     }
 
     // Advect particles
