@@ -70,7 +70,7 @@ void SuperDropletPC::readInputs ()
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
 
-    std::string coal_kernel_name;
+    std::string coal_kernel_name = "sedimentation";
     pp.query("coalescence_kernel", coal_kernel_name);
     if (coal_kernel_name == "golovin") {
         m_coalescence_kernel = SDCoalescenceKernelType::golovin;
