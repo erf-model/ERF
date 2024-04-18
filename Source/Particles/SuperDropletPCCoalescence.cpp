@@ -251,6 +251,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                     } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
                         k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                        k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                     }
                     auto prob_ij = k_val*a_dt*inv_bin_volume;
                     auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
@@ -308,6 +310,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                             k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                         } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
                             k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                            k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                         }
                         auto prob_ij = k_val*a_dt*inv_bin_volume;
                         auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
