@@ -749,6 +749,80 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+        if (solverChoice.time_avg_vel) {
+            if (containerHasElement(plot_var_names, "u_t_avg")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
+                    const Real norm = t_avg_cnt[lev];
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        derdat(i ,j ,k, mf_comp) = data(i,j,k,0) / norm;
+                    });
+                }
+                mf_comp ++;
+            }
+
+            if (containerHasElement(plot_var_names, "v_t_avg")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
+                    const Real norm = t_avg_cnt[lev];
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        derdat(i ,j ,k, mf_comp) = data(i,j,k,1) / norm;
+                    });
+                }
+                mf_comp ++;
+            }
+
+            if (containerHasElement(plot_var_names, "w_t_avg")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
+                    const Real norm = t_avg_cnt[lev];
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        derdat(i ,j ,k, mf_comp) = data(i,j,k,2) / norm;
+                    });
+                }
+                mf_comp ++;
+            }
+
+            if (containerHasElement(plot_var_names, "umag_t_avg")) {
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+                for ( MFIter mfi(mf[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+                {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<Real>& derdat = mf[lev].array(mfi);
+                    const Array4<Real>& data   = vel_t_avg[lev]->array(mfi);
+                    const Real norm = t_avg_cnt[lev];
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                    {
+                        derdat(i ,j ,k, mf_comp) = data(i,j,k,3) / norm;
+                    });
+                }
+                mf_comp ++;
+            }
+        }
+
         if (containerHasElement(plot_var_names, "Kmv")) {
             MultiFab::Copy(mf[lev],*eddyDiffs_lev[lev],EddyDiff::Mom_v,mf_comp,1,0);
             mf_comp ++;

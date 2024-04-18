@@ -336,6 +336,11 @@ public:
     MultiBlockContainer *m_mbc = nullptr;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Velocity time averaged field
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
+    amrex::Vector<int> t_avg_cnt;
+
 #endif
     std::string pp_prefix {"erf"};
 
@@ -578,6 +583,10 @@ private:
 #ifndef ERF_USE_MULTIBLOCK
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_new;
     amrex::Vector<amrex::Vector<amrex::MultiFab> > vars_old;
+
+    // Velocity time averaged field
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> vel_t_avg;
+    amrex::Vector<amrex::Real> t_avg_cnt;
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
@@ -771,6 +780,8 @@ private:
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac",
+                                                    // Time averaged velocity
+                                                    "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
                                                     "Kmv","Kmh",
                                                     // eddy diffusivity of heat

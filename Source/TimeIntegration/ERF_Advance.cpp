@@ -179,4 +179,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
                                           {time, time + dt_lev});
         }
     }
+
+    // ***********************************************************************************************
+    // Update the time averaged velocities if they are requested
+    // ***********************************************************************************************
+    if (solverChoice.time_avg_vel) {
+        Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
+    }
 }
