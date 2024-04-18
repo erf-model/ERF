@@ -1740,7 +1740,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-	Nturb.resize(nlevs_max);
+    Nturb.resize(nlevs_max);
     vars_fitch.resize(nlevs_max);
     vars_ewp.resize(nlevs_max);
 #endif

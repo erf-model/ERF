@@ -60,7 +60,6 @@ struct SolverChoice {
   public:
     void init_params(int max_level)
     {
-		std::cout << "Reaching in init_params here....." << "\n";
         amrex::ParmParse pp(pp_prefix);
 
         // Do we have terrain (or grid stretching)?
@@ -276,9 +275,9 @@ struct SolverChoice {
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
-		else if(windfarm_type_string == "EWP"){
-            windfarm_type = WindFarmType::EWP;	
-		}
+        else if(windfarm_type_string == "EWP"){
+            windfarm_type = WindFarmType::EWP;
+        }
         else {
             amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
         }

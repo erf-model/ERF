@@ -102,13 +102,13 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-			Real L_wake = std::pow(dx[0]*dx[1],0.5);
-			Real K_turb = 6.0;
-			Real sigma_0 = 60.0;
-			Real sigma_e = Vabs/(3.0*K_turb*L_wake)*(std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
+            Real L_wake = std::pow(dx[0]*dx[1],0.5);
+            Real K_turb = 6.0;
+            Real sigma_0 = 60.0;
+            Real sigma_e = Vabs/(3.0*K_turb*L_wake)*(std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
 
-			Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction 
-			Real fac = -std::pow(M_PI/8.0,0.5)*C_T_ewp*std::pow(R_ewp,2)*std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*std::exp(-0.5*std::pow((z - z_c_ewp)/sigma_e,2)); 
+            Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
+            Real fac = -std::pow(M_PI/8.0,0.5)*C_T_ewp*std::pow(R_ewp,2)*std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*std::exp(-0.5*std::pow((z - z_c_ewp)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = 0.0;
