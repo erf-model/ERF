@@ -381,7 +381,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
-    //      terrain arrays and metrics,a nd base state.
+    //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old);
 
