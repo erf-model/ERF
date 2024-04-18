@@ -108,7 +108,9 @@ PlotFile Outputs
 ================
 
 Plotfiles can include the quantities of several simulation parameters as output.
-They are summarized in the list below.
+They are summarized in the list below. Note that temporally averaged quantities
+(e.g., ``u_t_avg, v_t_avg, w_t_avg, umag_t_avg``) require the user to enable the
+storage of the time averaged variables with ``erf.time_avg_vel = true``.
 
 Output Options
 --------------
@@ -201,16 +203,32 @@ Output Options
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
-| **vorticity_x*              | x-component of   |
+| **vorticity_x**             | x-component of   |
 |                             | vorticity        |
 |                             |                  |
 +-----------------------------+------------------+
-| **vorticity_y*              | y-component of   |
+| **vorticity_y**             | y-component of   |
 |                             | vorticity        |
 |                             |                  |
 +-----------------------------+------------------+
-| **vorticity_z*              | z-component of   |
+| **vorticity_z**             | z-component of   |
 |                             | vorticity        |
+|                             |                  |
++-----------------------------+------------------+
+| **u_t_avg**                 | time average of  |
+|                             | x-component of   |
+|                             | velocity         |
++-----------------------------+------------------+
+| **v_t_avg**                 | time average of  |
+|                             | y-component of   |
+|                             | velocity         |
++-----------------------------+------------------+
+| **w_t_avg**                 | time average of  |
+|                             | z-component of   |
+|                             | velocity         |
++-----------------------------+------------------+
+| **umag_t_avg**              | time average of  |
+|                             | velocity mag     |
 |                             |                  |
 +-----------------------------+------------------+
 | **rhoadv_0**                | Conserved scalar |
