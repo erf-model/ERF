@@ -161,8 +161,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                     + i ).data();
         }
 
-        [[maybe_unused]]CollisionKernel_Sedimentation<ParticleReal,AMREX_SPACEDIM> ckernel_sedim{};
-        [[maybe_unused]]CollisionKernel_Golovin<ParticleReal> ckernel_golovin{1.5e03};
+        CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
@@ -247,9 +246,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                     ParticleReal k_val = 0.0;
                     if (kernel_choice == SDCoalescenceKernelType::golovin) {
-                        k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                     } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                        k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                     }
                     auto prob_ij = k_val*a_dt*inv_bin_volume;
                     auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
@@ -302,9 +301,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                         ParticleReal k_val = 0.0;
                         if (kernel_choice == SDCoalescenceKernelType::golovin) {
-                            k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                            k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                         } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                            k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                            k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                         }
                         auto prob_ij = k_val*a_dt*inv_bin_volume;
                         auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
