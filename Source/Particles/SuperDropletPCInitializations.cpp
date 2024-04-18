@@ -38,6 +38,7 @@ void SuperDropletPC::readInputs ()
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
     m_mass_condensate_init = 0.0;
     m_mass_condensate_init_type = SupDropInit::attrib_init_const;
+    m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     m_coalescence_alg = SupDropInit::alg_coalescence_dsmc;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
@@ -68,6 +69,16 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_max_particle_substeps", m_mass_change_max_substeps);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
+
+    std::string coal_kernel_name;
+    pp.query("coalescence_kernel", coal_kernel_name);
+    if (coal_kernel_name == "golovin") {
+        m_coalescence_kernel = SDCoalescenceKernelType::golovin;
+    } else if (coal_kernel_name == "sedimentation") {
+        m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
+    } else {
+        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
+    }
 
     pp.query("initial_seeds_per_cell", m_ppc_seed);
     pp.query("seed_condensate_mass", m_seed_mass);

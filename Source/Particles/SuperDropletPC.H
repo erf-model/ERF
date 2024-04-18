@@ -49,6 +49,12 @@ namespace SupDropInit
     const std::string alg_coalescence_cudsmc = "cuDSMC";
 }
 
+/*! \brief Types of coalescence kernels */
+enum struct SDCoalescenceKernelType {
+    golovin,
+    sedimentation
+};
+
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
 
@@ -293,6 +299,7 @@ class SuperDropletPC : public ERFPC
         std::string m_mass_condensate_init_type; /*!< type of initial distribution */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
+        SDCoalescenceKernelType m_coalescence_kernel;
 
         int m_ppc_seed; /*!< Number of seed particles per cell */
         amrex::Real m_seed_mass; /*!< Condensate mass of seed */
