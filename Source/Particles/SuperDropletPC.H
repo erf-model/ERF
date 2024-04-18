@@ -231,7 +231,10 @@ class SuperDropletPC : public ERFPC
         /*! \brief Advect particles for one time step */
         virtual void AdvectParticles (   int,
                                          amrex::Real,
-                                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
+                                         const amrex::MultiFab* const,
+                                         const amrex::MultiFab&,
+                                         const amrex::MultiFab&,
+                                         const amrex::MultiFab&,
                                          const amrex::Vector<MFPtr>& );
 
         /*! \brief Grow/shrink particles for one time step */
