@@ -1,3 +1,4 @@
+#include "IndexDefines.H"
 #include "SuperDropletsMoist.H"
 
 #ifdef ERF_USE_PARTICLES
@@ -24,7 +25,13 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
 
     // Advect particles
     if (m_flag_advection) {
-        m_super_droplets->AdvectParticles (0, a_dt, a_flow_vars, a_z);
+        m_super_droplets->AdvectParticles ( 0,
+                                            a_dt,
+                                            &a_flow_vars[0][Vars::xvel],
+                                            *(m_mic_fab_vars[MicVar_SD::rho]),
+                                            *(m_mic_fab_vars[MicVar_SD::pressure]),
+                                            *(m_mic_fab_vars[MicVar_SD::temperature]),
+                                            a_z);
     }
 
     // Coalescence of super-droplets
