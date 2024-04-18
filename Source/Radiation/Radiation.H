@@ -176,9 +176,11 @@ class Radiation {
 
     // k-distribution coefficients files to read from. These are set via namelist
     // variables.
-    std::string rrtmgp_file_path;
-    std::string rrtmgp_coefficients_file_sw = "rrtmgp_coefficients_sw_20181204.nc";
-    std::string rrtmgp_coefficients_file_lw = "rrtmgp_coefficients_lw_20181204.nc";
+    std::string rrtmgp_data_path;
+    std::string rrtmgp_coefficients_file_sw;
+    std::string rrtmgp_coefficients_file_lw;
+    std::string rrtmgp_coefficients_file_name_sw = "rrtmgp_coefficients_sw_20181204.nc";
+    std::string rrtmgp_coefficients_file_name_lw = "rrtmgp_coefficients_lw_20181204.nc";
 
     // Band midpoints; these need to be module variables because of how cam_history works;
     // add_hist_coord sets up pointers to these, so they need to persist.

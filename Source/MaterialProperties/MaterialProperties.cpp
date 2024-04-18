@@ -1,5 +1,4 @@
 #include "MaterialProperties.H"
-#include "ERF_Constants.H"
 #include "Microphysics_Utils.H"
 
 using namespace amrex;

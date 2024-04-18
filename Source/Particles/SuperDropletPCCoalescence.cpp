@@ -129,6 +129,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
     long num_collisions = 0;
     const auto& gvec = a_temperature.nGrowVect();
 
+    auto kernel_choice = m_coalescence_kernel;
+
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
 
@@ -159,8 +161,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                     + i ).data();
         }
 
-        [[maybe_unused]]CollisionKernel_Sedimentation<ParticleReal,AMREX_SPACEDIM> ckernel_sedim{};
-        [[maybe_unused]]CollisionKernel_Golovin<ParticleReal> ckernel_golovin{1.5e03};
+        CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
 
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
@@ -243,8 +244,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         v_j[d] = v_ptr[d][pj];
                     }
 
-                    auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                    //auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    ParticleReal k_val = 0.0;
+                    if (kernel_choice == SDCoalescenceKernelType::golovin) {
+                        k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                        k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                        k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                        k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                    }
                     auto prob_ij = k_val*a_dt*inv_bin_volume;
                     auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
@@ -294,8 +303,16 @@ void SuperDropletPC::Coalescence( int   a_lev,
                             v_j[d] = v_ptr[d][pj];
                         }
 
-                        auto k_val = ckernel_sedim(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        //auto k_val = ckernel_golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        ParticleReal k_val = 0.0;
+                        if (kernel_choice == SDCoalescenceKernelType::golovin) {
+                            k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                            k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                            k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                            k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        }
                         auto prob_ij = k_val*a_dt*inv_bin_volume;
                         auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 

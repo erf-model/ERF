@@ -5,27 +5,12 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
+#include "ERF_Constants.H"
 
 namespace MaterialNames
 {
     const std::string h2o = "H2O";
     const std::string nacl = "NaCl";
-}
-
-namespace MatPropFunctions
-{
-    struct TerminalVelocity
-    {
-        amrex::Real a;
-        amrex::Real b;
-
-        AMREX_GPU_HOST_DEVICE
-        amrex::Real operator() (const amrex::Real a_r) const noexcept
-        {
-            amrex::Real D = 2*a_r*1000; // meter -> mm
-            return a*(std::exp(b*std::log(D)));
-        }
-    };
 }
 
 namespace saturation_funcs
