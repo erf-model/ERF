@@ -39,6 +39,33 @@ struct CollisionKernel
         dv = std::sqrt(dv);
         return PI*(a_r1+a_r2)*(a_r1+a_r2)*E*dv;
     }
+
+    /*! \brief Long's kernel */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT Longs ( const RT a_r1, /*!< radius of particle 1 */
+               const RT a_r2, /*!< radius of particle 2 */
+               const RT* const a_v1, /*!< velocity of particle 1 */
+               const RT* const a_v2  /*!< velocity of particle 2 */) const noexcept
+    {
+        auto r1 = std::max( a_r1, a_r2 );  // large
+        auto r2 = std::min( a_r1, a_r2 );  // small
+        auto sumr = r1 + r2;
+
+        RT c_rate = 1.0;
+        if( r1 <= 5.E-5 ) {
+            c_rate = 4.5E+8 * ( r1*r1 ) * ( 1.0 - 3.E-6/(std::max(3.01E-6,r1)) );
+        }
+        c_rate *= (PI*sumr*sumr);
+
+        RT dv = 0;
+        for (int d = 0; d < SPACEDIM; d++) {
+            dv += (a_v1[d]-a_v2[d])*(a_v1[d]-a_v2[d]);
+        }
+        dv = std::sqrt(dv);
+
+        return c_rate*dv;
+    }
+
 };
 
 #endif

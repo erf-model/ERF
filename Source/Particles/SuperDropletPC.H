@@ -52,7 +52,8 @@ namespace SupDropInit
 /*! \brief Types of coalescence kernels */
 enum struct SDCoalescenceKernelType {
     golovin,
-    sedimentation
+    sedimentation,
+    Longs
 };
 
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;

@@ -76,6 +76,8 @@ void SuperDropletPC::readInputs ()
         m_coalescence_kernel = SDCoalescenceKernelType::golovin;
     } else if (coal_kernel_name == "sedimentation") {
         m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
+    } else if (coal_kernel_name == "Longs") {
+        m_coalescence_kernel = SDCoalescenceKernelType::Longs;
     } else {
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
