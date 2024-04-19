@@ -288,6 +288,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
+        auto* tcoal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
 
         GpuArray<ParticleReal*,n_aerosols_max> aerosol_mass_ptrs;
         for (int i = 0; i < n_aerosols; i++) {
@@ -405,6 +406,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 mass_ptr[n] = par_mass;
                 radius_ptr[n] = par_radius;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
+                tcoal_ptr[n] = DBL_MAX;
             }
 
             /* Seed particles */

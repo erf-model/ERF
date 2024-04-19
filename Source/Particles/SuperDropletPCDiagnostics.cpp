@@ -62,6 +62,22 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                          return n*m;
                                      } );
 
+    auto min_t_coales   = ReduceMin( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i]; } );
+
+    auto max_t_coales   = ReduceMax( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i]; } );
+
+    auto avg_t_coales   = ReduceSum( *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     {
+                                         auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                         auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::t_coalescence][i];
+                                         return n*m;
+                                     } );
+
     auto min_par_vx = ReduceMin( *this,
                                  [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
                                  { return ptd.m_rdata[SuperDropletsRealIdxSoA::vx][i]; } );
@@ -111,6 +127,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                  } );
 
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_t_coales,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_multiplic,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_vx,1,ParallelDescriptor::IOProcessorNumber());
@@ -118,6 +135,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMin(&min_par_vz,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealMax(&max_par_mass,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_t_coales,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_radius,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_multiplic,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_vx,1,ParallelDescriptor::IOProcessorNumber());
@@ -125,32 +143,38 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMax(&max_par_vz,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_t_coales,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_radius,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_multiplic,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
     avg_par_mass /= num_total_particles;
+    avg_t_coales /= num_total_particles;
     avg_par_radius /= num_total_particles;
     avg_multiplic /= num_superdroplets;
     avg_par_vx /= num_total_particles;
     avg_par_vy /= num_total_particles;
     avg_par_vz /= num_total_particles;
 
+    m_t_coalescence = max_t_coales;
+
     Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
-            << "    mass: "
+            << "    mass [kg]: "
             << min_par_mass << ", " << max_par_mass << ", " << avg_par_mass << "\n"
-            << "    radius: "
+            << "    radius [m]: "
             << min_par_radius << ", " << max_par_radius << ", " << avg_par_radius << "\n"
             << "    multiplicity: "
             << min_multiplic << ", " << max_multiplic << ", " << avg_multiplic << "\n"
-            << "    velocity components:\n"
+            << "    velocity components [m/s]:\n"
             << "        x: "
             << min_par_vx << ", " << max_par_vx << ", " << avg_par_vx << "\n"
             << "        y: "
             << min_par_vy << ", " << max_par_vy << ", " << avg_par_vy << "\n"
             << "        z: "
-            << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n";
+            << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
+            << "    coalescence time scale [s]: "
+            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n";
 
     Long num_unconverged_particles = m_num_unconverged_particles;
     m_num_unconverged_particles = 0;
