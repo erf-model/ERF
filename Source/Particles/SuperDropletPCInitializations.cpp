@@ -204,8 +204,20 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
             << "    Initial particle box: " << a_particle_init_domain << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
-            << "    Coalescence algorthm: " << m_coalescence_alg << "\n"
-            << "    Vapour material: " << m_vapour_mat->name() << "\n";
+            << "    Coalescence algorthm: " << m_coalescence_alg << "\n";
+
+    Print() << "    Coalescence kernel: ";
+    if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {
+        Print() << "golovin" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::sedimentation) {
+        Print() << "sedimentation" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Longs) {
+        Print() << "Longs" << "\n";
+    } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
+        Print() << "Halls" << "\n";
+    }
+
+    Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
     if (m_aerosol_mat.size() > 0) {
         Print() << "    Aerosol materials:\n";
         for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
