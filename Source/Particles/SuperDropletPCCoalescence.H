@@ -141,7 +141,7 @@ struct CollisionKernel
     {
         int i;
         for (i = 1; i < 20; i++) {
-            if (a_r < Halls_data_ratcol(i)) { return i; }
+            if (a_r <= Halls_data_ratcol(i)) { return i; }
         }
         return i;
     }
@@ -189,28 +189,42 @@ struct CollisionKernel
         auto ratio = r2 / r1;
         auto sumr = r1 + r2;
 
-        auto irr = Halls_data_r0col(r1);
-        auto iqq = Halls_data_ratcol(ratio);
+        int irr = Halls_data_r0col(r1);
+        int iqq = Halls_data_ratcol(ratio);
 
         RT c_rate = 1.0;
+
         if( irr >= 15 ) {
-            auto q  =     (ratio - Halls_data_ratcol(iqq-1))
-                        / (Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1));
-            auto ek = (1.0-q) * Halls_data_ecoll(iqq-1,14) + q * Halls_data_ecoll(iqq,14);
+
+            RT q  =   ( ratio                  - Halls_data_ratcol(iqq-1) )
+                    / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
+
+            RT ek =   (1.0-q) * Halls_data_ecoll(iqq-1,14)
+                    + q       * Halls_data_ecoll(iqq  ,14);
+
             c_rate = std::min( ek, 1.0 );
+
         } else if ((irr >= 1) && (irr < 15)) {
-            auto p =      (a_r1*1.0e6 - Halls_data_r0col(irr-1))
-                        / (Halls_data_r0col(irr) - Halls_data_r0col(irr-1));
-            auto q =   (ratio - Halls_data_ratcol(iqq-1))
-                    / (Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1));
+
+            RT p =   ( a_r1*1.0e6            - Halls_data_r0col(irr-1) )
+                   / ( Halls_data_r0col(irr) - Halls_data_r0col(irr-1) );
+
+            RT q =   ( ratio                  - Halls_data_ratcol(iqq-1) )
+                   / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
+
             c_rate =   (1.0-p) * (1.0-q) * Halls_data_ecoll(iqq-1,irr-1)
-                     + p       * (1.0-q) * Halls_data_ecoll(iqq-1,irr)
-                     + (1.0-p) * q       * Halls_data_ecoll(iqq,irr-1)
-                     + p       * q       * Halls_data_ecoll(iqq,irr);
+                     + p       * (1.0-q) * Halls_data_ecoll(iqq-1,irr  )
+                     + (1.0-p) * q       * Halls_data_ecoll(iqq  ,irr-1)
+                     + p       * q       * Halls_data_ecoll(iqq  ,irr  );
+
         } else {
-            auto q =  (ratio - Halls_data_ratcol(iqq-1))
-                    / (Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1));
-            c_rate = (1.0-q)*Halls_data_ecoll(iqq-1,0) + q*Halls_data_ecoll(iqq,0);
+
+            RT q =  ( ratio                  - Halls_data_ratcol(iqq-1) )
+                  / ( Halls_data_ratcol(iqq) - Halls_data_ratcol(iqq-1) );
+
+            c_rate =   (1.0-q) * Halls_data_ecoll(iqq-1,0)
+                     + q       * Halls_data_ecoll(iqq  ,0);
+
         }
         c_rate *= (PI*sumr*sumr);
 
