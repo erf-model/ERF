@@ -699,6 +699,8 @@ class PhysProp {
     // Read optics data for modal aerosols
     void modal_optics_init (physprop_t& phys_prop, yakl::SimpleNetCDF& prop)
     {
+        // NOTE: Definitions for real arrays come from rrtmgp_const.h
+        //       and they default to styleFortran ordering.
         realHost5d extpsw, abspsw, asmpsw, absplw;
         auto nlwbnd = prop.getDimSize( "lw_band" );
         auto nswbnd = prop.getDimSize( "sw_band" );
@@ -714,56 +716,24 @@ class PhysProp {
         prop.read(asmpsw, "asmpsw" );
         prop.read(absplw, "absplw" );
 
-        /*
-        // DEBUG NETCDF READ ORDER
-        {
-        auto lb = asmpsw.get_lbounds();
-        auto ub = asmpsw.get_ubounds();
-        amrex::Print() << "CHECK: " << ub.size() << "\n";
-        for (int ind(1); ind<=ub.size(); ++ind) {
-          amrex::Print() << "BNDS asmpsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
-                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
-        }
-        }
+        // styleFortran ordering to be consistent with realHost5d definition
+        phys_prop.extpsw = real4d("extpsw", ncoef, prefr, prefi, nswbnd);
+        phys_prop.abspsw = real4d("abspsw", ncoef, prefr, prefi, nswbnd);
+        phys_prop.asmpsw = real4d("asmpsw", ncoef, prefr, prefi, nswbnd);
+        phys_prop.absplw = real4d("absplw", ncoef, prefr, prefi, nswbnd);
 
-        {
-        auto lb = abspsw.get_lbounds();
-        auto ub = abspsw.get_ubounds();
-        amrex::Print() << "CHECK: " << ub.size() << "\n";
-        for (int ind(1); ind<=ub.size(); ++ind) {
-          amrex::Print() << "BNDS abspsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
-                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
-        }
-        }
-
-        {
-        auto lb = extpsw.get_lbounds();
-        auto ub = extpsw.get_ubounds();
-        amrex::Print() << "CHECK: " << ub.size() << "\n";
-        for (int ind(1); ind<=ub.size(); ++ind) {
-          amrex::Print() << "BNDS extpsw: " << ind << ' ' << lb(ind) << ' ' << ub(ind) << ' '
-                         << nswbnd << ' ' << prefi << ' ' << prefr << ' ' << ncoef << "\n";
-        }
-        }
-        */
-
-        phys_prop.extpsw = real4d("extpsw", nswbnd, prefi, prefr, ncoef);
-        phys_prop.abspsw = real4d("abspsw", nswbnd, prefi, prefr, ncoef);
-        phys_prop.asmpsw = real4d("asmpsw", nswbnd, prefi, prefr, ncoef);
-        phys_prop.absplw = real4d("absplw", nlwbnd, prefi, prefr, ncoef);
-
-        parallel_for (SimpleBounds<4>(nswbnd, prefi, prefr, ncoef),
+        parallel_for (SimpleBounds<4>(nswbnd, prefr, prefi, ncoef),
                       YAKL_LAMBDA (int i, int j, int k, int l)
         {
-            phys_prop.extpsw(i,j,k,l) = extpsw(l,k,j,1,i); //extpsw(i,1,j,k,l);
-            phys_prop.abspsw(i,j,k,l) = abspsw(l,k,j,1,i); //abspsw(i,1,j,k,l);
-            phys_prop.asmpsw(i,j,k,l) = asmpsw(l,k,j,1,i); //asmpsw(i,1,j,k,l);
+            phys_prop.extpsw(i,j,k,l) = extpsw(i,j,k,1,l);
+            phys_prop.abspsw(i,j,k,l) = abspsw(i,j,k,1,l);
+            phys_prop.asmpsw(i,j,k,l) = asmpsw(i,j,k,1,l);
         });
 
-        parallel_for (SimpleBounds<4>(nlwbnd, prefi, prefr, ncoef),
+        parallel_for (SimpleBounds<4>(nlwbnd, prefr, prefi, ncoef),
                       YAKL_LAMBDA (int i, int j, int k, int l)
         {
-            phys_prop.absplw(i,j,k,l) = absplw(l,k,j,1,i); //absplw(i,1,j,k,l);
+            phys_prop.absplw(i,j,k,l) = absplw(i,j,k,1,l);
         });
 
         prop.read(phys_prop.refrtabsw,   "refindex_real_sw" );
