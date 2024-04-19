@@ -36,13 +36,14 @@ using yakl::fortran::SimpleBounds;
 namespace internal {
     void initial_fluxes (int nz, int nlay, int nbands, FluxesByband& fluxes)
     {
-        fluxes.flux_up = real2d("flux_up", nz, nlay+1);
-        fluxes.flux_dn = real2d("flux_dn", nz, nlay+1);
-        fluxes.flux_net = real2d("flux_net", nz, nlay+1);
+        fluxes.flux_up     = real2d("flux_up"    , nz, nlay+1);
+        fluxes.flux_dn     = real2d("flux_dn"    , nz, nlay+1);
+        fluxes.flux_net    = real2d("flux_net"   , nz, nlay+1);
         fluxes.flux_dn_dir = real2d("flux_dn_dir", nz, nlay+1);
-        fluxes.bnd_flux_up = real3d("flux_up", nz, nlay+1, nbands);
-        fluxes.bnd_flux_dn = real3d("flux_dn", nz, nlay+1, nbands);
-        fluxes.bnd_flux_net = real3d("flux_net", nz, nlay+1, nbands);
+
+        fluxes.bnd_flux_up     = real3d("flux_up"    , nz, nlay+1, nbands);
+        fluxes.bnd_flux_dn     = real3d("flux_dn"    , nz, nlay+1, nbands);
+        fluxes.bnd_flux_net    = real3d("flux_net"   , nz, nlay+1, nbands);
         fluxes.bnd_flux_dn_dir = real3d("flux_dn_dir", nz, nlay+1, nbands);
     }
 
@@ -54,8 +55,7 @@ namespace internal {
         auto nlev  = size(daytime_fluxes.bnd_flux_up, 2);
         auto nbnds = size(daytime_fluxes.bnd_flux_up, 3);
 
-        int1d nday_1d("nday_1d", 1),
-            nday_host("nday_host",1);
+        int1d nday_1d("nday_1d", 1),nday_host("nday_host",1);
         yakl::memset(nday_1d, 0);
         parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol)
         {
@@ -71,15 +71,15 @@ namespace internal {
             // auto icol = day_indices(iday);
             auto icol = iday;
             // Expand broadband fluxes
-            expanded_fluxes.flux_up(icol,ilev) = daytime_fluxes.flux_up(iday,ilev);
-            expanded_fluxes.flux_dn(icol,ilev) = daytime_fluxes.flux_dn(iday,ilev);
-            expanded_fluxes.flux_net(icol,ilev) = daytime_fluxes.flux_net(iday,ilev);
+            expanded_fluxes.flux_up(icol,ilev)     = daytime_fluxes.flux_up(iday,ilev);
+            expanded_fluxes.flux_dn(icol,ilev)     = daytime_fluxes.flux_dn(iday,ilev);
+            expanded_fluxes.flux_net(icol,ilev)    = daytime_fluxes.flux_net(iday,ilev);
             expanded_fluxes.flux_dn_dir(icol,ilev) = daytime_fluxes.flux_dn_dir(iday,ilev);
 
             // Expand band-by-band fluxes
-            expanded_fluxes.bnd_flux_up(icol,ilev,ibnd) = daytime_fluxes.bnd_flux_up(iday,ilev,ibnd);
-            expanded_fluxes.bnd_flux_dn(icol,ilev,ibnd) = daytime_fluxes.bnd_flux_dn(iday,ilev,ibnd);
-            expanded_fluxes.bnd_flux_net(icol,ilev,ibnd) = daytime_fluxes.bnd_flux_net(iday,ilev,ibnd);
+            expanded_fluxes.bnd_flux_up(icol,ilev,ibnd)     = daytime_fluxes.bnd_flux_up(iday,ilev,ibnd);
+            expanded_fluxes.bnd_flux_dn(icol,ilev,ibnd)     = daytime_fluxes.bnd_flux_dn(iday,ilev,ibnd);
+            expanded_fluxes.bnd_flux_net(icol,ilev,ibnd)    = daytime_fluxes.bnd_flux_net(iday,ilev,ibnd);
             expanded_fluxes.bnd_flux_dn_dir(icol,ilev,ibnd) = daytime_fluxes.bnd_flux_dn_dir(iday,ilev,ibnd);
         });
     }
@@ -309,8 +309,8 @@ void Radiation::run ()
     if (do_short_wave_rad) {
         // Radiative fluxes
         FluxesByband fluxes_allsky, fluxes_clrsky;
-        internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_allsky);
-        internal::initial_fluxes(ncol, nlev, nlwbands, fluxes_clrsky);
+        internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_allsky);
+        internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_clrsky);
 
         // Get cosine solar zenith angle for current time step. ( still NOT YET implemented here)
         //      set_cosine_solar_zenith_angle(state, dt_avg, coszrs(1:ncol))
