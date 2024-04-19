@@ -373,14 +373,17 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         auto aerosol_mass = aerosol_mass_d.data();
         auto condensate_mass = condensate_mass_d.data();
 
+        auto num_superdroplets_arr = num_superdroplets[mfi].array();
+
         ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
                                                        const RandomEngine& rnd_engine) noexcept
         {
+            int num_sd_this_cell = num_superdroplets_arr(i,j,k);
             Real num_to_add = num_par_per_cell;
             Real n_par_per_supdrop = std::ceil(num_par_per_cell/num_sd_per_cell);
 
             int start = offset_arr(i,j,k);
-            for (int n = start; n < start+num_sd_per_cell; n++) {
+            for (int n = start; n < start+num_sd_this_cell; n++) {
                 Real x = plo[0] + (i + Random(rnd_engine))*dx[0];
                 Real y = plo[1] + (j + Random(rnd_engine))*dx[1];
                 Real z = plo[2] + (k + Random(rnd_engine))*dx[2];
@@ -420,12 +423,12 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 radius_ptr[n] = par_radius;
                 supdrop_mass_ptr[n] = par_mass*multiplicity;
                 vterm_ptr[n] = 0.0;
-                tcoal_ptr[n] = DBL_MAX;
+                tcoal_ptr[n] = 0.0;
             }
 
             /* Seed particles */
             for (int ns = 0; ns < n_seeds; ns++) {
-                int n = start + Random_int(num_sd_per_cell, rnd_engine);
+                int n = start + Random_int(num_sd_this_cell, rnd_engine);
 
                 ParticleReal aerosol_mass_total = 0.0;
                 for (int ctr = 0; ctr < n_aerosols; ctr++) {
@@ -453,8 +456,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             ParallelForRNG(tile_box, [=] AMREX_GPU_DEVICE (int i, int j, int k,
                                                            const RandomEngine& rnd_engine) noexcept
             {
+                int num_sd_this_cell = num_superdroplets_arr(i,j,k);
                 int start = offset_arr(i,j,k);
-                for (int n = start; n < start+num_sd_per_cell; n++) {
+                for (int n = start; n < start+num_sd_this_cell; n++) {
                     auto& p = aos[n];
                     Real x = p.pos(0);
                     Real y = p.pos(1);
