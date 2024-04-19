@@ -25,10 +25,6 @@ void SuperDropletsMoist::readInputs ()
     m_flag_coalescence = true; //default
     pp.query("include_coalescence", m_flag_coalescence);
 
-    // let superdroplets relax to a physically correct size at initialization?
-    m_init_phase_change = false; //default
-    pp.query("initial_phase_change_relaxation", m_init_phase_change);
-
     // initial distribution type
     m_init_type = SupDropInit::init_uniform;
     pp.query("initial_distribution_type", m_init_type);
@@ -52,6 +48,17 @@ void SuperDropletsMoist::readInputs ()
     // number of substeps for phase change process
     m_num_substeps_phase_change = 1; //default
     pp.query("num_substeps_phase_change", m_num_substeps_phase_change);
+
+    // let superdroplets relax to a physically correct size at initialization?
+    m_init_phase_change = false; //default
+    pp.query("initial_phase_change_relaxation", m_init_phase_change);
+    // time (in seconds) of initial relaxation
+    m_init_phase_change_time = 10.0; //default
+    pp.query("initial_phase_change_relaxation_time", m_init_phase_change_time);
+    // number of steps for initial relaxation
+    m_init_phase_change_steps = 1000; //default
+    pp.query("initial_phase_change_relaxation_steps", m_init_phase_change_steps);
+
     return;
 }
 
@@ -106,13 +113,19 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
 
     amrex::Print() << "SuperDropletsMoist:\n"
                    << "    diagnostics_interval: " << m_diagnostics_iter << "\n"
-                   << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
                    << "    include phase change: "
                    << (m_flag_phase_change ? "true" : "false") << "\n"
                    << "    include particle advection: "
                    << (m_flag_advection ? "true" : "false") << "\n"
                    << "    include coalescence: "
-                   << (m_flag_coalescence ? "true" : "false") << "\n";
+                   << (m_flag_coalescence ? "true" : "false") << "\n"
+                   << "    number of substeps (phase change): " << m_diagnostics_iter << "\n"
+                   << "    initial phase change relaxation: "
+                   << (m_init_phase_change ? "true" : "false") << "\n";
+    if (m_init_phase_change) {
+        amrex::Print() << "    initial phase change relaxation time: " << m_init_phase_change_time << "\n"
+                       << "    initial phase change relaxation steps: " << m_init_phase_change_steps << "\n";
+    }
 
 }
 
@@ -145,7 +158,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         /* call the phase change function so that the super-droplets "relax" to their
          * physical size corresponding to the initial flow */
         if (m_flag_phase_change && m_init_phase_change) {
-            phaseChange(1.0, a_z_phys_nd, false, 2000);
+            phaseChange(m_init_phase_change_time, a_z_phys_nd, true, m_init_phase_change_steps);
         }
     }
 
