@@ -23,6 +23,7 @@ struct SuperDropletsRealIdxSoA_RT
         multiplicity,   /*!< Number of droplets that this super-droplet represents
                              (Real type to handle large values) */
         sd_mass,        /*!< Superdroplet mass */
+        term_vel,       /*!< Terminal velocity */
         t_coalescence,  /*!< Coalescence time scale */
         ncomps
     };
@@ -119,6 +120,7 @@ class SuperDropletPC : public ERFPC
                                                     "radius",
                                                     "multiplicity",
                                                     "superdroplet_mass",
+                                                    "terminal_velocity",
                                                     "t_coalescence" };
             for (int i = 0; i < m_num_aerosols; i++) {
                 retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));

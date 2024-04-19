@@ -71,6 +71,8 @@ void SuperDropletPC::AdvectParticles ( int                                      
 
             int rt_offset = SuperDropletsRealIdxSoA::ncomps;
             auto* radius_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::radius).data();
+            auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
+
 
             TerminalVelocity::VTerm_CloudRain<ParticleReal> term_vel { m_vapour_mat->density() };
 
@@ -102,8 +104,12 @@ void SuperDropletPC::AdvectParticles ( int                                      
                         cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
                     }
 
-                    ParticleReal terminal_vel = term_vel(radius_ptr[i], density, pressure, temperature);
+                    ParticleReal terminal_vel = term_vel( radius_ptr[i],
+                                                          density,
+                                                          pressure,
+                                                          temperature );
                     terminal_vel *= (1.0 - std::exp(-p.pos(2)*dxi[2]));
+                    vterm_ptr[i] = terminal_vel;
                     v[2] -= terminal_vel;
                 }
 

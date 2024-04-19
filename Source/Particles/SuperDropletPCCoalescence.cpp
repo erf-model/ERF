@@ -153,6 +153,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto* mult_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::multiplicity).data();
         auto* supdrop_mass_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::sd_mass).data();
         auto* t_coal_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::t_coalescence).data();
+        auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
         /* aerosol masses */
         SDAerosolMassArr aerosol_mass_ptrs;
@@ -247,24 +248,37 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                     ParticleReal k_val = 0.0;
                     if (kernel_choice == SDCoalescenceKernelType::golovin) {
+
                         k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                    } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                        k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                    } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                        k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                    } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                        k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+
+                    } else {
+
+                        for (int d = 0; d < AMREX_SPACEDIM; d++) { v_i[d] = v_j[d] = 0; }
+                        v_i[AMREX_SPACEDIM-1] = vterm_ptr[pi];
+                        v_j[AMREX_SPACEDIM-1] = vterm_ptr[pj];
+
+                        if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                            k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                            k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                            k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                        }
                     }
-                    auto prob_ij = k_val*a_dt*inv_bin_volume;
+
+                    auto prob_ij = k_val*inv_bin_volume;
                     auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
                     auto ns = static_cast<ParticleReal>(np_bin);
                     auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
                     auto scaled_prob = prob_sd_ij * scaling_factor;
 
+                    auto t_coalescence = 1.0/scaled_prob;
+                    t_coal_ptr[pi] = t_coal_ptr[pj] = t_coalescence;
+
                     auto flag = binary_coalescence( pi, pj,
                                                     rnd_eng,
-                                                    scaled_prob,
+                                                    (scaled_prob * a_dt),
                                                     mass_ptr,
                                                     radius_ptr,
                                                     mult_ptr,
@@ -306,14 +320,24 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                         ParticleReal k_val = 0.0;
                         if (kernel_choice == SDCoalescenceKernelType::golovin) {
+
                             k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        } else if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                            k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                            k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                            k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+
+                        } else {
+
+                            for (int d = 0; d < AMREX_SPACEDIM; d++) { v_i[d] = v_j[d] = 0; }
+                            v_i[AMREX_SPACEDIM-1] = vterm_ptr[pi];
+                            v_j[AMREX_SPACEDIM-1] = vterm_ptr[pj];
+
+                            if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                                k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                            } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                                k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                            } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                                k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                            }
                         }
+
                         auto prob_ij = k_val*inv_bin_volume;
                         auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
