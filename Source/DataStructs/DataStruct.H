@@ -278,6 +278,9 @@ struct SolverChoice {
         else {
             amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
         }
+
+        // Test if time averaged data is to be output
+        pp.query("time_avg_vel",time_avg_vel);
     }
 
     void display()
@@ -422,6 +425,9 @@ struct SolverChoice {
     bool custom_w_subsidence      = false;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+
+    // User wishes to output time averaged velocity fields
+    bool time_avg_vel = false;
 
     // Numerical diffusion
     bool use_NumDiff{false};
