@@ -65,7 +65,7 @@ std::string ERF::nc_bdy_file; // Must provide via input
 std::string ERF::input_sounding_file = "input_sounding";
 
 // Text input_sponge file
-std::string ERF::input_sponge_file = "input_sponge";
+std::string ERF::input_sponge_file = "input_sponge_file.txt";
 
 
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
@@ -767,7 +767,14 @@ ERF::InitData ()
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
+    }
 
+    // Read in sponge data from input file
+    if(sponge_type == "input_sponge")
+    {
+        initSponge();
+        bool restarting = (!restart_chkfile.empty());
+        setSpongeRefFromSounding(restarting);
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
@@ -1157,7 +1164,7 @@ ERF::init_only (int lev, Real time)
 #endif
 
    if(sponge_type == "input_sponge"){
-		input_sponge(lev);
+        input_sponge(lev);
    }
 
 }
@@ -1305,6 +1312,9 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
+
+        // Read in the sponge_type
+        pp.query("sponge_type",sponge_type);
 
         // Text input_sounding file
         pp.query("input_sponge_file", input_sponge_file);

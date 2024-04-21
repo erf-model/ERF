@@ -196,17 +196,6 @@ ERF::setSpongeRefFromSounding (bool restarting)
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Initialize density and pressure base state in
  * hydrostatic equilibrium.

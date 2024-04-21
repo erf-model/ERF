@@ -833,7 +833,7 @@ private:
     // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
     static std::string init_type;
 
-	// sponge_type:  "input_sponge"
+    // sponge_type:  "input_sponge"
     static std::string sponge_type;
 
     // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
@@ -897,13 +897,13 @@ private:
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
 
-	// This is a vector over levels of vectors across quantities of Vectors
+    // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
 
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
 
-	// This is a vector over levels of vectors across quantities of DeviceVectors
+    // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;

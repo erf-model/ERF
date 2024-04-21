@@ -53,7 +53,7 @@ enum Rayleigh {
 };
 
 enum Sponge {
-   	ubar_sponge, vbar_sponge, nvars_sponge
+       ubar_sponge, vbar_sponge, nvars_sponge
 };
 
 
