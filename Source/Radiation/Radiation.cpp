@@ -60,16 +60,17 @@ namespace internal {
         parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol)
         {
             if (day_indices(icol) > 0) nday_1d(1)++;
-            printf("daynight indices(check): %d, %d, %d\n",icol,day_indices(icol),nday_1d(1));
+            //printf("daynight indices(check): %d, %d, %d\n",icol,day_indices(icol),nday_1d(1));
         });
 
         nday_1d.deep_copy_to(nday_host);
         auto nday = nday_host(1);
+        AMREX_ASSERT_WITH_MESSAGE((nday>0) && (nday<=ncol), "RADIATION: Invalid number of days!");
         parallel_for(SimpleBounds<3>(nday, nlev, nbnds), YAKL_LAMBDA (int iday, int ilev, int ibnd)
         {
             // Map daytime index to proper column index
-            // auto icol = day_indices(iday);
-            auto icol = iday;
+            auto icol = day_indices(iday);
+            //auto icol = iday;
             // Expand broadband fluxes
             expanded_fluxes.flux_up(icol,ilev)     = daytime_fluxes.flux_up(iday,ilev);
             expanded_fluxes.flux_dn(icol,ilev)     = daytime_fluxes.flux_dn(iday,ilev);
@@ -97,6 +98,7 @@ namespace internal {
 
 // init
 void Radiation::initialize (const MultiFab& cons_in,
+                            MultiFab* qheating_rates,
                             Vector<MultiFab*> qmoist,
                             const BoxArray& grids,
                             const Geometry& geom,
@@ -109,6 +111,8 @@ void Radiation::initialize (const MultiFab& cons_in,
 {
     m_geom = geom;
     m_box = grids;
+
+    qrad_src = qheating_rates;
 
     auto dz   = m_geom.CellSize(2);
     auto lowz = m_geom.ProbLo(2);
@@ -509,10 +513,24 @@ void Radiation::run ()
     } // dolw
 
     // Compute heating rate for dtheta/dt
-    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilay)
+    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
-        hr(icol,ilay) = (qrs(icol,ilay) + qrl(icol,ilay)) / Cp_d * (1.e5 / std::pow(pmid(icol,ilay), R_d/Cp_d));
+        // TODO: CHECK THIS UNIT CONVERSION!!
+        hr(icol,ilev) = (qrs(icol,ilev) + qrl(icol,ilev)) / Cp_d * (1.e5 / std::pow(pmid(icol,ilev), R_d/Cp_d));
     });
+
+    // Populate theta source from hr
+    for (MFIter mfi(*(qrad_src)); mfi.isValid(); ++mfi) {
+        auto qrad_src_array = qrad_src->array(mfi);
+        const auto& box3d = mfi.tilebox();
+        auto nx = box3d.length(0);
+        amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            auto icol = j*nx+i+1;
+            auto ilev = k+1;
+            qrad_src_array(i,j,k) = hr(icol,ilev);
+        });
+    }
 
     // convert radiative heating rates to Q*dp for energy conservation
     if (conserve_energy) {
@@ -702,8 +720,6 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
     real2d surface_emissivity("surface_emissivity", nlwbands, ncol);
 
     // Temporary heating rates on radiation vertical grid
-    real2d qrl_rad("qrl_rad", ncol, nlev);
-    real2d qrlc_rad("qrlc_rad", ncol, nlev);
     real3d gas_vmr_rad("gas_vmr_rad", ngas, ncol, nlev);
 
     // Set surface emissivity to 1 here. There is a note in the RRTMG
@@ -737,18 +753,11 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
     // Calculate heating rates
     calculate_heating_rate(fluxes_allsky.flux_up,
                            fluxes_allsky.flux_dn,
-                           pint, qrl_rad);
+                           pint, qrl);
 
     calculate_heating_rate(fluxes_allsky.flux_up,
                            fluxes_allsky.flux_dn,
-                           pint,qrlc_rad);
-
-    // Map heating rates to CAM columns and levels
-    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
-    {
-        qrl(icol,ilev)  = qrl_rad(icol,ilev);
-        qrlc(icol,ilev) = qrlc_rad(icol,ilev);
-    });
+                           pint, qrlc);
 }
 
 // Initialize array of daytime indices to be all zero. If any zeros exist when
@@ -887,8 +896,9 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
 {
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
-        heating_rate(icol,ilev) = (flux_up(icol,ilev+1) - flux_up(icol,ilev)- flux_dn(icol,ilev+1)+flux_dn(icol,ilev))
-            *CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
+        heating_rate(icol,ilev) = ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
+                                  - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) )
+                                  *  CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
     });
 }
 

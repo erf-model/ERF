@@ -35,7 +35,7 @@ void make_sources (int level,
                    const  MultiFab & S_prim,
                           MultiFab & source,
 #ifdef ERF_USE_RRTMGP
-                   const MultiFab& qheating_rates,
+                   const MultiFab* qheating_rates,
 #endif
                    const Geometry geom,
                    const SolverChoice& solverChoice,
@@ -150,10 +150,10 @@ void make_sources (int level,
         // Add radiation source terms to (rho theta)
         // *************************************************************************************
         {
-            auto const& qheating_arr = qheating_rates.const_array(mfi);
+            auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
+                cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k);
             });
         }
 

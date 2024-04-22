@@ -44,6 +44,7 @@ class Radiation {
 
     // init
     void initialize (const amrex::MultiFab& cons_in,
+                     amrex::MultiFab* qheating_rates,
                      amrex::Vector<amrex::MultiFab*> qmoist,
                      const amrex::BoxArray& grids,
                      const amrex::Geometry& geom,
@@ -92,6 +93,9 @@ class Radiation {
 
     // valid boxes on which to evolve the solution
     amrex::BoxArray m_box;
+
+    // Pointer to the radiation source terms
+    amrex::MultiFab* qrad_src;
 
     // number of vertical levels
     int nlev, zlo, zhi;
