@@ -118,7 +118,7 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Array4<const amrex::Real>& rho_w,
-                                            const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
+                                              const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
 
 
 #endif

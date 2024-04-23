@@ -307,8 +307,10 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         if(solverChoice.spongeChoice.sponge_type == "input_sponge")
         {
+            std::cout << "Calling apply sppnge" << "\n";
              ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w, d_sponge_ptrs_at_lev);
+            std::cout << "Ending apply sppnge" << "\n";
 
         }
         else
