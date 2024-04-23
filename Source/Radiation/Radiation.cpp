@@ -195,22 +195,26 @@ void Radiation::initialize (const MultiFab& cons_in,
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
             tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
-            // TODO: Figure out this unit conversion and the implications on other routines
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv)/1.0e3;
+            // NOTE: RRTMGP code expects pressure in mb so we convert it here
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv) * 1.0e-2;
         });
     }
 
     parallel_for(SimpleBounds<2>(ncol, nlev+1), YAKL_LAMBDA (int icol, int ilev)
     {
         if (ilev == 1) {
-            pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
-            tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
+            //pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
+            //tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
+            pint(icol, 1) = -0.5*pmid(icol, 2) + 1.5*pmid(icol, 1);
+            tint(icol, 1) = -0.5*tmid(icol, 2) + 1.5*tmid(icol, 1);
         } else if (ilev <= nlev) {
             pint(icol, ilev) = 0.5*(pmid(icol, ilev-1) + pmid(icol, ilev));
             tint(icol, ilev) = 0.5*(tmid(icol, ilev-1) + tmid(icol, ilev));
         } else {
-            pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
-            tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
+            //pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
+            //tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
+            pint(icol, nlev+1) = -0.5*pmid(icol, nlev-1) + 1.5*pmid(icol, nlev);
+            tint(icol, nlev+1) = -0.5*tmid(icol, nlev-1) + 1.5*tmid(icol, nlev);
         }
     });
 
@@ -255,9 +259,6 @@ void Radiation::initialize (const MultiFab& cons_in,
 // run radiation model
 void Radiation::run ()
 {
-    // Temporary variable for heating rate output
-    real2d hr("hr", ncol, nlev);
-
     // Cosine solar zenith angle for all columns in chunk
     real1d coszrs("coszrs", ncol);
 
@@ -515,33 +516,20 @@ void Radiation::run ()
         }
     } // dolw
 
-    // Compute heating rate for dtheta/dt
-    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
-    {
-        // NOTE: Unit conversion of pressure back to Pa
-        Real ploc = pmid(icol,ilev) * 1.0e3;
-        hr(icol,ilev) = (qrs(icol,ilev) + qrl(icol,ilev)) / Cp_d * std::pow(p_0/ploc, R_d/Cp_d);
-    });
-
-    // Populate theta source from hr
+    // Populate source term for theta dycore variable
     for (MFIter mfi(*(qrad_src)); mfi.isValid(); ++mfi) {
         auto qrad_src_array = qrad_src->array(mfi);
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
         amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            // Map (col,lev) to (i,j,k)
             auto icol = j*nx+i+1;
             auto ilev = k+1;
-            qrad_src_array(i,j,k) = hr(icol,ilev);
-        });
-    }
 
-    // convert radiative heating rates to Q*dp for energy conservation
-    if (conserve_energy) {
-        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
-        {
-            qrs(icol,ilev) = qrs(icol,ilev)*pdel(icol,ilev);
-            qrl(icol,ilev) = qrl(icol,ilev)*pdel(icol,ilev);
+            // SW and LW sources
+            qrad_src_array(i,j,k,0) = qrs(icol,ilev);
+            qrad_src_array(i,j,k,1) = qrl(icol,ilev);
         });
     }
 }
@@ -898,11 +886,29 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                                         const real2d& pint,
                                         const real2d& heating_rate)
 {
+    // NOTE: The pressure is in [mb] for RRTMGP to use.
+    //       The fluxes are in [W/m^2] and gravity is [m/s^2].
+    //       We need to convert pressure from [mb] -> [Pa] and divide by Cp [J/kg*K]
+    //       The heating rate is {dF/dP * g / Cp} with units [K/s]
+    real1d heatfac("heatfac",1);
+    yakl::memset(heatfac, 1.0e-2/Cp_d);
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
-        heating_rate(icol,ilev) = ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
-                                  - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) )
-                                  *  CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
+        heating_rate(icol,ilev) = heatfac(1) * ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
+                                               - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) )
+                                               *  CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
+        /*
+        if (icol==1) {
+            amrex::Print() << "HR: " << ilev << ' '
+                           << heating_rate(icol,ilev) << ' '
+                           << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1)) << ' '
+                           << (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
+                            - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << (pint(icol,ilev+1)-pint(icol,ilev)) << ' '
+                           << CONST_GRAV << "\n";
+        }
+        */
     });
 }
 
