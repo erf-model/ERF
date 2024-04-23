@@ -235,6 +235,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
+    if (solverChoice.windfarm_type == WindFarmType::EWP){
+        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+        vars_ewp[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+    }
 #endif
 
 #if defined(ERF_USE_RRTMGP)

@@ -3,6 +3,7 @@
 
 #ifdef ERF_USE_WINDFARM
 #include <Fitch.H>
+#include <EWP.H>
 #endif
 
 using namespace amrex;
@@ -74,6 +75,11 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         fitch_advance(lev, Geom(lev), dt_lev, S_old,
                       U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
     }
+    else if (solverChoice.windfarm_type == WindFarmType::EWP) {
+        ewp_advance(lev, Geom(lev), dt_lev, S_old,
+                      U_old, V_old, W_old, vars_ewp[lev], Nturb[lev]);
+    }
+
 #endif
 
     const BoxArray&            ba = S_old.boxArray();

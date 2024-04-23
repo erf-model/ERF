@@ -112,10 +112,9 @@ ERF::ERF ()
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -1755,10 +1754,9 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)

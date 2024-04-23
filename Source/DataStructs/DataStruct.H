@@ -37,7 +37,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch
+    Fitch, EWP
 };
 
 enum struct LandSurfaceType {
@@ -275,8 +275,11 @@ struct SolverChoice {
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
+        else if(windfarm_type_string == "EWP"){
+            windfarm_type = WindFarmType::EWP;
+        }
         else {
-            amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
+            amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
         }
 
         // Test if time averaged data is to be output
