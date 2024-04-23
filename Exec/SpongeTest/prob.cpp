@@ -65,7 +65,7 @@ Problem::init_custom_pert(
     // Set the x-velocity
     ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel_pert(i, j, k) = 10.0;
+        x_vel_pert(i, j, k) = 0.0;
     });
 
     // Set the y-velocity

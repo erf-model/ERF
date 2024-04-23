@@ -9,7 +9,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 geometry.prob_lo     =  0   0.  0. 
 geometry.prob_hi     =  30.0   1. 10.0
 
-amr.n_cell           = 512  4 256   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
+amr.n_cell           = 256  4 128   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 
 geometry.is_periodic = 0 1 0
 
@@ -27,6 +27,13 @@ zhi.type = "Outflow"
 
 erf.sponge_type = "input_sponge"
 erf.input_sponge_file = "input_sponge_file.txt"
+erf.sponge_strength = 1000.0
+erf.use_xlo_sponge_damping = true
+erf.xlo_sponge_end = 4.0
+#erf.use_xhi_sponge_damping = true
+#erf.xhi_sponge_start = 26.0
+#erf.use_zhi_sponge_damping = true
+#erf.zhi_sponge_start = 8.0 
 
 
 # TIME STEP CONTROL
