@@ -767,8 +767,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     });
                 }
                 mf_comp ++;
-//                MultiFab::Copy(mf[lev],lat_m[lev],0,mf_comp,1,0);
-//                mf_comp += 1;
             }
             if (containerHasElement(plot_var_names, "lon_m")) {
 #ifdef _OPENMP
