@@ -122,12 +122,13 @@ ERF::setRayleighRefFromSounding (bool restarting)
 void
 ERF::initSponge ()
 {
+    std::cout << "Calling initSponge ......" << "\n";
     h_sponge_ptrs.resize(max_level+1);
     d_sponge_ptrs.resize(max_level+1);
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
-        // These have 5 components: tau, ubar, vbar, wbar, thetabar
+        // These have 2 components: ubar, vbar
         h_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
         d_sponge_ptrs[lev].resize(Sponge::nvars_sponge);
 
@@ -152,6 +153,8 @@ ERF::initSponge ()
 void
 ERF::setSpongeRefFromSounding (bool restarting)
 {
+
+    std::cout << "Calling setSpongeRefFromSounding ......" << "\n";
     // If we are restarting then we haven't read the input_sponge file yet
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?
@@ -159,10 +162,10 @@ ERF::setSpongeRefFromSounding (bool restarting)
         input_sponge_data.read_from_file(input_sponge_file, geom[0], zlevels_stag);
     }
 
-    const Real* z_inp_sound     = input_sponge_data.z_inp_sound.dataPtr();
-    const Real* U_inp_sound     = input_sponge_data.U_inp_sound.dataPtr();
-    const Real* V_inp_sound     = input_sponge_data.V_inp_sound.dataPtr();
-    const int   inp_sound_size  = input_sounding_data.size();
+    const Real* z_inp_sponge     = input_sponge_data.z_inp_sponge.dataPtr();
+    const Real* U_inp_sponge     = input_sponge_data.U_inp_sponge.dataPtr();
+    const Real* V_inp_sponge     = input_sponge_data.V_inp_sponge.dataPtr();
+    const int   inp_sponge_size  = input_sponge_data.size();
 
     for (int lev = 0; lev <= finest_level; lev++)
     {
@@ -184,15 +187,15 @@ ERF::setSpongeRefFromSounding (bool restarting)
 
         for (int k = 0; k <= khi; k++)
         {
-            h_sponge_ptrs[lev][Sponge::ubar_sponge][k]         = interpolate_1d(z_inp_sound, U_inp_sound, zcc[k], inp_sound_size);
-            h_sponge_ptrs[lev][Sponge::vbar_sponge][k]         = interpolate_1d(z_inp_sound, V_inp_sound, zcc[k], inp_sound_size);
+            h_sponge_ptrs[lev][Sponge::ubar_sponge][k] = interpolate_1d(z_inp_sponge, U_inp_sponge, zcc[k], inp_sponge_size);
+            h_sponge_ptrs[lev][Sponge::vbar_sponge][k] = interpolate_1d(z_inp_sponge, V_inp_sponge, zcc[k], inp_sponge_size);
         }
 
         // Copy from host version to device version
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Rayleigh::ubar].begin(), h_sponge_ptrs[lev][Rayleigh::ubar].end(),
-                         d_sponge_ptrs[lev][Rayleigh::ubar].begin());
-        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Rayleigh::vbar].begin(), h_sponge_ptrs[lev][Rayleigh::vbar].end(),
-                         d_sponge_ptrs[lev][Rayleigh::vbar].begin());
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::ubar_sponge].begin(), h_sponge_ptrs[lev][Sponge::ubar_sponge].end(),
+                         d_sponge_ptrs[lev][Sponge::ubar_sponge].begin());
+        Gpu::copy(Gpu::hostToDevice, h_sponge_ptrs[lev][Sponge::vbar_sponge].begin(), h_sponge_ptrs[lev][Sponge::vbar_sponge].end(),
+                         d_sponge_ptrs[lev][Sponge::vbar_sponge].begin());
     }
 }
 

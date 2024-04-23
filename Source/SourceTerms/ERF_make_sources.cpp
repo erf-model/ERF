@@ -272,8 +272,9 @@ void make_sources (int level,
         // *************************************************************************************
         // Add sponging
         // *************************************************************************************
-        ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
-
+        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+        }
     } // mfi
     } // OMP
 }

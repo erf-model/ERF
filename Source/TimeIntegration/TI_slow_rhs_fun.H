@@ -117,7 +117,7 @@
                              r0_new, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, n_qstate);
+                             d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
@@ -217,7 +217,7 @@
                              r0, fine_geom, solverChoice,
                              mapfac_m[level], mapfac_u[level], mapfac_v[level],
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                             d_rayleigh_ptrs_at_lev, n_qstate);
+                             d_rayleigh_ptrs_at_lev, d_rayleigh_ptrs_at_lev, n_qstate);
 
             erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,

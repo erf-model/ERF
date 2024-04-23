@@ -49,8 +49,9 @@ void ERF::advance_dycore(int level,
 
     const Box& domain = fine_geom.Domain();
 
-    DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice[level];
+    DiffChoice dc    = solverChoice.diffChoice;
+    TurbChoice tc    = solverChoice.turbChoice[level];
+    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
@@ -74,6 +75,14 @@ void ERF::advance_dycore(int level,
     d_rayleigh_ptrs_at_lev[Rayleigh::vbar]     = solverChoice.rayleigh_damp_V   ? d_rayleigh_ptrs[level][Rayleigh::vbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
+
+    Vector<Real*> d_sponge_ptrs_at_lev;
+    if(sc.sponge_type=="input_sponge")
+    {
+        d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
+        d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
+        d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
+    }
 
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||

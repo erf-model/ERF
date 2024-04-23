@@ -49,8 +49,6 @@ std::string ERF::plotfile_type    = "amrex";
 // init_type:  "uniform", "ideal", "real", "input_sounding", "metgrid" or ""
 std::string ERF::init_type;
 
-std::string ERF::sponge_type;
-
 // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
 //                        AND 2) we want to use the bc's from the WRF bdy file
 bool ERF::use_real_bcs;
@@ -770,7 +768,7 @@ ERF::InitData ()
     }
 
     // Read in sponge data from input file
-    if(sponge_type == "input_sponge")
+    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
     {
         initSponge();
         bool restarting = (!restart_chkfile.empty());
@@ -1163,7 +1161,7 @@ ERF::init_only (int lev, Real time)
     init_windfarm(lev);
 #endif
 
-   if(sponge_type == "input_sponge"){
+   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
    }
 
@@ -1312,9 +1310,6 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
-
-        // Read in the sponge_type
-        pp.query("sponge_type",sponge_type);
 
         // Text input_sounding file
         pp.query("input_sponge_file", input_sponge_file);

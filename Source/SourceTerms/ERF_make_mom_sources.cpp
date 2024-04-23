@@ -56,6 +56,7 @@ void make_mom_sources (int /*level*/,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                       const Vector<Real*> d_sponge_ptrs_at_lev,
                        int n_qstate)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -304,8 +305,17 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         // Add SPONGING
         // *****************************************************************************
-        ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
+        if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+        {
+             ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, tbz,
+                                 xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w, d_sponge_ptrs_at_lev);
+
+        }
+        else
+        {
+            ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+        }
 
     } // mfi
 }
