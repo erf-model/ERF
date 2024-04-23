@@ -177,6 +177,7 @@ void Radiation::initialize (const MultiFab& cons_in,
     for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
         auto states_array = cons_in.array(mfi);
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
+        auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
@@ -188,12 +189,14 @@ void Radiation::initialize (const MultiFab& cons_in,
         {
             auto icol = j*nx+i+1;
             auto ilev = k+1;
+            Real qv         = (qv_array) ? qv_array(i,j,k): 0.0;
             qt(icol,ilev)   = (qt_array) ? qt_array(i,j,k): 0.0;
             qc(icol,ilev)   = (qc_array) ? qc_array(i,j,k): 0.0;
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
-            tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/1.0e3;
+            tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
+            // TODO: Figure out this unit conversion and the implications on other routines
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv)/1.0e3;
         });
     }
 
@@ -515,8 +518,9 @@ void Radiation::run ()
     // Compute heating rate for dtheta/dt
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
-        // TODO: CHECK THIS UNIT CONVERSION!!
-        hr(icol,ilev) = (qrs(icol,ilev) + qrl(icol,ilev)) / Cp_d * (1.e5 / std::pow(pmid(icol,ilev), R_d/Cp_d));
+        // NOTE: Unit conversion of pressure back to Pa
+        Real ploc = pmid(icol,ilev) * 1.0e3;
+        hr(icol,ilev) = (qrs(icol,ilev) + qrl(icol,ilev)) / Cp_d * std::pow(p_0/ploc, R_d/Cp_d);
     });
 
     // Populate theta source from hr
