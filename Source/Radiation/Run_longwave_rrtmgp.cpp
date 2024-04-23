@@ -98,12 +98,13 @@ void Rrtmgp::run_longwave_rrtmgp (int ngas, int ncol, int nlay,
 
     // Do the clearsky calculation before adding in clouds
     FluxesByband fluxes_clrsky;
-    fluxes_clrsky.flux_up = real2d("clrsky_flux_up", ncol, nlay+1); // clrsky_flux_up;
-    fluxes_clrsky.flux_dn = real2d("clrsky_flux_up", ncol, nlay+1); //clrsky_flux_dn;
-    fluxes_clrsky.flux_net = real2d("clrsky_flux_up", ncol, nlay+1); //clrsky_flux_net;
-    fluxes_clrsky.bnd_flux_up = real3d("clrsky_flux_up", ncol, nlay+1, nlwbands); //clrsky_bnd_flux_up;
-    fluxes_clrsky.bnd_flux_dn = real3d("clrsky_flux_up", ncol, nlay+1, nlwbands); //clrsky_bnd_flux_dn;
-    fluxes_clrsky.bnd_flux_net = real3d("clrsky_flux_up", ncol, nlay+1, nlwbands); //clrsky_bnd_flux_net;
+    fluxes_clrsky.flux_up  = real2d("clrsky_flux_up" , ncol, nlay+1); // clrsky_flux_up;
+    fluxes_clrsky.flux_dn  = real2d("clrsky_flux_dn" , ncol, nlay+1); //clrsky_flux_dn;
+    fluxes_clrsky.flux_net = real2d("clrsky_flux_net", ncol, nlay+1); //clrsky_flux_net;
+    fluxes_clrsky.bnd_flux_up  = real3d("clrsky_bnd_flux_up" , ncol, nlay+1, nlwbands); //clrsky_bnd_flux_up;
+    fluxes_clrsky.bnd_flux_dn  = real3d("clrsky_bnd_flux_dn" , ncol, nlay+1, nlwbands); //clrsky_bnd_flux_dn;
+    fluxes_clrsky.bnd_flux_net = real3d("clrsky_bnd_flux_net", ncol, nlay+1, nlwbands); //clrsky_bnd_flux_net;
+
     rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, combined_optics, top_at_1, lw_sources, emis_sfc, fluxes_clrsky);
 
     // Copy fluxes back out of FluxesByband object
@@ -125,12 +126,13 @@ void Rrtmgp::run_longwave_rrtmgp (int ngas, int ncol, int nlay,
 
     // Call LW flux driver
     FluxesByband fluxes_allsky;
-    fluxes_allsky.flux_up = real2d("flux_up", ncol, nlay+1); //allsky_flux_up;
-    fluxes_allsky.flux_dn = real2d("flux_dn", ncol, nlay+1); //allsky_flux_dn;
-    fluxes_allsky.flux_net = real2d("flux_net", ncol, nlay+1); //allsky_flux_net;
-    fluxes_allsky.bnd_flux_up = real3d("flux_up", ncol, nlay+1, nlwbands); //allsky_bnd_flux_up;
-    fluxes_allsky.bnd_flux_dn = real3d("flux_dn", ncol, nlay+1, nlwbands); //allsky_bnd_flux_dn;
-    fluxes_allsky.bnd_flux_net = real3d("flux_net", ncol, nlay+1, nlwbands); //allsky_bnd_flux_net;
+    fluxes_allsky.flux_up  = real2d("allsky_flux_up" , ncol, nlay+1); //allsky_flux_up;
+    fluxes_allsky.flux_dn  = real2d("allsky_flux_dn" , ncol, nlay+1); //allsky_flux_dn;
+    fluxes_allsky.flux_net = real2d("allsky_flux_net", ncol, nlay+1); //allsky_flux_net;
+    fluxes_allsky.bnd_flux_up  = real3d("allsky_bnd_flux_up" , ncol, nlay+1, nlwbands); //allsky_bnd_flux_up;
+    fluxes_allsky.bnd_flux_dn  = real3d("allsky_bnd_flux_dn" , ncol, nlay+1, nlwbands); //allsky_bnd_flux_dn;
+    fluxes_allsky.bnd_flux_net = real3d("allsky_bnd_flux_net", ncol, nlay+1, nlwbands); //allsky_bnd_flux_net;
+
     rte_lw(max_gauss_pts, gauss_Ds, gauss_wts, combined_optics, top_at_1, lw_sources, emis_sfc, fluxes_allsky);
 
     // Copy fluxes back out of FluxesByband object
