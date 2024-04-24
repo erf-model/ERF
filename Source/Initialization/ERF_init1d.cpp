@@ -116,8 +116,7 @@ ERF::setRayleighRefFromSounding (bool restarting)
 
 /**
  * Initialization function for host and device vectors
- * used to store averaged quantities when calculating
- * the effects of Rayleigh Damping.
+ * used to store the effects of sponge Damping.
  */
 void
 ERF::initSponge ()
