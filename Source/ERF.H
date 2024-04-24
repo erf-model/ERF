@@ -30,6 +30,7 @@
 #include <IndexDefines.H>
 #include <DataStruct.H>
 #include <InputSoundingData.H>
+#include <InputSpongeData.H>
 #include <ABLMost.H>
 #include <Derive.H>
 #include <ERF_ReadBndryPlanes.H>
@@ -307,6 +308,8 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    void input_sponge (int lev);
+
     void init_from_hse (int lev);
 
 #ifdef ERF_USE_MULTIBLOCK
@@ -459,8 +462,14 @@ private:
     //! Initialize Rayleigh damping profiles
     void initRayleigh ();
 
+    //! Initialize sponge profiles
+    void initSponge ();
+
     //! Set Rayleigh mean profiles from input sounding
     void setRayleighRefFromSounding (bool restarting);
+
+    //! Set sponge mean profiles from input sounding
+    void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
     void ComputeDt ();
@@ -534,6 +543,9 @@ private:
 
     // Struct for working with the sounding data we take as an input
     InputSoundingData input_sounding_data;
+
+    // Struct for working with the sponge data we take as an input
+    InputSpongeData input_sponge_data;
 
     // write checkpoint file to disk
     void WriteCheckpointFile () const;
@@ -833,6 +845,9 @@ private:
     // init_type:  "ideal", "real", "input_sounding", "metgrid" or ""
     static std::string init_type;
 
+    // sponge_type:  "input_sponge"
+    static std::string sponge_type;
+
     // use_real_bcs: only true if 1) ( (init_type == real) or (init_type == metgrid) )
     //                        AND 2) we want to use the bc's from the WRF bdy file
     static bool use_real_bcs;
@@ -847,6 +862,9 @@ private:
 
     // Text input_sounding file
     static std::string input_sounding_file;
+
+    // Text input_sponge file
+    static std::string input_sponge_file;
 
     // Flag to trigger initialization from input_sounding like WRF's ideal.exe
     // used with init_type == "input_sounding"
@@ -891,8 +909,14 @@ private:
     // This is a vector over levels of vectors across quantities of Vectors
     amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_rayleigh_ptrs;
 
+    // This is a vector over levels of vectors across quantities of Vectors
+    amrex::Vector<amrex::Vector<           amrex::Vector<amrex::Real> > > h_sponge_ptrs;
+
     // This is a vector over levels of vectors across quantities of DeviceVectors
     amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_rayleigh_ptrs;
+
+    // This is a vector over levels of vectors across quantities of DeviceVectors
+    amrex::Vector<amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real> > > d_sponge_ptrs;
 
     amrex::Vector<amrex::Real> h_havg_density;
     amrex::Vector<amrex::Real> h_havg_temperature;
