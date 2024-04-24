@@ -263,35 +263,38 @@ void Radiation::run ()
     real1d coszrs("coszrs", ncol);
 
     // Pointers to fields on the physics buffer
-    real2d cld("cld", ncol, nlev), cldfsnow("cldfsnow", ncol, nlev),
-        iclwp("iclwp", ncol, nlev), iciwp("iciwp", ncol, nlev),
-        icswp("icswp", ncol, nlev), dei("dei", ncol, nlev),
-        des("des", ncol, nlev), lambdac("lambdac", ncol, nlev),
-        mu("mu", ncol, nlev), rei("rei", ncol, nlev), rel("rel", ncol, nlev);
+    real2d cld("cld"  , ncol, nlev), cldfsnow("cldfsnow", ncol, nlev),
+         iclwp("iclwp", ncol, nlev),    iciwp("iciwp"   , ncol, nlev),
+         icswp("icswp", ncol, nlev),      dei("dei"     , ncol, nlev),
+           des("des"  , ncol, nlev),  lambdac("lambdac" , ncol, nlev),
+            mu("mu"   , ncol, nlev),      rei("rei"     , ncol, nlev),
+           rel("rel"  , ncol, nlev);
 
     // Cloud, snow, and aerosol optical properties
     real3d cld_tau_gpt_sw("cld_tau_gpt_sw", ncol, nlev, nswgpts),
-        cld_ssa_gpt_sw("cld_ssa_gpt_sw", ncol, nlev, nswgpts),
-        cld_asm_gpt_sw("cld_asm_gpt_sw", ncol, nlev, nswgpts);
+           cld_ssa_gpt_sw("cld_ssa_gpt_sw", ncol, nlev, nswgpts),
+           cld_asm_gpt_sw("cld_asm_gpt_sw", ncol, nlev, nswgpts);
+
     real3d cld_tau_bnd_sw("cld_tau_bnd_sw", ncol, nlev, nswbands),
-        cld_ssa_bnd_sw("cld_ssa_bnd_sw", ncol, nlev, nswbands),
-        cld_asm_bnd_sw("cld_asm_bnd_sw", ncol, nlev, nswbands);
+           cld_ssa_bnd_sw("cld_ssa_bnd_sw", ncol, nlev, nswbands),
+           cld_asm_bnd_sw("cld_asm_bnd_sw", ncol, nlev, nswbands);
 
     real3d aer_tau_bnd_sw("aer_tau_bnd_sw", ncol, nlev, nswbands),
-        aer_ssa_bnd_sw("aer_ssa_bnd_sw", ncol, nlev, nswbands),
-        aer_asm_bnd_sw("aer_asm_bnd_sw", ncol, nlev, nswbands);
+           aer_ssa_bnd_sw("aer_ssa_bnd_sw", ncol, nlev, nswbands),
+           aer_asm_bnd_sw("aer_asm_bnd_sw", ncol, nlev, nswbands);
 
     real3d cld_tau_bnd_lw("cld_tau_bnd_lw", ncol, nlev, nlwbands),
-        aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
+           aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
+
     real3d cld_tau_gpt_lw("cld_tau_gpt_lw", ncol, nlev, nlwgpts);
 
     // NOTE: these are diagnostic only
     real3d liq_tau_bnd_sw("liq_tau_bnd_sw", ncol, nlev, nswbands),
-        ice_tau_bnd_sw("ice_tau_bnd_sw", ncol, nlev, nswbands),
-        snw_tau_bnd_sw("snw_tau_bnd_sw", ncol, nlev, nswbands);
+           ice_tau_bnd_sw("ice_tau_bnd_sw", ncol, nlev, nswbands),
+           snw_tau_bnd_sw("snw_tau_bnd_sw", ncol, nlev, nswbands);
     real3d liq_tau_bnd_lw("liq_tau_bnd_lw", ncol, nlev, nlwbands),
-        ice_tau_bnd_lw("ice_tau_bnd_lw", ncol, nlev, nlwbands),
-        snw_tau_bnd_lw("snw_tau_bnd_lw", ncol, nlev, nlwbands);
+           ice_tau_bnd_lw("ice_tau_bnd_lw", ncol, nlev, nlwbands),
+           snw_tau_bnd_lw("snw_tau_bnd_lw", ncol, nlev, nlwbands);
 
     // Gas volume mixing ratios
     real3d gas_vmr("gas_vmr", ngas, ncol, nlev);
@@ -706,7 +709,7 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
                                      FluxesByband& fluxes_allsky, const real2d& qrl, const real2d& qrlc)
 {
     real3d cld_tau_gpt_rad("cld_tau_gpt_rad", ncol, nlev+1, nlwgpts);
-    real3d aer_tau_bnd_rad("aer_tau_bnd-rad", ncol, nlev+1, nlwgpts);
+    real3d aer_tau_bnd_rad("aer_tau_bnd_rad", ncol, nlev+1, nlwgpts);
 
     // Surface emissivity needed for longwave
     real2d surface_emissivity("surface_emissivity", nlwbands, ncol);
@@ -726,7 +729,7 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
     yakl::memset(cld_tau_gpt_rad, 0.);
     yakl::memset(aer_tau_bnd_rad, 0.);
 
-    parallel_for(SimpleBounds<3>(ncol, nlev, nswgpts), YAKL_LAMBDA (int icol, int ilev, int igpt)
+    parallel_for(SimpleBounds<3>(ncol, nlev, nlwgpts), YAKL_LAMBDA (int icol, int ilev, int igpt)
     {
         cld_tau_gpt_rad(icol,ilev,igpt) = cld_tau_gpt(icol,ilev,igpt);
         aer_tau_bnd_rad(icol,ilev,igpt) = aer_tau_bnd(icol,ilev,igpt);
