@@ -18,6 +18,8 @@ struct SpongeChoice {
     {
         amrex::ParmParse pp(pp_prefix);
 
+        pp.query("sponge_type", sponge_type);
+
         // Include sponge damping
         pp.query("use_xlo_sponge_damping", use_xlo_sponge_damping);
         pp.query("use_xhi_sponge_damping", use_xhi_sponge_damping);
@@ -56,6 +58,7 @@ struct SpongeChoice {
     bool    use_zhi_sponge_damping     = false;
 
     amrex::Real sponge_strength;
+    std::string sponge_type;
 
     amrex::Real xlo_sponge_end, xhi_sponge_start;
     amrex::Real ylo_sponge_end, yhi_sponge_start;

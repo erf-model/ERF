@@ -251,6 +251,14 @@ Output Options
 |                             |                  |
 |                             |                  |
 +-----------------------------+------------------+
+| **lat_m**                   | Latitude at mass |
+|                             | points           |
+|                             |                  |
++-----------------------------+------------------+
+| **lon_m**                   | Longitude at     |
+|                             | mass points      |
+|                             |                  |
++-----------------------------+------------------+
 | **Kmv**                     | Vertical         |
 |                             | Eddy Diffusivity |
 |                             | of Momentum      |
