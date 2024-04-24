@@ -269,6 +269,14 @@ ERF::ERF ()
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
 
+#ifdef ERF_USE_NETCDF
+    // Longitude and latitude (only filled for use_real_bcs==True)
+    if (use_real_bcs) {
+        lat_m.resize(nlevs_max);
+        lon_m.resize(nlevs_max);
+    }
+#endif
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 

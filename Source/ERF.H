@@ -537,6 +537,7 @@ private:
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_yhi;
 
     amrex::Real bdy_time_interval;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> lat_m, lon_m;
     amrex::Real Latitude;
     amrex::Real Longitude;
 #endif // ERF_USE_NETCDF
@@ -792,7 +793,7 @@ private:
                                                     "magvel", "divU",
                                                     "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
-                                                    "z_phys", "detJ" , "mapfac",
+                                                    "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
                                                     "u_t_avg", "v_t_avg", "w_t_avg", "umag_t_avg",
                                                     // eddy viscosity
