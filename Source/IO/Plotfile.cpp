@@ -752,6 +752,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             mf_comp ++;
         }
 
+#ifdef ERF_USE_NETCDF
         if (use_real_bcs) {
             if (containerHasElement(plot_var_names, "lat_m")) {
 #ifdef _OPENMP
@@ -767,7 +768,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     });
                 }
                 mf_comp ++;
-            }
+            } // lat_m
             if (containerHasElement(plot_var_names, "lon_m")) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -782,8 +783,9 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                     });
                 }
                 mf_comp ++;
-            }
-        }
+            } // lon_m
+        } // use_real_bcs
+#endif
 
 
         if (solverChoice.time_avg_vel) {
