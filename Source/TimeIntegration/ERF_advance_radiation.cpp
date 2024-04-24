@@ -1,4 +1,3 @@
-
 #include <ERF.H>
 
 using namespace amrex;
@@ -14,7 +13,9 @@ void ERF::advance_radiation (int lev,
    bool do_snow_opt {true};
    bool is_cmip6_volcano {false};
 
-    rad.initialize(cons, qmoist[lev],
+    rad.initialize(cons,
+                   qheating_rates[lev].get(),
+                   qmoist[lev],
                    grids[lev],
                    Geom(lev),
                    dt_advance,

@@ -86,8 +86,8 @@ MomentumToVelocity (MultiFab& xvel, MultiFab& yvel, MultiFab& zvel,
                 vely(i,j,k) = momy(i,j,k) / dens_arr(i,j-1,k,Rho_comp);
             });
         }
-        if ( (bx.bigEnd(0) == domain.bigEnd(0)) &&
-             (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::ext_dir) ) {
+        if ( (bx.bigEnd(1) == domain.bigEnd(1)) &&
+             (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::ext_dir) ) {
             ParallelFor(makeSlab(tby,1,domain.bigEnd(1)+1), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 vely(i,j,k) = momy(i,j,k) / dens_arr(i,j,k,Rho_comp);
             });

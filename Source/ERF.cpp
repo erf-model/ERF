@@ -116,10 +116,9 @@ ERF::ERF ()
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -267,6 +266,10 @@ ERF::ERF ()
     // Qv prim for MOST
     Qv_prim.resize(nlevs_max);
 
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -325,7 +328,7 @@ ERF::Evolve ()
         cur_time  += dt[0];
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
-                       << " DT = " << dt[0]  << std::endl;
+                << " DT = " << dt[0]  << std::endl;
 
         post_timestep(step, cur_time, dt[0]);
 
@@ -911,6 +914,16 @@ ERF::InitData ()
     // Update micro vars before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+    }
+
+    // Fill time averaged velocities before first plot file
+    if (solverChoice.time_avg_vel) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
+                              vars_new[lev][Vars::xvel],
+                              vars_new[lev][Vars::yvel],
+                              vars_new[lev][Vars::zvel]);
+        }
     }
 
     // check for additional plotting variables that are available after particle containers
@@ -1760,10 +1773,9 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -1865,6 +1877,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
+
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();

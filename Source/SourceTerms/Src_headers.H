@@ -27,7 +27,7 @@ void make_sources (int level, int nrk,
                    const amrex::MultiFab& S_prim,
                          amrex::MultiFab& cc_source,
 #if defined(ERF_USE_RRTMGP)
-                   const amrex::MultiFab& qheating_rates,
+                   const amrex::MultiFab* qheating_rates,
 #endif
                    const amrex::Geometry geom,
                    const SolverChoice& solverChoice,

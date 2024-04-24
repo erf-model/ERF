@@ -43,7 +43,7 @@
         // Construct the source terms for the cell-centered (conserved) variables
         make_sources(level, nrk, slow_dt, S_data, S_prim, cc_src,
 #if defined(ERF_USE_RRTMGP)
-                     qheating_rates[level],
+                     qheating_rates[level].get(),
 #endif
                      fine_geom, solverChoice,
                      mapfac_u[level], mapfac_v[level],
