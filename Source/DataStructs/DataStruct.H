@@ -56,7 +56,6 @@ enum Sponge {
        ubar_sponge, vbar_sponge, nvars_sponge
 };
 
-
 /**
  * Container holding many of the algorithmic options and parameters
  */
