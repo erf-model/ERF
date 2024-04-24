@@ -159,6 +159,21 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     rW_new[lev].setVal(5.6e23);
 
     // ********************************************************************************************
+    // These are just time averaged fields for diagnostics
+    // ********************************************************************************************
+
+    // NOTE: We are not completing a fillpach call on the time averaged data;
+    //       which would copy on intersection and interpolate from coarse.
+    //       Therefore, we are restarting the averaging when the ba changes,
+    //       this may give poor statistics for dynamic mesh refinment.
+    vel_t_avg[lev] = nullptr;
+    if (solverChoice.time_avg_vel) {
+        vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
+        vel_t_avg[lev]->setVal(0.0);
+        t_avg_cnt[lev] = 0.0;
+    }
+
+    // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************
     if (solverChoice.coupling_type == CouplingType::TwoWay) {
@@ -169,7 +184,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
             advflux_reg[lev] = new YAFluxRegister(ba       , grids[lev-1],
                                                   dm       ,  dmap[lev-1],
                                                   geom[lev],  geom[lev-1],
-                                              ref_ratio[lev-1], lev, ncomp_reflux);
+                                                  ref_ratio[lev-1], lev, ncomp_reflux);
         }
     }
 
@@ -177,15 +192,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Define Theta_prim storage if using MOST BC
     // ********************************************************************************************
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
-      Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
-      if (solverChoice.moisture_type != MoistureType::None) {
-          Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
-      } else {
-          Qv_prim[lev]    = nullptr;
-      }
+        Theta_prim[lev] = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+        if (solverChoice.moisture_type != MoistureType::None) {
+            Qv_prim[lev]    = std::make_unique<MultiFab>(ba,dm,1,IntVect(ngrow_state,ngrow_state,0));
+        } else {
+            Qv_prim[lev]    = nullptr;
+        }
     } else {
-      Theta_prim[lev] = nullptr;
-      Qv_prim[lev]    = nullptr;
+        Theta_prim[lev] = nullptr;
+        Qv_prim[lev]    = nullptr;
     }
 
     // ********************************************************************************************
@@ -220,14 +235,19 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
         Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
+    if (solverChoice.windfarm_type == WindFarmType::EWP){
+        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
+        vars_ewp[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+    }
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-     qheating_rates[lev].define(ba, dm, 2, ngrow_state);
-     qheating_rates[lev].setVal(0.);
+     qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+     qheating_rates[lev]->setVal(0.);
 #endif
 }
 

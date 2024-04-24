@@ -142,6 +142,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
        ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
+       ${SRC_DIR}/Initialization/ERF_input_sponge.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
@@ -152,6 +153,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/IO/console_io.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
+	   ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp	  
        ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
        ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
@@ -174,7 +176,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/MomentumToVelocity.cpp
        ${SRC_DIR}/Utils/TerrainMetrics.cpp
        ${SRC_DIR}/Utils/VelocityToMomentum.cpp
-       ${SRC_DIR}/Utils/InteriorGhostCells.cpp 
+       ${SRC_DIR}/Utils/InteriorGhostCells.cpp
+       ${SRC_DIR}/Utils/Time_Avg_Vel.cpp
        ${SRC_DIR}/Microphysics/SAM/Init_SAM.cpp
        ${SRC_DIR}/Microphysics/SAM/Cloud_SAM.cpp
        ${SRC_DIR}/Microphysics/SAM/IceFall.cpp

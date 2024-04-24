@@ -62,6 +62,9 @@ std::string ERF::nc_bdy_file; // Must provide via input
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
 
+// Text input_sponge file
+std::string ERF::input_sponge_file = "input_sponge_file.txt";
+
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 
@@ -112,10 +115,9 @@ ERF::ERF ()
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -263,6 +265,18 @@ ERF::ERF ()
     // Qv prim for MOST
     Qv_prim.resize(nlevs_max);
 
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
+
+#ifdef ERF_USE_NETCDF
+    // Longitude and latitude (only filled for use_real_bcs==True)
+    if (use_real_bcs) {
+        lat_m.resize(nlevs_max);
+        lon_m.resize(nlevs_max);
+    }
+#endif
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -321,7 +335,7 @@ ERF::Evolve ()
         cur_time  += dt[0];
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
-                       << " DT = " << dt[0]  << std::endl;
+                << " DT = " << dt[0]  << std::endl;
 
         post_timestep(step, cur_time, dt[0]);
 
@@ -761,7 +775,14 @@ ERF::InitData ()
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
+    }
 
+    // Read in sponge data from input file
+    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    {
+        initSponge();
+        bool restarting = (!restart_chkfile.empty());
+        setSpongeRefFromSounding(restarting);
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
@@ -900,6 +921,16 @@ ERF::InitData ()
     // Update micro vars before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
         for (int lev = 0; lev <= finest_level; ++lev) micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
+    }
+
+    // Fill time averaged velocities before first plot file
+    if (solverChoice.time_avg_vel) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
+                              vars_new[lev][Vars::xvel],
+                              vars_new[lev][Vars::yvel],
+                              vars_new[lev][Vars::zvel]);
+        }
     }
 
     // check for additional plotting variables that are available after particle containers
@@ -1149,6 +1180,11 @@ ERF::init_only (int lev, Real time)
 #ifdef ERF_USE_WINDFARM
     init_windfarm(lev);
 #endif
+
+   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+        input_sponge(lev);
+   }
+
 }
 
 // read in some parameters from inputs file
@@ -1294,6 +1330,9 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
+
+        // Text input_sounding file
+        pp.query("input_sponge_file", input_sponge_file);
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
@@ -1741,10 +1780,9 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -1846,6 +1884,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
+
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
