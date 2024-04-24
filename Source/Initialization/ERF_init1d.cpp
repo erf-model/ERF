@@ -122,7 +122,6 @@ ERF::setRayleighRefFromSounding (bool restarting)
 void
 ERF::initSponge ()
 {
-    std::cout << "Calling initSponge ......" << "\n";
     h_sponge_ptrs.resize(max_level+1);
     d_sponge_ptrs.resize(max_level+1);
 
@@ -154,7 +153,6 @@ void
 ERF::setSpongeRefFromSounding (bool restarting)
 {
 
-    std::cout << "Calling setSpongeRefFromSounding ......" << "\n";
     // If we are restarting then we haven't read the input_sponge file yet
     //    so we need to read it here
     // TODO: should we store this information in the checkpoint file instead?

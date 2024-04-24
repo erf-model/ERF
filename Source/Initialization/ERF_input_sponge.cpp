@@ -1,5 +1,5 @@
 /**
- * \file ERF_init_from_input_sounding.cpp
+ * \file ERF_input_sponge.cpp
  */
 
 #include <ERF.H>
@@ -19,7 +19,7 @@ using namespace amrex;
 void
 ERF::input_sponge (int lev)
 {
-    // We only want to read the file once -- here we fill one FArrayBox (per variable) that spans the domain
+    // We only want to read the file once
     if (lev == 0) {
         if (input_sponge_file.empty())
             Error("input_sounding file name must be provided via input");

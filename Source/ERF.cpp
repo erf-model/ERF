@@ -65,7 +65,6 @@ std::string ERF::input_sounding_file = "input_sounding";
 // Text input_sponge file
 std::string ERF::input_sponge_file = "input_sponge_file.txt";
 
-
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 

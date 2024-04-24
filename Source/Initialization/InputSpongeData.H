@@ -13,9 +13,8 @@
 #include <Interpolation_1D.H>
 
 /**
- * Data structure storing input sounding data. Also
- * handles reading the input file for sounding data and
- * hydrostatic column integration.
+ * Data structure storing input sponge data. Also
+ * handles reading the input file for sponge data
  */
 struct InputSpongeData {
 public:
