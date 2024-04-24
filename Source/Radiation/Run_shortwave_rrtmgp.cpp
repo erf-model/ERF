@@ -34,16 +34,18 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
     bool1d top_at_1_g("top_at_1_g",1);
     boolHost1d top_at_1_h("top_at_1_h",1);
     bool top_at_1;
-    real2d toa_flux("toa_flux", ncol, nswgpts);
-    k_dist_sw.gas_optics(ncol, nlay, &top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux); // TODO: top_at_1 is not a valid address and this doesn't match longwave call
-
-    // Apply TOA flux scaling
-    parallel_for(SimpleBounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {
-       toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol,igpt);
+    parallel_for(SimpleBounds<1>(1), YAKL_LAMBDA (int icol) { // HACK: Single loop kernel is not efficient
        top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
     });
     top_at_1_g.deep_copy_to(top_at_1_h);
     top_at_1 = top_at_1_h(1);
+    real2d toa_flux("toa_flux", ncol, nswgpts);
+    k_dist_sw.gas_optics(ncol, nlay, top_at_1, pmid, pint, tmid, gas_concs, combined_optics, toa_flux);
+
+    // Apply TOA flux scaling
+    parallel_for(SimpleBounds<2>(nswgpts,ncol), YAKL_LAMBDA (int igpt, int icol) {
+       toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol,igpt);
+    });
 
     // Add in aerosol
     // TODO: should we avoid allocating here?
@@ -74,25 +76,26 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
 
     // Do the clearsky calculation before adding in clouds
     FluxesByband fluxes_clrsky;
-    fluxes_clrsky.flux_up = real2d("clrsky_flux_up", ncol, nlay+1); // clrsky_flux_up;
-    fluxes_clrsky.flux_dn = real2d("clrsky_flux_up", ncol, nlay+1); //clrsky_flux_dn;
-    fluxes_clrsky.flux_dn_dir = real2d("clrsky_flux_up", ncol, nlay+1); //clrsky_flux_dn_dir;
-    fluxes_clrsky.flux_net = real2d("clrsky_flux_up", ncol, nlay+1); //clrsky_flux_net;
-    fluxes_clrsky.bnd_flux_up = real3d("clrsky_flux_up", ncol, nlay+1, nswbands); //clrsky_bnd_flux_up;
-    fluxes_clrsky.bnd_flux_dn = real3d("clrsky_flux_up", ncol, nlay+1, nswbands); //clrsky_bnd_flux_dn;
-    fluxes_clrsky.bnd_flux_dn_dir = real3d("clrsky_flux_up", ncol, nlay+1, nswbands); //clrsky_bnd_flux_dn_dir;
-    fluxes_clrsky.bnd_flux_net = real3d("clrsky_flux_up", ncol, nlay+1, nswbands); //clrsky_bnd_flux_net;
+    fluxes_clrsky.flux_up  = real2d("clrsky_flux_up" , ncol, nlay+1); // clrsky_flux_up;
+    fluxes_clrsky.flux_dn  = real2d("clrsky_flux_nd" , ncol, nlay+1); //clrsky_flux_dn;
+    fluxes_clrsky.flux_net = real2d("clrsky_flux_net", ncol, nlay+1); //clrsky_flux_net;
+    fluxes_clrsky.flux_dn_dir = real2d("clrsky_flux_dn_dir", ncol, nlay+1); //clrsky_flux_dn_dir;
+    fluxes_clrsky.bnd_flux_up  = real3d("clrsky_bnd_flux_up" , ncol, nlay+1, nswbands); //clrsky_bnd_flux_up;
+    fluxes_clrsky.bnd_flux_dn  = real3d("clrsky_bnd_flux_dn" , ncol, nlay+1, nswbands); //clrsky_bnd_flux_dn;
+    fluxes_clrsky.bnd_flux_net = real3d("clrsky_bnd_flux_net", ncol, nlay+1, nswbands); //clrsky_bnd_flux_net;
+    fluxes_clrsky.bnd_flux_dn_dir = real3d("clrsky_bnd_flux_dn_dir", ncol, nlay+1, nswbands); //clrsky_bnd_flux_dn_dir;
+
     rte_sw(combined_optics, top_at_1, coszrs, toa_flux, albedo_dir, albedo_dif, fluxes_clrsky);
 
     // Copy fluxes back out of FluxesByband object
-    fluxes_clrsky.flux_up.deep_copy_to(clrsky_flux_up);
-    fluxes_clrsky.flux_dn.deep_copy_to(clrsky_flux_dn);
-    fluxes_clrsky.flux_dn_dir.deep_copy_to(clrsky_flux_dn_dir);
+    fluxes_clrsky.flux_up.deep_copy_to (clrsky_flux_up);
+    fluxes_clrsky.flux_dn.deep_copy_to (clrsky_flux_dn);
     fluxes_clrsky.flux_net.deep_copy_to(clrsky_flux_net);
-    fluxes_clrsky.bnd_flux_up.deep_copy_to(clrsky_bnd_flux_up);
-    fluxes_clrsky.bnd_flux_dn.deep_copy_to(clrsky_bnd_flux_dn);
-    fluxes_clrsky.bnd_flux_dn_dir.deep_copy_to(clrsky_bnd_flux_dn_dir);
+    fluxes_clrsky.flux_dn_dir.deep_copy_to(clrsky_flux_dn_dir);
+    fluxes_clrsky.bnd_flux_up.deep_copy_to (clrsky_bnd_flux_up);
+    fluxes_clrsky.bnd_flux_dn.deep_copy_to (clrsky_bnd_flux_dn);
     fluxes_clrsky.bnd_flux_net.deep_copy_to(clrsky_bnd_flux_net);
+    fluxes_clrsky.bnd_flux_dn_dir.deep_copy_to(clrsky_bnd_flux_dn_dir);
 
     // Add in clouds
     OpticalProps2str cloud_optics;
@@ -110,25 +113,26 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
 
     // Call SW flux driver
     FluxesByband fluxes_allsky;
-    fluxes_allsky.flux_up = real2d("allsky_flux_up", ncol, nlay+1); // allsky_flux_up;
-    fluxes_allsky.flux_dn = real2d("allsky_flux_up", ncol, nlay+1); //allsky_flux_dn;
-    fluxes_allsky.flux_dn_dir = real2d("allsky_flux_up", ncol, nlay+1); //allsky_flux_dn_dir;
-    fluxes_allsky.flux_net = real2d("allsky_flux_up", ncol, nlay+1); //allsky_flux_net;
-    fluxes_allsky.bnd_flux_up = real3d("allsky_flux_up", ncol, nlay+1, nswbands); //allsky_bnd_flux_up;
-    fluxes_allsky.bnd_flux_dn = real3d("allsky_flux_up", ncol, nlay+1, nswbands); //allsky_bnd_flux_dn;
-    fluxes_allsky.bnd_flux_dn_dir = real3d("allsky_flux_up", ncol, nlay+1, nswbands); //allsky_bnd_flux_dn_dir;
-    fluxes_allsky.bnd_flux_net = real3d("allsky_flux_up", ncol, nlay+1, nswbands); //allsky_bnd_flux_net;
+    fluxes_allsky.flux_up  = real2d("allsky_flux_up" , ncol, nlay+1); //allsky_flux_up;
+    fluxes_allsky.flux_dn  = real2d("allsky_flux_dn" , ncol, nlay+1); //allsky_flux_dn;
+    fluxes_allsky.flux_net = real2d("allsky_flux_net", ncol, nlay+1); //allsky_flux_net;
+    fluxes_allsky.flux_dn_dir = real2d("allsky_flux_dn_dir", ncol, nlay+1); //allsky_flux_dn_dir;
+    fluxes_allsky.bnd_flux_up  = real3d("allsky_bnd_flux_up" , ncol, nlay+1, nswbands); //allsky_bnd_flux_up;
+    fluxes_allsky.bnd_flux_dn  = real3d("allsky_bnd_flux_dn" , ncol, nlay+1, nswbands); //allsky_bnd_flux_dn;
+    fluxes_allsky.bnd_flux_net = real3d("allsky_bnd_flux_net", ncol, nlay+1, nswbands); //allsky_bnd_flux_net;
+    fluxes_allsky.bnd_flux_dn_dir = real3d("allsky_bnd_flux_dn_dir", ncol, nlay+1, nswbands); //allsky_bnd_flux_dn_dir;
+
     rte_sw(combined_optics, top_at_1, coszrs, toa_flux, albedo_dir, albedo_dif, fluxes_allsky);
 
     // Copy fluxes back out of FluxesByband object
     fluxes_allsky.flux_up.deep_copy_to(allsky_flux_up);
     fluxes_allsky.flux_dn.deep_copy_to(allsky_flux_dn);
-    fluxes_allsky.flux_dn_dir.deep_copy_to(allsky_flux_dn_dir);
     fluxes_allsky.flux_net.deep_copy_to(allsky_flux_net);
+    fluxes_allsky.flux_dn_dir.deep_copy_to(allsky_flux_dn_dir);
     fluxes_allsky.bnd_flux_up.deep_copy_to(allsky_bnd_flux_up);
     fluxes_allsky.bnd_flux_dn.deep_copy_to(allsky_bnd_flux_dn);
-    fluxes_allsky.bnd_flux_dn_dir.deep_copy_to(allsky_bnd_flux_dn_dir);
     fluxes_allsky.bnd_flux_net.deep_copy_to(allsky_bnd_flux_net);
+    fluxes_allsky.bnd_flux_dn_dir.deep_copy_to(allsky_bnd_flux_dn_dir);
     yakl::fence();
 }
 

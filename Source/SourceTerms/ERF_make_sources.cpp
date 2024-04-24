@@ -153,7 +153,8 @@ void make_sources (int level,
             auto const& qheating_arr = qheating_rates->const_array(mfi);
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k);
+                // Short-wavelength and long-wavelength radiation source terms
+                cell_src(i,j,k,RhoTheta_comp) += qheating_arr(i,j,k,0) + qheating_arr(i,j,k,1);
             });
         }
 

@@ -177,6 +177,7 @@ void Radiation::initialize (const MultiFab& cons_in,
     for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
         auto states_array = cons_in.array(mfi);
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
+        auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
@@ -188,26 +189,32 @@ void Radiation::initialize (const MultiFab& cons_in,
         {
             auto icol = j*nx+i+1;
             auto ilev = k+1;
+            Real qv         = (qv_array) ? qv_array(i,j,k): 0.0;
             qt(icol,ilev)   = (qt_array) ? qt_array(i,j,k): 0.0;
             qc(icol,ilev)   = (qc_array) ? qc_array(i,j,k): 0.0;
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
-            tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp));
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp))/1.0e3;
+            tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
+            // NOTE: RRTMGP code expects pressure in mb so we convert it here
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv) * 1.0e-2;
         });
     }
 
     parallel_for(SimpleBounds<2>(ncol, nlev+1), YAKL_LAMBDA (int icol, int ilev)
     {
         if (ilev == 1) {
-            pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
-            tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
+            //pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
+            //tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
+            pint(icol, 1) = -0.5*pmid(icol, 2) + 1.5*pmid(icol, 1);
+            tint(icol, 1) = -0.5*tmid(icol, 2) + 1.5*tmid(icol, 1);
         } else if (ilev <= nlev) {
             pint(icol, ilev) = 0.5*(pmid(icol, ilev-1) + pmid(icol, ilev));
             tint(icol, ilev) = 0.5*(tmid(icol, ilev-1) + tmid(icol, ilev));
         } else {
-            pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
-            tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
+            //pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
+            //tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
+            pint(icol, nlev+1) = -0.5*pmid(icol, nlev-1) + 1.5*pmid(icol, nlev);
+            tint(icol, nlev+1) = -0.5*tmid(icol, nlev-1) + 1.5*tmid(icol, nlev);
         }
     });
 
@@ -252,42 +259,42 @@ void Radiation::initialize (const MultiFab& cons_in,
 // run radiation model
 void Radiation::run ()
 {
-    // Temporary variable for heating rate output
-    real2d hr("hr", ncol, nlev);
-
     // Cosine solar zenith angle for all columns in chunk
     real1d coszrs("coszrs", ncol);
 
     // Pointers to fields on the physics buffer
-    real2d cld("cld", ncol, nlev), cldfsnow("cldfsnow", ncol, nlev),
-        iclwp("iclwp", ncol, nlev), iciwp("iciwp", ncol, nlev),
-        icswp("icswp", ncol, nlev), dei("dei", ncol, nlev),
-        des("des", ncol, nlev), lambdac("lambdac", ncol, nlev),
-        mu("mu", ncol, nlev), rei("rei", ncol, nlev), rel("rel", ncol, nlev);
+    real2d cld("cld"  , ncol, nlev), cldfsnow("cldfsnow", ncol, nlev),
+         iclwp("iclwp", ncol, nlev),    iciwp("iciwp"   , ncol, nlev),
+         icswp("icswp", ncol, nlev),      dei("dei"     , ncol, nlev),
+           des("des"  , ncol, nlev),  lambdac("lambdac" , ncol, nlev),
+            mu("mu"   , ncol, nlev),      rei("rei"     , ncol, nlev),
+           rel("rel"  , ncol, nlev);
 
     // Cloud, snow, and aerosol optical properties
     real3d cld_tau_gpt_sw("cld_tau_gpt_sw", ncol, nlev, nswgpts),
-        cld_ssa_gpt_sw("cld_ssa_gpt_sw", ncol, nlev, nswgpts),
-        cld_asm_gpt_sw("cld_asm_gpt_sw", ncol, nlev, nswgpts);
+           cld_ssa_gpt_sw("cld_ssa_gpt_sw", ncol, nlev, nswgpts),
+           cld_asm_gpt_sw("cld_asm_gpt_sw", ncol, nlev, nswgpts);
+
     real3d cld_tau_bnd_sw("cld_tau_bnd_sw", ncol, nlev, nswbands),
-        cld_ssa_bnd_sw("cld_ssa_bnd_sw", ncol, nlev, nswbands),
-        cld_asm_bnd_sw("cld_asm_bnd_sw", ncol, nlev, nswbands);
+           cld_ssa_bnd_sw("cld_ssa_bnd_sw", ncol, nlev, nswbands),
+           cld_asm_bnd_sw("cld_asm_bnd_sw", ncol, nlev, nswbands);
 
     real3d aer_tau_bnd_sw("aer_tau_bnd_sw", ncol, nlev, nswbands),
-        aer_ssa_bnd_sw("aer_ssa_bnd_sw", ncol, nlev, nswbands),
-        aer_asm_bnd_sw("aer_asm_bnd_sw", ncol, nlev, nswbands);
+           aer_ssa_bnd_sw("aer_ssa_bnd_sw", ncol, nlev, nswbands),
+           aer_asm_bnd_sw("aer_asm_bnd_sw", ncol, nlev, nswbands);
 
     real3d cld_tau_bnd_lw("cld_tau_bnd_lw", ncol, nlev, nlwbands),
-        aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
+           aer_tau_bnd_lw("aer_tau_bnd_lw", ncol, nlev, nlwbands);
+
     real3d cld_tau_gpt_lw("cld_tau_gpt_lw", ncol, nlev, nlwgpts);
 
     // NOTE: these are diagnostic only
     real3d liq_tau_bnd_sw("liq_tau_bnd_sw", ncol, nlev, nswbands),
-        ice_tau_bnd_sw("ice_tau_bnd_sw", ncol, nlev, nswbands),
-        snw_tau_bnd_sw("snw_tau_bnd_sw", ncol, nlev, nswbands);
+           ice_tau_bnd_sw("ice_tau_bnd_sw", ncol, nlev, nswbands),
+           snw_tau_bnd_sw("snw_tau_bnd_sw", ncol, nlev, nswbands);
     real3d liq_tau_bnd_lw("liq_tau_bnd_lw", ncol, nlev, nlwbands),
-        ice_tau_bnd_lw("ice_tau_bnd_lw", ncol, nlev, nlwbands),
-        snw_tau_bnd_lw("snw_tau_bnd_lw", ncol, nlev, nlwbands);
+           ice_tau_bnd_lw("ice_tau_bnd_lw", ncol, nlev, nlwbands),
+           snw_tau_bnd_lw("snw_tau_bnd_lw", ncol, nlev, nlwbands);
 
     // Gas volume mixing ratios
     real3d gas_vmr("gas_vmr", ngas, ncol, nlev);
@@ -512,32 +519,20 @@ void Radiation::run ()
         }
     } // dolw
 
-    // Compute heating rate for dtheta/dt
-    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
-    {
-        // TODO: CHECK THIS UNIT CONVERSION!!
-        hr(icol,ilev) = (qrs(icol,ilev) + qrl(icol,ilev)) / Cp_d * (1.e5 / std::pow(pmid(icol,ilev), R_d/Cp_d));
-    });
-
-    // Populate theta source from hr
+    // Populate source term for theta dycore variable
     for (MFIter mfi(*(qrad_src)); mfi.isValid(); ++mfi) {
         auto qrad_src_array = qrad_src->array(mfi);
         const auto& box3d = mfi.tilebox();
         auto nx = box3d.length(0);
         amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            // Map (col,lev) to (i,j,k)
             auto icol = j*nx+i+1;
             auto ilev = k+1;
-            qrad_src_array(i,j,k) = hr(icol,ilev);
-        });
-    }
 
-    // convert radiative heating rates to Q*dp for energy conservation
-    if (conserve_energy) {
-        parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
-        {
-            qrs(icol,ilev) = qrs(icol,ilev)*pdel(icol,ilev);
-            qrl(icol,ilev) = qrl(icol,ilev)*pdel(icol,ilev);
+            // SW and LW sources
+            qrad_src_array(i,j,k,0) = qrs(icol,ilev);
+            qrad_src_array(i,j,k,1) = qrl(icol,ilev);
         });
     }
 }
@@ -714,7 +709,7 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
                                      FluxesByband& fluxes_allsky, const real2d& qrl, const real2d& qrlc)
 {
     real3d cld_tau_gpt_rad("cld_tau_gpt_rad", ncol, nlev+1, nlwgpts);
-    real3d aer_tau_bnd_rad("aer_tau_bnd-rad", ncol, nlev+1, nlwgpts);
+    real3d aer_tau_bnd_rad("aer_tau_bnd_rad", ncol, nlev+1, nlwgpts);
 
     // Surface emissivity needed for longwave
     real2d surface_emissivity("surface_emissivity", nlwbands, ncol);
@@ -734,7 +729,7 @@ void Radiation::radiation_driver_lw (int ncol, int nlev,
     yakl::memset(cld_tau_gpt_rad, 0.);
     yakl::memset(aer_tau_bnd_rad, 0.);
 
-    parallel_for(SimpleBounds<3>(ncol, nlev, nswgpts), YAKL_LAMBDA (int icol, int ilev, int igpt)
+    parallel_for(SimpleBounds<3>(ncol, nlev, nlwgpts), YAKL_LAMBDA (int icol, int ilev, int igpt)
     {
         cld_tau_gpt_rad(icol,ilev,igpt) = cld_tau_gpt(icol,ilev,igpt);
         aer_tau_bnd_rad(icol,ilev,igpt) = aer_tau_bnd(icol,ilev,igpt);
@@ -894,11 +889,29 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                                         const real2d& pint,
                                         const real2d& heating_rate)
 {
+    // NOTE: The pressure is in [mb] for RRTMGP to use.
+    //       The fluxes are in [W/m^2] and gravity is [m/s^2].
+    //       We need to convert pressure from [mb] -> [Pa] and divide by Cp [J/kg*K]
+    //       The heating rate is {dF/dP * g / Cp} with units [K/s]
+    real1d heatfac("heatfac",1);
+    yakl::memset(heatfac, 1.0e-2/Cp_d);
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
-        heating_rate(icol,ilev) = ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
-                                  - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) )
-                                  *  CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
+        heating_rate(icol,ilev) = heatfac(1) * ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
+                                               - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) )
+                                               *  CONST_GRAV/(pint(icol,ilev+1)-pint(icol,ilev));
+        /*
+        if (icol==1) {
+            amrex::Print() << "HR: " << ilev << ' '
+                           << heating_rate(icol,ilev) << ' '
+                           << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1)) << ' '
+                           << (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
+                            - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << (pint(icol,ilev+1)-pint(icol,ilev)) << ' '
+                           << CONST_GRAV << "\n";
+        }
+        */
     });
 }
 
