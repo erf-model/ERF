@@ -214,7 +214,7 @@ void make_fast_coeffs (int /*level*/,
           coeffC_a(i,j,lo.z) =  0.0;
 
           // w_khi = 0
-          coeffA_a(i,j,hi.z+1) =  0.0;
+          coeffA_a(i,j,hi.z+1) =  -1.0;
           coeffB_a(i,j,hi.z+1) =  1.0;
           coeffC_a(i,j,hi.z+1) =  0.0;
 
@@ -239,7 +239,7 @@ void make_fast_coeffs (int /*level*/,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                coeffA_a(i,j,hi.z+1) =  0.0;
+                coeffA_a(i,j,hi.z+1) =  -1.0;
                 coeffB_a(i,j,hi.z+1) =  1.0;
                 coeffC_a(i,j,hi.z+1) =  0.0;
             }

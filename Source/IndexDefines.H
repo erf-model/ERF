@@ -154,7 +154,8 @@ enum mathematicalBndryTypes : int {
     ext_dir_ingested =  102,
     neumann          =  103,
     neumann_int      =  104,
-    open             =  105
+    open             =  105,
+	hoextrapcc		 =  106
 };
 }
 
