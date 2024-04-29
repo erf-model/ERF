@@ -62,6 +62,9 @@ std::string ERF::nc_bdy_file; // Must provide via input
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
 
+// Text input_sponge file
+std::string ERF::input_sponge_file = "input_sponge_file.txt";
+
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 
@@ -265,6 +268,12 @@ ERF::ERF ()
     // Time averaged velocity field
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
+
+#ifdef ERF_USE_NETCDF
+    // Size lat long arrays if using netcdf
+    lat_m.resize(nlevs_max);
+    lon_m.resize(nlevs_max);
+#endif
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -764,7 +773,14 @@ ERF::InitData ()
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
+    }
 
+    // Read in sponge data from input file
+    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    {
+        initSponge();
+        bool restarting = (!restart_chkfile.empty());
+        setSpongeRefFromSounding(restarting);
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
@@ -1162,6 +1178,11 @@ ERF::init_only (int lev, Real time)
 #ifdef ERF_USE_WINDFARM
     init_windfarm(lev);
 #endif
+
+   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+        input_sponge(lev);
+   }
+
 }
 
 // read in some parameters from inputs file
@@ -1307,6 +1328,9 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
+
+        // Text input_sounding file
+        pp.query("input_sponge_file", input_sponge_file);
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);

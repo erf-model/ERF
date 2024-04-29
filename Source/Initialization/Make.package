@@ -2,6 +2,7 @@ CEXE_sources += ERF_init_uniform.cpp
 CEXE_sources += ERF_init_from_hse.cpp
 CEXE_sources += ERF_init_custom.cpp
 CEXE_sources += ERF_init_from_input_sounding.cpp
+CEXE_sources += ERF_input_sponge.cpp
 CEXE_sources += ERF_init_bcs.cpp
 CEXE_sources += ERF_init1d.cpp
 
@@ -10,6 +11,7 @@ CEXE_sources += ERF_init_windfarm.cpp
 endif
 
 CEXE_headers += InputSoundingData.H
+CEXE_headers += InputSpongeData.H
 
 ifeq ($(USE_NETCDF),TRUE)
 CEXE_headers += Metgrid_utils.H
