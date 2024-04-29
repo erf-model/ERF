@@ -348,6 +348,10 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                 zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+				if(k==128){
+					Real val_linextrap = 2.0*cell_prim(i, j, k-1, prim_index) - cell_prim(i, j, k-2, prim_index); 
+					zflux(i,j,k,qty_index) = rhoAlpha * (val_linextrap - cell_prim(i, j, k-1, prim_index))*dz_inv;
+				}
             }
         });
     } else {
