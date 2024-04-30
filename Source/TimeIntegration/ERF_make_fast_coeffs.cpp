@@ -35,7 +35,7 @@ void make_fast_coeffs (int /*level*/,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       Real dtau, Real beta_s)
+                       Real dtau, Real beta_s, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
@@ -214,7 +214,11 @@ void make_fast_coeffs (int /*level*/,
           coeffC_a(i,j,lo.z) =  0.0;
 
           // w_khi = 0
-          coeffA_a(i,j,hi.z+1) =  -1.0;
+          coeffA_a(i,j,hi.z+1) =  0.0;
+          if(phys_bc_type[5] == ERF_BC::outflow)
+          {
+              coeffA_a(i,j,hi.z+1) =  -1.0;
+          }
           coeffB_a(i,j,hi.z+1) =  1.0;
           coeffC_a(i,j,hi.z+1) =  0.0;
 
@@ -239,7 +243,12 @@ void make_fast_coeffs (int /*level*/,
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
             for (int i = lo.x; i <= hi.x; ++i) {
-                coeffA_a(i,j,hi.z+1) =  -1.0;
+
+                coeffA_a(i,j,hi.z+1) =  0.0;
+                  if(phys_bc_type[5] == ERF_BC::outflow)
+                {
+                    coeffA_a(i,j,hi.z+1) =  -1.0;
+                }
                 coeffB_a(i,j,hi.z+1) =  1.0;
                 coeffC_a(i,j,hi.z+1) =  0.0;
             }

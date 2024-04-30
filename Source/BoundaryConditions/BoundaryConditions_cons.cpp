@@ -271,9 +271,9 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                             delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
                 }
-				else if (bc_ptr[icomp+n].hi(2) == ERFBCType::hoextrapcc){
-					dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,j,dom_hi.z,icomp+n) - dest_arr(i,j,dom_hi.z-1,icomp+n);
-				}
+                else if (bc_ptr[icomp+n].hi(2) == ERFBCType::hoextrapcc){
+                    dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,j,dom_hi.z,icomp+n) - dest_arr(i,j,dom_hi.z-1,icomp+n);
+                }
             }
         );
     }
