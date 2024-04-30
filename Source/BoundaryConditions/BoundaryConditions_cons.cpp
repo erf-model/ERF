@@ -108,8 +108,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
-                }
-                else if (bc_ptr[icomp+n].lo(0) == ERFBCType::hoextrapcc) {
+                } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::hoextrapcc) {
                     dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(dom_lo.x,j,k,icomp+n) - dest_arr(dom_lo.x+1,j,k,icomp+n);
                 }
             },
@@ -123,7 +122,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                     dest_arr(i,j,k,icomp+n) =  dest_arr(iflip,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
-                }else if (bc_ptr[icomp+n].hi(0) == ERFBCType::hoextrapcc) {
+                } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::hoextrapcc) {
                     dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(dom_hi.x,j,k,icomp+n) - dest_arr(dom_hi.x-1,j,k,icomp+n);
                 }
             }
@@ -259,8 +258,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                     Real delta_z = (dom_lo.z - k) / dxInv[2];
                     dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_lo.z,icomp+n) -
                         delta_z*l_bc_neumann_vals_d[icomp+n][2]*dest_arr(i,j,dom_lo.z,Rho_comp);
-                }
-                else if (bc_ptr[icomp+n].lo(2) == ERFBCType::hoextrapcc) {
+                } else if (bc_ptr[icomp+n].lo(2) == ERFBCType::hoextrapcc) {
                     dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,j,dom_lo.z,icomp+n) - dest_arr(i,j,dom_lo.z+1,icomp+n);
                 }
             },
@@ -283,8 +281,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                         dest_arr(i,j,k,icomp+n) = dest_arr(i,j,dom_hi.z,icomp+n) +
                             delta_z*l_bc_neumann_vals_d[icomp+n][5]*dest_arr(i,j,dom_hi.z,Rho_comp);
                     }
-                }
-                else if (bc_ptr[icomp+n].hi(2) == ERFBCType::hoextrapcc){
+                } else if (bc_ptr[icomp+n].hi(2) == ERFBCType::hoextrapcc){
                     dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,j,dom_hi.z,icomp+n) - dest_arr(i,j,dom_hi.z-1,icomp+n);
                 }
             }

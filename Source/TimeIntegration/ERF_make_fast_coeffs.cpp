@@ -35,7 +35,8 @@ void make_fast_coeffs (int /*level*/,
                        Real gravity, Real c_p,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const MultiFab* r0, const MultiFab* pi0,
-                       Real dtau, Real beta_s, amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
+                       Real dtau, Real beta_s,
+                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
 
