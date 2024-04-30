@@ -404,12 +404,14 @@ void ERF::init_bcs ()
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrapcc);
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
                     }
                 } else {
                     for (int i = 0; i < NVAR_max; i++) {
+                        //std::cout << "bc cons " << BCVars::cons_bc << " " << i << " " << NVAR_max << "\n";
                         domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::hoextrapcc);
                     }
+                    //exit(0);
                 }
             }
             else if ( bct == ERF_BC::open )
