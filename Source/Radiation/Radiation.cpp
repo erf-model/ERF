@@ -195,8 +195,8 @@ void Radiation::initialize (const MultiFab& cons_in,
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
             tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
-            // NOTE: RRTMGP code expects pressure in mb so we convert it here
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv) * 1.0e-2;
+            // NOTE: RRTMGP code expects pressure in pa
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv);// * 1.0e-2;
         });
     }
 
@@ -889,12 +889,11 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                                         const real2d& pint,
                                         const real2d& heating_rate)
 {
-    // NOTE: The pressure is in [mb] for RRTMGP to use.
+    // NOTE: The pressure is in [pa] for RRTMGP to use.
     //       The fluxes are in [W/m^2] and gravity is [m/s^2].
-    //       We need to convert pressure from [mb] -> [Pa] and divide by Cp [J/kg*K]
     //       The heating rate is {dF/dP * g / Cp} with units [K/s]
     real1d heatfac("heatfac",1);
-    yakl::memset(heatfac, 1.0e-2/Cp_d);
+    yakl::memset(heatfac, 1.0/Cp_d);//1.0e-2/Cp_d);
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
         heating_rate(icol,ilev) = heatfac(1) * ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
