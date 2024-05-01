@@ -123,12 +123,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(0) == ERFBCType::hoextrapcc) {
-                    if(icomp+n != Rho_comp){
-                        dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(dom_hi.x,j,k,icomp+n) - dest_arr(dom_hi.x-1,j,k,icomp+n) ;
-                    }
-                    else{
-                        dest_arr(i,j,k,icomp+n) =  dest_arr(dom_hi.x,j,k,icomp+n);
-                    }
+                    dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(dom_hi.x,j,k,icomp+n) - dest_arr(dom_hi.x-1,j,k,icomp+n) ;
                 }
             }
         );
