@@ -105,7 +105,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             // These are the boxes we use to test on relative to the domain
             //
             Box xbx1 = surroundingNodes(bx,0); xbx1.grow(IntVect(nghost[0],nghost[1],0));
-            Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost); 
+            Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
@@ -166,7 +166,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             // These are the boxes we use to test on relative to the domain
             //
             Box ybx1 = surroundingNodes(bx,1); ybx1.grow(IntVect(nghost[0],nghost[1],0));
-            Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost); 
+            Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
