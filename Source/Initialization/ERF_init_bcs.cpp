@@ -404,7 +404,7 @@ void ERF::init_bcs ()
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR_max; i++) {
-                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::hoextrapcc);
                     }
                 } else {
                     for (int i = 0; i < NVAR_max; i++) {
