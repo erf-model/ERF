@@ -77,6 +77,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Utils/Orbit.cpp
                    ${SRC_DIR}/Radiation/Init_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Finalize_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Run_longwave_rrtmgp.cpp

@@ -27,6 +27,7 @@
 #include "DataStruct.H"
 #include "EOS.H"
 #include "TileNoZ.H"
+#include "Orbit.H"
 
 using namespace amrex;
 using yakl::intrinsics::size;
@@ -99,6 +100,8 @@ namespace internal {
 // init
 void Radiation::initialize (const MultiFab& cons_in,
                             MultiFab* qheating_rates,
+                            MultiFab* lat,
+                            MultiFab* lon,
                             Vector<MultiFab*> qmoist,
                             const BoxArray& grids,
                             const Geometry& geom,
@@ -125,14 +128,19 @@ void Radiation::initialize (const MultiFab& cons_in,
     do_snow_optics    = do_snow_opt;
     is_cmip6_volc     = is_cmip6_volcano;
 
+    m_lat = lat;
+    m_lon = lon;
+
     rrtmgp_data_path = getRadiationDataDir() + "/";
     rrtmgp_coefficients_file_sw = rrtmgp_data_path + rrtmgp_coefficients_file_name_sw;
     rrtmgp_coefficients_file_lw = rrtmgp_data_path + rrtmgp_coefficients_file_name_lw;
 
+    ParmParse pp("erf");
+    pp.query("fixed_total_solar_irradiance", fixed_total_solar_irradiance);
+    pp.query("radiation_uniform_angle"     , uniform_angle);
+
     for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
         const auto& box3d = mfi.tilebox();
-
         nlev = box3d.length(2);
         ncol = box3d.length(0)*box3d.length(1);
     }
@@ -174,18 +182,27 @@ void Radiation::initialize (const MultiFab& cons_in,
     zi   = real2d("zi", ncol, nlev);
 
     // Get the temperature, density, theta, qt and qp from input
-    for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.tilebox();
+        auto nx = box3d.length(0);
+
         auto states_array = cons_in.array(mfi);
+        /*
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
         auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
+        */
 
-        const auto& box3d = mfi.tilebox();
-        auto nx = box3d.length(0);
-        //auto ny = box3d.length(1);
+        // DEBUG: delete and uncomment  when done
+        // NOTE : SW crashes with moisture but runs without it (pressure unit issue?!)
+        auto qt_array = (false) ? qmoist[0]->array(mfi) : Array4<Real> {};
+        auto qv_array = (false) ? qmoist[1]->array(mfi) : Array4<Real> {};
+        auto qc_array = (false) ? qmoist[2]->array(mfi) : Array4<Real> {};
+        auto qi_array = (false) ? qmoist[3]->array(mfi) : Array4<Real> {};
+
         // Get pressure, theta, temperature, density, and qt, qp
-        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             auto icol = j*nx+i+1;
             auto ilev = k+1;
@@ -195,24 +212,20 @@ void Radiation::initialize (const MultiFab& cons_in,
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
             tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
-            // NOTE: RRTMGP code expects pressure in mb so we convert it here
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv) * 1.0e-2;
+            // NOTE: RRTMGP code expects pressure in pa
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv);
         });
     }
 
     parallel_for(SimpleBounds<2>(ncol, nlev+1), YAKL_LAMBDA (int icol, int ilev)
     {
         if (ilev == 1) {
-            //pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
-            //tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
             pint(icol, 1) = -0.5*pmid(icol, 2) + 1.5*pmid(icol, 1);
             tint(icol, 1) = -0.5*tmid(icol, 2) + 1.5*tmid(icol, 1);
         } else if (ilev <= nlev) {
             pint(icol, ilev) = 0.5*(pmid(icol, ilev-1) + pmid(icol, ilev));
             tint(icol, ilev) = 0.5*(tmid(icol, ilev-1) + tmid(icol, ilev));
         } else {
-            //pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
-            //tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
             pint(icol, nlev+1) = -0.5*pmid(icol, nlev-1) + 1.5*pmid(icol, nlev);
             tint(icol, nlev+1) = -0.5*tmid(icol, nlev-1) + 1.5*tmid(icol, nlev);
         }
@@ -323,9 +336,16 @@ void Radiation::run ()
         internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_allsky);
         internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_clrsky);
 
-        // Get cosine solar zenith angle for current time step. ( still NOT YET implemented here)
-        //      set_cosine_solar_zenith_angle(state, dt_avg, coszrs(1:ncol))
-        yakl::memset(coszrs, 0.2);  // we set constant value here to avoid numerical overflow.
+        // TODO: Integrate calendar day computation
+        int calday = 1;
+        // Get cosine solar zenith angle for current time step.
+        if (m_lat) {
+            zenith(calday, m_lat, m_lon, coszrs, ncol,
+                   eccen,  mvelpp, lambm0, obliqr);
+        } else {
+            zenith(calday, m_lat, m_lon, coszrs, ncol,
+                   eccen,  mvelpp, lambm0, obliqr, uniform_angle);
+        }
 
         // Get albedo. This uses CAM routines internally and just provides a
         // wrapper to improve readability of the code here.
@@ -580,10 +600,13 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     // eccentricity, and could be used to scale total sky irradiance for different
     // climates as well (i.e., paleoclimate simulations)
     real tsi_scaling;
+    real solar_declination;
 
     if (fixed_total_solar_irradiance<0) {
+        // TODO: Integrate calendar day computation
+        int calday = 1;
         // Get orbital eccentricity factor to scale total sky irradiance
-        tsi_scaling = 1.0e-3; //get_eccentricity_factor();
+        shr_orb_decl(calday, eccen, mvelpp, lambm0, obliqr, solar_declination, tsi_scaling);
     } else {
         // For fixed TSI we divide by the default solar constant of 1360.9
         // At some point we will want to replace this with a method that
@@ -785,13 +808,14 @@ void Radiation::get_gas_vmr (const std::vector<std::string>& gas_names, const re
 {
     // Mass mixing ratio
     real2d mmr("mmr", ncol, nlev);
+
     // Gases and molecular weights. Note that we do NOT have CFCs yet (I think
     // this is coming soon in RRTMGP). RRTMGP also allows for absorption due to
     // CO and N2, which RRTMG did not have.
     const std::vector<std::string> gas_species = {"H2O", "CO2", "O3", "N2O",
-                                                  "CO", "CH4", "O2", "N2"};
-    const std::vector<real> mol_weight_gas = {18.01528, 44.0095, 47.9982, 44.0128,
-                                              28.0101, 16.04246, 31.998, 28.0134}; // g/mol
+                                                  "CO" , "CH4", "O2", "N2"};
+    const std::vector<real> mol_weight_gas = {18.01528, 44.00950, 47.9982, 44.0128,
+                                              28.01010, 16.04246, 31.9980, 28.0134}; // g/mol
     // Molar weight of air
     //const real mol_weight_air = 28.97; // g/mol
     // Defaults for gases that are not available (TODO: is this still accurate?)
@@ -889,12 +913,11 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                                         const real2d& pint,
                                         const real2d& heating_rate)
 {
-    // NOTE: The pressure is in [mb] for RRTMGP to use.
+    // NOTE: The pressure is in [pa] for RRTMGP to use.
     //       The fluxes are in [W/m^2] and gravity is [m/s^2].
-    //       We need to convert pressure from [mb] -> [Pa] and divide by Cp [J/kg*K]
     //       The heating rate is {dF/dP * g / Cp} with units [K/s]
     real1d heatfac("heatfac",1);
-    yakl::memset(heatfac, 1.0e-2/Cp_d);
+    yakl::memset(heatfac, 1.0/Cp_d);
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
         heating_rate(icol,ilev) = heatfac(1) * ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
