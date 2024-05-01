@@ -15,6 +15,8 @@ void ERF::advance_radiation (int lev,
 
     rad.initialize(cons,
                    qheating_rates[lev].get(),
+                   lat_m[lev].get(),
+                   lon_m[lev].get(),
                    qmoist[lev],
                    grids[lev],
                    Geom(lev),

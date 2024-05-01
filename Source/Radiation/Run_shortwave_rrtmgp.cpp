@@ -34,8 +34,8 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
     bool1d top_at_1_g("top_at_1_g",1);
     boolHost1d top_at_1_h("top_at_1_h",1);
     bool top_at_1;
-    parallel_for(SimpleBounds<1>(1), YAKL_LAMBDA (int icol) { // HACK: Single loop kernel is not efficient
-       top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
+    parallel_for(SimpleBounds<1>(1), YAKL_LAMBDA (int ilay) { // HACK: Single loop kernel is not efficient
+       top_at_1_g(1) = pmid(1, 1) < pmid (1, nlay);
     });
     top_at_1_g.deep_copy_to(top_at_1_h);
     top_at_1 = top_at_1_h(1);

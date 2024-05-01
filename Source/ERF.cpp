@@ -273,6 +273,11 @@ ERF::ERF ()
     // Size lat long arrays if using netcdf
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        lat_m[lev] = nullptr;
+        lon_m[lev] = nullptr;
+    }
 #endif
 
     // Initialize tagging criteria for mesh refinement

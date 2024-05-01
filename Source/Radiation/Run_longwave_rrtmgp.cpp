@@ -69,7 +69,7 @@ void Rrtmgp::run_longwave_rrtmgp (int ngas, int ncol, int nlay,
     parallel_for(SimpleBounds<1>(ncol), YAKL_LAMBDA (int icol)
     {
         t_sfc(icol) = tint(icol,nlay+1);
-        top_at_1_g(1) = pmid(1, 1) < pmid (1, 2);
+        top_at_1_g(1) = pmid(1, 1) < pmid (1, nlay);
     });
     top_at_1_g.deep_copy_to(top_at_1_h);
     top_at_1 = top_at_1_h(1);
