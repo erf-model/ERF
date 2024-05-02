@@ -265,12 +265,14 @@ void make_mom_sources (int /*level*/,
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                xmom_src_arr(i, j, k) += rho_on_u_face * dptr_u_geos[k];
+                Real rho_v_loc = 0.25 * (rho_v(i,j+1,k) + rho_v(i,j,k) + rho_v(i-1,j+1,k) + rho_v(i-1,j,k));
+                xmom_src_arr(i, j, k) += -0.376E-4 * (rho_on_u_face * dptr_v_geos[k] - rho_v_loc);
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                ymom_src_arr(i, j, k) += rho_on_v_face * dptr_v_geos[k];
+                Real rho_u_loc = 0.25 * (rho_u(i+1,j,k) + rho_u(i,j,k) + rho_u(i+1,j-1,k) + rho_u(i,j-1,k));
+                ymom_src_arr(i, j, k) += 0.376E-4 * (rho_on_v_face * dptr_u_geos[k] - rho_u_loc);
             });
         } // geostrophic_wind
 
