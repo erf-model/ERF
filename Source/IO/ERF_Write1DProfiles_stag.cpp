@@ -66,7 +66,12 @@ ERF::write_1D_profiles_stag (Real time)
                 if (data_log1.good()) {
                   // Write the quantities at this time
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z = k * dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = zlevels_stag[k];
+                      } else {
+                          z = k * dx[2];
+                      }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " "
@@ -121,7 +126,12 @@ ERF::write_1D_profiles_stag (Real time)
 
                   // For internal values, interpolate scalar quantities to faces
                   for (int k = 1; k < unstag_size; k++) {
-                      Real z = k * dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = zlevels_stag[k];
+                      } else {
+                          z = k * dx[2];
+                      }
                       Real uface  = 0.5*(h_avg_u[k]  + h_avg_u[k-1]);
                       Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
                       Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
@@ -212,7 +222,12 @@ ERF::write_1D_profiles_stag (Real time)
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z = k * dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = zlevels_stag[k];
+                      } else {
+                          z = k * dx[2];
+                      }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
