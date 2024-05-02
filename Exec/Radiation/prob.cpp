@@ -76,8 +76,7 @@ Real
 init_supercell_relhum(Real z, Real z_trop)
 {
     if (z <= z_trop) {
-        //return 1. - 0.75 * pow(z / z_trop , 1.25);
-        return 0.5 - 0.75 * pow(z / z_trop , 1.25);
+        return 1. - 0.75 * pow(z / z_trop , 1.25);
     } else {
         return 0.25;
     }

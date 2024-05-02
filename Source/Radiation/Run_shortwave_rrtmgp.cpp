@@ -47,23 +47,23 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
        toa_flux(icol, igpt) = tsi_scaling * toa_flux(icol,igpt);
     });
 
-    // Add in aerosol, allocate on nswbands to match aer_*_bnd
+    // Add in aerosol, allocate on gpts and map aer_*_bnd from bands
     OpticalProps2str aerosol_optics;
-    aerosol_optics.alloc_2str(ncol, nlay, k_dist_sw.get_band_lims_wavenumber());
-    parallel_for(SimpleBounds<3>(nswbands,nlay,ncol), YAKL_LAMBDA (int ibnd, int ilay, int icol)
+    aerosol_optics.alloc_2str(ncol, nlay, k_dist_sw);
+    auto gpt_bnd = aerosol_optics.get_gpoint_bands();
+    parallel_for(SimpleBounds<3>(nswgpts,nlay,ncol) , YAKL_LAMBDA (int igpt, int ilay, int icol)
     {
-        aerosol_optics.tau(icol,ilay,ibnd) = aer_tau_bnd(icol,ilay,ibnd);
-        aerosol_optics.ssa(icol,ilay,ibnd) = aer_ssa_bnd(icol,ilay,ibnd);
-        aerosol_optics.g  (icol,ilay,ibnd) = aer_asm_bnd(icol,ilay,ibnd);
+        aerosol_optics.tau(icol,ilay,igpt) = aer_tau_bnd(icol,ilay,gpt_bnd(igpt));
+        aerosol_optics.ssa(icol,ilay,igpt) = aer_ssa_bnd(icol,ilay,gpt_bnd(igpt));
+        aerosol_optics.g  (icol,ilay,igpt) = aer_asm_bnd(icol,ilay,gpt_bnd(igpt));
     });
 
     aerosol_optics.delta_scale();
 
-    // NOTE: aero_optics is allocated on nswbands, but combined_optics is on nswgpts
-    //       The `increment` call below expects the object (aerosol_optics) to be
-    //       on nswbnds (tau2/ssa2/g2) while the argument (combined optics) is on
-    //       nswgpts (tau1/ssa1/g1); see `inc_2stream_by_2stream_bybnd` in
-    //       `mo_optical_props_kernels.cpp`
+    // NOTE: aero_optics is allocated on nswgpts and combined_optics is on nswgpts
+    //       The `increment` call below can handle matching or differing (nswgpts/nswbnds)
+    //       sizes; see calls in `mo_optical_props_kernels.cpp`. Since we have matching
+    //       gpt sizes, we will call `increment_2stream_by_2stream`
     aerosol_optics.increment(combined_optics);
 
     // Do the clearsky calculation before adding in clouds
@@ -89,7 +89,7 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
     fluxes_clrsky.bnd_flux_net.deep_copy_to(clrsky_bnd_flux_net);
     fluxes_clrsky.bnd_flux_dn_dir.deep_copy_to(clrsky_bnd_flux_dn_dir);
 
-    // Add in clouds
+    // Add in clouds, which are already on gpts
     OpticalProps2str cloud_optics;
     cloud_optics.alloc_2str(ncol, nlay, k_dist_sw);
     auto &cloud_optics_tau = cloud_optics.tau;
@@ -100,7 +100,10 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
         cloud_optics_ssa(icol,ilay,igpt) = cld_ssa_gpt(icol,ilay,igpt);
         cloud_optics_g  (icol,ilay,igpt) = cld_asm_gpt(icol,ilay,igpt);
     });
+
     cloud_optics.delta_scale();
+
+    // NOTE: See above and here we again have matching gpt sizes
     cloud_optics.increment(combined_optics);
 
     // Call SW flux driver
