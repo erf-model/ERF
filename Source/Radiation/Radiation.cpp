@@ -187,19 +187,10 @@ void Radiation::initialize (const MultiFab& cons_in,
         auto nx = box3d.length(0);
 
         auto states_array = cons_in.array(mfi);
-        /*
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
         auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
-        */
-
-        // DEBUG: delete and uncomment  when done
-        // NOTE : SW crashes with moisture but runs without it (pressure unit issue?!)
-        auto qt_array = (false) ? qmoist[0]->array(mfi) : Array4<Real> {};
-        auto qv_array = (false) ? qmoist[1]->array(mfi) : Array4<Real> {};
-        auto qc_array = (false) ? qmoist[2]->array(mfi) : Array4<Real> {};
-        auto qi_array = (false) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)

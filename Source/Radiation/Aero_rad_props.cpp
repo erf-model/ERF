@@ -28,7 +28,8 @@ void AerRadProps::initialize (int num_gas, int num_modes, int naeroes,
     nrh      = num_rh;
     top_lev  = top_levels;
 
-    pmid = pmiddle;
+    // TODO: Interpretation for pdeldry (it is NOT absolute pressure)!
+    pmid    = pmiddle;
     pdeldry = pmiddle;
     temp = temperature;
     qt   = qtotal;
@@ -52,12 +53,12 @@ void AerRadProps::aer_rad_props_sw (const int& list_idx, const real& dt, const i
     real2d mmr_to_mass("mmr_to_mass", ncol, nlev); // conversion factor for mmr to mass
     parallel_for(SimpleBounds<2>(ncol, nlev) , YAKL_LAMBDA (int icol, int ilev)
     {
-        mmr_to_mass(icol,ilev) = rgas * pdeldry(icol,ilev);
+        mmr_to_mass(icol,ilev) = rga * pdeldry(icol,ilev);
     });
 
     // initialize to conditions that would cause failure
-    yakl::memset(tau, -100.);
-    yakl::memset(tau_w, -100.);
+    yakl::memset(tau    , -100.);
+    yakl::memset(tau_w  , -100.);
     yakl::memset(tau_w_g, -100.);
     yakl::memset(tau_w_f, -100.);
     yakl::memset(ext_cmip6_sw_inv_m, 1.0e-3);
@@ -125,7 +126,6 @@ void AerRadProps::aer_rad_props_sw (const int& list_idx, const real& dt, const i
             if (tlev != -1) trop_level(i) = tlev;
         });
 
-        //
         //Quit if tropopause is not found
         if (yakl::intrinsics::any(trop_level) == -1) {
             amrex::Print() << "aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found\n";
@@ -350,7 +350,7 @@ void AerRadProps::aer_rad_props_lw (const bool& is_cmip6_volc,
         // compute mixing ratio to mass conversion
         parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
         {
-            mmr_to_mass(icol,ilev) = rgas * pdeldry(icol,ilev);
+            mmr_to_mass(icol,ilev) = rga * pdeldry(icol,ilev);
         });
 
         // calculate relative humidity for table lookup into rh grid

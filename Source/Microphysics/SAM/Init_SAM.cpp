@@ -230,8 +230,8 @@ void SAM::Compute_Coefficients ()
         coefice_t(k) =  coef2;
 
         // evaporation of snow:
-        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
+        coef1 = (lsub/(tabs1d_t(k)*rh20)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
+        coef2 = rh20*tabs1d_t(k)/(diffelq*rrr2*esti);
         evaps1_t(k) = 0.65*4.0*nzeros/sqrt(PI*rhos*nzeros)/(coef1+coef2)/sqrt(rho1d_t(k));
         evaps2_t(k) = 0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) /
                       (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_snow)/8.0))*sqrt(pratio);
@@ -243,8 +243,8 @@ void SAM::Compute_Coefficients ()
         accrgc_t(k) = coef1 * egccoef;
 
         // evaporation of graupel:
-        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
+        coef1 = (lsub/(tabs1d_t(k)*rh20)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
+        coef2 = rh20*tabs1d_t(k)/(diffelq*rrr2*esti);
         evapg1_t(k) = 0.65*4.0*nzerog/sqrt(PI*rhog*nzerog)/(coef1+coef2)/sqrt(rho1d_t(k));
         evapg2_t(k) = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) /
                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
@@ -253,8 +253,8 @@ void SAM::Compute_Coefficients ()
         accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3.0+b_rain)/4.))* erccoef;
 
         // evaporation of rain:
-        coef1 = (lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq * rrr2 * estw);
+        coef1 = (lcond/(tabs1d_t(k)*rh20)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
+        coef2 = rh20*tabs1d_t(k)/(diffelq * rrr2 * estw);
         evapr1_t(k) = 0.78 * 2.0 * PI * nzeror /
                       sqrt(PI * rhor * nzeror) / (coef1+coef2) / sqrt(rho1d_t(k));
         evapr2_t(k) = 0.31 * 2.0 * PI  * nzeror * gamr2 * 0.89 * sqrt(a_rain/(muelq*rrr1))/
