@@ -387,8 +387,8 @@ class Mam4_aer {
 
         parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int i, int k)
         {
-            mass(i,k)        = pdeldry(i,k)*rgas;
-            air_density(i,k) = pmid(i,k)/(rv*temperature(i,k));
+            mass(i,k)        = pdeldry(i,k)*rga;
+            air_density(i,k) = pmid(i,k)/(rair*temperature(i,k));
         });
 
         // Calculate aerosol size distribution parameters and aerosol water uptake
@@ -429,8 +429,8 @@ class Mam4_aer {
                 for(auto k = top_lev; k <= nlev; ++k) {
                     // form bulk refractive index
                     yakl::memset(crefin_real, 0.);
-                    yakl::memset(crefin_im, 0.);
-                    yakl::memset(dryvol, 0.);
+                    yakl::memset(crefin_im  , 0.);
+                    yakl::memset(dryvol     , 0.);
 
                     // aerosol species loop
                     for(auto l = 0; l < nspec; ++l) {
@@ -603,7 +603,7 @@ class Mam4_aer {
         // dry mass in each cell
         parallel_for (SimpleBounds<2> (ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
         {
-            //mass(icol,ilev) = pdeldry(icol,ilev)*rga;
+            mass(icol,ilev) = pdeldry(icol,ilev)*rga;
         });
 
         // Calculate aerosol size distribution parameters and aerosol water uptake
@@ -638,7 +638,7 @@ class Mam4_aer {
             // some intermediate results are saved and the chebyshev polynomials are stored
             // in a array with different index order.  Could be unified.
             top_lev = 1;
-            for(auto k = top_lev; k > nlev; ++k) {
+            for(auto k = top_lev; k <= nlev; ++k) {
                 for(auto i = 1; i <= ncol; ++i) {
                     alnsg_amode = std::log(sigma_logr_aer);
                     // convert from number diameter to surface area
@@ -650,15 +650,14 @@ class Mam4_aer {
                     // chebyshev polynomials
                     cheby(1,i,k) = 1.0;
                     cheby(2,i,k) = xrad(i);
-                    for(auto nc = 3; nc < ncoef; ++nc) {
+                    for(auto nc = 3; nc <= ncoef; ++nc) {
                         cheby(nc,i,k) = 2.0*xrad(i)*cheby(nc-1,i,k)-cheby(nc-2,i,k);
                     }
                 }
             }
 
-            //int nlwbands; // add by xyuan to be compiled
             for(auto ilw = 1; ilw <= nlwbands; ++ilw) {
-                for(auto k = top_lev; k > nlev; --k) {
+                for(auto k = top_lev; k <= nlev; ++k) {
                     // form bulk refractive index. Use volume mixing for infrared
                     yakl::memset(crefinr, 0.0);
                     yakl::memset(crefini, 0.0);
@@ -669,7 +668,7 @@ class Mam4_aer {
                         mam_consti.get_mam_props_lw(list_idx, m, l, specdens, specrefrindex, specrefiindex);
                         for(auto i = 1; i <= ncol; ++i) {
                             vol(i)     = specmmr(i,k)/specdens;
-                            dryvol(i)  = dryvol(i) + vol(i);
+                            dryvol(i)  = dryvol(i)  + vol(i);
                             crefinr(i) = crefinr(i) + vol(i)*specrefrindex(ilw);
                             crefini(i) = crefini(i) + vol(i)*specrefiindex(ilw);
                         }
@@ -715,7 +714,7 @@ class Mam4_aer {
                     // parameterized optical properties
                     for(auto i = 1; i <= ncol; ++i) {
                         pabs(i) = 0.5*cabs(i,1);
-                        for(auto nc = 2; nc < ncoef; ++nc) {
+                        for(auto nc = 2; nc <= ncoef; ++nc) {
                             pabs(i) = pabs(i) + cheby(nc,i,k)*cabs(i,nc);
                         }
                         pabs(i)   = pabs(i)*wetvol(i)*rhoh2o;
@@ -743,7 +742,10 @@ class Mam4_aer {
                             }
                         }
                     }
-                    for(auto i = 1; i <= ncol; ++i) tauxar(i,k,ilw) = tauxar(i,k,ilw) + dopaer(i);
+
+                    for(auto i = 1; i <= ncol; ++i) {
+                        tauxar(i,k,ilw) = tauxar(i,k,ilw) + dopaer(i);
+                    }
                 } // k = top_lev, nlev
             }   // nlwbands
         }  // m = 1, nmodes
