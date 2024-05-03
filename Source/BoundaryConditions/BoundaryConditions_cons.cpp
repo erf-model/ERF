@@ -109,7 +109,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(iflip,j,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(0) == ERFBCType::hoextrapcc) {
-                    dest_arr(i,j,k,icomp+n) = dest_arr(dom_lo.x,j,k,icomp+n);
+                    dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(dom_lo.x,j,k,icomp+n) - dest_arr(dom_lo.x+1,j,k,icomp+n) ;
                 }
             },
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
@@ -146,7 +146,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
                 } else if (bc_ptr[icomp+n].lo(1) == ERFBCType::hoextrapcc) {
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_lo.y,k,icomp+n);
+                    dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,dom_lo.y,k,icomp+n) - dest_arr(i,dom_lo.y+1,k,icomp+n) ;
                 }
 
             },
@@ -161,7 +161,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::reflect_odd) {
                     dest_arr(i,j,k,icomp+n) = -dest_arr(i,jflip,k,icomp+n);
                 } else if (bc_ptr[icomp+n].hi(1) == ERFBCType::hoextrapcc) {
-                    dest_arr(i,j,k,icomp+n) = dest_arr(i,dom_hi.y,k,icomp+n);
+                    dest_arr(i,j,k,icomp+n) = 2.0*dest_arr(i,dom_hi.y,k,icomp+n) - dest_arr(i,dom_hi.y-1,k,icomp+n);
                 }
             }
         );

@@ -80,6 +80,12 @@ void ERF::init_bcs ()
               phys_bc_type[ori] = ERF_BC::open;
             domain_bc_type[ori] = "Open";
         }
+        else if (bc_type == "ho_outflow")
+        {
+            phys_bc_type[ori] = ERF_BC::ho_outflow;
+            domain_bc_type[ori] = "HO_Outflow";
+        }
+
         else if (bc_type == "inflow")
         {
             // Print() << bcid << " set to inflow.\n";
@@ -283,7 +289,7 @@ void ERF::init_bcs ()
                     domain_bcs_type[BCVars::xvel_bc+dir].setHi(dir, ERFBCType::reflect_odd);
                 }
             }
-            else if (bct == ERF_BC::outflow)
+            else if (bct == ERF_BC::outflow or bct == ERF_BC::ho_outflow )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
@@ -401,6 +407,18 @@ void ERF::init_bcs ()
                 }
             }
             else if ( bct == ERF_BC::outflow )
+            {
+                if (side == Orientation::low) {
+                    for (int i = 0; i < NVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setLo(dir, ERFBCType::foextrap);
+                    }
+                } else {
+                    for (int i = 0; i < NVAR_max; i++) {
+                        domain_bcs_type[BCVars::cons_bc+i].setHi(dir, ERFBCType::foextrap);
+                    }
+                }
+            }
+            else if ( bct == ERF_BC::ho_outflow )
             {
                 if (side == Orientation::low) {
                     for (int i = 0; i < NVAR_max; i++) {
