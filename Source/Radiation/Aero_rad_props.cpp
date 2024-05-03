@@ -13,8 +13,9 @@ void AerRadProps::initialize (int num_gas, int num_modes, int naeroes,
                               int nswbands_, int nlwbands_,
                               int ncoloum, int nlevel, int num_rh, int top_levels,
                               const std::vector<std::string>& aerosol_names,
-                              const real2d& zint, const real2d& pmiddle, const real2d& temperature,
-                              const real2d& qtotal, const real2d& geom_rad)
+                              const real2d& zint, const real2d& pmiddle, const real2d& pint,
+                              const real2d& temperature, const real2d& qtotal,
+                              const real2d& geom_rad)
 {
     nmodes = num_modes;
     ngas = num_gas;
@@ -28,9 +29,16 @@ void AerRadProps::initialize (int num_gas, int num_modes, int naeroes,
     nrh      = num_rh;
     top_lev  = top_levels;
 
-    // TODO: Interpretation for pdeldry (it is NOT absolute pressure)!
+    // NOTE: pmid is absolute pressure but pdeldry is the vertical
+    //       change in pressure (analog to mass per area with HSE balance)
     pmid    = pmiddle;
     pdeldry = pmiddle;
+    parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
+    {
+        // Pressure max at bottom of column
+        pdeldry(icol,ilev) = pmid(icol,ilev) -  pmid(icol,ilev+1);
+    });
+
     temp = temperature;
     qt   = qtotal;
     // geometric radius

@@ -103,6 +103,10 @@ void Rrtmgp::run_shortwave_rrtmgp (int ngas, int ncol, int nlay,
 
     cloud_optics.delta_scale();
 
+    // TODO: Sort through cloud optics, this increment does not
+    //       modify the optical properties (tau/ssa/g) so we get
+    //       the same fluxes and heating rate.
+
     // NOTE: See above and here we again have matching gpt sizes
     cloud_optics.increment(combined_optics);
 
