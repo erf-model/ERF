@@ -187,19 +187,10 @@ void Radiation::initialize (const MultiFab& cons_in,
         auto nx = box3d.length(0);
 
         auto states_array = cons_in.array(mfi);
-        /*
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
         auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
-        */
-
-        // DEBUG: delete and uncomment  when done
-        // NOTE : SW crashes with moisture but runs without it (pressure unit issue?!)
-        auto qt_array = (false) ? qmoist[0]->array(mfi) : Array4<Real> {};
-        auto qv_array = (false) ? qmoist[1]->array(mfi) : Array4<Real> {};
-        auto qc_array = (false) ? qmoist[2]->array(mfi) : Array4<Real> {};
-        auto qi_array = (false) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
         // Get pressure, theta, temperature, density, and qt, qp
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -258,7 +249,7 @@ void Radiation::initialize (const MultiFab& cons_in,
 
     optics.initialize(ngas, nmodes, naer, nswbands, nlwbands,
                       ncol, nlev, nrh, top_lev, aero_names, zi,
-                      pmid, tmid, qt, geom_radius);
+                      pmid, pint, tmid, qt, geom_radius);
 
     amrex::Print() << "LW coefficents file: " << rrtmgp_coefficients_file_lw
                    << "\nSW coefficents file: " << rrtmgp_coefficients_file_sw
@@ -486,6 +477,12 @@ void Radiation::run ()
                              aer_tau_bnd_sw, aer_ssa_bnd_sw, aer_asm_bnd_sw,
                              fluxes_allsky, fluxes_clrsky, qrs, qrsc);
         }
+
+#if 0
+        // Set surface fluxes that are used by the land model
+        export_surface_fluxes(fluxes_allsky, "shortwave");
+#endif
+
     } else {
         // Conserve energy
         if (conserve_energy) {
@@ -528,6 +525,12 @@ void Radiation::run ()
         // Call the longwave radiation driver to calculate fluxes and heating rates
         radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
                             fluxes_allsky, fluxes_clrsky, qrl, qrlc);
+
+#if 0
+        // Set surface fluxes that are used by the land model
+        export_surface_fluxes(fluxes_allsky, "longwave");
+#endif
+
     }
     else {
         // Conserve energy (what does this mean exactly?)
@@ -549,6 +552,9 @@ void Radiation::run ()
             // Map (col,lev) to (i,j,k)
             auto icol = j*nx+i+1;
             auto ilev = k+1;
+
+            // TODO: We do not include the cloud source term qrsc/qrlc.
+            //       Do these simply sum for a net source or do we pick one?
 
             // SW and LW sources
             qrad_src_array(i,j,k,0) = qrs(icol,ilev);
@@ -929,6 +935,8 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                            << heating_rate(icol,ilev) << ' '
                            << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1)) << ' '
                            << (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << flux_up(icol,ilev+1) << ' '
+                           << flux_dn(icol,ilev+1) << ' '
                            << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
                             - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
                            << (pint(icol,ilev+1)-pint(icol,ilev)) << ' '
@@ -937,6 +945,85 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
         */
     });
 }
+
+#if 0
+void
+export_surface_fluxes(FluxesByband& fluxes,
+                      std::string band)
+{
+    if (band == "shortwave") {
+        real3d flux_dn_diffuse("flux_dn_diffuse", ncol, nlev+1, nswbands);
+
+        // Calculate diffuse flux from total and direct
+        // This only occurs at the bottom level (k index)
+        parallel_for (SimpleBounds<3>(ncol, 1, nswbands), YAKL_LAMBDA (int icol, int ilev, int ibnd)
+        {
+            flux_dn_diffuse(icol,ilev,ibnd) = fluxes.bnd_flux_dn(icol,ilev,ibnd)
+                                            - fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+        });
+
+        // Populate the LSM data structure (this is a 2D MF)
+        for (MFIter mfi(*(m_lsm_ptr)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_ptr->array(mfi);
+            const auto& box3d = mfi.tilebox();
+            auto nx = box3d.length(0);
+            amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Map (col,lev) to (i,j,k)
+                auto icol = j*nx+i+1;
+                auto ilev = k+1;
+
+                // Direct fluxes
+                Real sum1(0.0), sum2(0.0);
+                for (int ibnd(1); ibnd<=9; ++ibnd) {
+                    sum1 += fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+                }
+                for (int ibnd(11); ibnd<=14; ++ibnd) {
+                    sum2 += fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+                }
+                sum1 += 0.5 * fluxes.bnd_flux_dn_dir(icol,ilev,10);
+                sum2 += 0.5 * fluxes.bnd_flux_dn_dir(icol,ilev,10);
+                lsm_array(i,j,k,0) = sum1;
+                lsm_array(i,j,k,1) = sum2;
+
+                // Diffuse fluxes
+                sum1=0.0; sum2=0.0;
+                for (int ibnd(1); ibnd<=9; ++ibnd) {
+                    sum1 += flux_dn_diffuse(icol,ilev,ibnd);
+                }
+                for (int ibnd(11); ibnd<=14; ++ibnd) {
+                    sum2 += flux_dn_diffuse(icol,ilev,ibnd);
+                }
+                sum1 += 0.5 * flux_dn_diffuse(icol,ilev,10);
+                sum2 += 0.5 * flux_dn_diffuse(icol,ilev,10);
+                lsm_array(i,j,k,2) = sum1;
+                lsm_array(i,j,k,3) = sum2;
+
+                // Net fluxes
+                lsm_array(i,j,k,4) = fluxes.flux_net(icol,ilev);
+            });
+        }
+    } else if (band == "longwave") {
+        // Populate the LSM data structure (this is a 2D MF)
+        for (MFIter mfi(*(m_lsm_ptr)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_ptr->array(mfi);
+            const auto& box3d = mfi.tilebox();
+            auto nx = box3d.length(0);
+            amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Map (col,lev) to (i,j,k)
+                auto icol = j*nx+i+1;
+                auto ilev = k+1;
+
+                // Net fluxes
+                lsm_array(i,j,k,5) = fluxes.flux_dn(icol,ilev);
+            });
+        }
+    } else {
+         amrex::Abort("Unknown radiation band type!");
+    }
+}
+#endif
 
 // call back
 void Radiation::on_complete () { }

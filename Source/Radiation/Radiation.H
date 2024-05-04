@@ -89,6 +89,12 @@ class Radiation {
                                  const real2d& flux_dn,
                                  const real2d& pint,
                                  const real2d& heating_rate);
+#if 0
+    void
+    export_surface_fluxes(FluxesByband& fluxes,
+                          std::string band);
+#endif
+
   private:
     // geometry
     amrex::Geometry m_geom;

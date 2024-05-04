@@ -66,8 +66,9 @@ constexpr amrex::Real mwwv     = 18.016;
 constexpr amrex::Real lcond    = 2.501e6;
 constexpr amrex::Real lfus     = 2.11727e3;
 constexpr amrex::Real lsub     = lcond+lfus;
-constexpr amrex::Real rgas     = boltz*avogadro/mwdair;
-constexpr amrex::Real rv       = rgas/mwwv;
+constexpr amrex::Real rair     = boltz*avogadro/mwdair;
+constexpr amrex::Real rh20     = rair/mwwv;
+constexpr amrex::Real rga      = 1.0/CONST_GRAV;
 
 constexpr amrex::Real diffelq = 2.21e-05;     // Diffusivity of water vapor, m2/s
 constexpr amrex::Real therco  = 2.40e-02;     // Thermal conductivity of air, J/m/s/K
