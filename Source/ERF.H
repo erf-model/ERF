@@ -633,6 +633,7 @@ private:
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
 //#endif
+
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
@@ -640,6 +641,10 @@ private:
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
+
+    // Containers for additional SLM inputs
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries

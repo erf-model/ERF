@@ -99,6 +99,8 @@ namespace internal {
 
 // init
 void Radiation::initialize (const MultiFab& cons_in,
+                            MultiFab* lsm_fluxes,
+                            MultiFab* lsm_zenith,
                             MultiFab* qheating_rates,
                             MultiFab* lat,
                             MultiFab* lon,
@@ -130,6 +132,9 @@ void Radiation::initialize (const MultiFab& cons_in,
 
     m_lat = lat;
     m_lon = lon;
+
+    m_lsm_fluxes = lsm_fluxes;
+    m_lsm_zenith = lsm_zenith;
 
     rrtmgp_data_path = getRadiationDataDir() + "/";
     rrtmgp_coefficients_file_sw = rrtmgp_data_path + rrtmgp_coefficients_file_name_sw;
@@ -478,10 +483,8 @@ void Radiation::run ()
                              fluxes_allsky, fluxes_clrsky, qrs, qrsc);
         }
 
-#if 0
         // Set surface fluxes that are used by the land model
         export_surface_fluxes(fluxes_allsky, "shortwave");
-#endif
 
     } else {
         // Conserve energy
@@ -526,10 +529,8 @@ void Radiation::run ()
         radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
                             fluxes_allsky, fluxes_clrsky, qrl, qrlc);
 
-#if 0
         // Set surface fluxes that are used by the land model
         export_surface_fluxes(fluxes_allsky, "longwave");
-#endif
 
     }
     else {
@@ -946,11 +947,13 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
     });
 }
 
-#if 0
 void
-export_surface_fluxes(FluxesByband& fluxes,
-                      std::string band)
+Radiation::export_surface_fluxes(FluxesByband& fluxes,
+                                 std::string band)
 {
+    // No work to be done if we don't have valid pointers
+    if (!m_lsm_fluxes) return;
+
     if (band == "shortwave") {
         real3d flux_dn_diffuse("flux_dn_diffuse", ncol, nlev+1, nswbands);
 
@@ -963,8 +966,8 @@ export_surface_fluxes(FluxesByband& fluxes,
         });
 
         // Populate the LSM data structure (this is a 2D MF)
-        for (MFIter mfi(*(m_lsm_ptr)); mfi.isValid(); ++mfi) {
-            auto lsm_array = m_lsm_ptr->array(mfi);
+        for (MFIter mfi(*(m_lsm_fluxes)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_fluxes->array(mfi);
             const auto& box3d = mfi.tilebox();
             auto nx = box3d.length(0);
             amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -1005,8 +1008,8 @@ export_surface_fluxes(FluxesByband& fluxes,
         }
     } else if (band == "longwave") {
         // Populate the LSM data structure (this is a 2D MF)
-        for (MFIter mfi(*(m_lsm_ptr)); mfi.isValid(); ++mfi) {
-            auto lsm_array = m_lsm_ptr->array(mfi);
+        for (MFIter mfi(*(m_lsm_fluxes)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_fluxes->array(mfi);
             const auto& box3d = mfi.tilebox();
             auto nx = box3d.length(0);
             amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -1023,7 +1026,6 @@ export_surface_fluxes(FluxesByband& fluxes,
          amrex::Abort("Unknown radiation band type!");
     }
 }
-#endif
 
 // call back
 void Radiation::on_complete () { }

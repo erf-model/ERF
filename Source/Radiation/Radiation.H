@@ -44,6 +44,8 @@ class Radiation {
 
     // init
     void initialize (const amrex::MultiFab& cons_in,
+                     amrex::MultiFab* lsm_fluxes,
+                     amrex::MultiFab* lsm_zenith,
                      amrex::MultiFab* qheating_rates,
                      amrex::MultiFab* lat,
                      amrex::MultiFab* lon,
@@ -89,11 +91,9 @@ class Radiation {
                                  const real2d& flux_dn,
                                  const real2d& pint,
                                  const real2d& heating_rate);
-#if 0
     void
     export_surface_fluxes(FluxesByband& fluxes,
                           std::string band);
-#endif
 
   private:
     // geometry
@@ -108,6 +108,10 @@ class Radiation {
     // Pointer to latitude and longitude
     amrex::MultiFab* m_lat = nullptr;
     amrex::MultiFab* m_lon = nullptr;
+
+    // Pointer to output data for LSM
+    amrex::MultiFab* m_lsm_fluxes = nullptr;
+    amrex::MultiFab* m_lsm_zenith = nullptr;
 
     // Specified uniform angle for radiation
     amrex::Real uniform_angle = 78.463;
