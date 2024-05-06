@@ -123,8 +123,8 @@ public:
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
-    void project_velocities (              amrex::Vector<amrex::MultiFab >& vars);
-    void project_velocities (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+    void project_velocities (                                        amrex::Vector<amrex::MultiFab >& vars);
+    void project_velocities (int lev_min, int lev_max, amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>

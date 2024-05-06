@@ -405,7 +405,7 @@
                          r0, fine_geom, solverChoice,
                          mapfac_m[level], mapfac_u[level], mapfac_v[level],
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
-                         d_rayleigh_ptrs_at_lev, n_qstate);
+                         d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
 
         erf_slow_rhs_inc(level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,

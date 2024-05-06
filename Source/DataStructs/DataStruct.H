@@ -160,12 +160,6 @@ struct SolverChoice {
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
-#endif
-
-        // Turn off acoustic substepping?
-        pp.query("no_substepping", no_substepping);
-
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
         pp.query("incompressible", incompressible);
         pp.query("constant_density", constant_density);
@@ -173,12 +167,19 @@ struct SolverChoice {
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
+#endif
 
+        // Turn off acoustic substepping?
+        pp.query("no_substepping", no_substepping);
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+
+#if defined(ERF_USE_POISSON_SOLVE)
         // If this is set, it must be even
         if (incompressible != 0 && no_substepping == 0)
         {
             amrex::Abort("If you specify incompressible, you must specific no_substepping");
         }
+#endif
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
