@@ -817,7 +817,7 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(vars_new);
+            project_velocities(0, finest_level, vars_new);
         }
     }
 #endif

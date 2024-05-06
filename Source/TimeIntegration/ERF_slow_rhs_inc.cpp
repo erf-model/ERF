@@ -191,7 +191,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-            const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
             // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
@@ -550,7 +550,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
         // Terrain metrics
         const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -745,7 +745,6 @@ void erf_slow_rhs_inc (int level, int nrk,
         // We need to do this -- even though we call the boundary conditions later --
         // because the slow source is used to update the state in the fast interpolater.
         // *****************************************************************************
-        {
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
             Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));
