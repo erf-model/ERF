@@ -122,6 +122,8 @@ ERF::ERF ()
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
@@ -1790,6 +1792,8 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)
