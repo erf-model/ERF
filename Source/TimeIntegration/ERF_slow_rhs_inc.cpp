@@ -127,6 +127,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                     tc.pbl_type == PBLType::YSU );
 
     const bool use_most     = (most != nullptr);
+    const bool exp_most     = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -305,17 +306,15 @@ void erf_slow_rhs_inc (int level, int nrk,
                     });
                 }
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
                 // We've updated the strains at all locations including the
                 // surface. This is required to get the correct strain-rate
                 // magnitude. Now, update the stress everywhere but the surface
                 // to retain the values set by MOST.
-                if (use_most) {
+                if (use_most && exp_most) {
                     // Don't overwrite modeled total stress value at boundary
                     tbxxz.setSmall(2,1);
                     tbxyz.setSmall(2,1);
                 }
-#endif
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -413,6 +412,16 @@ void erf_slow_rhs_inc (int level, int nrk,
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
+                }
+
+                // We've updated the strains at all locations including the
+                // surface. This is required to get the correct strain-rate
+                // magnitude. Now, update the stress everywhere but the surface
+                // to retain the values set by MOST.
+                if (use_most && exp_most) {
+                    // Don't overwrite modeled total stress value at boundary
+                    tbxxz.setSmall(2,1);
+                    tbxyz.setSmall(2,1);
                 }
 
                 // *****************************************************************************

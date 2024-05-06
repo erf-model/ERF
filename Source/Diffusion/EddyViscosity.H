@@ -19,6 +19,7 @@ ComputeTurbulentViscosity (const amrex::MultiFab& xvel , const amrex::MultiFab& 
                            const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                            const TurbChoice& turbChoice, const amrex::Real const_grav,
                            std::unique_ptr<ABLMost>& most,
+                           const bool& exp_most,
                            int level,
                            const amrex::BCRec* bc_ptr,
                            bool vert_only = false);
@@ -34,7 +35,8 @@ ComputeSmnSmn (int& i, int& j, int& k,
                const amrex::Array4<amrex::Real const>& tau13,
                const amrex::Array4<amrex::Real const>& tau23,
                const int& klo,
-               const bool& use_most)
+               const bool& use_most,
+               const bool& exp_most)
 {
     amrex::Real s11bar = tau11(i,j,k);
     amrex::Real s22bar = tau22(i,j,k);
@@ -54,24 +56,20 @@ ComputeSmnSmn (int& i, int& j, int& k,
     // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then strains may be correctly
     //   evaluated at the surface and no assumptions are needed.
     amrex::Real s13bar;
-#ifndef ERF_EXPLICIT_MOST_STRESS
-    if (use_most && k==klo) {
+    if (use_most && exp_most && k==klo) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
     }
     else
-#endif
     {
         s13bar = 0.25 * ( tau13(i  , j  , k  ) + tau13(i  , j  , k+1)
                         + tau13(i+1, j  , k  ) + tau13(i+1, j  , k+1) );
     }
 
     amrex::Real s23bar;
-#ifndef ERF_EXPLICIT_MOST_STRESS
-    if (use_most && k==klo) {
+    if (use_most && exp_most && k==klo) {
         s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
     }
     else
-#endif
     {
         s23bar = 0.25 * ( tau23(i  , j  , k  ) + tau23(i  , j  , k+1)
                         + tau23(i  , j+1, k  ) + tau23(i  , j+1, k+1) );
@@ -98,7 +96,8 @@ ComputeSmnSmn (int& i, int& j, int& k,
                const amrex::Array4<amrex::Real const>& tau13,
                const amrex::Array4<amrex::Real const>& tau23,
                const int& klo,
-               const bool& use_most)
+               const bool& use_most,
+               const bool& exp_most)
 {
     amrex::Real avg_s12_sq = 0.25 * ( tau12(i  , j  , k  )*tau12(i  , j  , k  )
                                     + tau12(i  , j+1, k  )*tau12(i  , j+1, k  )
@@ -117,13 +116,11 @@ ComputeSmnSmn (int& i, int& j, int& k,
     // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then strains may be correctly
     //   evaluated at the surface and no assumptions are needed.
     amrex::Real avg_s13_sq;
-#ifndef ERF_EXPLICIT_MOST_STRESS
-    if (use_most && k==klo) {
+    if (use_most && exp_most && k==klo) {
         avg_s13_sq = 0.5  * ( tau13(i  , j  , k+1)*tau13(i  , j  , k+1)
                             + tau13(i+1, j  , k+1)*tau13(i+1, j  , k+1) );
     }
     else
-#endif
     {
         avg_s13_sq = 0.25 * ( tau13(i  , j  , k  )*tau13(i  , j  , k  )
                             + tau13(i  , j  , k+1)*tau13(i  , j  , k+1)
@@ -132,13 +129,11 @@ ComputeSmnSmn (int& i, int& j, int& k,
     }
 
     amrex::Real avg_s23_sq;
-#ifndef ERF_EXPLICIT_MOST_STRESS
-    if (use_most && k==klo) {
+    if (use_most && exp_most && k==klo) {
         avg_s23_sq = 0.5  * ( tau23(i  , j  , k+1)*tau23(i  , j  , k+1)
                             + tau23(i  , j+1, k+1)*tau23(i  , j+1, k+1) );
     }
     else
-#endif
     {
         avg_s23_sq = 0.25 * ( tau23(i  , j  , k  )*tau23(i  , j  , k  )
                             + tau23(i  , j  , k+1)*tau23(i  , j  , k+1)

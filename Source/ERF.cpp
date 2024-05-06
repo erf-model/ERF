@@ -892,11 +892,12 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-#endif
+        bool use_exp_most = solverChoice.use_explicit_most;
+        if (use_exp_most) {
+            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        }
 
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
