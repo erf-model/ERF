@@ -190,6 +190,9 @@ struct SolverChoice {
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
 
+        // Flag to do explicit MOST formulation
+        pp.query("use_explicit_most",use_explicit_most);
+
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
         pp.query("abl_driver_type",abl_driver_type_string);
@@ -433,6 +436,9 @@ struct SolverChoice {
     bool custom_w_subsidence      = false;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+
+    // User specified MOST BC type
+    bool use_explicit_most = false;
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;

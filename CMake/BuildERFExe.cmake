@@ -17,10 +17,6 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
-  if(ERF_ENABLE_EXPLICIT_MOST_STRESS)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_EXPLICIT_MOST_STRESS)
-  endif()
-
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
