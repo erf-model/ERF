@@ -280,12 +280,12 @@ void make_mom_sources (int /*level*/,
         if (solverChoice.custom_w_subsidence) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                xmom_src_arr(i, j, k) += dptr_wbar_sub[k] *
+                xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                ymom_src_arr(i, j, k) += dptr_wbar_sub[k] *
+                ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
             });
         }

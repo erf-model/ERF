@@ -219,7 +219,7 @@ void make_sources (int level,
             const int n = RhoTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i, j, k, n) += dptr_wbar_sub[k] *
+                cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
 
             });
@@ -232,7 +232,7 @@ void make_sources (int level,
             const int n = RhoQ1_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i,j,k,n) += dptr_wbar_sub[k] *
+                cell_src(i,j,k,n) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
             });
         }
