@@ -92,6 +92,7 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type != PBLType::None) );
 
     const bool use_most = (m_most != nullptr);
+    const bool exp_most = (solverChoice.use_explicit_most);
     amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
@@ -199,7 +200,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, level, bc_ptr_d);
+                                  m_most, exp_most, level, bc_ptr_d);
     }
 
     // ***********************************************************************************************

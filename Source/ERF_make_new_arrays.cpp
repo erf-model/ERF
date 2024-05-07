@@ -246,8 +246,33 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-     qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
-     qheating_rates[lev]->setVal(0.);
+    qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+    qheating_rates[lev]->setVal(0.);
+
+    //*********************************************************
+    // Radiation fluxes for coupling to LSM
+    //*********************************************************
+
+    // NOTE: Finer levels do not need to coincide with the bottom domain boundary
+    //       at k=0. We make slabs here with the kmin for a given box. Therefore,
+    //       care must be taken before applying these fluxes to an LSM model. For
+
+    // Radiative fluxes for LSM
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        BoxList m_bl = ba.boxList();
+        for (auto& b : m_bl) {
+            int kmin = b.smallEnd(2);
+            b.setRange(2,kmin);
+        }
+        BoxArray m_ba(std::move(m_bl));
+
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 5, ngrow_state); // SW direct (2), SW diffuse (2), LW
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 2, ngrow_state);
+
+        sw_lw_fluxes[lev]->setVal(0.);
+        solar_zenith[lev]->setVal(0.);
+    }
 #endif
 }
 
@@ -303,7 +328,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 
     if (l_use_kturb) {
-      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );

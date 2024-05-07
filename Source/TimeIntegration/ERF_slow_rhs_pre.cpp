@@ -143,6 +143,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_most     = (most != nullptr);
+    const bool exp_most     = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -318,21 +319,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
                     });
                 }
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
                 // We've updated the strains at all locations including the
                 // surface. This is required to get the correct strain-rate
                 // magnitude. Now, update the stress everywhere but the surface
                 // to retain the values set by MOST.
-                if (use_most) {
+                if (use_most && exp_most) {
                     // Don't overwrite modeled total stress value at boundary
                     tbxxz.setSmall(2,1);
                     tbxyz.setSmall(2,1);
                 }
-#endif
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -428,21 +427,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
                     });
                 }
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
                 // We've updated the strains at all locations including the
                 // surface. This is required to get the correct strain-rate
                 // magnitude. Now, update the stress everywhere but the surface
                 // to retain the values set by MOST.
-                if (use_most) {
+                if (use_most && exp_most) {
                     // Don't overwrite modeled total stress value at boundary
                     tbxxz.setSmall(2,1);
                     tbxyz.setSmall(2,1);
                 }
-#endif
 
                 // *****************************************************************************
                 // Stress tensor compute no terrain
@@ -732,7 +729,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, u, v,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
@@ -740,7 +737,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_z, diss, mu_turb, dc, tc,
                                        tm_arr, grav_gpu, bc_ptr_d, use_most);
             } else {
-                DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
+                DiffusionSrcForState_N(bx, domain, n_start, n_comp, exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,

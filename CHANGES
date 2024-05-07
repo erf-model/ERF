@@ -1,5 +1,18 @@
+# 24.05
+    -- AMReX submodule set to 24.05 release hash (76d09f5)
+    
+    -- Explict MOST as runtime option (#1605)
+    
+    -- High order extrapolation (#1602)
+
+    -- Various radiation module fixes (#1601 etc)
+
+    -- Correct FITCH (#1595)
+
+    -- Read entire Lat/Lon data from netcdf (#1589)   
+
 # 24.04
-    -- AMReX submodule set to 24.03 release hash (bb7d5cf)
+    -- AMReX submodule set to 24.04 release hash (bb7d5cf)
 
     -- Start of EB functionality (#1541)
 

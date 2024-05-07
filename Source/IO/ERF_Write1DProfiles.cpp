@@ -62,7 +62,12 @@ ERF::write_1D_profiles (Real time)
                 if (data_log1.good()) {
                   // Write the quantities at this time
                   for (int k = 0; k < hu_size; k++) {
-                      Real z = (k + 0.5)* dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      } else {
+                          z = (k + 0.5)* dx[2];
+                      }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " "
@@ -79,7 +84,12 @@ ERF::write_1D_profiles (Real time)
                 if (data_log2.good()) {
                   // Write the perturbational quantities at this time
                   for (int k = 0; k < hu_size; k++) {
-                      Real z = (k + 0.5)* dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      } else {
+                          z = (k + 0.5)* dx[2];
+                      }
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]  << " "
@@ -127,7 +137,12 @@ ERF::write_1D_profiles (Real time)
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < hu_size; k++) {
-                      Real z = (k + 0.5)* dx[2];
+                      Real z;
+                      if (zlevels_stag.size() > 1) {
+                          z = 0.5 * (zlevels_stag[k] + zlevels_stag[k+1]);
+                      } else {
+                          z = (k + 0.5)* dx[2];
+                      }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_tau11[k] << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "

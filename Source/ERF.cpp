@@ -122,6 +122,8 @@ ERF::ERF ()
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
@@ -270,10 +272,13 @@ ERF::ERF ()
     t_avg_cnt.resize(nlevs_max);
 
 #ifdef ERF_USE_NETCDF
-    // Longitude and latitude (only filled for use_real_bcs==True)
-    if (use_real_bcs) {
-        lat_m.resize(nlevs_max);
-        lon_m.resize(nlevs_max);
+    // Size lat long arrays if using netcdf
+    lat_m.resize(nlevs_max);
+    lon_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        lat_m[lev] = nullptr;
+        lon_m[lev] = nullptr;
     }
 #endif
 
@@ -814,7 +819,7 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(vars_new);
+            project_velocities(0, finest_level, vars_new);
         }
     }
 #endif
@@ -887,11 +892,12 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-#endif
+        bool use_exp_most = solverChoice.use_explicit_most;
+        if (use_exp_most) {
+            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        }
 
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -1787,6 +1793,8 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)
