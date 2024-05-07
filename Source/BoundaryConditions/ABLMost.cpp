@@ -209,12 +209,13 @@ ABLMost::compute_most_bcs (const int& lev,
         const auto *const u_mean     = m_ma.get_average(lev,0);
         const auto *const v_mean     = m_ma.get_average(lev,1);
         const auto *const t_mean     = m_ma.get_average(lev,2);
-        // const auto *const q_mean     = m_ma.get_average(lev,3);
+        const auto *const q_mean     = m_ma.get_average(lev,3);
         const auto *const u_mag_mean = m_ma.get_average(lev,4);
 
         const auto um_arr  = u_mean->array(mfi);
         const auto vm_arr  = v_mean->array(mfi);
         const auto tm_arr  = t_mean->array(mfi);
+        const auto qm_arr  = q_mean->array(mfi);
         const auto umm_arr = u_mag_mean->array(mfi);
 
         // Get derived arrays
@@ -267,7 +268,7 @@ ABLMost::compute_most_bcs (const int& lev,
                         Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
                         Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
                                                               cons_arr, velx_arr, vely_arr,
-                                                              umm_arr, tm_arr, u_star_arr, q_star_arr, t_surf_arr,
+                                                              umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
                         amrex::ignore_unused(Qflux);
                     });
