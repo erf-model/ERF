@@ -625,14 +625,12 @@ private:
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
-//#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
     amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
-//#endif
 
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
