@@ -331,7 +331,7 @@ void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
                 fab_arr(i, j, k,23) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // w*qv
                 fab_arr(i, j, k,24) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // w*qc
                 fab_arr(i, j, k,25) = w_cc_arr(i,j,k) * cons_arr(i,j,k,RhoQ4_comp) / cons_arr(i,j,k,Rho_comp);  // w*qr
-		if (n_qstate > 3) {
+        if (n_qstate > 3) {
                         fab_arr(i, j, k,26) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
                         fab_arr(i, j, k,27) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
                         fab_arr(i, j, k,28) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
