@@ -75,9 +75,7 @@ void SAM::Precip () {
             Real autor, autos;
             Real accrcr, accrcs, accris, accrcg, accrig;
 
-            //==================================================
-            // Autoconversion (A30/A31) and accretion (A27)
-            //==================================================
+            // Work to be done for autoc/accr or evap
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
                 omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
@@ -90,6 +88,9 @@ void SAM::Precip () {
                 qps = qps_array(i,j,k);
                 qpg = qpg_array(i,j,k);
 
+                //==================================================
+                // Autoconversion (A30/A31) and accretion (A27)
+                //==================================================
                 if (qn_array(i,j,k) > 0.0) {
                     accrcr = 0.0;
                     accrcs = 0.0;
