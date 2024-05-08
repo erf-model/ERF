@@ -2,8 +2,8 @@
 #include <IndexDefines.H>
 using namespace amrex;
 
-Real R = 30.0;
-Real z_c = 100.0;
+Real R = 178.3/2.0;
+Real z_c = 119.0;
 Real C_T = 0.8, C_TKE = 0.0;
 
 Real compute_A(Real z)
@@ -137,7 +137,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
             // Compute Fitch source terms
 
-                 Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
+             	 Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                       v_vel(i,j,k)*v_vel(i,j,k) +
                                       w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
