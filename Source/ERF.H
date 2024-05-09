@@ -123,8 +123,8 @@ public:
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
-    void project_velocities (              amrex::Vector<amrex::MultiFab >& vars);
-    void project_velocities (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+    void project_velocities (                                        amrex::Vector<amrex::MultiFab >& vars);
+    void project_velocities (int lev_min, int lev_max, amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
@@ -166,6 +166,8 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
@@ -625,14 +627,13 @@ private:
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
-//#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
     amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
-//#endif
+
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
@@ -640,6 +641,10 @@ private:
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
+
+    // Containers for additional SLM inputs
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries

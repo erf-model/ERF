@@ -14,7 +14,11 @@ void ERF::advance_radiation (int lev,
    bool is_cmip6_volcano {false};
 
     rad.initialize(cons,
+                   sw_lw_fluxes[lev].get(),
+                   solar_zenith[lev].get(),
                    qheating_rates[lev].get(),
+                   lat_m[lev].get(),
+                   lon_m[lev].get(),
                    qmoist[lev],
                    grids[lev],
                    Geom(lev),

@@ -600,17 +600,14 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Real& dz1,
-#endif
+                    const amrex::Real& /*dz1*/,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
@@ -631,9 +628,8 @@ struct moeng_flux
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        amrex::Abort("Explicit MOST stress not implemented for Moeng moisture flux");
-#else
+        if (exp_most) amrex::Abort("Explicit MOST stress not implemented for Moeng moisture flux");
+
         int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
@@ -642,7 +638,6 @@ struct moeng_flux
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
-#endif
 
         return moflux;
     }
@@ -656,15 +651,12 @@ struct moeng_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -708,23 +700,23 @@ struct moeng_flux
                               -tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
-        // Note: Kh = eta/rho
-        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            // Note: Kh = eta/rho
+            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+        }
 
         return moflux;
     }
@@ -737,15 +729,12 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& um_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -785,21 +774,21 @@ struct moeng_flux
         amrex::Real stressx = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+        }
 
         return stressx;
     }
@@ -812,15 +801,12 @@ struct moeng_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& vm_arr,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -860,21 +846,21 @@ struct moeng_flux
         amrex::Real stressy = rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+        }
 
         return stressy;
     }
@@ -904,17 +890,14 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Real& dz1,
-#endif
+                    const amrex::Real& /*dz1*/,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*q_star_arr*/,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
@@ -935,9 +918,8 @@ struct donelan_flux
         amrex::Real moflux  = 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        amrex::Abort("Explicit MOST stress not implemented for Donelan moisture flux");
-#else
+        if (exp_most) amrex::Abort("Explicit MOST stress not implemented for Donelan moisture flux");
+
         int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
@@ -946,7 +928,6 @@ struct donelan_flux
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
-#endif
 
         return moflux;
     }
@@ -960,15 +941,12 @@ struct donelan_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& tm_arr,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -994,23 +972,23 @@ struct donelan_flux
         amrex::Real moflux      = Cd * wsp_mean * (theta_surf - theta_mean);
         amrex::Real deltaz      = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-        eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
-        // Note: Kh = eta/rho
-        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real thetagrad = (cons_arr(ic,jc,zlo+1,RhoTheta_comp) - cons_arr(ic,jc,zlo,RhoTheta_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - thetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            // Note: Kh = eta/rho
+            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+        }
 
         return moflux;
     }
@@ -1023,15 +1001,12 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1071,21 +1046,21 @@ struct donelan_flux
         amrex::Real stressx = rho * Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+        }
 
         return stressx;
     }
@@ -1098,15 +1073,12 @@ struct donelan_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& umm_arr,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
@@ -1146,21 +1118,21 @@ struct donelan_flux
         amrex::Real stressy = rho * Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+        }
 
         return stressy;
     }
@@ -1189,17 +1161,14 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Real& dz1,
-#endif
+                    const amrex::Real& /*dz1*/,
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
-                    const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                    const amrex::Array4<const amrex::Real>& /*qm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& q_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
@@ -1220,9 +1189,8 @@ struct custom_flux
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        amrex::Abort("Explicit MOST stress not implemented for custom moisture flux");
-#else
+        if (exp_most) amrex::Abort("Explicit MOST stress not implemented for custom moisture flux");
+
         int ie, je;
         ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
         je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
@@ -1231,7 +1199,6 @@ struct custom_flux
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
         dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
-#endif
 
         return moflux;
     }
@@ -1245,15 +1212,12 @@ struct custom_flux
                     const int& n,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& /*velx_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -1277,24 +1241,24 @@ struct custom_flux
         amrex::Real moflux  = (std::abs(tstar) > eps) ? -tstar*ustar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real thetagrad = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp)/cons_arr(ic,jc,zlo+1,Rho_comp)
-                                - cons_arr(ic,jc,zlo  ,RhoTheta_comp)/cons_arr(ic,jc,zlo  ,Rho_comp)) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rho*thetagrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
-        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
-        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
-        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
-        eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
-        eta   = amrex::max(eta,eta_eps);
-        // Note: Kh = eta/rho
-        //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-        dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real thetagrad = ( cons_arr(ic,jc,zlo+1,RhoTheta_comp)/cons_arr(ic,jc,zlo+1,Rho_comp)
+                                    - cons_arr(ic,jc,zlo  ,RhoTheta_comp)/cons_arr(ic,jc,zlo  ,Rho_comp)) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp+n) = cons_arr(ic,jc,zlo,RhoTheta_comp) - rho*thetagrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+            je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+            ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+            je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+            eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
+            eta   = amrex::max(eta,eta_eps);
+            // Note: Kh = eta/rho
+            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
+            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
+            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+        }
 
         return moflux;
     }
@@ -1307,15 +1271,12 @@ struct custom_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*um_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -1346,21 +1307,21 @@ struct custom_flux
         amrex::Real stressx = rho * ustar * ustar * velx / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
-        je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
-                      + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real ugrad = (velx_arr(i,j,zlo+1) - velx) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = velx - ugrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x+1 ? lbound(eta_arr).x+1 : i;
+            je = j  < lbound(eta_arr).y   ? lbound(eta_arr).y   : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5 *(  eta_arr(ie-1,je,zlo,EddyDiff::Mom_v)
+                          + eta_arr(ie  ,je,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressx/eta*deltaz;
+        }
 
         return stressx;
     }
@@ -1373,15 +1334,12 @@ struct custom_flux
                     const int& k,
                     const int& icomp,
                     const amrex::Real& dz,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                     const amrex::Real& dz1,
-#endif
+                    const bool& exp_most,
+                    const amrex::Array4<const amrex::Real>& eta_arr,
                     const amrex::Array4<const amrex::Real>& cons_arr,
                     const amrex::Array4<const amrex::Real>& velx_arr,
                     const amrex::Array4<const amrex::Real>& vely_arr,
-#ifndef ERF_EXPLICIT_MOST_STRESS
-                    const amrex::Array4<const amrex::Real>& eta_arr,
-#endif
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*vm_arr*/,
                     const amrex::Array4<const amrex::Real>& u_star_arr,
@@ -1412,21 +1370,21 @@ struct custom_flux
         amrex::Real stressy = rho * ustar * ustar * vely / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        // surface gradient equal to gradient at first zface
-        amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
-        dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
-#else
-        int ie, je;
-        ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
-        je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
-        ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
-        je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
-        eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
-                     + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
-        eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
-#endif
+        if (exp_most) {
+            // surface gradient equal to gradient at first zface
+            amrex::Real vgrad = (vely_arr(i,j,zlo+1) - vely) / (0.5*(dz+dz1));
+            dest_arr(i,j,k,icomp) = vely - vgrad * deltaz;
+        } else {
+            int ie, je;
+            ie = i  < lbound(eta_arr).x   ? lbound(eta_arr).x   : i;
+            je = j  < lbound(eta_arr).y+1 ? lbound(eta_arr).y+1 : j;
+            ie = ie > ubound(eta_arr).x   ? ubound(eta_arr).x   : ie;
+            je = je > ubound(eta_arr).y   ? ubound(eta_arr).y   : je;
+            eta   = 0.5*(  eta_arr(ie,je-1,zlo,EddyDiff::Mom_v)
+                         + eta_arr(ie,je  ,zlo,EddyDiff::Mom_v) );
+            eta   = amrex::max(eta,eta_eps);
+            dest_arr(i,j,k,icomp) = dest_arr(i,j,zlo,icomp) - stressy/eta*deltaz;
+        }
 
         return stressy;
     }

@@ -27,6 +27,7 @@
 #include "DataStruct.H"
 #include "EOS.H"
 #include "TileNoZ.H"
+#include "Orbit.H"
 
 using namespace amrex;
 using yakl::intrinsics::size;
@@ -98,7 +99,11 @@ namespace internal {
 
 // init
 void Radiation::initialize (const MultiFab& cons_in,
+                            MultiFab* lsm_fluxes,
+                            MultiFab* lsm_zenith,
                             MultiFab* qheating_rates,
+                            MultiFab* lat,
+                            MultiFab* lon,
                             Vector<MultiFab*> qmoist,
                             const BoxArray& grids,
                             const Geometry& geom,
@@ -125,14 +130,22 @@ void Radiation::initialize (const MultiFab& cons_in,
     do_snow_optics    = do_snow_opt;
     is_cmip6_volc     = is_cmip6_volcano;
 
+    m_lat = lat;
+    m_lon = lon;
+
+    m_lsm_fluxes = lsm_fluxes;
+    m_lsm_zenith = lsm_zenith;
+
     rrtmgp_data_path = getRadiationDataDir() + "/";
     rrtmgp_coefficients_file_sw = rrtmgp_data_path + rrtmgp_coefficients_file_name_sw;
     rrtmgp_coefficients_file_lw = rrtmgp_data_path + rrtmgp_coefficients_file_name_lw;
 
+    ParmParse pp("erf");
+    pp.query("fixed_total_solar_irradiance", fixed_total_solar_irradiance);
+    pp.query("radiation_uniform_angle"     , uniform_angle);
+
     for ( MFIter mfi(cons_in, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
         const auto& box3d = mfi.tilebox();
-
         nlev = box3d.length(2);
         ncol = box3d.length(0)*box3d.length(1);
     }
@@ -174,18 +187,18 @@ void Radiation::initialize (const MultiFab& cons_in,
     zi   = real2d("zi", ncol, nlev);
 
     // Get the temperature, density, theta, qt and qp from input
-    for ( MFIter mfi(cons_in, false); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
+        const auto& box3d = mfi.tilebox();
+        auto nx = box3d.length(0);
+
         auto states_array = cons_in.array(mfi);
         auto qt_array = (qmoist[0]) ? qmoist[0]->array(mfi) : Array4<Real> {};
         auto qv_array = (qmoist[1]) ? qmoist[1]->array(mfi) : Array4<Real> {};
         auto qc_array = (qmoist[2]) ? qmoist[2]->array(mfi) : Array4<Real> {};
         auto qi_array = (qmoist.size()>=8) ? qmoist[3]->array(mfi) : Array4<Real> {};
 
-        const auto& box3d = mfi.tilebox();
-        auto nx = box3d.length(0);
-        //auto ny = box3d.length(1);
         // Get pressure, theta, temperature, density, and qt, qp
-        amrex::ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             auto icol = j*nx+i+1;
             auto ilev = k+1;
@@ -195,24 +208,20 @@ void Radiation::initialize (const MultiFab& cons_in,
             qi(icol,ilev)   = (qi_array) ? qi_array(i,j,k): 0.0;
             qn(icol,ilev)   = qc(icol,ilev) + qi(icol,ilev);
             tmid(icol,ilev) = getTgivenRandRTh(states_array(i,j,k,Rho_comp),states_array(i,j,k,RhoTheta_comp),qv);
-            // NOTE: RRTMGP code expects pressure in mb so we convert it here
-            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv) * 1.0e-2;
+            // NOTE: RRTMGP code expects pressure in pa
+            pmid(icol,ilev) = getPgivenRTh(states_array(i,j,k,RhoTheta_comp),qv);
         });
     }
 
     parallel_for(SimpleBounds<2>(ncol, nlev+1), YAKL_LAMBDA (int icol, int ilev)
     {
         if (ilev == 1) {
-            //pint(icol, 1) = 2.*pmid(icol, 2) - pmid(icol, 1);
-            //tint(icol, 1) = 2.*tmid(icol, 2) - tmid(icol, 1);
             pint(icol, 1) = -0.5*pmid(icol, 2) + 1.5*pmid(icol, 1);
             tint(icol, 1) = -0.5*tmid(icol, 2) + 1.5*tmid(icol, 1);
         } else if (ilev <= nlev) {
             pint(icol, ilev) = 0.5*(pmid(icol, ilev-1) + pmid(icol, ilev));
             tint(icol, ilev) = 0.5*(tmid(icol, ilev-1) + tmid(icol, ilev));
         } else {
-            //pint(icol, nlev+1) = 2.*pmid(icol, nlev-1) - pmid(icol, nlev);
-            //tint(icol, nlev+1) = 2.*tmid(icol, nlev-1) - tmid(icol, nlev);
             pint(icol, nlev+1) = -0.5*pmid(icol, nlev-1) + 1.5*pmid(icol, nlev);
             tint(icol, nlev+1) = -0.5*tmid(icol, nlev-1) + 1.5*tmid(icol, nlev);
         }
@@ -245,7 +254,7 @@ void Radiation::initialize (const MultiFab& cons_in,
 
     optics.initialize(ngas, nmodes, naer, nswbands, nlwbands,
                       ncol, nlev, nrh, top_lev, aero_names, zi,
-                      pmid, tmid, qt, geom_radius);
+                      pmid, pint, tmid, qt, geom_radius);
 
     amrex::Print() << "LW coefficents file: " << rrtmgp_coefficients_file_lw
                    << "\nSW coefficents file: " << rrtmgp_coefficients_file_sw
@@ -323,9 +332,16 @@ void Radiation::run ()
         internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_allsky);
         internal::initial_fluxes(ncol, nlev+1, nswbands, fluxes_clrsky);
 
-        // Get cosine solar zenith angle for current time step. ( still NOT YET implemented here)
-        //      set_cosine_solar_zenith_angle(state, dt_avg, coszrs(1:ncol))
-        yakl::memset(coszrs, 0.2);  // we set constant value here to avoid numerical overflow.
+        // TODO: Integrate calendar day computation
+        int calday = 1;
+        // Get cosine solar zenith angle for current time step.
+        if (m_lat) {
+            zenith(calday, m_lat, m_lon, coszrs, ncol,
+                   eccen,  mvelpp, lambm0, obliqr);
+        } else {
+            zenith(calday, m_lat, m_lon, coszrs, ncol,
+                   eccen,  mvelpp, lambm0, obliqr, uniform_angle);
+        }
 
         // Get albedo. This uses CAM routines internally and just provides a
         // wrapper to improve readability of the code here.
@@ -466,6 +482,10 @@ void Radiation::run ()
                              aer_tau_bnd_sw, aer_ssa_bnd_sw, aer_asm_bnd_sw,
                              fluxes_allsky, fluxes_clrsky, qrs, qrsc);
         }
+
+        // Set surface fluxes that are used by the land model
+        export_surface_fluxes(fluxes_allsky, "shortwave");
+
     } else {
         // Conserve energy
         if (conserve_energy) {
@@ -508,6 +528,10 @@ void Radiation::run ()
         // Call the longwave radiation driver to calculate fluxes and heating rates
         radiation_driver_lw(ncol, nlev, gas_vmr, pmid, pint, tmid, tint, cld_tau_gpt_lw, aer_tau_bnd_lw,
                             fluxes_allsky, fluxes_clrsky, qrl, qrlc);
+
+        // Set surface fluxes that are used by the land model
+        export_surface_fluxes(fluxes_allsky, "longwave");
+
     }
     else {
         // Conserve energy (what does this mean exactly?)
@@ -529,6 +553,9 @@ void Radiation::run ()
             // Map (col,lev) to (i,j,k)
             auto icol = j*nx+i+1;
             auto ilev = k+1;
+
+            // TODO: We do not include the cloud source term qrsc/qrlc.
+            //       Do these simply sum for a net source or do we pick one?
 
             // SW and LW sources
             qrad_src_array(i,j,k,0) = qrs(icol,ilev);
@@ -580,10 +607,13 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     // eccentricity, and could be used to scale total sky irradiance for different
     // climates as well (i.e., paleoclimate simulations)
     real tsi_scaling;
+    real solar_declination;
 
     if (fixed_total_solar_irradiance<0) {
+        // TODO: Integrate calendar day computation
+        int calday = 1;
         // Get orbital eccentricity factor to scale total sky irradiance
-        tsi_scaling = 1.0e-3; //get_eccentricity_factor();
+        shr_orb_decl(calday, eccen, mvelpp, lambm0, obliqr, solar_declination, tsi_scaling);
     } else {
         // For fixed TSI we divide by the default solar constant of 1360.9
         // At some point we will want to replace this with a method that
@@ -785,13 +815,14 @@ void Radiation::get_gas_vmr (const std::vector<std::string>& gas_names, const re
 {
     // Mass mixing ratio
     real2d mmr("mmr", ncol, nlev);
+
     // Gases and molecular weights. Note that we do NOT have CFCs yet (I think
     // this is coming soon in RRTMGP). RRTMGP also allows for absorption due to
     // CO and N2, which RRTMG did not have.
     const std::vector<std::string> gas_species = {"H2O", "CO2", "O3", "N2O",
-                                                  "CO", "CH4", "O2", "N2"};
-    const std::vector<real> mol_weight_gas = {18.01528, 44.0095, 47.9982, 44.0128,
-                                              28.0101, 16.04246, 31.998, 28.0134}; // g/mol
+                                                  "CO" , "CH4", "O2", "N2"};
+    const std::vector<real> mol_weight_gas = {18.01528, 44.00950, 47.9982, 44.0128,
+                                              28.01010, 16.04246, 31.9980, 28.0134}; // g/mol
     // Molar weight of air
     //const real mol_weight_air = 28.97; // g/mol
     // Defaults for gases that are not available (TODO: is this still accurate?)
@@ -889,12 +920,11 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                                         const real2d& pint,
                                         const real2d& heating_rate)
 {
-    // NOTE: The pressure is in [mb] for RRTMGP to use.
+    // NOTE: The pressure is in [pa] for RRTMGP to use.
     //       The fluxes are in [W/m^2] and gravity is [m/s^2].
-    //       We need to convert pressure from [mb] -> [Pa] and divide by Cp [J/kg*K]
     //       The heating rate is {dF/dP * g / Cp} with units [K/s]
     real1d heatfac("heatfac",1);
-    yakl::memset(heatfac, 1.0e-2/Cp_d);
+    yakl::memset(heatfac, 1.0/Cp_d);
     parallel_for(SimpleBounds<2>(ncol, nlev), YAKL_LAMBDA (int icol, int ilev)
     {
         heating_rate(icol,ilev) = heatfac(1) * ( (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
@@ -906,6 +936,8 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
                            << heating_rate(icol,ilev) << ' '
                            << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1)) << ' '
                            << (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
+                           << flux_up(icol,ilev+1) << ' '
+                           << flux_dn(icol,ilev+1) << ' '
                            << (flux_up(icol,ilev+1) - flux_dn(icol,ilev+1))
                             - (flux_up(icol,ilev  ) - flux_dn(icol,ilev  )) << ' '
                            << (pint(icol,ilev+1)-pint(icol,ilev)) << ' '
@@ -913,6 +945,86 @@ void Radiation::calculate_heating_rate (const real2d& flux_up,
         }
         */
     });
+}
+
+void
+Radiation::export_surface_fluxes(FluxesByband& fluxes,
+                                 std::string band)
+{
+    // No work to be done if we don't have valid pointers
+    if (!m_lsm_fluxes) return;
+
+    if (band == "shortwave") {
+        real3d flux_dn_diffuse("flux_dn_diffuse", ncol, nlev+1, nswbands);
+
+        // Calculate diffuse flux from total and direct
+        // This only occurs at the bottom level (k index)
+        parallel_for (SimpleBounds<3>(ncol, 1, nswbands), YAKL_LAMBDA (int icol, int ilev, int ibnd)
+        {
+            flux_dn_diffuse(icol,ilev,ibnd) = fluxes.bnd_flux_dn(icol,ilev,ibnd)
+                                            - fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+        });
+
+        // Populate the LSM data structure (this is a 2D MF)
+        for (MFIter mfi(*(m_lsm_fluxes)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_fluxes->array(mfi);
+            const auto& box3d = mfi.tilebox();
+            auto nx = box3d.length(0);
+            amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Map (col,lev) to (i,j,k)
+                auto icol = j*nx+i+1;
+                auto ilev = k+1;
+
+                // Direct fluxes
+                Real sum1(0.0), sum2(0.0);
+                for (int ibnd(1); ibnd<=9; ++ibnd) {
+                    sum1 += fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+                }
+                for (int ibnd(11); ibnd<=14; ++ibnd) {
+                    sum2 += fluxes.bnd_flux_dn_dir(icol,ilev,ibnd);
+                }
+                sum1 += 0.5 * fluxes.bnd_flux_dn_dir(icol,ilev,10);
+                sum2 += 0.5 * fluxes.bnd_flux_dn_dir(icol,ilev,10);
+                lsm_array(i,j,k,0) = sum1;
+                lsm_array(i,j,k,1) = sum2;
+
+                // Diffuse fluxes
+                sum1=0.0; sum2=0.0;
+                for (int ibnd(1); ibnd<=9; ++ibnd) {
+                    sum1 += flux_dn_diffuse(icol,ilev,ibnd);
+                }
+                for (int ibnd(11); ibnd<=14; ++ibnd) {
+                    sum2 += flux_dn_diffuse(icol,ilev,ibnd);
+                }
+                sum1 += 0.5 * flux_dn_diffuse(icol,ilev,10);
+                sum2 += 0.5 * flux_dn_diffuse(icol,ilev,10);
+                lsm_array(i,j,k,2) = sum1;
+                lsm_array(i,j,k,3) = sum2;
+
+                // Net fluxes
+                lsm_array(i,j,k,4) = fluxes.flux_net(icol,ilev);
+            });
+        }
+    } else if (band == "longwave") {
+        // Populate the LSM data structure (this is a 2D MF)
+        for (MFIter mfi(*(m_lsm_fluxes)); mfi.isValid(); ++mfi) {
+            auto lsm_array = m_lsm_fluxes->array(mfi);
+            const auto& box3d = mfi.tilebox();
+            auto nx = box3d.length(0);
+            amrex::ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                // Map (col,lev) to (i,j,k)
+                auto icol = j*nx+i+1;
+                auto ilev = k+1;
+
+                // Net fluxes
+                lsm_array(i,j,k,5) = fluxes.flux_dn(icol,ilev);
+            });
+        }
+    } else {
+         amrex::Abort("Unknown radiation band type!");
+    }
 }
 
 // call back

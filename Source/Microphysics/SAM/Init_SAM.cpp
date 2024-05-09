@@ -216,9 +216,10 @@ void SAM::Compute_Coefficients ()
     // Populate all the coefficients
     ParallelFor(nlev, [=] AMREX_GPU_DEVICE (int k) noexcept
     {
+        Real Prefactor;
         Real pratio = sqrt(1.29 / rho1d_t(k));
-        Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
-        Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
+        //Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
+        //Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
         Real estw   = 100.0*erf_esatw(tabs1d_t(k));
         Real esti   = 100.0*erf_esati(tabs1d_t(k));
 
@@ -230,11 +231,13 @@ void SAM::Compute_Coefficients ()
         coefice_t(k) =  coef2;
 
         // evaporation of snow:
-        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
-        evaps1_t(k) = 0.65*4.0*nzeros/sqrt(PI*rhos*nzeros)/(coef1+coef2)/sqrt(rho1d_t(k));
-        evaps2_t(k) = 0.49*4.0*nzeros*gams2*sqrt(a_snow/(muelq*rrr1))/pow((PI*rhos*nzeros) , ((5.0+b_snow)/8.0)) /
-                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_snow)/8.0))*sqrt(pratio);
+        coef1 = (lsub/(tabs1d_t(k)*R_v)-1.0)*lsub/(therco*tabs1d_t(k));
+        coef2 = R_v * R_d / (diffelq * esti);
+        Prefactor = 2.0 * PI * nzeros / (rho1d_t(k) * (coef1 + coef2));
+        Prefactor *= (2.0/PI); // Shape factor snow
+        evaps1_t(k) = Prefactor * 0.65 * sqrt(rho1d_t(k) / (PI * rhos * nzeros));
+        evaps2_t(k) = Prefactor * 0.44 * sqrt(a_snow * rho1d_t(k) / muelq) * gams2
+                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhos * nzeros) , ((5.0+b_snow)/8.0));
 
         // accretion by graupel:
         coef1 = 0.25*PI*nzerog*a_grau*gamg1*pratio/pow((PI*rhog*nzerog/rho1d_t(k)) , ((3.0+b_grau)/4.0));
@@ -243,22 +246,22 @@ void SAM::Compute_Coefficients ()
         accrgc_t(k) = coef1 * egccoef;
 
         // evaporation of graupel:
-        coef1 = (lsub/(tabs1d_t(k)*rv)-1.0)*lsub/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq*rrr2*esti);
-        evapg1_t(k) = 0.65*4.0*nzerog/sqrt(PI*rhog*nzerog)/(coef1+coef2)/sqrt(rho1d_t(k));
-        evapg2_t(k) = 0.49*4.0*nzerog*gamg2*sqrt(a_grau/(muelq*rrr1))/pow((PI * rhog * nzerog) , ((5.0+b_grau)/8.0)) /
-                     (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_grau)/8.0))*sqrt(pratio);
+        coef1 = (lsub/(tabs1d_t(k)*R_v)-1.0)*lsub/(therco*tabs1d_t(k));
+        coef2 = R_v * R_d / (diffelq * esti);
+        Prefactor = 2.0 * PI * nzerog / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for graupel is 1
+        evapg1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhog * nzerog));
+        evapg2_t(k) = Prefactor * 0.31 * sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
+                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhog * nzerog) , ((5.0+b_grau)/8.0));
 
         // accretion by rain:
         accrrc_t(k) = 0.25 * PI * nzeror * a_rain * gamr1 * pratio/pow((PI * rhor * nzeror / rho1d_t(k)) , ((3.0+b_rain)/4.))* erccoef;
 
         // evaporation of rain:
-        coef1 = (lcond/(tabs1d_t(k)*rv)-1.0)*lcond/(therco*rrr1*tabs1d_t(k));
-        coef2 = rv*tabs1d_t(k)/(diffelq * rrr2 * estw);
-        evapr1_t(k) = 0.78 * 2.0 * PI * nzeror /
-                      sqrt(PI * rhor * nzeror) / (coef1+coef2) / sqrt(rho1d_t(k));
-        evapr2_t(k) = 0.31 * 2.0 * PI  * nzeror * gamr2 * 0.89 * sqrt(a_rain/(muelq*rrr1))/
-                      pow((PI * rhor * nzeror) , ((5.0+b_rain)/8.0)) /
-                      (coef1+coef2) * pow(rho1d_t(k) , ((1.0+b_rain)/8.0))*sqrt(pratio);
+        coef1 = (lcond/(tabs1d_t(k)*R_v)-1.0)*lcond/(therco*tabs1d_t(k));
+        coef2 = R_v * R_d / (diffelq * estw);
+        Prefactor = 2.0 * PI * nzeror / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for rain is 1
+        evapr1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhor * nzeror));
+        evapr2_t(k) = Prefactor * 0.31 * sqrt(a_rain * rho1d_t(k) / muelq) * gamr2
+                    * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhor * nzeror) , ((5.0+b_rain)/8.0));
     });
 }
