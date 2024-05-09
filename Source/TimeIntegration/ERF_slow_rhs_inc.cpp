@@ -89,11 +89,11 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<MultiFab>& ay,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
-                       const MultiFab* /*p0*/,
+                       const MultiFab* p0,
+                       const MultiFab& pp_inc,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v,
-                       const MultiFab& pp_inc)
+                       std::unique_ptr<MultiFab>& mapfac_v)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
 

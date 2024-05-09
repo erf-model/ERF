@@ -93,6 +93,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& az,
                       std::unique_ptr<amrex::MultiFab>& dJ,
                       const amrex::MultiFab* p0,
+#ifdef ERF_USE_POISSON_SOLVE
+                      const amrex::MultiFab& pp_inc,
+#endif
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
