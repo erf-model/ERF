@@ -218,8 +218,8 @@ void SAM::Compute_Coefficients ()
     {
         Real Prefactor;
         Real pratio = sqrt(1.29 / rho1d_t(k));
-        Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
-        Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
+        //Real rrr1   = 393.0/(tabs1d_t(k)+120.0)*std::pow((tabs1d_t(k)/273.0),1.5);
+        //Real rrr2   = std::pow((tabs1d_t(k)/273.0),1.94)*(1000.0/pres1d_t(k));
         Real estw   = 100.0*erf_esatw(tabs1d_t(k));
         Real esti   = 100.0*erf_esati(tabs1d_t(k));
 
@@ -235,8 +235,8 @@ void SAM::Compute_Coefficients ()
         coef2 = R_v * R_d / (diffelq * esti);
         Prefactor = 2.0 * PI * nzeros / (rho1d_t(k) * (coef1 + coef2));
         Prefactor *= (2.0/PI); // Shape factor snow
-        evapr1_t(k) = Prefactor * 0.65 * sqrt(rho1d_t(k) / (PI * rhos * nzeros));
-        evapr2_t(k) = Prefactor * 0.44 * sqrt(a_snow * rho1d_t(k) / muelq) * gams2
+        evaps1_t(k) = Prefactor * 0.65 * sqrt(rho1d_t(k) / (PI * rhos * nzeros));
+        evaps2_t(k) = Prefactor * 0.44 * sqrt(a_snow * rho1d_t(k) / muelq) * gams2
                     * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhos * nzeros) , ((5.0+b_snow)/8.0));
 
         // accretion by graupel:
@@ -249,8 +249,8 @@ void SAM::Compute_Coefficients ()
         coef1 = (lsub/(tabs1d_t(k)*R_v)-1.0)*lsub/(therco*tabs1d_t(k));
         coef2 = R_v * R_d / (diffelq * esti);
         Prefactor = 2.0 * PI * nzerog / (rho1d_t(k) * (coef1 + coef2)); // Shape factor for graupel is 1
-        evapr1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhog * nzerog));
-        evapr2_t(k) = Prefactor * 0.31 * sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
+        evapg1_t(k) = Prefactor * 0.78 * sqrt(rho1d_t(k) / (PI * rhog * nzerog));
+        evapg2_t(k) = Prefactor * 0.31 * sqrt(a_grau * rho1d_t(k) / muelq) * gamg2
                     * sqrt(pratio) * pow(rho1d_t(k) / (PI * rhog * nzerog) , ((5.0+b_grau)/8.0));
 
         // accretion by rain:
