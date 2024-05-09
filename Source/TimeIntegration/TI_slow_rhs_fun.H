@@ -416,7 +416,7 @@
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
                          z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level], pp_inc[level]);
 
          add_thin_body_sources(xmom_src, ymom_src, zmom_src,
                                xflux_imask[level], yflux_imask[level], zflux_imask[level],

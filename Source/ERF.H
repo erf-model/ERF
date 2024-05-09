@@ -123,17 +123,16 @@ public:
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
-    void project_velocities (                                        amrex::Vector<amrex::MultiFab >& vars);
-    void project_velocities (int lev_min, int lev_max, amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+
+    // Project the velocities to be divergence-free with a thin body
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
-    // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (              amrex::Vector<amrex::MultiFab >& vars, const amrex::Real dt);
-    void project_velocities_tb (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars, const amrex::Real dt);
 #endif
 
     // Init (NOT restart or regrid)
@@ -605,6 +604,10 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+#ifdef ERF_USE_POISSON_SOLVE
+    amrex::Vector<amrex::MultiFab> pp_inc;
+#endif
+
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
@@ -840,6 +843,9 @@ private:
 #endif
 
     static int verbose;
+#ifdef ERF_USE_POISSON_SOLVE
+    static int mg_verbose;
+#endif
 
     // Diagnostic output interval
     static int sum_interval;

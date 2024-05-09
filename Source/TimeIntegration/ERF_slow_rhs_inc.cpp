@@ -55,6 +55,7 @@ using namespace amrex;
  * @param[in] mapfac_m map factor at cell centers
  * @param[in] mapfac_u map factor at x-faces
  * @param[in] mapfac_v map factor at y-faces
+ * @param[in] pp_inc   perturbational pressure for incompressible flows
  */
 
 void erf_slow_rhs_inc (int level, int nrk,
@@ -88,10 +89,11 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<MultiFab>& ay,
                        std::unique_ptr<MultiFab>& az,
                        std::unique_ptr<MultiFab>& detJ,
-                       const MultiFab* p0,
+                       const MultiFab* /*p0*/,
                        std::unique_ptr<MultiFab>& mapfac_m,
                        std::unique_ptr<MultiFab>& mapfac_u,
-                       std::unique_ptr<MultiFab>& mapfac_v)
+                       std::unique_ptr<MultiFab>& mapfac_v,
+                       const MultiFab& pp_inc)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre_inc()");
 
@@ -302,7 +304,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
                     });
                 }
 
@@ -410,7 +412,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                     SmnSmn_a = SmnSmn->array(mfi);
                     ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                     {
-                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
+                        SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most,exp_most);
                     });
                 }
 
@@ -544,6 +546,9 @@ void erf_slow_rhs_inc (int level, int nrk,
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
 
+        // Perturbational pressure
+        const Array4<const Real>& pp_arr = pp_inc.const_array(mfi);
+
         // Map factors
         const Array4<const Real>& mf_m   = mapfac_m->const_array(mfi);
         const Array4<const Real>& mf_u   = mapfac_u->const_array(mfi);
@@ -562,7 +567,7 @@ void erf_slow_rhs_inc (int level, int nrk,
         const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
         // Base state
-        const Array4<const Real>& p0_arr = p0->const_array(mfi);
+        // const Array4<const Real>& p0_arr = p0->const_array(mfi);
 
         // *****************************************************************************
         // *****************************************************************************
@@ -662,7 +667,7 @@ void erf_slow_rhs_inc (int level, int nrk,
             int n_start = amrex::max(start_comp,RhoTheta_comp);
             int n_comp  = end_comp - n_start + 1;
 
-            DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
+            DiffusionSrcForState_N(bx, domain, n_start, n_comp, exp_most, u, v,
                                    cell_data, cell_prim, cell_rhs,
                                    diffflux_x, diffflux_y, diffflux_z,
                                    dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -728,8 +733,9 @@ void erf_slow_rhs_inc (int level, int nrk,
         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // x-momentum equation
 
-            // Note we do NOT include a pressure gradient here
-            rho_u_rhs(i, j, k) += xmom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[0];
+            Real gpx = dxInv[0] * (pp_arr(i,j,k) - pp_arr(i-1,j,k));
+
+            rho_u_rhs(i, j, k) += xmom_src_arr(i,j,k) - gpx - solverChoice.abl_pressure_grad[0];
 
             if (nrk == 1) {
               rho_u_rhs(i,j,k) *= 0.5;
@@ -740,8 +746,9 @@ void erf_slow_rhs_inc (int level, int nrk,
         ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // y-momentum equation
 
-            // Note we do NOT include a pressure gradient here
-            rho_v_rhs(i, j, k) += ymom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[1];
+            Real gpy = dxInv[1] * (pp_arr(i,j,k) - pp_arr(i,j-1,k));
+
+            rho_v_rhs(i, j, k) += ymom_src_arr(i,j,k) - gpy - solverChoice.abl_pressure_grad[1];
 
             if (nrk == 1) {
               rho_v_rhs(i,j,k) *= 0.5;
@@ -795,16 +802,14 @@ void erf_slow_rhs_inc (int level, int nrk,
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         { // z-momentum equation
 
-              Real rho_on_w_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
+            Real gpz = dxInv[2] * (pp_arr(i,j,k) - pp_arr(i,j,k-1));
 
-              // Note we do NOT include a pressure gradient here
-              // HOWEVER: there may be a buoyancy term inside of zmom_src_arr ...
-              rho_w_rhs(i, j, k) += zmom_src_arr(i,j,k) - solverChoice.abl_pressure_grad[2];
+            rho_w_rhs(i, j, k) += zmom_src_arr(i,j,k) - gpz - solverChoice.abl_pressure_grad[2];
 
-              if (nrk == 1) {
+            if (nrk == 1) {
                 rho_w_rhs(i,j,k) *= 0.5;
                 rho_w_rhs(i,j,k) += 0.5 / dt * (rho_w(i,j,k) - rho_w_old(i,j,k));
-              }
+            }
         });
     } // mfi
 }

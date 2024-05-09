@@ -80,16 +80,7 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
     }
 #endif
 
-#ifdef ERF_USE_EB
-    if (containerHasElement(plot_var_names, "volfrac")) {
-        tmp_plot_names.push_back("volfrac");
-    }
-#endif
-
     plot_var_names = tmp_plot_names;
-
-    for (int i=0; i<plot_var_names.size(); i++) {
-    }
 }
 
 void
@@ -1036,6 +1027,13 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_EB
         if (containerHasElement(plot_var_names, "volfrac")) {
             MultiFab::Copy(mf[lev], EBFactory(lev).getVolFrac(), 0, mf_comp, 1, 0);
+            mf_comp += 1;
+        }
+#endif
+
+#ifdef ERF_USE_POISSON_SOLVE
+        if (containerHasElement(plot_var_names, "pp_inc")) {
+            MultiFab::Copy(mf[lev], pp_inc[lev], 0, mf_comp, 1, 0);
             mf_comp += 1;
         }
 #endif

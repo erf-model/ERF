@@ -177,6 +177,7 @@ endif
 
 ifeq ($(USE_POISSON_SOLVE), TRUE)
   DEFINES += -DERF_USE_POISSON_SOLVE
+  USERSuffix += .INC
 endif
 
 ifeq ($(USE_PARTICLES), TRUE)

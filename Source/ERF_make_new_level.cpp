@@ -499,6 +499,10 @@ ERF::ClearLevel (int lev)
     rW_new[lev].clear();
     rW_old[lev].clear();
 
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc[lev].clear();
+#endif
+
     // Clears the integrator memory
     mri_integrator_mem[lev].reset();
 
