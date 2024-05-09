@@ -36,10 +36,6 @@ void SAM::Cloud () {
 
         ParallelFor(box3d, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            // Initial guess for temperature assuming no cloud water/ice:
-            Real tabs = tabs_array(i,j,k);
-            Real pres = pres_array(i,j,k);
-
             // Saturation moisture fractions
             Real omn, domn;
             Real qsat, dqsat;
@@ -59,7 +55,7 @@ void SAM::Cloud () {
             //       before the Newton iteration, which assumes it is.
 
             // Cloud ice not permitted (melt to form water)
-            if(tabs >= tbgmax) {
+            if(tabs_array(i,j,k) >= tbgmax) {
                 omn = 1.0;
                 delta_qi = qci_array(i,j,k);
                 qci_array(i,j,k)   = 0.0;
@@ -71,7 +67,7 @@ void SAM::Cloud () {
                 pres_array(i,j,k) /= 100.0;
             }
             // Cloud water not permitted (freeze to form ice)
-            else if(tabs <= tbgmin) {
+            else if(tabs_array(i,j,k) <= tbgmin) {
                 omn = 0.0;
                 delta_qc = qcl_array(i,j,k);
                 qcl_array(i,j,k)   = 0.0;
@@ -84,7 +80,7 @@ void SAM::Cloud () {
             }
             // Mixed cloud phase (split according to omn)
             else {
-                omn = an*tabs-bn;
+                omn = an*tabs_array(i,j,k)-bn;
                 delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
                 delta_qi = qci_array(i,j,k) - qn_array(i,j,k) * (1.0 - omn);
                 qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
@@ -95,6 +91,10 @@ void SAM::Cloud () {
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) /= 100.0;
             }
+
+            // Initial guess for temperature & pressure
+            Real tabs = tabs_array(i,j,k);
+            Real pres = pres_array(i,j,k);
 
             // Saturation moisture fractions
             erf_qsatw(tabs, pres, qsatw);
@@ -152,6 +152,13 @@ void SAM::Cloud () {
                     // Update the temperature
                     dtabs = -fff/dfff;
                     tabs  = tabs+dtabs;
+
+                    // Update the pressure
+                    pres = rho_array(i,j,k) * R_d * tabs
+                           * (1.0 + R_v/R_d * qsat);
+                    pres /= 100.0;
+
+                    // Update iteration
                     niter = niter+1;
                 } while(std::abs(dtabs) > tol && niter < 20);
 
