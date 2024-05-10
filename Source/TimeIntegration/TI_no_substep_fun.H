@@ -139,9 +139,9 @@
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (solverChoice.project_every_stage || (nrk==1)) {
                 if (have_tb) {
-                    project_velocities_tb(S_sum, slow_dt);
+                    project_velocities_tb(level, slow_dt, S_sum, pp_inc[level]);
                 } else {
-                    project_velocities(S_sum);
+                    project_velocities(level, slow_dt, S_sum, pp_inc[level]);
                 }
             }
         }

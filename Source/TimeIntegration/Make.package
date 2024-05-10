@@ -5,6 +5,7 @@ CEXE_sources += ERF_advance_dycore.cpp
 CEXE_sources += ERF_advance_microphysics.cpp
 CEXE_sources += ERF_advance_lsm.cpp
 CEXE_sources += ERF_make_fast_coeffs.cpp
+CEXE_sources += ERF_make_tau_terms.cpp
 CEXE_sources += ERF_slow_rhs_pre.cpp
 CEXE_sources += ERF_slow_rhs_post.cpp
 CEXE_sources += ERF_fast_rhs_N.cpp
