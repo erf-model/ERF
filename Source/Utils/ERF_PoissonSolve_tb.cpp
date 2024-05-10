@@ -20,7 +20,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
     Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());
     Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vmf[Vars::cons].DistributionMap());
     Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
-    amrex::Print() << "AT LEVEL " << lev << " BA FOR POISSON SOLVE " << vmf[Vars::cons].boxArray() << std::endl;
+    // amrex::Print() << "AT LEVEL " << lev << " BA FOR POISSON SOLVE " << vmf[Vars::cons].boxArray() << std::endl;
 
     // Use the default settings
     LPInfo info;
@@ -76,12 +76,14 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
              deltaf[0][idim].setVal(0.0); // start with f^* == f^{n-1}
     }
 
+#if 0
     // DEBUG
     u[0] = &(vmf[Vars::xvel]);
     u[1] = &(vmf[Vars::yvel]);
     u[2] = &(vmf[Vars::zvel]);
     computeDivergence(rhs[0], u, geom[0]);
     Print() << "Max norm of divergence before solve at level 0 : " << rhs[0].norm0() << std::endl;
+#endif
 
     for (int itp = 0; itp < solverChoice.ncorr; ++itp)
     {
@@ -99,6 +101,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
         u[2] = &(u_plus_dtdf[0][2]);
         computeDivergence(rhs[0], u, geom_tmp[0]);
 
+#if 0
         // DEBUG
         if (itp==0) {
             for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -120,11 +123,12 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
                 });
             }
         }
+#endif
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
             Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
-            amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
+            // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
             rhs[0].plus(-offset, 0, 1);
         }
 
@@ -212,7 +216,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
 //        }
 //    }
 
-#if 1
+#if 0
     // Confirm that the velocity is now divergence free
     u[0] = &(vmf[Vars::xvel]);
     u[1] = &(vmf[Vars::yvel]);
@@ -220,6 +224,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
     computeDivergence(rhs[0], u, geom_tmp[0]);
     Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
 
+#if 0
     for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
         const Box& bx = mfi.tilebox();
@@ -241,6 +246,7 @@ void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, Mult
             }
         });
     }
+#endif
 #endif
 }
 #endif
