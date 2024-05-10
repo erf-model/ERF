@@ -122,7 +122,6 @@ void erf_slow_rhs_inc (int level, int nrk,
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
-    const bool l_use_constAlpha = ( dc.molec_diff_type == MolecDiffType::ConstantAlpha );
     const bool l_use_turb       = ( tc.les_type == LESType::Smagorinsky ||
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
