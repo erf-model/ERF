@@ -132,7 +132,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     if (need_adjust_rhs)
     {
         Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
-        amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
+        // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
         rhs[0].plus(-offset, 0, 1);
     }
 
@@ -162,7 +162,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     MultiFab::Add(vmf[Vars::yvel], fluxes[0][1], 0,0,1,0);
     MultiFab::Add(vmf[Vars::zvel], fluxes[0][2], 0,0,1,0);
 
-#if 1
+#if 0
     // Confirm that the velocity is now divergence free
     u[0] = &(vmf[Vars::xvel]);
     u[1] = &(vmf[Vars::yvel]);
