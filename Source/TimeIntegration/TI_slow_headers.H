@@ -202,9 +202,9 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* p0,
+                       const amrex::MultiFab& pp_inc,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
-                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
-                       const amrex::MultiFab& pp_inc);
+                       std::unique_ptr<amrex::MultiFab>& mapfac_v);
 #endif
 #endif
