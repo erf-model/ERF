@@ -118,6 +118,7 @@ void make_fast_coeffs (int level,
                        const amrex::MultiFab* r0,
                        const amrex::MultiFab* pi0,
                        const amrex::Real dtau,
-                       const amrex::Real beta_s);
+                       const amrex::Real beta_s,
+                       amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
 
 #endif

@@ -134,7 +134,14 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
    .. math::
 
-      (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right]
+      (\rho \theta)_{i,j,-n} = \rho_{i,j,-n} \left[ \frac{(\rho\theta)_{i,j,0}}{\rho_{i,j,0}} - \left. \frac{\tau_{\theta z}}{\rho} \right|_{i,j,0} \frac{\rho_{i,j,0}}{K_{\theta,v,(i,j,0)}} n \Delta z \right].
+
+   The above implementation explicitly sets the ghost cells so that the local stresses in (6) are recovered. This formulation will depend upon the eddy diffusivity :math:`K_{\phi,v}` in the near-wall region. Since :math:`K_{\phi,v}` may be a function of near-wall gradients, circular dependencies may occur. An **explicit MOST** formulation has also been implemented where the stress tensors are directly populated with the values computed for :math:`\tau_{\phi z}` and the ghost cells are filled according the recommendation made in `Moeng, Journal of the Atmospheric Sciences, 1984 <https://journals.ametsoc.org/view/journals/atsc/41/13/1520-0469_1984_041_2052_alesmf_2_0_co_2.xml>`_; see below. To enable the **explicit MOST** formulation, users may add the line ``erf.use_explicit_most = true``.
+
+   .. math::
+
+      (\rho \theta)_{z} = \frac{(\rho \theta)_{i,j,1} - (\rho \theta)_{i,j,0}}{\Delta z}
+      (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
 
    Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implentation with terrain will require local vector rotations. While the ERF dycore accounts for
    terrain metrics when computing fluxes (e.g. for advection, diffusion, etc.), the impact of terrain metrics on MOST is still a work in progress. Therefore, running with terrain (``erf.use_terrain = true``) and with MOST

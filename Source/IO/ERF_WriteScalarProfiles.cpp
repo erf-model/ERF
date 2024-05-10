@@ -30,9 +30,9 @@ ERF::sum_integrated_quantities (Real time)
     Real scal_ml = 0.0;
 
 #if 1
-    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],false,false);
+    mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,*mapfac_m[0],true,false);
     for (int lev = 0; lev <= finest_level; lev++) {
-        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],false,true);
+        mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,*mapfac_m[lev],true,true);
     }
 #else
     for (int lev = 0; lev <= finest_level; lev++) {
@@ -51,110 +51,107 @@ ERF::sum_integrated_quantities (Real time)
             });
         }
         if (lev == 0) {
-            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],false,false);
+            mass_sl = volWgtSumMF(0,pert_dens,0,*mapfac_m[0],true,false);
         }
-        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],false,true);
+        mass_ml += volWgtSumMF(lev,pert_dens,0,*mapfac_m[lev],true,true);
     } // lev
 #endif
 
-    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],false,false);
-    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],false,false);
+    Real rhth_sl = volWgtSumMF(0,vars_new[0][Vars::cons], RhoTheta_comp,*mapfac_m[0],true,false);
+    Real scal_sl = volWgtSumMF(0,vars_new[0][Vars::cons],RhoScalar_comp,*mapfac_m[0],true,false);
 
     for (int lev = 0; lev <= finest_level; lev++) {
-        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],false,true);
-        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],false,true);
+        rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,*mapfac_m[lev],true,true);
+        scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,*mapfac_m[lev],true,true);
     }
 
-    if (verbose > 0) {
+    Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
+    Gpu::HostVector<Real> h_avg_tstar; h_avg_tstar.resize(1);
+    Gpu::HostVector<Real> h_avg_olen; h_avg_olen.resize(1);
+    if ((m_most != nullptr) && (NumDataLogs() > 0)) {
+        Box domain = geom[0].Domain();
+        int zdir = 2;
+        h_avg_ustar = sumToLine(*m_most->get_u_star(0),0,1,domain,zdir);
+        h_avg_tstar = sumToLine(*m_most->get_t_star(0),0,1,domain,zdir);
+        h_avg_olen  = sumToLine(*m_most->get_olen(0),0,1,domain,zdir);
 
-        Gpu::HostVector<Real> h_avg_ustar; h_avg_ustar.resize(1);
-        Gpu::HostVector<Real> h_avg_tstar; h_avg_tstar.resize(1);
-        Gpu::HostVector<Real> h_avg_olen; h_avg_olen.resize(1);
-        if ((m_most != nullptr) && (NumDataLogs() > 0)) {
-            Box domain = geom[0].Domain();
-            int zdir = 2;
-            h_avg_ustar = sumToLine(*m_most->get_u_star(0),0,1,domain,zdir);
-            h_avg_tstar = sumToLine(*m_most->get_t_star(0),0,1,domain,zdir);
-            h_avg_olen  = sumToLine(*m_most->get_olen(0),0,1,domain,zdir);
+        // Divide by the total number of cells we are averaging over
+        Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
+        h_avg_ustar[0] /= area_z;
+        h_avg_tstar[0] /= area_z;
+        h_avg_olen[0]  /= area_z;
 
-            // Divide by the total number of cells we are averaging over
-            Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
-            h_avg_ustar[0] /= area_z;
-            h_avg_tstar[0] /= area_z;
-            h_avg_olen[0]  /= area_z;
+    } else {
+        h_avg_ustar[0] = 0.;
+        h_avg_tstar[0] = 0.;
+        h_avg_olen[0]  = 0.;
+    }
 
+    const int nfoo = 6;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
+#ifdef AMREX_LAZY
+    Lazy::QueueReduction([=]() mutable {
+#endif
+    ParallelDescriptor::ReduceRealSum(
+        foo, nfoo, ParallelDescriptor::IOProcessorNumber());
+
+      if (ParallelDescriptor::IOProcessor()) {
+        int i = 0;
+        mass_sl = foo[i++];
+        rhth_sl = foo[i++];
+        scal_sl = foo[i++];
+        mass_ml = foo[i++];
+        rhth_ml = foo[i++];
+        scal_ml = foo[i++];
+
+        Print() << '\n';
+        if (finest_level ==  0) {
+#if 1
+           Print() << "TIME= " << time << "     MASS          = " << mass_sl << '\n';
+#else
+           Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
+#endif
+           Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
+           Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
         } else {
-            h_avg_ustar[0] = 0.;
-            h_avg_tstar[0] = 0.;
-            h_avg_olen[0]  = 0.;
+#if 1
+           Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+#else
+           Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
+#endif
+           Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
         }
 
-        const int nfoo = 6;
-        Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mass_ml,rhth_ml,scal_ml};
+        // The first data log only holds scalars
+        if (NumDataLogs() > 0)
+        {
+            int nd = 0;
+            std::ostream& data_log1 = DataLog(nd);
+            if (data_log1.good()) {
+                if (time == 0.0) {
+                    data_log1 << std::setw(datwidth) << "          time";
+                    data_log1 << std::setw(datwidth) << "          u_star";
+                    data_log1 << std::setw(datwidth) << "          t_star";
+                    data_log1 << std::setw(datwidth) << "          olen";
+                    data_log1 << std::endl;
+                } // time = 0
+
+              // Write the quantities at this time
+              data_log1 << std::setw(datwidth) << time;
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
+                        << h_avg_ustar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
+                        << h_avg_tstar[0];
+              data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
+                        << h_avg_olen[0];
+              data_log1 << std::endl;
+            } // if good
+        } // loop over i
+      } // if IOProcessor
 #ifdef AMREX_LAZY
-        Lazy::QueueReduction([=]() mutable {
+    });
 #endif
-        ParallelDescriptor::ReduceRealSum(
-            foo, nfoo, ParallelDescriptor::IOProcessorNumber());
-
-          if (ParallelDescriptor::IOProcessor()) {
-            int i = 0;
-            mass_sl = foo[i++];
-            rhth_sl = foo[i++];
-            scal_sl = foo[i++];
-            mass_ml = foo[i++];
-            rhth_ml = foo[i++];
-            scal_ml = foo[i++];
-
-            Print() << '\n';
-            if (finest_level ==  0) {
-#if 1
-               Print() << "TIME= " << time << "      MASS         = " << mass_sl << '\n';
-#else
-               Print() << "TIME= " << time << " PERT MASS         = " << mass_sl << '\n';
-#endif
-               Print() << "TIME= " << time << " RHO THETA         = " << rhth_sl << '\n';
-               Print() << "TIME= " << time << " RHO SCALAR        = " << scal_sl << '\n';
-            } else {
-#if 1
-               Print() << "TIME= " << time << "      MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
-#else
-               Print() << "TIME= " << time << " PERT MASS   SL/ML = " << mass_sl << " " << mass_ml << '\n';
-#endif
-               Print() << "TIME= " << time << " RHO THETA   SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-               Print() << "TIME= " << time << " RHO SCALAR  SL/ML = " << scal_sl << " " << scal_ml << '\n';
-            }
-
-            // The first data log only holds scalars
-            if (NumDataLogs() > 0)
-            {
-                int nd = 0;
-                std::ostream& data_log1 = DataLog(nd);
-                if (data_log1.good()) {
-                    if (time == 0.0) {
-                        data_log1 << std::setw(datwidth) << "          time";
-                        data_log1 << std::setw(datwidth) << "          u_star";
-                        data_log1 << std::setw(datwidth) << "          t_star";
-                        data_log1 << std::setw(datwidth) << "          olen";
-                        data_log1 << std::endl;
-                    } // time = 0
-
-                  // Write the quantities at this time
-                  data_log1 << std::setw(datwidth) << time;
-                  data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                            << h_avg_ustar[0];
-                  data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                            << h_avg_tstar[0];
-                  data_log1 << std::setw(datwidth) << std::setprecision(datprecision)
-                            << h_avg_olen[0];
-                  data_log1 << std::endl;
-                } // if good
-            } // loop over i
-          } // if IOProcessor
-#ifdef AMREX_LAZY
-        });
-#endif
-    } // if verbose
 
     // This is just an alias for convenience
     int lev = 0;

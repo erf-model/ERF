@@ -88,7 +88,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
             // Note we pass in the *old* detJ here
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], r0, pi0, dtau, beta_s);
+                             detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
             if (fast_step == 0) {
                 // If this is the first substep we pass in S_old as the previous step's solution
@@ -121,7 +121,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                                  l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
-                                 detJ_cc[level], r0, pi0, dtau, beta_s);
+                                 detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_T(fast_step, nrk, level, finest_level,
@@ -145,7 +145,7 @@ auto fast_rhs_fun = [&](int fast_step, int /*n_sub*/, int nrk,
                 // If this is the first substep we make the coefficients since they are based only on stage data
                 make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                                  l_use_moisture, solverChoice.use_terrain, solverChoice.gravity, solverChoice.c_p,
-                                 detJ_cc[level], r0, pi0, dtau, beta_s);
+                                 detJ_cc[level], r0, pi0, dtau, beta_s, phys_bc_type);
 
                 // If this is the first substep we pass in S_old as the previous step's solution
                 erf_fast_rhs_N(fast_step, nrk, level, finest_level,

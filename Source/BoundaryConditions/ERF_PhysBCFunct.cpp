@@ -46,7 +46,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box cbx = bx; cbx.grow(nghost);
+            Box cbx1 = bx; cbx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box cbx2 = bx; cbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
@@ -55,16 +56,16 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomain.contains(cbx))
+            if (!gdomain.contains(cbx2))
             {
                 const Array4<Real> cons_arr = mf.array(mfi);;
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_cons_bcs(cons_arr,cbx,domain,icomp,ncomp,bccomp);
+                    impose_lateral_cons_bcs(cons_arr,cbx1,domain,icomp,ncomp,bccomp);
                 }
 
-                impose_vertical_cons_bcs(cons_arr,cbx,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);
+                impose_vertical_cons_bcs(cons_arr,cbx2,domain,z_nd_arr,dxInv,icomp,ncomp,bccomp);
             }
 
         } // MFIter
@@ -103,7 +104,8 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box xbx = surroundingNodes(bx,0); xbx.grow(nghost);
+            Box xbx1 = surroundingNodes(bx,0); xbx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box xbx2 = surroundingNodes(bx,0); xbx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
@@ -112,19 +114,19 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomainx.contains(xbx))
+            if (!gdomainx.contains(xbx2))
             {
                 const Array4<Real> velx_arr = mf.array(mfi);;
 
                 if (!m_use_real_bcs)
                 {
-                    if (!gdomainx.contains(xbx))
+                    if (!gdomainx.contains(xbx1))
                     {
-                        impose_lateral_xvel_bcs(velx_arr,xbx,domain,bccomp);
+                        impose_lateral_xvel_bcs(velx_arr,xbx1,domain,bccomp);
                     }
                 }
 
-                impose_vertical_xvel_bcs(velx_arr,xbx,domain,z_nd_arr,dxInv,bccomp,time);
+                impose_vertical_xvel_bcs(velx_arr,xbx2,domain,z_nd_arr,dxInv,bccomp,time);
             }
 
         } // MFIter
@@ -163,7 +165,8 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             //
             // These are the boxes we use to test on relative to the domain
             //
-            Box ybx = surroundingNodes(bx,1); ybx.grow(nghost);
+            Box ybx1 = surroundingNodes(bx,1); ybx1.grow(IntVect(nghost[0],nghost[1],0));
+            Box ybx2 = surroundingNodes(bx,1); ybx2.grow(nghost);
 
             Array4<const Real> z_nd_arr;
 
@@ -172,16 +175,16 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
                 z_nd_arr = m_z_phys_nd->const_array(mfi);
             }
 
-            if (!gdomainy.contains(ybx))
+            if (!gdomainy.contains(ybx2))
             {
                 const Array4<Real> vely_arr = mf.array(mfi);;
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_yvel_bcs(vely_arr,ybx,domain,bccomp);
+                    impose_lateral_yvel_bcs(vely_arr,ybx1,domain,bccomp);
                 }
 
-                impose_vertical_yvel_bcs(vely_arr,ybx,domain,z_nd_arr,dxInv,bccomp);
+                impose_vertical_yvel_bcs(vely_arr,ybx2,domain,z_nd_arr,dxInv,bccomp);
             }
 
         } // MFIter

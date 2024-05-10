@@ -139,13 +139,13 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
                  Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
                                       v_vel(i,j,k)*v_vel(i,j,k) +
-                                      w_vel(i,j,k)*w_vel(i,j,k), 0.5);
+                                      w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
                  fitch_array(i,j,k,0) = Vabs;
-                 fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
                  fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
                  fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-                 fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+                 fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
           });

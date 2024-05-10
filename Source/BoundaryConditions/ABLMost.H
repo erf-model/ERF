@@ -30,6 +30,7 @@ public:
 
     // Constructor
     explicit ABLMost (const amrex::Vector<amrex::Geometry>& geom,
+                      bool& use_exp_most,
                       amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_old,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Theta_prim,
                       amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Qv_prim,
@@ -40,7 +41,8 @@ public:
                       amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
-    : m_start_bdy_time(start_bdy_time),
+    : m_exp_most(use_exp_most),
+      m_start_bdy_time(start_bdy_time),
       m_bdy_time_interval(bdy_time_interval),
       m_geom(geom),
       m_ma(geom,vars_old,Theta_prim,Qv_prim,z_phys_nd)
@@ -220,26 +222,20 @@ public:
     void
     impose_most_bcs (const int& lev,
                      const amrex::Vector<amrex::MultiFab*>& mfs,
-#ifdef ERF_EXPLICIT_MOST_STRESS
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
-#else
                      amrex::MultiFab* eddyDiffs,
-#endif
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
     void
     compute_most_bcs (const int& lev,
                       const amrex::Vector<amrex::MultiFab*>& mfs,
-#ifdef ERF_EXPLICIT_MOST_STRESS
-                     amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
-                     amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
+                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
+                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
-#else
                       amrex::MultiFab* eddyDiffs,
-#endif
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);
@@ -319,6 +315,7 @@ public:
 
 private:
     bool use_moisture;
+    bool m_exp_most = false;
     amrex::Real z0_const;
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};

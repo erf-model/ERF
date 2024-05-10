@@ -62,6 +62,9 @@ std::string ERF::nc_bdy_file; // Must provide via input
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
 
+// Text input_sponge file
+std::string ERF::input_sponge_file = "input_sponge_file.txt";
+
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
 
@@ -112,14 +115,15 @@ ERF::ERF ()
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
@@ -263,6 +267,21 @@ ERF::ERF ()
     // Qv prim for MOST
     Qv_prim.resize(nlevs_max);
 
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
+
+#ifdef ERF_USE_NETCDF
+    // Size lat long arrays if using netcdf
+    lat_m.resize(nlevs_max);
+    lon_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        lat_m[lev] = nullptr;
+        lon_m[lev] = nullptr;
+    }
+#endif
+
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
@@ -321,7 +340,7 @@ ERF::Evolve ()
         cur_time  += dt[0];
 
         Print() << "Coarse STEP " << step+1 << " ends." << " TIME = " << cur_time
-                       << " DT = " << dt[0]  << std::endl;
+                << " DT = " << dt[0]  << std::endl;
 
         post_timestep(step, cur_time, dt[0]);
 
@@ -761,7 +780,14 @@ ERF::InitData ()
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
+    }
 
+    // Read in sponge data from input file
+    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    {
+        initSponge();
+        bool restarting = (!restart_chkfile.empty());
+        setSpongeRefFromSounding(restarting);
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
@@ -793,7 +819,7 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(vars_new);
+            project_velocities(0, finest_level, vars_new);
         }
     }
 #endif
@@ -866,11 +892,12 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-#endif
+        bool use_exp_most = solverChoice.use_explicit_most;
+        if (use_exp_most) {
+            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        }
 
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -902,6 +929,16 @@ ERF::InitData ()
         for (int lev = 0; lev <= finest_level; ++lev) {
             micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons]);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+        }
+    }
+
+    // Fill time averaged velocities before first plot file
+    if (solverChoice.time_avg_vel) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(),
+                              vars_new[lev][Vars::xvel],
+                              vars_new[lev][Vars::yvel],
+                              vars_new[lev][Vars::zvel]);
         }
     }
 
@@ -1152,6 +1189,11 @@ ERF::init_only (int lev, Real time)
 #ifdef ERF_USE_WINDFARM
     init_windfarm(lev);
 #endif
+
+   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+        input_sponge(lev);
+   }
+
 }
 
 // read in some parameters from inputs file
@@ -1297,6 +1339,9 @@ ERF::ReadParameters ()
 
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
+
+        // Text input_sounding file
+        pp.query("input_sponge_file", input_sponge_file);
 
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
@@ -1744,14 +1789,15 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     int nlevs_max = max_level + 1;
 
 #ifdef ERF_USE_WINDFARM
-    if(solverChoice.windfarm_type == WindFarmType::Fitch){
-        Nturb.resize(nlevs_max);
-        vars_fitch.resize(nlevs_max);
-    }
+    Nturb.resize(nlevs_max);
+    vars_fitch.resize(nlevs_max);
+    vars_ewp.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)
@@ -1849,6 +1895,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
+
+    // Time averaged velocity field
+    vel_t_avg.resize(nlevs_max);
+    t_avg_cnt.resize(nlevs_max);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
