@@ -4,11 +4,7 @@
  *  Wrapper for calling the routine that creates the slow RHS
  */
     auto slow_rhs_fun_pre = [&](Vector<MultiFab>& S_rhs,
-#ifdef ERF_USE_NETCDF
                                 Vector<MultiFab>& S_old,
-#else
-                                Vector<MultiFab>& /*S_old*/,
-#endif
                                 Vector<MultiFab>& S_data,
                                 Vector<MultiFab>& S_scratch,
                                 const Real old_step_time,
@@ -119,7 +115,7 @@
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
 
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
@@ -222,7 +218,7 @@
                              dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                              d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
 
-            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_data, S_prim, S_scratch,
+            erf_slow_rhs_pre(level, finest_level, nrk, slow_dt, S_rhs, S_old, S_data, S_prim, S_scratch,
                              xvel_new, yvel_new, zvel_new,
                              z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                              Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
@@ -392,6 +388,21 @@
 
         Real slow_dt = new_stage_time - old_step_time;
 
+        // *************************************************************************
+        // Set up flux registers if using two_way coupling
+        // *************************************************************************
+        YAFluxRegister* fr_as_crse = nullptr;
+        YAFluxRegister* fr_as_fine = nullptr;
+        if (solverChoice.coupling_type == CouplingType::TwoWay) {
+            if (level < finest_level) {
+                fr_as_crse = getAdvFluxReg(level+1);
+                fr_as_crse->reset();
+            }
+            if (level > 0) {
+                fr_as_fine = getAdvFluxReg(level);
+            }
+        }
+
         Real* dptr_u_geos = solverChoice.custom_geostrophic_profile ? d_u_geos[level].data(): nullptr;
         Real* dptr_v_geos = solverChoice.custom_geostrophic_profile ? d_v_geos[level].data(): nullptr;
 
@@ -413,16 +424,23 @@
                          dptr_u_geos, dptr_v_geos, dptr_wbar_sub,
                          d_rayleigh_ptrs_at_lev, d_sponge_ptrs_at_lev, n_qstate);
 
-        erf_slow_rhs_inc(level, nrk, slow_dt,
+        erf_slow_rhs_pre(level, finest_level, nrk, slow_dt,
                          S_rhs, S_old, S_data, S_prim, S_scratch,
                          xvel_new, yvel_new, zvel_new,
-                         Omega, cc_src, xmom_src, ymom_src, zmom_src,
+                         z_t_rk[level], Omega, cc_src, xmom_src, ymom_src, zmom_src,
                          Tau11_lev[level].get(), Tau22_lev[level].get(), Tau33_lev[level].get(), Tau12_lev[level].get(),
                          Tau13_lev[level].get(), Tau21_lev[level].get(), Tau23_lev[level].get(), Tau31_lev[level].get(),
                          Tau32_lev[level].get(), SmnSmn, eddyDiffs, Hfx3, Diss,
                          fine_geom, solverChoice, m_most, domain_bcs_type_d, domain_bcs_type,
-                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0, pp_inc[level],
-                         mapfac_m[level], mapfac_u[level], mapfac_v[level]);
+                         z_phys_nd[level], ax[level], ay[level], az[level], detJ_cc[level], p0,
+#ifdef ERF_USE_POISSON_SOLVE
+                         pp_inc[level],
+#endif
+                         mapfac_m[level], mapfac_u[level], mapfac_v[level],
+#ifdef ERF_USE_EB
+                         EBFactory(level),
+#endif
+                         fr_as_crse, fr_as_fine);
 
          add_thin_body_sources(xmom_src, ymom_src, zmom_src,
                                xflux_imask[level], yflux_imask[level], zflux_imask[level],
