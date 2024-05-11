@@ -146,17 +146,17 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
-    const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
-    const bool use_most     = (most != nullptr);
-    const bool exp_most     = (solverChoice.use_explicit_most);
+    const bool l_use_moisture = (solverChoice.moisture_type != MoistureType::None);
+    const bool l_use_most     = (most != nullptr);
+    const bool l_exp_most     = (solverChoice.use_explicit_most);
 
-#ifdef ERF_USE_POISSON_SOlVE
+#ifdef ERF_USE_POISSON_SOLVE
     const bool l_incompressible = solverChoice.incompressible;
     const bool l_const_rho      = solverChoice.constant_density;
 
     // We cannot use incompressible with terrain or with moisture
-    AMREX_ALWAYS_ASSERT(!l_use_terrain || !incompressible);
-    AMREX_ALWAYS_ASSERT(!l_use_moisture || !incompressible);
+    AMREX_ALWAYS_ASSERT(!l_use_terrain  || !l_incompressible);
+    AMREX_ALWAYS_ASSERT(!l_use_moisture || !l_incompressible);
 #else
     const bool l_incompressible = false;
     const bool l_const_rho      = false;
@@ -315,7 +315,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
                 //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
                 AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-                Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
+                Real qv_for_p = (l_use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
                 pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
             });
         }
@@ -451,21 +451,21 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int n_comp  = end_comp - n_start + 1;
 
             if (l_use_terrain) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, exp_most, u, v,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss, mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             } else {
-                DiffusionSrcForState_N(bx, domain, n_start, n_comp, exp_most, u, v,
+                DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                        hfx_z, diss,
                                        mu_turb, dc, tc,
-                                       tm_arr, grav_gpu, bc_ptr_d, use_most);
+                                       tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             }
         }
 
@@ -579,7 +579,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             gpx *= mf_u(i,j,0);
 
             Real q = 0.0;
-            if (use_moisture) {
+            if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i-1,j,k,PrimQ1_comp)
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i-1,j,k,PrimQ2_comp) );
             }
@@ -628,7 +628,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             gpy *= mf_v(i,j,0);
 
             Real q = 0.0;
-            if (use_moisture) {
+            if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j-1,k,PrimQ1_comp)
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j-1,k,PrimQ2_comp) );
             }
@@ -704,7 +704,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Real gpz = dxInv[2] * ( pp_arr(i,j,k)-pp_arr(i,j,k-1) )  / met_h_zeta;
 
             Real q = 0.0;
-            if (use_moisture) {
+            if (l_use_moisture) {
                 q = 0.5 * ( cell_prim(i,j,k,PrimQ1_comp) + cell_prim(i,j,k-1,PrimQ1_comp)
                            +cell_prim(i,j,k,PrimQ2_comp) + cell_prim(i,j,k-1,PrimQ2_comp) );
             }
