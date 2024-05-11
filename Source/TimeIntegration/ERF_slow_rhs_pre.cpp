@@ -17,6 +17,7 @@ using namespace amrex;
  * @param[in]  nrk   which RK stage
  * @param[in]  dt    slow time step
  * @param[out]  S_rhs RHS computed here
+ * @param[in]  S_old  old-time solution -- used only for incompressible
  * @param[in]  S_data current solution
  * @param[in]  S_prim primitive variables (i.e. conserved variables divided by density)
  * @param[in]  S_scratch scratch space
@@ -66,6 +67,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        int nrk,
                        Real dt,
                        Vector<MultiFab>& S_rhs,
+                       Vector<MultiFab>& S_old,
                        Vector<MultiFab>& S_data,
                        const MultiFab& S_prim,
                        Vector<MultiFab>& S_scratch,
@@ -148,6 +150,18 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
 
+#ifdef ERF_USE_POISSON_SOlVE
+    const bool l_incompressible = solverChoice.incompressible;
+    const bool l_const_rho      = solverChoice.constant_density;
+
+    // We cannot use incompressible with terrain or with moisture
+    AMREX_ALWAYS_ASSERT(!l_use_terrain || !incompressible);
+    AMREX_ALWAYS_ASSERT(!l_use_moisture || !incompressible);
+#else
+    const bool l_incompressible = false;
+    const bool l_const_rho      = false;
+#endif
+
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
     const int domlo_z = domain.smallEnd(2);
@@ -222,9 +236,22 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const Array4<const Real> & cell_prim  = S_prim.array(mfi);
         const Array4<Real>       & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
 
+        const Array4<const Real> & cell_old   = S_old[IntVars::cons].array(mfi);
+
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
+
+        const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
+        const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
+        const Array4<Real>& rho_w_old = S_old[IntVars::zmom].array(mfi);
+
+        if (l_incompressible) {
+            // When incompressible we must reset these to 0 each RK step
+            S_scratch[IntVars::xmom][mfi].template setVal<RunOn::Device>(0.0,tbx);
+            S_scratch[IntVars::ymom][mfi].template setVal<RunOn::Device>(0.0,tby);
+            S_scratch[IntVars::zmom][mfi].template setVal<RunOn::Device>(0.0,tbz);
+        }
 
         Array4<Real> avg_xmom = S_scratch[IntVars::xmom].array(mfi);
         Array4<Real> avg_ymom = S_scratch[IntVars::ymom].array(mfi);
@@ -277,21 +304,26 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // *****************************************************************************
         // Perturbational pressure field
         // *****************************************************************************
-        Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
-        if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
-        FArrayBox pprime; pprime.resize(gbx,1,The_Async_Arena());
-        const Array4<Real      > & pp_arr = pprime.array();
-        {
-        BL_PROFILE("slow_rhs_pre_pprime");
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
-            //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
-            AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
-            Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
-            pp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
-        });
-        } // end profile
+        FArrayBox pprime;
+        if (!l_incompressible) {
+            Box gbx = mfi.tilebox(); gbx.grow(IntVect(1,1,1));
+            if (gbx.smallEnd(2) < 0) gbx.setSmall(2,0);
+            pprime.resize(gbx,1,The_Async_Arena());
+            const Array4<Real>& pptemp_arr = pprime.array();
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                //if (cell_data(i,j,k,RhoTheta_comp) < 0.) printf("BAD THETA AT %d %d %d %e %e \n",
+                //    i,j,k,cell_data(i,j,k,RhoTheta_comp),cell_data(i,j,k+1,RhoTheta_comp));
+                AMREX_ASSERT(cell_data(i,j,k,RhoTheta_comp) > 0.);
+                Real qv_for_p = (use_moisture) ? cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp) : 0.0;
+                pptemp_arr(i,j,k) = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp),qv_for_p) - p0_arr(i,j,k);
+            });
+        }
+#ifdef ERF_USE_POISSON_SOLVE
+        const Array4<const Real>& pp_arr = (l_incompressible) ? pp_inc.const_array(mfi) : pprime.const_array();
+#else
+        const Array4<const Real>& pp_arr = pprime.const_array();
+#endif
 
         // *****************************************************************************
         // Contravariant flux field
@@ -393,7 +425,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            avg_xmom, avg_ymom, avg_zmom, // these are being defined from the fluxes
                            ax_arr, ay_arr, az_arr, detJ_arr,
                            dxInv, mf_m, mf_u, mf_v,
-                           flx_arr);
+                           flx_arr, l_const_rho);
 
         int icomp = RhoTheta_comp; int ncomp = 1;
         AdvectionSrcForScalars(bx, icomp, ncomp,
@@ -450,6 +482,19 @@ void erf_slow_rhs_pre (int level, int finest_level,
             {
                 cell_rhs(i,j,k,Rho_comp)      *= detJ_arr(i,j,k);
                 cell_rhs(i,j,k,RhoTheta_comp) *= detJ_arr(i,j,k);
+            });
+        }
+
+        // If incompressible and in second RK stage, take average of old-time and new-time source
+        if ( l_incompressible && (nrk == 1) )
+        {
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                cell_rhs(i,j,k,     Rho_comp) *= 0.5;
+                cell_rhs(i,j,k,RhoTheta_comp) *= 0.5;
+
+                cell_rhs(i,j,k,     Rho_comp) += 0.5 / dt * (cell_data(i,j,k,     Rho_comp) - cell_old(i,j,k,     Rho_comp));
+                cell_rhs(i,j,k,RhoTheta_comp) += 0.5 / dt * (cell_data(i,j,k,RhoTheta_comp) - cell_old(i,j,k,RhoTheta_comp));
             });
         }
 
@@ -546,6 +591,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 Real h_zeta = Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd);
                 rho_u_rhs(i, j, k) *= h_zeta;
             }
+
+            if ( l_incompressible && (nrk == 1) ) {
+              rho_u_rhs(i,j,k) *= 0.5;
+              rho_u_rhs(i,j,k) += 0.5 / dt * (rho_u(i,j,k) - rho_u_old(i,j,k));
+            }
         });
 
         ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k)
@@ -588,6 +638,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
             if (l_moving_terrain) {
                 Real h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
                 rho_v_rhs(i, j, k) *= h_zeta;
+            }
+
+            if ( l_incompressible && (nrk == 1) ) {
+              rho_v_rhs(i,j,k) *= 0.5;
+              rho_v_rhs(i,j,k) += 0.5 / dt * (rho_v(i,j,k) - rho_v_old(i,j,k));
             }
         });
 
@@ -666,7 +721,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries
         if (l_reflux && nrk == 2) {
-            int strt_comp_reflux = 0;
+            int strt_comp_reflux = (l_const_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
