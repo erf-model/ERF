@@ -287,6 +287,40 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         }
                     }
 
+                    if (include_brownian_coalescence) {
+
+                        ParticleReal pressure = 0.0, temperature = 0.0;
+                        {
+                            ParticleType& par_1 = pstruct_ptr[pi];
+                            auto iv = getParticleCell(par_1, plo, dxi, domain);
+                            pressure = pressure_arr(iv[0],iv[1],iv[2],0);
+                            temperature = temperature_arr(iv[0],iv[1],iv[2],0);
+                        }
+
+                        ParticleReal aero_mass_1 = 0.0,
+                                     aero_mass_2 = 0.0,
+                                     aero_vol_1 = 0.0,
+                                     aero_vol_2 = 0.0;
+                        {
+                            for (int ia = 0; ia < num_aerosols; ia++) {
+                                aero_mass_1 += aerosol_mass_ptrs[ia][pi];
+                                aero_mass_2 += aerosol_mass_ptrs[ia][pj];
+                                aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
+                                aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
+                            }
+                        }
+
+                        k_val += ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
+                                                                  radius_ptr[pj],
+                                                                  aero_mass_1,
+                                                                  aero_mass_2,
+                                                                  aero_vol_1,
+                                                                  aero_vol_2,
+                                                                  condensate_density,
+                                                                  pressure,
+                                                                  temperature );
+                    }
+
                     auto prob_ij = k_val*inv_bin_volume;
                     auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
 
