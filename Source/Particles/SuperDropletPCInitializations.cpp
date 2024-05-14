@@ -40,6 +40,7 @@ void SuperDropletPC::readInputs ()
     m_mass_condensate_init_type = SupDropInit::attrib_init_const;
     m_coalescence_kernel = SDCoalescenceKernelType::sedimentation;
     m_coalescence_alg = SupDropInit::alg_coalescence_dsmc;
+    m_include_brownian_coalescence = true;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
@@ -69,6 +70,7 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_max_particle_substeps", m_mass_change_max_substeps);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
+    pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
 
     std::string coal_kernel_name = "sedimentation";
     pp.query("coalescence_kernel", coal_kernel_name);
@@ -204,7 +206,9 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
             << "    Initial particle box: " << a_particle_init_domain << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
-            << "    Coalescence algorthm: " << m_coalescence_alg << "\n";
+            << "    Coalescence algorthm: " << m_coalescence_alg << "\n"
+            << "    Include Brownian coaslescence: "
+            << (m_include_brownian_coalescence ? "true" : "false") << "\n";
 
     Print() << "    Coalescence kernel: ";
     if (m_coalescence_kernel == SDCoalescenceKernelType::golovin) {

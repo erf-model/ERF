@@ -259,7 +259,10 @@ class SuperDropletPC : public ERFPC
                                     const int a_max_substeps = -1);
 
         /*! \brief Coalescence of super-droplets */
-        virtual void Coalescence ( int, amrex::Real, const amrex::MultiFab& );
+        virtual void Coalescence (  int,
+                                    amrex::Real,
+                                    const amrex::MultiFab&,
+                                    const amrex::MultiFab& );
 
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
@@ -305,7 +308,8 @@ class SuperDropletPC : public ERFPC
         std::string m_mass_condensate_init_type; /*!< type of initial distribution */
         amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
-        SDCoalescenceKernelType m_coalescence_kernel;
+        SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
+        bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
 
         int m_ppc_seed; /*!< Number of seed particles per cell */
         amrex::Real m_seed_mass; /*!< Condensate mass of seed */

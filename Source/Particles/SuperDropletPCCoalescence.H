@@ -237,6 +237,89 @@ struct CollisionKernel
         return c_rate*dv;
     }
 
+    /*! \brief Long's kernel */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    RT Brownian_SeinfeldPandis ( const RT a_r1, /*!< radius of particle 1 */
+                                 const RT a_r2, /*!< radius of particle 2 */
+                                 const RT a_mass_aerosol_1, /*!< total aerosol mass of particle 1 */
+                                 const RT a_mass_aerosol_2, /*!< total aerosol mass of particle 2 */
+                                 const RT a_vol_aerosol_1, /*!< total aerosol mass of particle 1 */
+                                 const RT a_vol_aerosol_2, /*!< total aerosol mass of particle 2 */
+                                 const RT a_rho_c, /*!< condensate density */
+                                 const RT a_pressure, /*!< pressure */
+                                 const RT a_temperature /*!< temperature */ ) const noexcept
+    {
+        // diameter and mass and volume of droplets
+        RT total_vol_1 = a_vol_aerosol_1 + (4.0/3.0)*PI*(a_r1*a_r1*a_r1);
+        RT total_vol_2 = a_vol_aerosol_2 + (4.0/3.0)*PI*(a_r2*a_r2*a_r2);
+
+        RT total_mass_1 = a_mass_aerosol_1
+                          + (4.0/3.0)*PI*(a_r1*a_r1*a_r1) * a_rho_c;
+        RT total_mass_2 = a_mass_aerosol_2
+                          + (4.0/3.0)*PI*(a_r2*a_r2*a_r2) * a_rho_c;
+
+        RT diameter_1 = std::exp(std::log(6.0*total_vol_1/PI)/3.0);
+        RT diameter_2 = std::exp(std::log(6.0*total_vol_2/PI)/3.0);
+
+        RT p_crs = a_pressure; // [Pa]
+        RT t_crs = a_temperature; // [K]
+
+        // dynamic viscosity [Pa*s] (Pruppacher & Klett,1997)
+        RT T_degC = t_crs - 273.15; // [K] => [degC]
+        RT vis_crs = 0.0;
+        if( T_degC >= 0.0 ) {
+            vis_crs = ( 1.7180 + 4.9E-3*T_degC ) * 1.E-5;
+        } else {
+            vis_crs = ( 1.7180 + 4.9E-3*T_degC -1.2E-5*T_degC*T_degC ) * 1.E-5;
+        }
+
+        //air mean free path [m]
+        RT lambda_crs = (2.0*vis_crs) / (p_crs*std::sqrt(8.0*mwdair*1.E-3/(PI*R_d*t_crs)));
+
+        // temporary var
+        RT dtmp = 0.0;
+
+        // slip correction of droplets [-]
+        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_1/lambda_crs);
+        RT slip_corr_1 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_1);
+        dtmp   = 1.2570 + 0.40 * exp(-0.550*diameter_2/lambda_crs);
+        RT slip_corr_2 = 1.0 + (2.0*lambda_crs*dtmp)/(diameter_2);
+
+        // diffusion term [m*m/s]
+        dtmp = (boltz*t_crs)/(3.0*PI*vis_crs);
+        RT diff_term_1 = dtmp * (slip_corr_1/diameter_1);
+        RT diff_term_2 = dtmp * (slip_corr_2/diameter_2);
+
+        // velocity term [m/s]
+        dtmp = (8.0*boltz*t_crs)/PI;
+        RT vel_term_1 = std::sqrt(dtmp/total_mass_1);
+        RT vel_term_2 = std::sqrt(dtmp/total_mass_2);
+
+        // mean free path of droplets [m]
+        dtmp = 8.0/PI;
+        RT lambda_1 = dtmp * (diff_term_1/vel_term_1);
+        RT lambda_2 = dtmp * (diff_term_2/vel_term_2);
+
+        //length term [m]
+        dtmp = (diameter_1+lambda_1)*(diameter_1+lambda_1)*(diameter_1+lambda_1)
+               - std::exp(1.5*std::log(diameter_1*diameter_1+lambda_1*lambda_1));
+        RT length_term_1 = dtmp/(3.0*diameter_1*lambda_1) - diameter_1;
+        dtmp = (diameter_2+lambda_2)*(diameter_2+lambda_2)*(diameter_2+lambda_2)
+               - std::exp(1.5*std::log(diameter_2*diameter_2+lambda_2*lambda_2));
+        RT length_term_2 = dtmp/(3.0*diameter_2*lambda_2) - diameter_2;
+
+        // Brownian Coagulation Coefficient K12 [m3/s]
+        RT sumdia = diameter_1 + diameter_2;
+        RT sumd   = diff_term_1   + diff_term_2;
+        RT sumc   = std::sqrt( vel_term_1*vel_term_1 + vel_term_2*vel_term_2 );
+        RT sumg   = std::sqrt( length_term_1*length_term_1 + length_term_2*length_term_2 );
+
+        dtmp = sumdia/(sumdia+2.0*sumg) + (8.0*sumd)/(sumdia*sumc);
+        RT k12 = 2.0*PI * sumdia*sumd/dtmp;
+
+        return k12;
+    }
+
 };
 
 #endif

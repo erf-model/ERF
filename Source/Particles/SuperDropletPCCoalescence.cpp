@@ -108,6 +108,7 @@ static bool binary_coalescence (const int a_i, /*!< index of first particle */
 /*! Compute the coalescence of superdroplets in each time step */
 void SuperDropletPC::Coalescence( int   a_lev,
                                   Real  a_dt,
+                                  const MultiFab& a_pressure,
                                   const MultiFab& a_temperature )
 {
     BL_PROFILE("SuperDropletPC::Coalescence()");
@@ -130,6 +131,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     const auto& gvec = a_temperature.nGrowVect();
 
     auto kernel_choice = m_coalescence_kernel;
+    auto include_brownian_coalescence = m_include_brownian_coalescence;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
@@ -163,8 +165,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                                     + i ).data();
         }
 
-        CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
-
         int grid = pti.index();
         Box box = a_temperature[grid].box(); box.grow(-gvec);
         int ntiles = numTilesInBox(box, true, m_coalescence_bin_size);
@@ -175,6 +175,27 @@ void SuperDropletPC::Coalescence( int   a_lev,
         AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
         auto inds = bins.permutationPtr();
         auto offsets = bins.offsetsPtr();
+
+        const auto& pressure_arr = a_pressure[grid].const_array();
+        const auto& temperature_arr = a_temperature[grid].const_array();
+
+        CollisionKernel<ParticleReal,AMREX_SPACEDIM> ckernel{};
+
+        ParticleReal condensate_density = m_vapour_mat->density();
+        Gpu::DeviceVector<ParticleReal> aero_density_d;
+        {
+            Vector<ParticleReal> aero_density_h;
+            aero_density_h.resize(num_aerosols);
+            aero_density_d.resize(num_aerosols);
+            for (int ia = 0; ia < num_aerosols; ia++) {
+                aero_density_h[ia] = m_aerosol_mat[ia]->density();
+            }
+            Gpu::copy(  Gpu::hostToDevice,
+                        aero_density_h.begin(),
+                        aero_density_h.end(),
+                        aero_density_d.begin() );
+        }
+        auto aero_density = aero_density_d.data();
 
         Gpu::Buffer<amrex::Long> particle_collisions({0});
         Long* particle_collisions_ptr = particle_collisions.data();
@@ -336,6 +357,40 @@ void SuperDropletPC::Coalescence( int   a_lev,
                             } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
                                 k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                             }
+                        }
+
+                        if (include_brownian_coalescence) {
+
+                            ParticleReal pressure = 0.0, temperature = 0.0;
+                            {
+                                ParticleType& par_1 = pstruct_ptr[pi];
+                                auto iv = getParticleCell(par_1, plo, dxi, domain);
+                                pressure = pressure_arr(iv[0],iv[1],iv[2],0);
+                                temperature = temperature_arr(iv[0],iv[1],iv[2],0);
+                            }
+
+                            ParticleReal aero_mass_1 = 0.0,
+                                         aero_mass_2 = 0.0,
+                                         aero_vol_1 = 0.0,
+                                         aero_vol_2 = 0.0;
+                            {
+                                for (int ia = 0; ia < num_aerosols; ia++) {
+                                    aero_mass_1 += aerosol_mass_ptrs[ia][pi];
+                                    aero_mass_2 += aerosol_mass_ptrs[ia][pj];
+                                    aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
+                                    aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
+                                }
+                            }
+
+                            k_val += ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
+                                                                      radius_ptr[pj],
+                                                                      aero_mass_1,
+                                                                      aero_mass_2,
+                                                                      aero_vol_1,
+                                                                      aero_vol_2,
+                                                                      condensate_density,
+                                                                      pressure,
+                                                                      temperature );
                         }
 
                         auto prob_ij = k_val*inv_bin_volume;
