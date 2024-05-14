@@ -138,6 +138,7 @@ class SuperDropletPC : public ERFPC
                                                                "mass_flux_z"),
                                                   "number_density",
                                                   "mass_density",
+                                                  "radius",
                                                   ("mass_density_"+m_vapour_mat->name()),
                                                   AMREX_D_DECL (
                                                       ("mass_flux_x_"+m_vapour_mat->name()),
@@ -177,6 +178,8 @@ class SuperDropletPC : public ERFPC
                     massFlux( a_mf, 1 );
                 } else if (a_var_name == "mass_flux_z") {
                     massFlux( a_mf, 2 );
+                } else if (a_var_name == "radius") {
+                    effectiveRadius( a_mf );
                 } else {
                     for (int i = 0; i < m_num_aerosols; i++) {
                         std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
@@ -296,6 +299,8 @@ class SuperDropletPC : public ERFPC
         virtual void aerosolMassDensity ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
         virtual void aerosolMassFlux ( amrex::MultiFab&, const int&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the particle effective radius on a mesh */
+        virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
 
 
     protected:
