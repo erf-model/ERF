@@ -339,6 +339,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 for (int n = 0; n < np; n++) {
                     aerosol_mass_h[n] = m_mass_aerosol_init[i];
                 }
+            } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp_norm) {
+                std::random_device rd;
+                std::mt19937 rng(rd());
+                std::uniform_real_distribution<> urd(0.0, 1.0);
+                for (int n = 0; n < np; n++) {
+                    aerosol_mass_h[n] = -std::log(urd(rng))*m_mass_aerosol_init[i];
+                }
             } else {
                 Abort("Unknown m_mass_aerosol_init_type!");
             }
@@ -363,6 +370,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
                     condensate_mass_h[n] = m_mass_condensate_init;
+                }
+            } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_exp_norm) {
+                std::random_device rd;
+                std::mt19937 rng(rd());
+                std::uniform_real_distribution<> urd(0.0, 1.0);
+                for (int n = 0; n < np; n++) {
+                    condensate_mass_h[n] = -std::log(urd(rng))*m_mass_condensate_init;
                 }
             } else {
                 Abort("Unknown m_mass_condensate_init_type!");

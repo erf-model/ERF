@@ -46,6 +46,7 @@ namespace SupDropInit
 
     const std::string attrib_init_const = "constant";
     const std::string attrib_init_exp = "exponential";
+    const std::string attrib_init_exp_norm = "exp_normal";
 
     const std::string alg_coalescence_dsmc = "DSMC";
     const std::string alg_coalescence_cudsmc = "cuDSMC";
