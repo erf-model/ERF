@@ -278,9 +278,9 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute and print diagnostics */
         virtual void Diagnostics (const int&, const bool);
         /*! \brief Compute mass density distribution */
-        virtual void MassDensityDistribution (  const int&,
-                                                const amrex::ParticleReal&,
-                                                const amrex::ParticleReal& );
+        virtual void ComputeDistributions (  const int&,
+                                             const amrex::ParticleReal&,
+                                             const amrex::ParticleReal& );
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
