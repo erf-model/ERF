@@ -222,12 +222,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        // If we are imposing open bc's then don't add rhs terms at the boundary locations
-        if ( xlo_open && (tbx.smallEnd(0) == domain.smallEnd(0)) ) {tbx.growLo(0,-1);}
-        if ( xhi_open && (tbx.bigEnd(0)   == domain.bigEnd(0)+1) ) {tbx.growHi(0,-1);}
-        if ( ylo_open && (tby.smallEnd(1) == domain.smallEnd(1)) ) {tby.growLo(1,-1);}
-        if ( yhi_open && (tby.bigEnd(1)   == domain.bigEnd(1)+1) ) {tby.growHi(1,-1);}
-
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
         tbz.growHi(2,-1);
