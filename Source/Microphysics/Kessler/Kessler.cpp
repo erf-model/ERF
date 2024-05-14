@@ -10,7 +10,6 @@ using namespace amrex;
  */
 void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 {
-    auto tabs  = mic_fab_vars[MicVar_Kess::tabs];
     if (solverChoice.moisture_type == MoistureType::Kessler){
         auto dz = m_geom.CellSize(2);
         auto domain = m_geom.Domain();
@@ -18,8 +17,8 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         int k_hi = domain.bigEnd(2);
 
         MultiFab fz;
-        auto ba    = tabs->boxArray();
-        auto dm    = tabs->DistributionMap();
+        auto ba    = mic_fab_vars[MicVar_Kess::tabs]->boxArray();
+        auto dm    = mic_fab_vars[MicVar_Kess::tabs]->DistributionMap();
         fz.define(convert(ba, IntVect(0,0,1)), dm, 1, 0); // No ghost cells
 
         Real dtn = dt;
@@ -38,18 +37,25 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                 if (k==k_lo) {
                     rho_avg = rho_array(i,j,k);
-                    qp_avg  = qp_array(i,j,k);
+                     qp_avg = qp_array(i,j,k);
                 } else if (k==k_hi+1) {
                     rho_avg = rho_array(i,j,k-1);
-                    qp_avg  = qp_array(i,j,k-1);
+                     qp_avg = qp_array(i,j,k-1);
                 } else {
                     rho_avg = 0.5*(rho_array(i,j,k-1) + rho_array(i,j,k)); // Convert to g/cm^3
-                    qp_avg = 0.5*(qp_array(i,j,k-1)  + qp_array(i,j,k));
+                     qp_avg = 0.5*(qp_array(i,j,k-1)  + qp_array(i,j,k));
                 }
 
                 qp_avg = std::max(0.0, qp_avg);
 
-                Real V_terminal = 36.34*std::pow(rho_avg*0.001*qp_avg, 0.1346)*std::pow(rho_avg/1.16, -0.5); // in m/s
+                // NOTE: rho is in units of g/cm^3 for the Kessler equations but we transport kg/m^3
+                Real rho_cgs = rho_avg * 0.001;
+
+                // TODO: This should come from rho_hse at k=0!
+                Real rho_hse = 1.16;
+
+                // NOTE: Converted from cm/s -> m/s
+                Real V_terminal = 36.34*std::pow(rho_cgs*qp_avg, 0.1346)*std::pow(rho_avg/rho_hse, -0.5); // in m/s
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -62,15 +68,11 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 if(k==k_lo){
                     rain_accum_array(i,j,k) = rain_accum_array(i,j,k) + rho_avg*qp_avg*V_terminal*dtn/1000.0*1000.0; // Divide by rho_water and convert to mm
                 }
-
-                /*if(k==0){
-                  fz_array(i,j,k) = 0;
-                  }*/
             });
         }
 
 
-        for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for ( MFIter mfi(*mic_fab_vars[MicVar_Kess::tabs],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
             auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
             auto qp_array    = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
@@ -88,6 +90,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
+            Real rdOcp      = m_rdOcp;
 
             ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -97,51 +100,119 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
                 qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
+                qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
 
                 //------- Autoconversion/accretion
+                Real qsat, dqsat;
                 Real qcc, autor, accrr;
-                Real dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
+                Real delta_qv, delta_qc;
+                Real dq_clwater_to_rain, dq_rain_to_vapor;
 
-                Real pressure = pres_array(i,j,k);
-                erf_qsatw(tabs_array(i,j,k), pressure, qsat);
+                // Pressure alread in mbar
+                Real tabs = tabs_array(i,j,k);
+                Real pres = pres_array(i,j,k);
+                erf_qsatw  (tabs, pres, qsat );
 
-                // If there is precipitating water (i.e. rain), and the cell is not saturated
-                // then the rain water can evaporate leading to extraction of latent heat, hence
-                // reducing temperature and creating negative buoyancy
+                // Rho cgs units
+                Real rho_cgs = rho_array(i,j,k) * 0.001;
 
+                // Zero source terms to begin
                 dq_clwater_to_rain  = 0.0;
                 dq_rain_to_vapor    = 0.0;
-                dq_vapor_to_clwater = 0.0;
-                dq_clwater_to_vapor = 0.0;
 
-                Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
-                //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
+                // Iterative saturation calculation
+                if (qt_array(i,j,k) > qsat) {
+                    Real fff, dfff;
+                    Real tol   = 1.0e-4;
+                    int niter  = 0;
+                    Real dtabs = 1;
+                    //==================================================
+                    // Newton iteration to qv=qsat (cloud phase only)
+                    //==================================================
+                    do {
+                        // Saturation moisture fractions
+                        erf_qsatw  (tabs, pres, qsat );
+                        erf_dtqsatw(tabs, pres, dqsat);
 
-                // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
-                if(qv_array(i,j,k) > qsat){
-                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
+                        // Function for root finding:
+                        // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
+                        fff   = -tabs + tabs_array(i,j,k) +  d_fac_cond*(qv_array(i,j,k) - qsat);
+
+                        // Derivative of function (T_new iterated on)
+                        dfff  = -1.0 - d_fac_cond*dqsat;
+
+                        // Update the temperature
+                        dtabs = -fff/dfff;
+                        tabs  = tabs+dtabs;
+
+                        // Update the pressure
+                        pres = rho_array(i,j,k) * R_d * tabs
+                             * (1.0 + R_v/R_d * qsat) * 0.01;
+
+                        // Update iteration
+                        niter = niter+1;
+                    } while(std::abs(dtabs) > tol && niter < 20);
+
+                    // Update qsat from last iteration (dq = dq/dt * dt)
+                    qsat = qsat + dqsat*dtabs;
+
+                    // Changes in each component
+                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qc = std::max(-qc_array(i,j,k), delta_qv);
+
+                    // Partition the change in non-precipitating q
+                    qv_array(i,j,k)  = qsat;
+                    qc_array(i,j,k) += delta_qc;
+                    qt_array(i,j,k)  =  qv_array(i,j,k) +  qc_array(i,j,k);
+
+                    // Update temperature
+                    tabs_array(i,j,k) = tabs;
+
+                    // Update pressure
+                    pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                    // Update theta from temperature
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                    // Pressure unit conversion
+                    pres_array(i,j,k) *= 0.01;
+                }
+                // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
+                else {
+                    // Changes in each component
+                    delta_qv =  qc_array(i,j,k);
+                    delta_qc = -qc_array(i,j,k);
+
+                    // Partition the change in non-precipitating q
+                    qv_array(i,j,k) += delta_qv;
+                    qc_array(i,j,k)  = 0.0;
+                    qt_array(i,j,k)  = qv_array(i,j,k);
+
+                    // NOTE: delta_qc is negative!
+                    // Update temperature (endothermic since we evap)
+                    tabs_array(i,j,k) += d_fac_cond * delta_qc;
+
+                    // Update pressure
+                    pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                    // Update theta from temperature
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                    // Pressure unit conversion
+                    pres_array(i,j,k) *= 0.01;
                 }
 
-
-                // If water vapor is less than the saturated value, then the cloud water can evaporate, leading to evaporative cooling and
-                // reducing temperature
-                if(qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0){
-                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
-            }
-
+                // Evaporation of rain to vapor
                 if(qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
-                    Real C = 1.6 + 124.9*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.2046);
-                    dq_rain_to_vapor = 1.0/(0.001*rho_array(i,j,k))*(1.0 - qv_array(i,j,k)/qsat)*C*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.525)/
-                        (5.4e5 + 2.55e6/(pressure*qsat))*dtn;
-                    // The negative sign is to make this variable (vapor formed from evaporation)
-                    // a poistive quantity (as qv/qs < 1)
-                    dq_rain_to_vapor = std::min({qp_array(i,j,k), dq_rain_to_vapor});
-
-                    // Removing latent heat due to evaporation from rain water to water vapor, reduces the (potential) temperature
+                    Real C = 1.6 + 124.9*std::pow(rho_cgs*qp_array(i,j,k),0.2046);
+                    dq_rain_to_vapor = (1.0/rho_cgs)*(1.0 - qv_array(i,j,k)/qsat)*C*std::pow(rho_cgs*qp_array(i,j,k),0.525) /
+                                       (5.4e5 + 2.55e6/(pres*qsat))*dtn;
+                    dq_rain_to_vapor = std::min(qp_array(i,j,k), dq_rain_to_vapor);
                 }
 
-                // If there is cloud water present then do accretion and autoconversion to rain
-
+                // Accretion and autoconversion (cloud to rain)
                 if (qc_array(i,j,k) > 0.0) {
                     qcc = qc_array(i,j,k);
 
@@ -150,12 +221,9 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                         autor = 0.001;
                     }
 
-                    accrr = 0.0;
                     accrr = 2.2 * std::pow(qp_array(i,j,k) , 0.875);
-                    dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - 0.001));
-
-                    // If the amount of change is more than the amount of qc present, then dq = qc
-                    dq_clwater_to_rain = std::min(dq_clwater_to_rain, qc_array(i,j,k));
+                    dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - qcw0));
+                    dq_clwater_to_rain = std::min(qc_array(i,j,k), dq_clwater_to_rain);
                 }
 
                 if(std::fabs(fz_array(i,j,k+1)) < 1e-14) fz_array(i,j,k+1) = 0.0;
@@ -163,18 +231,17 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real dq_sed = dtn * dJinv * (1.0/rho_array(i,j,k)) * (fz_array(i,j,k+1) - fz_array(i,j,k))/dz;
                 if(std::fabs(dq_sed) < 1e-14) dq_sed = 0.0;
 
-                qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor + dq_rain_to_vapor;
-                qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
+                qv_array(i,j,k) = qv_array(i,j,k) + dq_rain_to_vapor;
+                qc_array(i,j,k) = qc_array(i,j,k) - dq_clwater_to_rain;
                 qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
-
-                theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond *
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
-
-                qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
-                qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
-                qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
-
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
+
+                theta_array(i,j,k) = theta_array(i,j,k) +
+                                     theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*(-dq_rain_to_vapor);
+                tabs_array(i,j,k)  = getTgivenRandRTh(rho_array(i,j,k),
+                                                      rho_array(i,j,k)*theta_array(i,j,k),
+                                                      qv_array(i,j,k));
+                pres_array(i,j,k)  = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k), qv_array(i,j,k)) * 0.01;
             });
         }
     }
@@ -183,59 +250,119 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
     if(solverChoice.moisture_type == MoistureType::Kessler_NoRain){
 
         // get the temperature, dentisy, theta, qt and qc from input
-        for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for ( MFIter mfi(*mic_fab_vars[MicVar_Kess::tabs],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
             auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
             auto qt_array    = mic_fab_vars[MicVar_Kess::qt]->array(mfi);
             auto tabs_array  = mic_fab_vars[MicVar_Kess::tabs]->array(mfi);
             auto theta_array = mic_fab_vars[MicVar_Kess::theta]->array(mfi);
             auto pres_array  = mic_fab_vars[MicVar_Kess::pres]->array(mfi);
+            auto rho_array   = mic_fab_vars[MicVar_Kess::rho]->array(mfi);
 
             const auto& box3d = mfi.tilebox();
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
+            Real rdOcp      = m_rdOcp;
 
             ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
-                qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
-
-                //------- Autoconversion/accretion
-                Real dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
-
-                Real pressure = pres_array(i,j,k);
-                erf_qsatw(tabs_array(i,j,k), pressure, qsat);
-
-                // If there is precipitating water (i.e. rain), and the cell is not saturated
-                // then the rain water can evaporate leading to extraction of latent heat, hence
-                // reducing temperature and creating negative buoyancy
-
-                dq_vapor_to_clwater = 0.0;
-                dq_clwater_to_vapor = 0.0;
-
-                //Real fac = qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2));
-                Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
-
-                // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
-                if(qv_array(i,j,k) > qsat){
-                    dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
-                }
-                // If water vapor is less than the saturated value, then the cloud water can evaporate, leading to evaporative cooling and
-                // reducing temperature
-                if(qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0){
-                    dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
-                }
-
-                qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor;
-                qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor;
-
-                theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond *
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor);
-
                 qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
-
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
+
+                //------- Autoconversion/accretion
+                Real qsat, dqsat;
+                Real delta_qv, delta_qc;
+
+                // Pressure alread in mbar
+                Real tabs = tabs_array(i,j,k);
+                Real pres = pres_array(i,j,k);
+                erf_qsatw  (tabs, pres, qsat );
+
+                // Iterative saturation calculation
+                if (qt_array(i,j,k) > qsat) {
+                    Real fff, dfff;
+                    Real tol   = 1.0e-4;
+                    int niter  = 0;
+                    Real dtabs = 1;
+                    //==================================================
+                    // Newton iteration to qv=qsat (cloud phase only)
+                    //==================================================
+                    do {
+                        // Saturation moisture fractions
+                        erf_qsatw  (tabs, pres, qsat );
+                        erf_dtqsatw(tabs, pres, dqsat);
+
+                        // Function for root finding:
+                        // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
+                        fff   = -tabs + tabs_array(i,j,k) +  d_fac_cond*(qv_array(i,j,k) - qsat);
+
+                        // Derivative of function (T_new iterated on)
+                        dfff  = -1.0 - d_fac_cond*dqsat;
+
+                        // Update the temperature
+                        dtabs = -fff/dfff;
+                        tabs  = tabs+dtabs;
+
+                        // Update the pressure
+                        pres = rho_array(i,j,k) * R_d * tabs
+                             * (1.0 + R_v/R_d * qsat) * 0.01;
+
+                        // Update iteration
+                        niter = niter+1;
+                    } while(std::abs(dtabs) > tol && niter < 20);
+
+                    // Update qsat from last iteration (dq = dq/dt * dt)
+                    qsat = qsat + dqsat*dtabs;
+
+                    // Changes in each component
+                    delta_qv = qv_array(i,j,k) - qsat;
+                    delta_qc = std::max(-qc_array(i,j,k), delta_qv);
+
+                    // Partition the change in non-precipitating q
+                    qv_array(i,j,k)  = qsat;
+                    qc_array(i,j,k) += delta_qc;
+                    qt_array(i,j,k)  =  qv_array(i,j,k) +  qc_array(i,j,k);
+
+                    // Update temperature
+                    tabs_array(i,j,k) = tabs;
+
+                    // Update pressure
+                    pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                    // Update theta from temperature
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                    // Pressure unit conversion
+                    pres_array(i,j,k) *= 0.01;
+                }
+                // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
+                else {
+                    // Changes in each component
+                    delta_qv =  qc_array(i,j,k);
+                    delta_qc = -qc_array(i,j,k);
+
+                    // Partition the change in non-precipitating q
+                    qv_array(i,j,k) += delta_qv;
+                    qc_array(i,j,k)  = 0.0;
+                    qt_array(i,j,k)  = qv_array(i,j,k);
+
+                    // NOTE: delta_qc is negative!
+                    // Update temperature (endothermic since we evap)
+                    tabs_array(i,j,k) += d_fac_cond * delta_qc;
+
+                    // Update pressure
+                    pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                    // Update theta from temperature
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                    // Pressure unit conversion
+                    pres_array(i,j,k) *= 0.01;
+                }
             });
         }
     }

@@ -155,8 +155,7 @@ void SAM::Cloud () {
 
                     // Update the pressure
                     pres = rho_array(i,j,k) * R_d * tabs
-                           * (1.0 + R_v/R_d * qsat);
-                    pres /= 100.0;
+                           * (1.0 + R_v/R_d * qsat) * 0.01;
 
                     // Update iteration
                     niter = niter+1;
@@ -188,7 +187,7 @@ void SAM::Cloud () {
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
 
                 // Pressure unit conversion
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
 
             }
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
@@ -205,18 +204,19 @@ void SAM::Cloud () {
                  qn_array(i,j,k)  = 0.0;
                  qt_array(i,j,k)  = qv_array(i,j,k);
 
+                // NOTE: delta_qc & delta_qi are negative!
                 // Update temperature (endothermic since we evap/sublime)
-                tabs_array(i,j,k) -= fac_fus * delta_qc + fac_sub * delta_qi;
+                tabs_array(i,j,k) += fac_cond * delta_qc + fac_sub * delta_qi;
 
                 // Update pressure
                 pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                    * (1.0 + R_v/R_d * qv_array(i,j,k));
+                                  * (1.0 + R_v/R_d * qv_array(i,j,k));
 
                 // Update theta from temperature
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
 
                 // Pressure unit conversion
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
             }
         });
     } // mfi

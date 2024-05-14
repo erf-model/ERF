@@ -129,7 +129,8 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
                                                   qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k))/100.;
+            // NOTE: Pressure is in mbar for qsat computation
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
         });
     }
 }
