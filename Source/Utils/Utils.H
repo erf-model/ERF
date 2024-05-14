@@ -109,6 +109,17 @@ fine_compute_interior_ghost_rhs (const amrex::Real& time,
                                  amrex::Vector<amrex::MultiFab>& S_rhs_f,
                                  amrex::Vector<amrex::MultiFab>& S_data_f);
 
+/*
+ * Accumulate time averaged velocity fields
+ */
+void
+Time_Avg_Vel_atCC (const amrex::Real& dt,
+                   amrex::Real& t_avg_cnt,
+                   amrex::MultiFab* vel_t_avg,
+                   amrex::MultiFab& xvel,
+                   amrex::MultiFab& yvel,
+                   amrex::MultiFab& zvel);
+
 /**
  * Zero RHS in the set region
  *

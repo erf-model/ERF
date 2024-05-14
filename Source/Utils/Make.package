@@ -1,7 +1,3 @@
-CEXE_sources += MomentumToVelocity.cpp
-CEXE_sources += VelocityToMomentum.cpp
-CEXE_sources += InteriorGhostCells.cpp
-
 CEXE_headers += TerrainMetrics.H
 CEXE_headers += Microphysics_Utils.H
 CEXE_headers += TileNoZ.H
@@ -11,13 +7,18 @@ CEXE_headers += Interpolation_WENO.H
 CEXE_headers += Interpolation_WENO_Z.H
 CEXE_headers += Interpolation.H
 CEXE_headers += Interpolation_1D.H
-CEXE_sources += TerrainMetrics.cpp
 
 CEXE_headers += ParFunctions.H
 
 CEXE_headers += Sat_methods.H
 CEXE_headers += Water_vapor_saturation.H
 CEXE_headers += DirectionSelector.H
+
+CEXE_sources += MomentumToVelocity.cpp
+CEXE_sources += VelocityToMomentum.cpp
+CEXE_sources += InteriorGhostCells.cpp
+CEXE_sources += TerrainMetrics.cpp
+CEXE_sources += Time_Avg_Vel.cpp  
 
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp

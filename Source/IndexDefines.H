@@ -136,7 +136,7 @@ namespace EddyDiff {
 }
 
 enum struct ERF_BC {
-    symmetry, inflow, outflow, open, no_slip_wall, slip_wall, periodic, MOST, undefined
+    symmetry, inflow, outflow, ho_outflow, open, no_slip_wall, slip_wall, periodic, MOST, undefined
 };
 
 // NOTE: the first of these must match up with the BCType enum
@@ -154,7 +154,8 @@ enum mathematicalBndryTypes : int {
     ext_dir_ingested =  102,
     neumann          =  103,
     neumann_int      =  104,
-    open             =  105
+    open             =  105,
+    hoextrapcc         =  106
 };
 }
 

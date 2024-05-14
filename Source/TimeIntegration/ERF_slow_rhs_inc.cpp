@@ -127,6 +127,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                                     tc.pbl_type == PBLType::YSU );
 
     const bool use_most     = (most != nullptr);
+    const bool exp_most     = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
@@ -191,7 +192,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
             // Terrain metrics
             const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-            const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
+            const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
             //-------------------------------------------------------------------------------
             // NOTE: Tile boxes with terrain are not intuitive. The linear combination of
@@ -305,17 +306,15 @@ void erf_slow_rhs_inc (int level, int nrk,
                     });
                 }
 
-#ifdef ERF_EXPLICIT_MOST_STRESS
                 // We've updated the strains at all locations including the
                 // surface. This is required to get the correct strain-rate
                 // magnitude. Now, update the stress everywhere but the surface
                 // to retain the values set by MOST.
-                if (use_most) {
+                if (use_most && exp_most) {
                     // Don't overwrite modeled total stress value at boundary
                     tbxxz.setSmall(2,1);
                     tbxyz.setSmall(2,1);
                 }
-#endif
 
                 // *****************************************************************************
                 // Stress tensor compute terrain
@@ -413,6 +412,16 @@ void erf_slow_rhs_inc (int level, int nrk,
                     {
                         SmnSmn_a(i,j,k) = ComputeSmnSmn(i,j,k,s11,s22,s33,s12,s13,s23,domlo_z,use_most);
                     });
+                }
+
+                // We've updated the strains at all locations including the
+                // surface. This is required to get the correct strain-rate
+                // magnitude. Now, update the stress everywhere but the surface
+                // to retain the values set by MOST.
+                if (use_most && exp_most) {
+                    // Don't overwrite modeled total stress value at boundary
+                    tbxxz.setSmall(2,1);
+                    tbxyz.setSmall(2,1);
                 }
 
                 // *****************************************************************************
@@ -550,7 +559,7 @@ void erf_slow_rhs_inc (int level, int nrk,
 
         // Terrain metrics
         const Array4<const Real>& z_nd     = l_use_terrain ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
-        const Array4<const Real>& detJ_arr = l_use_terrain ?      detJ->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real>& detJ_arr = detJ->const_array(mfi);
 
         // Base state
         const Array4<const Real>& p0_arr = p0->const_array(mfi);
@@ -745,7 +754,6 @@ void erf_slow_rhs_inc (int level, int nrk,
         // We need to do this -- even though we call the boundary conditions later --
         // because the slow source is used to update the state in the fast interpolater.
         // *****************************************************************************
-        {
         if ( (bx.smallEnd(0) == domain.smallEnd(0)) &&
              (bc_ptr_h[BCVars::xvel_bc].lo(0) == ERFBCType::ext_dir) ) {
             Box lo_x_dom_face(bx); lo_x_dom_face.setBig(0,bx.smallEnd(0));

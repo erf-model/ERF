@@ -119,7 +119,7 @@ The total production rates including the contribution from aggregation, accretio
 bergeron process, freezing and autoconversion are listed below without derivation.
 For details, please refer to Yuh-Lang Lin et al (J. Climate Appl. Meteor, 22, 1065, 1983) and
 Marat F. Khairoutdinov and David A. Randall's (J. Atm Sciences, 607, 1983).
-The implementation of microphysics model in ERF is similar to the that in the SAM code (http://rossby.msrc.sunysb.edu/~marat/SAM.html)
+The implementation of microphysics model in ERF is similar to the that in the SAM code (http://rossby.msrc.sunysb.edu/SAM.html)
 
 Accretion
 ~~~~~~~~~~~~

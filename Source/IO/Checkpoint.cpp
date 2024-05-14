@@ -172,7 +172,7 @@ ERF::WriteCheckpointFile () const
 
 
 #if defined(ERF_USE_WINDFARM)
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP){
             ng = Nturb[lev].nGrowVect();
             MultiFab mf_Nturb(grids[lev],dmap[lev],1,ng);
             MultiFab::Copy(mf_Nturb,Nturb[lev],0,0,1,ng);
@@ -424,7 +424,7 @@ ERF::ReadCheckpointFile ()
         }
 
 #if defined(ERF_USE_WINDFARM)
-        if(solverChoice.windfarm_type == WindFarmType::Fitch){
+        if(solverChoice.windfarm_type == WindFarmType::Fitch or solverChoice.windfarm_type == WindFarmType::EWP){
             ng = Nturb[lev].nGrowVect();
             MultiFab mf_Nturb(grids[lev],dmap[lev],1,ng);
             VisMF::Read(mf_Nturb, amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "NumTurb"));

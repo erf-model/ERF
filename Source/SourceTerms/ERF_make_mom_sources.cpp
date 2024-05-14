@@ -56,6 +56,7 @@ void make_mom_sources (int /*level*/,
                        const Real* dptr_v_geos,
                        const Real* dptr_wbar_sub,
                        const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                       const Vector<Real*> d_sponge_ptrs_at_lev,
                        int n_qstate)
 {
     BL_PROFILE_REGION("erf_make_mom_sources()");
@@ -279,12 +280,12 @@ void make_mom_sources (int /*level*/,
         if (solverChoice.custom_w_subsidence) {
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                xmom_src_arr(i, j, k) += dptr_wbar_sub[k] *
+                xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
             });
             ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                ymom_src_arr(i, j, k) += dptr_wbar_sub[k] *
+                ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
             });
         }
@@ -304,8 +305,16 @@ void make_mom_sources (int /*level*/,
         // *****************************************************************************
         // Add SPONGING
         // *****************************************************************************
-        ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
+        if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+        {
+             ApplySpongeZoneBCsForMom_ReadFromFile(solverChoice.spongeChoice, geom, tbx, tby, cell_data,
+                                 xmom_src_arr, ymom_src_arr, rho_u, rho_v, d_sponge_ptrs_at_lev);
+        }
+        else
+        {
+            ApplySpongeZoneBCsForMom(solverChoice.spongeChoice, geom, tbx, tby, tbz,
                                  xmom_src_arr, ymom_src_arr, zmom_src_arr, rho_u, rho_v, rho_w);
+        }
 
     } // mfi
 }

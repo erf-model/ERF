@@ -120,6 +120,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
+    const bool exp_most     = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
 
@@ -352,7 +353,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
                     if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                cur_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
@@ -360,7 +361,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_z, diss,
                                                mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
-                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, u, v,
+                        DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                cur_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,

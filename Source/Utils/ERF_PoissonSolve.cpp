@@ -44,6 +44,7 @@ bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
 
 /**
  * Project the single-level velocity field to enforce incompressibility
+ * Note this assumes that we are projecting the level 0 field using domain bcs
  */
 void ERF::project_velocities (Vector<MultiFab>& vmf)
 {
@@ -51,18 +52,18 @@ void ERF::project_velocities (Vector<MultiFab>& vmf)
     for (auto& mf : vmf) {
         tmpmf[0].emplace_back(mf, amrex::make_alias, 0, mf.nComp());
     }
-    project_velocities(tmpmf);
+    project_velocities(0,0,tmpmf);
 }
 
 /**
  * Project the multi-level velocity field to enforce incompressibility
  */
 void
-ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
+ERF::project_velocities (int lev_min, int lev_max, Vector<Vector<MultiFab>>& vars)
 {
     BL_PROFILE("ERF::project_velocities()");
 
-    const int nlevs = geom.size();
+    const int nlevs = lev_max - lev_min + 1;
 
     // Use the default settings
     LPInfo info;
@@ -73,7 +74,7 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
     mlpoisson.setDomainBC(bclo, bchi);
 
-    for (int ilev = 0; ilev < nlevs; ++ilev) {
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev) {
        mlpoisson.setLevelBC(0, nullptr);
     }
 
@@ -85,14 +86,14 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     phi.resize(nlevs);
     fluxes.resize(nlevs);
 
-    for (int ilev = 0; ilev < nlevs; ++ilev) {
-        rhs[ilev].define(grids[ilev], dmap[ilev], 1, 0);
-        phi[ilev].define(grids[ilev], dmap[ilev], 1, 1);
-        rhs[ilev].setVal(0.0);
-        phi[ilev].setVal(0.0);
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev) {
+        rhs[ilev-lev_min].define(grids[ilev], dmap[ilev], 1, 0);
+        phi[ilev-lev_min].define(grids[ilev], dmap[ilev], 1, 1);
+        rhs[ilev-lev_min].setVal(0.0);
+        phi[ilev-lev_min].setVal(0.0);
 
         for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-            fluxes[ilev][idim].define(
+            fluxes[ilev-lev_min][idim].define(
                 convert(grids[ilev], IntVect::TheDimensionVector(idim)),
                 dmap[ilev], 1, 0);
         }
@@ -101,25 +102,25 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
     // Define a single Array of MultiFabs to hold the velocity components
     // Then define the RHS to be the divergence of the current velocities
     Array<MultiFab const*, AMREX_SPACEDIM> u;
-    for (int ilev = 0; ilev < nlevs; ++ilev)
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev)
     {
         u[0] = &(vars[ilev][Vars::xvel]);
         u[1] = &(vars[ilev][Vars::yvel]);
         u[2] = &(vars[ilev][Vars::zvel]);
-        computeDivergence(rhs[ilev], u, geom[ilev]);
+        computeDivergence(rhs[ilev-lev_min], u, geom[ilev]);
 
         // If all Neumann BCs, adjust RHS to make sure we can converge
         if (need_adjust_rhs) {
             Real offset = volWgtSumMF(ilev, rhs[ilev], 0, *mapfac_m[ilev], false, false);
             amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
-            rhs[ilev].plus(-offset, 0, 1);
+            rhs[ilev-lev_min].plus(-offset, 0, 1);
         }
     }
 
     // Initialize phi to 0
-    for (int ilev = 0; ilev < nlevs; ++ilev)
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev)
     {
-        phi[ilev].setVal(0.0);
+        phi[ilev-lev_min].setVal(0.0);
     }
 
     MLMG mlmg(mlpoisson);
@@ -139,17 +140,16 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
 
     // Subtract grad(phi) from the velocity components
     Real beta = 1.0;
-    for (int ilev = 0; ilev < nlevs; ++ilev) {
-        MultiFab::Saxpy(vars[ilev][Vars::xvel], beta, fluxes[ilev][0], 0,0,1,0);
-        MultiFab::Saxpy(vars[ilev][Vars::yvel], beta, fluxes[ilev][1], 0,0,1,0);
-        MultiFab::Saxpy(vars[ilev][Vars::zvel], beta, fluxes[ilev][2], 0,0,1,0);
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev) {
+        MultiFab::Saxpy(vars[ilev][Vars::xvel], beta, fluxes[ilev-lev_min][0], 0,0,1,0);
+        MultiFab::Saxpy(vars[ilev][Vars::yvel], beta, fluxes[ilev-lev_min][1], 0,0,1,0);
+        MultiFab::Saxpy(vars[ilev][Vars::zvel], beta, fluxes[ilev-lev_min][2], 0,0,1,0);
     }
 
     // Average down the velocity from finest to coarsest to ensure consistency across levels
-    int finest_level = nlevs - 1;
     Array<MultiFab const*, AMREX_SPACEDIM> u_fine;
     Array<MultiFab      *, AMREX_SPACEDIM> u_crse;
-    for (int ilev = finest_level; ilev > 0; --ilev)
+    for (int ilev = lev_min+1; ilev <= lev_max; ++ilev)
     {
         IntVect rr  = geom[ilev].Domain().size() / geom[ilev-1].Domain().size();
         u_fine[0] = &(vars[ilev  ][Vars::xvel]);
@@ -163,7 +163,7 @@ ERF::project_velocities (Vector<Vector<MultiFab>>& vars)
 
 #if 1
     // Confirm that the velocity is now divergence free
-    for (int ilev = 0; ilev < nlevs; ++ilev)
+    for (int ilev = lev_min; ilev <= lev_max; ++ilev)
     {
         u[0] = &(vars[ilev][Vars::xvel]);
         u[1] = &(vars[ilev][Vars::yvel]);

@@ -37,7 +37,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch
+    Fitch, EWP
 };
 
 enum struct LandSurfaceType {
@@ -50,6 +50,10 @@ enum struct Coord {
 
 enum Rayleigh {
     tau, ubar, vbar, wbar, thetabar, nvars
+};
+
+enum Sponge {
+       ubar_sponge, vbar_sponge, nvars_sponge
 };
 
 /**
@@ -156,12 +160,6 @@ struct SolverChoice {
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
-#endif
-
-        // Turn off acoustic substepping?
-        pp.query("no_substepping", no_substepping);
-
-        pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
         pp.query("incompressible", incompressible);
         pp.query("constant_density", constant_density);
@@ -169,12 +167,19 @@ struct SolverChoice {
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
+#endif
 
+        // Turn off acoustic substepping?
+        pp.query("no_substepping", no_substepping);
+        pp.query("force_stage1_single_substep", force_stage1_single_substep);
+
+#if defined(ERF_USE_POISSON_SOLVE)
         // If this is set, it must be even
         if (incompressible != 0 && no_substepping == 0)
         {
             amrex::Abort("If you specify incompressible, you must specific no_substepping");
         }
+#endif
 
         // Include Coriolis forcing?
         pp.query("use_coriolis", use_coriolis);
@@ -184,6 +189,9 @@ struct SolverChoice {
         pp.query("rayleigh_damp_V", rayleigh_damp_V);
         pp.query("rayleigh_damp_W", rayleigh_damp_W);
         pp.query("rayleigh_damp_T", rayleigh_damp_T);
+
+        // Flag to do explicit MOST formulation
+        pp.query("use_explicit_most",use_explicit_most);
 
         // Which external forcings?
         static std::string abl_driver_type_string = "None";
@@ -275,9 +283,15 @@ struct SolverChoice {
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
-        else {
-            amrex::Abort("Dont know this windfarm_type. Currently the only option is Fitch.");
+        else if(windfarm_type_string == "EWP"){
+            windfarm_type = WindFarmType::EWP;
         }
+        else {
+            amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
+        }
+
+        // Test if time averaged data is to be output
+        pp.query("time_avg_vel",time_avg_vel);
     }
 
     void display()
@@ -422,6 +436,12 @@ struct SolverChoice {
     bool custom_w_subsidence      = false;
     bool custom_geostrophic_profile = false;
     bool custom_forcing_prim_vars = false;
+
+    // User specified MOST BC type
+    bool use_explicit_most = false;
+
+    // User wishes to output time averaged velocity fields
+    bool time_avg_vel = false;
 
     // Numerical diffusion
     bool use_NumDiff{false};

@@ -140,7 +140,7 @@ ERF::init_from_metgrid (int lev)
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
     init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
 
-    // Copy SST and LANDMASK data into MF and iMF data structures
+    // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
     auto& dm = lev_new[Vars::cons].DistributionMap();
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
@@ -192,6 +192,34 @@ ERF::init_from_metgrid (int lev)
         }
     } else {
         for (int it = 0; it < ntimes; ++it) lmask_lev[lev][it] = nullptr;
+    }
+    lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lat_m[lev]))[mfi];
+        FArrayBox& src = NC_LAT_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
+    }
+    lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lon_m[lev]))[mfi];
+        FArrayBox& src = NC_LON_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
     }
 
     for (int it = 0; it < ntimes; it++) {

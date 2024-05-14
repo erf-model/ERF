@@ -185,6 +185,45 @@ ERF::init_from_wrfinput (int lev)
                                  solverChoice.moisture_type, n_qstate);
     } // mf
 
+    auto& ba = lev_new[Vars::cons].boxArray();
+    auto& dm = lev_new[Vars::cons].DistributionMap();
+    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
+    int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+    lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lat_m[lev]))[mfi];
+        FArrayBox& src = NC_LAT_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
+    }
+    lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
+    for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        FArrayBox& dst = (*(lon_m[lev]))[mfi];
+        FArrayBox& src = NC_LON_fab[0];
+        const Array4<      Real>& dst_arr = dst.array();
+        const Array4<const Real>& src_arr = src.const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = src_arr(li,lj,0);
+        });
+    }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
