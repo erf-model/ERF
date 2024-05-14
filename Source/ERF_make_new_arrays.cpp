@@ -141,6 +141,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc[lev].define(ba, dm, 1, 1);
+    pp_inc[lev].setVal(0.0);
+#endif
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************
