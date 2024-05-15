@@ -46,10 +46,17 @@ namespace SupDropInit
 
     const std::string attrib_init_const = "constant";
     const std::string attrib_init_exp = "exponential";
+    const std::string attrib_init_exp_norm = "exp_normal";
 
     const std::string alg_coalescence_dsmc = "DSMC";
     const std::string alg_coalescence_cudsmc = "cuDSMC";
 }
+
+/*! \brief Types of terminal velocity models */
+enum struct SDTerminalVelocityType {
+    AtlasUlbrich,
+    CloudRainShima
+};
 
 /*! \brief Types of coalescence kernels */
 enum struct SDCoalescenceKernelType {
@@ -137,6 +144,7 @@ class SuperDropletPC : public ERFPC
                                                                "mass_flux_z"),
                                                   "number_density",
                                                   "mass_density",
+                                                  "radius",
                                                   ("mass_density_"+m_vapour_mat->name()),
                                                   AMREX_D_DECL (
                                                       ("mass_flux_x_"+m_vapour_mat->name()),
@@ -176,6 +184,8 @@ class SuperDropletPC : public ERFPC
                     massFlux( a_mf, 1 );
                 } else if (a_var_name == "mass_flux_z") {
                     massFlux( a_mf, 2 );
+                } else if (a_var_name == "radius") {
+                    effectiveRadius( a_mf );
                 } else {
                     for (int i = 0; i < m_num_aerosols; i++) {
                         std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
@@ -277,9 +287,9 @@ class SuperDropletPC : public ERFPC
         /*! \brief Compute and print diagnostics */
         virtual void Diagnostics (const int&, const bool);
         /*! \brief Compute mass density distribution */
-        virtual void MassDensityDistribution (  const int&,
-                                                const amrex::ParticleReal&,
-                                                const amrex::ParticleReal& );
+        virtual void ComputeDistributions (  const int&,
+                                             const amrex::ParticleReal&,
+                                             const amrex::ParticleReal& );
 
         /*! \brief Compute the particle number density on a mesh */
         virtual void numberDensity ( amrex::MultiFab&, const int& a_comp=0 ) const;
@@ -295,6 +305,8 @@ class SuperDropletPC : public ERFPC
         virtual void aerosolMassDensity ( amrex::MultiFab&, const int&, const int& a_comp=0 ) const;
         /*! \brief Compute the aerosol mass flux component on a mesh */
         virtual void aerosolMassFlux ( amrex::MultiFab&, const int&, const int&, const int& a_comp=0 ) const;
+        /*! \brief Compute the particle effective radius on a mesh */
+        virtual void effectiveRadius ( amrex::MultiFab&, const int& a_comp=0 ) const;
 
 
     protected:
@@ -310,6 +322,8 @@ class SuperDropletPC : public ERFPC
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
+
+        SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
 
         int m_ppc_seed; /*!< Number of seed particles per cell */
         amrex::Real m_seed_mass; /*!< Condensate mass of seed */

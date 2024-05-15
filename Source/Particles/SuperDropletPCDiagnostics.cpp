@@ -126,6 +126,22 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                      return n*m;
                                  } );
 
+    auto min_term_v = ReduceMin( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
+
+    auto max_term_v = ReduceMax( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
+
+    auto avg_term_v = ReduceSum( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 {
+                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                     auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                                     return n*m;
+                                 } );
+
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_t_coales,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
@@ -133,6 +149,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMin(&min_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_term_v,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealMax(&max_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_t_coales,1,ParallelDescriptor::IOProcessorNumber());
@@ -141,6 +158,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMax(&max_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_term_v,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_t_coales,1,ParallelDescriptor::IOProcessorNumber());
@@ -149,6 +167,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealSum(&avg_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_term_v,1,ParallelDescriptor::IOProcessorNumber());
     avg_par_mass /= num_total_particles;
     avg_t_coales /= num_total_particles;
     avg_par_radius /= num_total_particles;
@@ -156,6 +175,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     avg_par_vx /= num_total_particles;
     avg_par_vy /= num_total_particles;
     avg_par_vz /= num_total_particles;
+    avg_term_v /= num_total_particles;
 
     m_t_coalescence = max_t_coales;
 
@@ -174,7 +194,9 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << "        z: "
             << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
             << "    coalescence time scale [s]: "
-            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n";
+            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n"
+            << "    terminal velocity [m/s]: "
+            << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
 
     Long num_unconverged_particles = m_num_unconverged_particles;
     m_num_unconverged_particles = 0;
@@ -210,16 +232,16 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     }
 
     if (a_flag) {
-        MassDensityDistribution( a_iter, min_par_radius, max_par_radius );
+        ComputeDistributions( a_iter, min_par_radius, max_par_radius );
     }
 }
 
-/*! Compute and write the mass density distribution (as a function of the log of
-    the droplet radius. The file written is a text file with two columns:
-    R and g(ln R). */
-void SuperDropletPC::MassDensityDistribution( const int& a_iter,
-                                              const ParticleReal& a_r_min,
-                                              const ParticleReal& a_r_max )
+/*! Compute and write the distributions (as a function of the log of
+    the droplet radius. The file written is a text file with multiple columns:
+    R, g_mass(ln R), g_n(ln R) */
+void SuperDropletPC::ComputeDistributions( const int& a_iter,
+                                           const ParticleReal& a_r_min,
+                                           const ParticleReal& a_r_max )
 {
     int Nr = m_distribution_grid_size;
 
@@ -233,9 +255,10 @@ void SuperDropletPC::MassDensityDistribution( const int& a_iter,
                  * static_cast<ParticleReal>(m_coalescence_bin_size[2]) );
     const ParticleReal inv_bin_volume = inv_cell_volume*inv_bin_size;
 
-    Vector<Real> ln_R, g_ln_R;
+    Vector<Real> ln_R, g_mass_ln_R, g_n_ln_R;
     ln_R.resize(Nr);
-    g_ln_R.resize(Nr);
+    g_mass_ln_R.resize(Nr);
+    g_n_ln_R.resize(Nr);
 
     // Set ln R grid
     for (int n = 0; n < Nr; n++) {
@@ -252,25 +275,35 @@ void SuperDropletPC::MassDensityDistribution( const int& a_iter,
     using PTDType = typename SuperDropletPC::ParticleTileType::ConstParticleTileDataType;
     for (int n = 0; n < Nr; n++) {
         const auto lnR = ln_R[n];
-        g_ln_R[n] = ReduceSum(  *this,
-                                [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
-                                {
-                                    auto ri = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
-                                    auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
-                                    auto mi  = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
+        g_mass_ln_R[n] = ReduceSum(  *this,
+                                     [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                     {
+                                         auto ri = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                                         auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                         auto mi  = ptd.m_rdata[SuperDropletsRealIdxSoA::mass][i];
 
-                                    auto lnRi = std::log(ri);
-                                    return gamma*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
-                                } );
+                                         auto lnRi = std::log(ri);
+                                         return gamma*ni*mi*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
+                                     } );
+        g_n_ln_R[n] = ReduceSum(  *this,
+                                  [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                  {
+                                      auto ri = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                                      auto ni = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+
+                                      auto lnRi = std::log(ri);
+                                      return gamma*ni*std::exp(-lambda*(lnR-lnRi)*(lnR-lnRi));
+                                  } );
     }
 
     // Sum g(ln R) over MPI subdomains
-    ParallelDescriptor::ReduceRealSum(g_ln_R.dataPtr(),Nr);
+    ParallelDescriptor::ReduceRealSum(g_mass_ln_R.dataPtr(),Nr);
+    ParallelDescriptor::ReduceRealSum(g_n_ln_R.dataPtr(),Nr);
 
     // Write to file
     char iter_str[12]; sprintf(iter_str, "%05d", a_iter+1);
     std::string output_filename =   m_name
-                                    + "_mass_density_distribution_"
+                                    + "_distribution_"
                                     + std::string(iter_str) + ".txt";
     Print() << "Writing " << output_filename << "\n";
     if (ParallelDescriptor::IOProcessor()) {
@@ -279,7 +312,10 @@ void SuperDropletPC::MassDensityDistribution( const int& a_iter,
         if (!outfile.good()) { amrex::FileOpenFailed(output_filename); }
 
         for (int n = 0; n < Nr; n++) {
-            outfile << std::exp(ln_R[n]) << " " << g_ln_R[n] << "\n";
+            outfile << std::exp(ln_R[n])
+                    << " " << g_mass_ln_R[n]
+                    << " " << g_n_ln_R[n]
+                    << "\n";
         }
 
         outfile.flush();

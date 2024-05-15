@@ -280,6 +280,52 @@ void SuperDropletPC::aerosolMassFlux ( MultiFab&  a_mf,  /*!< Aerosol mass densi
     return;
 }
 
+/*! Computes the effective radius of the particles over a mesh */
+void SuperDropletPC::effectiveRadius (  MultiFab&  a_mf,  /*!< Effective radius multifab */
+                                        const int& a_comp /*!< Multifab component to fill with number density */) const
+{
+    BL_PROFILE("SuperDropletPC::effectiveRadius()");
+
+    AMREX_ASSERT(OK());
+    AMREX_ASSERT(numParticlesOutOfRange(*this, 0) == 0);
+
+    const auto& geom = Geom(m_lev);
+    const auto plo = geom.ProbLoArray();
+    const auto dxi = geom.InvCellSizeArray();
+    const ParticleReal inv_cell_volume = dxi[0]*dxi[1]*dxi[2];
+
+    a_mf.setVal(0.0);
+
+    MultiFab number_density( a_mf.boxArray(), a_mf.DistributionMap(), 1, a_mf.nGrowVect() );
+    numberDensity(number_density);
+
+    ParticleToMesh( *this, a_mf, m_lev,
+        [=] AMREX_GPU_DEVICE (  const SuperDropletPC::ParticleTileType::ConstParticleTileDataType& ptd,
+                                int i, Array4<Real> const& rho)
+        {
+            auto p = ptd.m_aos[i];
+            ParticleInterpolator::Linear interp(p, plo, dxi);
+            interp.ParticleToMesh ( p, rho, 0, a_comp, 1,
+                [=] AMREX_GPU_DEVICE ( const SuperDropletPC::ParticleType&, int)
+                {
+                    auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                    auto radius = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::radius][i];
+                    return num_par*radius*inv_cell_volume;
+                });
+        });
+
+    for ( MFIter mfi(a_mf); mfi.isValid(); ++mfi) {
+        const auto& box = mfi.tilebox();
+        auto mf_arr = a_mf.array(mfi);
+        const auto nd_arr = number_density.const_array(mfi);
+        ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                          { mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0); } );
+    }
+
+
+    return;
+}
+
 #endif
 
 

@@ -86,6 +86,16 @@ void SuperDropletPC::readInputs ()
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
+    std::string term_vel_name = "CloudRainShima";
+    pp.query("terminal_velocity_model", term_vel_name);
+    if (term_vel_name == "AtlasUlbrich") {
+        m_term_vel_type = SDTerminalVelocityType::AtlasUlbrich;
+    } else if (term_vel_name == "CloudRainShima") {
+        m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
+    } else {
+        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid terminal velocity choice!");
+    }
+
     pp.query("initial_seeds_per_cell", m_ppc_seed);
     pp.query("seed_condensate_mass", m_seed_mass);
 
@@ -221,11 +231,23 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         Print() << "Halls" << "\n";
     }
 
+    Print() << "    Terminal velocity model: ";
+    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+        Print() << "AtlasUlbrich" << "\n";
+    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
+        Print() << "CloudRainShima" << "\n";
+    }
+
     Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
     if (m_aerosol_mat.size() > 0) {
         Print() << "    Aerosol materials:\n";
         for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
-            Print() << "        " << m_aerosol_mat[i]->name() << "\n";
+            Print() << "        "
+                    << m_aerosol_mat[i]->name()
+                    << ", ("
+                    << "Initial distribution: " << m_mass_aerosol_init_type[i]
+                    << ", mean mass= " << m_mass_aerosol_init[i]
+                    << ")" << "\n";
         }
     }
     Print()
@@ -339,6 +361,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
                 for (int n = 0; n < np; n++) {
                     aerosol_mass_h[n] = m_mass_aerosol_init[i];
                 }
+            } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp_norm) {
+                std::random_device rd;
+                std::mt19937 rng(rd());
+                std::uniform_real_distribution<> urd(0.0, 1.0);
+                for (int n = 0; n < np; n++) {
+                    aerosol_mass_h[n] = -std::log(urd(rng))*m_mass_aerosol_init[i];
+                }
             } else {
                 Abort("Unknown m_mass_aerosol_init_type!");
             }
@@ -363,6 +392,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
                     condensate_mass_h[n] = m_mass_condensate_init;
+                }
+            } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_exp_norm) {
+                std::random_device rd;
+                std::mt19937 rng(rd());
+                std::uniform_real_distribution<> urd(0.0, 1.0);
+                for (int n = 0; n < np; n++) {
+                    condensate_mass_h[n] = -std::log(urd(rng))*m_mass_condensate_init;
                 }
             } else {
                 Abort("Unknown m_mass_condensate_init_type!");

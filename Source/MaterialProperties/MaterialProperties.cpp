@@ -64,9 +64,6 @@ void MaterialProperties::setProperties_H2O()
 {
     m_density = rhor; // ERF_Constants.H
 
-    m_a_tv = 3.778;
-    m_b_tv = 0.67;
-
     m_coeff_curv = 3.3e-07; // m K
     m_coeff_VP_solute = 4.3e-06; // m^3
     m_ionization = 2;
@@ -83,9 +80,6 @@ void MaterialProperties::setProperties_H2O()
 void MaterialProperties::setProperties_NaCl()
 {
     m_density = 2170.0;
-
-    m_a_tv = DBL_MAX;
-    m_b_tv = DBL_MAX;
 
     m_coeff_curv = DBL_MAX; // m K
     m_coeff_VP_solute = DBL_MAX; // m^3

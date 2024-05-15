@@ -131,24 +131,24 @@ ABLMost::impose_most_bcs (const int& lev,
     if (flux_type == FluxCalcType::MOENG) {
         moeng_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
-                         xzmom_flux, xzmom_flux,
-                         yzmom_flux, yzmom_flux,
+                         xzmom_flux, zxmom_flux,
+                         yzmom_flux, zymom_flux,
                          heat_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
-                         xzmom_flux, xzmom_flux,
-                         yzmom_flux, yzmom_flux,
+                         xzmom_flux, zxmom_flux,
+                         yzmom_flux, zymom_flux,
                          heat_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
         custom_flux flux_comp(klo);
         compute_most_bcs(lev, mfs,
-                         xzmom_flux, xzmom_flux,
-                         yzmom_flux, yzmom_flux,
+                         xzmom_flux, zxmom_flux,
+                         yzmom_flux, zymom_flux,
                          heat_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);

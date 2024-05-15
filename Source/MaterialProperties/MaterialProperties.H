@@ -36,8 +36,6 @@ class MaterialProperties {
 
         inline amrex::Real density() const { return m_density; }
         inline const std::string& name() const { return m_name; }
-        inline amrex::Real term_vel_a() const { return m_a_tv; }
-        inline amrex::Real term_vel_b() const { return m_b_tv; }
 
         inline amrex::Real coeffCurv() const { return m_coeff_curv; }
         inline amrex::Real coeffVPSolute(const MaterialProperties& a_solute) const
@@ -66,10 +64,7 @@ class MaterialProperties {
         std::string m_name;       /*!< name */
         amrex::Real m_density;    /*!< density */
 
-        /* terminal velocity coeffs */
-        amrex::Real m_a_tv, m_b_tv;
-
-        /* other coeffs */
+        /* various coeffs */
         amrex::Real m_coeff_curv;
         amrex::Real m_coeff_VP_solute;
         amrex::Real m_ionization;
