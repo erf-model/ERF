@@ -10,7 +10,6 @@
 using namespace amrex;
 
 void erf_make_tau_terms (int level, int nrk,
-                         const Gpu::DeviceVector<BCRec>& domain_bcs_type_d,
                          const Vector<BCRec>& domain_bcs_type_h,
                          std::unique_ptr<MultiFab>& z_phys_nd,
                          Vector<MultiFab>& S_data,
@@ -23,7 +22,6 @@ void erf_make_tau_terms (int level, int nrk,
                          MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                          MultiFab* SmnSmn,
                          MultiFab* eddyDiffs,
-                         MultiFab* Hfx3, MultiFab* Diss,
                          const Geometry geom,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<ABLMost>& most,
@@ -34,25 +32,15 @@ void erf_make_tau_terms (int level, int nrk,
 {
     BL_PROFILE_REGION("erf_make_tau_terms()");
 
-    const BCRec* bc_ptr_d = domain_bcs_type_d.data();
     const BCRec* bc_ptr_h = domain_bcs_type_h.data();
 
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    int start_comp = 0;
-    int   num_comp = 2;
-    int   end_comp = start_comp + num_comp - 1;
-
-    const AdvType l_horiz_adv_type = solverChoice.advChoice.dycore_horiz_adv_type;
-    const AdvType l_vert_adv_type  = solverChoice.advChoice.dycore_vert_adv_type;
-    const Real    l_horiz_upw_frac = solverChoice.advChoice.dycore_horiz_upw_frac;
-    const Real    l_vert_upw_frac  = solverChoice.advChoice.dycore_vert_upw_frac;
     const bool    l_use_terrain    = solverChoice.use_terrain;
     const bool    l_moving_terrain = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT (l_use_terrain);
 
-    const bool l_reflux = (solverChoice.coupling_type == CouplingType::TwoWay);
 
     const bool l_use_diff       = ( (dc.molec_diff_type != MolecDiffType::None) ||
                                     (tc.les_type        !=       LESType::None) ||
@@ -63,22 +51,13 @@ void erf_make_tau_terms (int level, int nrk,
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
 
-    const bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_most     = (most != nullptr);
     const bool exp_most     = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
-    const int domhi_z = domain.bigEnd(2);
     const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
-    const Real* dx = geom.CellSize();
-
-    // *****************************************************************************
-    // Combine external forcing terms
-    // *****************************************************************************
-    const    Array<Real,AMREX_SPACEDIM> grav{0.0, 0.0, -solverChoice.gravity};
-    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // *****************************************************************************
     // Pre-computed quantities
