@@ -75,8 +75,13 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
     m_dt = a_dt;
     m_geom = a_geom;
 
-    m_mic_var_map.resize(m_qmoist_size);
-    m_mic_var_map = {MicVar_SD::q_t, MicVar_SD::q_v, MicVar_SD::q_c};
+    m_mic_var_map = {   MicVar_SD::q_t,
+                        MicVar_SD::q_v,
+                        MicVar_SD::q_c,
+                        MicVar_SD::dqcdt,
+                        MicVar_SD::q_r,
+                        MicVar_SD::rh };
+    AMREX_ALWAYS_ASSERT(m_qmoist_size == m_mic_var_map.size());
 
     /* allocate microphysics multifabs */
     for (auto i(0); i < MicVar_SD::NumVars; i++) {

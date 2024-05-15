@@ -977,35 +977,55 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 mf_comp += 1;
             }
 
-        if(solverChoice.moisture_type == MoistureType::Kessler){
-            if (containerHasElement(plot_var_names, "rain_accum"))
-            {
-                MultiFab rain_accum_mf(*(qmoist[lev][4]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
-                mf_comp += 1;
+            if(solverChoice.moisture_type == MoistureType::Kessler){
+                if (containerHasElement(plot_var_names, "rain_accum"))
+                {
+                    MultiFab rain_accum_mf(*(qmoist[lev][4]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
             }
-        }
-        else if(solverChoice.moisture_type == MoistureType::SAM)
-        {
-            if (containerHasElement(plot_var_names, "rain_accum"))
+            else if(solverChoice.moisture_type == MoistureType::SAM)
             {
-                MultiFab rain_accum_mf(*(qmoist[lev][8]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
-                mf_comp += 1;
+                if (containerHasElement(plot_var_names, "rain_accum"))
+                {
+                    MultiFab rain_accum_mf(*(qmoist[lev][8]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],rain_accum_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "snow_accum"))
+                {
+                    MultiFab snow_accum_mf(*(qmoist[lev][9]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],snow_accum_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "graup_accum"))
+                {
+                    MultiFab graup_accum_mf(*(qmoist[lev][10]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],graup_accum_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
             }
-            if (containerHasElement(plot_var_names, "snow_accum"))
+            else if(solverChoice.moisture_type == MoistureType::SuperDroplets)
             {
-                MultiFab snow_accum_mf(*(qmoist[lev][9]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],snow_accum_mf,0,mf_comp,1,0);
-                mf_comp += 1;
+                // Make sure the indices below match the m_mic_var_map entries
+                // in SuperDropletsMoist::Init()
+                if (containerHasElement(plot_var_names, "condensation_rate")) {
+                    MultiFab rain_mf(*(qmoist[lev][3]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "qrain")) {
+                    MultiFab rain_mf(*(qmoist[lev][4]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "rel_humidity")) {
+                    MultiFab rain_mf(*(qmoist[lev][5]), make_alias, 0, 1);
+                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
             }
-            if (containerHasElement(plot_var_names, "graup_accum"))
-            {
-                MultiFab graup_accum_mf(*(qmoist[lev][10]), make_alias, 0, 1);
-                MultiFab::Copy(mf[lev],graup_accum_mf,0,mf_comp,1,0);
-                mf_comp += 1;
-            }
-        }
         }
 
 #ifdef ERF_USE_PARTICLES

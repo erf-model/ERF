@@ -811,7 +811,8 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum", "snow_accum", "graup_accum"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum", "snow_accum", "graup_accum",
+                                                    "rel_humidity", "condensation_rate"
 #ifdef ERF_COMPUTE_ERROR
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif

@@ -17,6 +17,9 @@ namespace MicVar_SD {
         q_t,         /*!< Total (vapour + cloud) */
         q_v,         /*!< Water vapour */
         q_c,         /*!< Cloud condensate */
+        dqcdt,       /*!< Condensation rate */
+        q_r,         /*!< Rain */
+        rh,          /*!< relative humidity */
         NumVars
     };
 }
@@ -180,9 +183,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! Geometry object */
         amrex::Geometry m_geom;
 
-        /*! vapour and condensed water density */
-        const int m_qmoist_size = 3;
-        /*! vapour and condensed water density */
+        /*! number of microphysics variables */
+        const int m_qmoist_size = 6;
+        /*! number of state variables for this moisture model */
         const int m_qstate_size = 2;
 
         Real m_dt; /*!< timestep */
