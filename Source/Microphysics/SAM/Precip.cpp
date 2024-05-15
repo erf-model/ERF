@@ -167,12 +167,12 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta
+                    // Latent heat source for theta (endothermic fusion & exothermic melting)
                     tabs_array(i,j,k) += fac_fus * ( dqca * (1.0 - omp) - dqia * omp );
                     pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                        * (1.0 + R_v/R_d * qv_array(i,j,k));
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) /= 100.0;
+                    pres_array(i,j,k) *= 0.01;
                 }
 
                 //==================================================
@@ -188,12 +188,12 @@ void SAM::Precip () {
                     dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
 
                     // NOTE: This is always a sink for precipitating comps
-                    //       since qv<qsat and thus (qv/qsat-1)<0. If we are
+                    //       since qv<qsat and thus (1 - qv/qsat)>0. If we are
                     //       in a super-saturated state (qv>qsat) the Newton
                     //       iterations in Cloud() will have handled condensation.
-                    dqpr *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqps *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqpg *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqpr *= dtn * (1.0 - qv_array(i,j,k)/qsat);
+                    dqps *= dtn * (1.0 - qv_array(i,j,k)/qsat);
+                    dqpg *= dtn * (1.0 - qv_array(i,j,k)/qsat);
 
                     // Limit to avoid negative moisture fractions
                     dqpr = std::min(qpr_array(i,j,k),dqpr);
@@ -211,8 +211,8 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta
-                    tabs_array(i,j,k) += fac_cond * dqpr + fac_sub * (dqps + dqpg);
+                    // Latent heat source for theta (endothermic)
+                    tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
                     pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                        * (1.0 + R_v/R_d * qv_array(i,j,k));
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);

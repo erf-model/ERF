@@ -64,7 +64,7 @@ void SAM::Cloud () {
                 pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
             }
             // Cloud water not permitted (freeze to form ice)
             else if(tabs_array(i,j,k) <= tbgmin) {
@@ -76,7 +76,7 @@ void SAM::Cloud () {
                 pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
             }
             // Mixed cloud phase (split according to omn)
             else {
@@ -89,7 +89,7 @@ void SAM::Cloud () {
                 pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
             }
 
             // Initial guess for temperature & pressure
@@ -155,8 +155,7 @@ void SAM::Cloud () {
 
                     // Update the pressure
                     pres = rho_array(i,j,k) * R_d * tabs
-                           * (1.0 + R_v/R_d * qsat);
-                    pres /= 100.0;
+                         * (1.0 + R_v/R_d * qsat) * 0.01;
 
                     // Update iteration
                     niter = niter+1;
@@ -188,15 +187,15 @@ void SAM::Cloud () {
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
 
                 // Pressure unit conversion
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
 
             }
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
             else {
                 // Changes in each component
-                delta_qv =  qcl_array(i,j,k) + qci_array(i,j,k);
-                delta_qc = -qcl_array(i,j,k);
-                delta_qi = -qci_array(i,j,k);
+                delta_qv = qcl_array(i,j,k) + qci_array(i,j,k);
+                delta_qc = qcl_array(i,j,k);
+                delta_qi = qci_array(i,j,k);
 
                 // Partition the change in non-precipitating q
                  qv_array(i,j,k) += delta_qv;
@@ -206,7 +205,7 @@ void SAM::Cloud () {
                  qt_array(i,j,k)  = qv_array(i,j,k);
 
                 // Update temperature (endothermic since we evap/sublime)
-                tabs_array(i,j,k) -= fac_fus * delta_qc + fac_sub * delta_qi;
+                tabs_array(i,j,k) -= fac_cond * delta_qc + fac_sub * delta_qi;
 
                 // Update pressure
                 pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
@@ -216,7 +215,7 @@ void SAM::Cloud () {
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
 
                 // Pressure unit conversion
-                pres_array(i,j,k) /= 100.0;
+                pres_array(i,j,k) *= 0.01;
             }
         });
     } // mfi
