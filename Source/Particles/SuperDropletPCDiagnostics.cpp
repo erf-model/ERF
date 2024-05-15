@@ -126,6 +126,22 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
                                      return n*m;
                                  } );
 
+    auto min_term_v = ReduceMin( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
+
+    auto max_term_v = ReduceMax( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i]; } );
+
+    auto avg_term_v = ReduceSum( *this,
+                                 [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                 {
+                                     auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                     auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::term_vel][i];
+                                     return n*m;
+                                 } );
+
     ParallelDescriptor::ReduceRealMin(&min_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_t_coales,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_radius,1,ParallelDescriptor::IOProcessorNumber());
@@ -133,6 +149,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMin(&min_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMin(&min_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMin(&min_term_v,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealMax(&max_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_t_coales,1,ParallelDescriptor::IOProcessorNumber());
@@ -141,6 +158,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealMax(&max_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealMax(&max_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(&max_term_v,1,ParallelDescriptor::IOProcessorNumber());
 
     ParallelDescriptor::ReduceRealSum(&avg_par_mass,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_t_coales,1,ParallelDescriptor::IOProcessorNumber());
@@ -149,6 +167,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealSum(&avg_par_vx,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(&avg_term_v,1,ParallelDescriptor::IOProcessorNumber());
     avg_par_mass /= num_total_particles;
     avg_t_coales /= num_total_particles;
     avg_par_radius /= num_total_particles;
@@ -156,6 +175,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     avg_par_vx /= num_total_particles;
     avg_par_vy /= num_total_particles;
     avg_par_vz /= num_total_particles;
+    avg_term_v /= num_total_particles;
 
     m_t_coalescence = max_t_coales;
 
@@ -174,7 +194,9 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << "        z: "
             << min_par_vz << ", " << max_par_vz << ", " << avg_par_vz << "\n"
             << "    coalescence time scale [s]: "
-            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n";
+            << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n"
+            << "    terminal velocity [m/s]: "
+            << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
 
     Long num_unconverged_particles = m_num_unconverged_particles;
     m_num_unconverged_particles = 0;
