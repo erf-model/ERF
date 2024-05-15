@@ -74,7 +74,8 @@ void SuperDropletPC::AdvectParticles ( int                                      
             auto* vterm_ptr = soa.GetRealData(rt_offset+SuperDropletsRealIdxSoA_RT::term_vel).data();
 
 
-            TerminalVelocity::VTerm_CloudRain<ParticleReal> term_vel { m_vapour_mat->density() };
+            TerminalVelocity<ParticleReal> term_vel { m_vapour_mat->density() };
+            auto term_vel_type = m_term_vel_type;
 
             ParallelFor(n, [=] AMREX_GPU_DEVICE (int i)
             {
@@ -93,21 +94,25 @@ void SuperDropletPC::AdvectParticles ( int                                      
                 }
 
                 if (advect_w_gravity) {
-                    ParticleReal density, pressure, temperature;
-                    if (use_terrain) {
-                        cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
-                        cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
-                        cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
-                    } else {
-                        cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
-                        cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
-                        cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+                    ParticleReal terminal_vel = 0.0;
+                    if (term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+                        terminal_vel = term_vel.AtlasUlbrich( radius_ptr[i] );
+                    } else if (term_vel_type == SDTerminalVelocityType::CloudRainShima) {
+                        ParticleReal density, pressure, temperature;
+                        if (use_terrain) {
+                            cic_interpolate_mapped_z( p, plo, dxi, density_arr, zheight, &density, 1 );
+                            cic_interpolate_mapped_z( p, plo, dxi, pressure_arr, zheight, &pressure, 1 );
+                            cic_interpolate_mapped_z( p, plo, dxi, temperature_arr, zheight, &temperature, 1 );
+                        } else {
+                            cic_interpolate( p, plo, dxi, density_arr, &density, 1 );
+                            cic_interpolate( p, plo, dxi, pressure_arr, &pressure, 1 );
+                            cic_interpolate( p, plo, dxi, temperature_arr, &temperature, 1 );
+                        }
+                        terminal_vel = term_vel.CloudRainShima( radius_ptr[i],
+                                                                density,
+                                                                pressure,
+                                                                temperature );
                     }
-
-                    ParticleReal terminal_vel = term_vel( radius_ptr[i],
-                                                          density,
-                                                          pressure,
-                                                          temperature );
                     terminal_vel *= (1.0 - std::exp(-p.pos(2)*dxi[2]));
                     vterm_ptr[i] = terminal_vel;
                     v[2] -= terminal_vel;

@@ -52,6 +52,12 @@ namespace SupDropInit
     const std::string alg_coalescence_cudsmc = "cuDSMC";
 }
 
+/*! \brief Types of terminal velocity models */
+enum struct SDTerminalVelocityType {
+    AtlasUlbrich,
+    CloudRainShima
+};
+
 /*! \brief Types of coalescence kernels */
 enum struct SDCoalescenceKernelType {
     golovin,
@@ -316,6 +322,8 @@ class SuperDropletPC : public ERFPC
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
+
+        SDTerminalVelocityType m_term_vel_type; /*!< Terminal velocity model */
 
         int m_ppc_seed; /*!< Number of seed particles per cell */
         amrex::Real m_seed_mass; /*!< Condensate mass of seed */

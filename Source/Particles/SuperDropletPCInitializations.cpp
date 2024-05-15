@@ -86,6 +86,16 @@ void SuperDropletPC::readInputs ()
         amrex::Abort("Error in SuperDropletPC::readInputs() - invalid kernel choice!");
     }
 
+    std::string term_vel_name = "CloudRainShima";
+    pp.query("terminal_velocity_model", term_vel_name);
+    if (term_vel_name == "AtlasUlbrich") {
+        m_term_vel_type = SDTerminalVelocityType::AtlasUlbrich;
+    } else if (term_vel_name == "CloudRainShima") {
+        m_term_vel_type = SDTerminalVelocityType::CloudRainShima;
+    } else {
+        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid terminal velocity choice!");
+    }
+
     pp.query("initial_seeds_per_cell", m_ppc_seed);
     pp.query("seed_condensate_mass", m_seed_mass);
 
@@ -219,6 +229,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         Print() << "Longs" << "\n";
     } else if (m_coalescence_kernel == SDCoalescenceKernelType::Halls) {
         Print() << "Halls" << "\n";
+    }
+
+    Print() << "    Terminal velocity model: ";
+    if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
+        Print() << "AtlasUlbrich" << "\n";
+    } else if (m_term_vel_type ==  SDTerminalVelocityType::CloudRainShima) {
+        Print() << "CloudRainShima" << "\n";
     }
 
     Print() << "    Vapour material: " << m_vapour_mat->name() << "\n";
