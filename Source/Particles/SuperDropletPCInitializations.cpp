@@ -242,7 +242,12 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
     if (m_aerosol_mat.size() > 0) {
         Print() << "    Aerosol materials:\n";
         for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
-            Print() << "        " << m_aerosol_mat[i]->name() << "\n";
+            Print() << "        "
+                    << m_aerosol_mat[i]->name()
+                    << ", ("
+                    << "Initial distribution: " << m_mass_aerosol_init_type[i]
+                    << ", mean mass= " << m_mass_aerosol_init[i]
+                    << ")" << "\n";
         }
     }
     Print()
