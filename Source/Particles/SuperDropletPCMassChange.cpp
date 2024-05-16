@@ -69,19 +69,19 @@ void SuperDropletPC::MassChange ( int                                         a_
             drsqdt_rhsfun{m_vapour_mat->coeffCurv(),
                           m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
                           m_vapour_mat->latHeatVap(),
-                          therco, // ERF_Constants.H
+                          therco, /* ERF_Constants.H */
                           m_vapour_mat->Rv(),
                           mat_density,
-                          m_vapour_mat->molDiffCoeff()};
+                          diffelq /* ERF_Constants.H */};
 
         SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>
             drsqdt_rhsjac{m_vapour_mat->coeffCurv(),
                           m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
                           m_vapour_mat->latHeatVap(),
-                          therco, // ERF_Constants.H
+                          therco, /* ERF_Constants.H */
                           m_vapour_mat->Rv(),
                           mat_density,
-                          m_vapour_mat->molDiffCoeff()};
+                          diffelq /* ERF_Constants.H */ };
 
         SDMassChangeUtils::NewtonSolver< SDMassChangeUtils::dRsqdt_RHSFunc<ParticleReal>,
                                          SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>,

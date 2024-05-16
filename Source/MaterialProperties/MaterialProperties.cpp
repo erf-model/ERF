@@ -70,7 +70,6 @@ void MaterialProperties::setProperties_H2O()
     m_mol_weight = 1.802e-02; // kg mol^-1
     m_lat_vap = L_v; // ERF_Constants.H
     m_Rv = R_v; // ERF_Constants.H
-    m_mol_diff = 2.299e-9; // m^2 s^-1
 
     m_saturation_pressure_func = saturation_funcs::compute_saturation_pressure_H2O;
     m_saturation_vapfrac_func = saturation_funcs::compute_saturation_vapfrac_H2O;
@@ -87,7 +86,6 @@ void MaterialProperties::setProperties_NaCl()
     m_mol_weight = 5.844e-02; //kg mol^-1
     m_lat_vap = DBL_MAX;
     m_Rv = DBL_MAX;
-    m_mol_diff = DBL_MAX;
 
     m_saturation_pressure_func = nullptr;
     m_saturation_vapfrac_func = nullptr;
