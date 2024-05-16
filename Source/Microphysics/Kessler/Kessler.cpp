@@ -127,14 +127,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 // Factor for cloud analytical solution (\partial_{T} qvs * Lv/Cp)
                 Real fac = dqsat * d_fac_cond;
 
-                if (i==100 && j==2) {
-                    Print() << "Check Fac: " << IntVect(i,j,k) << ' '
-                            << d_fac_cond << ' '
-                            << L_v/Cp_d << ' '
-                            << fac << ' '
-                            << qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2)) << "\n";
-                }
-
                 // Vapor condenses to water (exothermic)
                 if(qv_array(i,j,k) > qsat){
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
@@ -182,7 +174,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 //       exner function. Since the exner function depends upon pressure, it is also changing in
                 //       time. Taking the exner function at the start of the step leads to a mismatch between the
                 //       final qv (which is qsat) and the qsat computed with the ending thermodynamic variables
-                //       (e.g. the final temperature/theta/pressure. By updating temperature and converting to
+                //       (e.g. the final temperature/theta/pressure). By updating temperature and converting to
                 //       theta, we alleviate that mismatch.
 
                 // Update temperature
@@ -218,6 +210,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
+            Real rdOcp = m_rdOcp;
 
             ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -228,7 +221,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 //------- Autoconversion/accretion
                 Real qsat, dqsat;
                 Real dq_clwater_to_vapor, dq_vapor_to_clwater;
-                Real delta_qv, delta_qc;
 
                 // Pressure alread in mbar
                 Real tabs = tabs_array(i,j,k);
@@ -262,7 +254,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 //       exner function. Since the exner function depends upon pressure, it is also changing in
                 //       time. Taking the exner function at the start of the step leads to a mismatch between the
                 //       final qv (which is qsat) and the qsat computed with the ending thermodynamic variables
-                //       (e.g. the final temperature/theta/pressure. By updating temperature and converting to
+                //       (e.g. the final temperature/theta/pressure). By updating temperature and converting to
                 //       theta, we alleviate that mismatch.
 
                 // Update temperature
