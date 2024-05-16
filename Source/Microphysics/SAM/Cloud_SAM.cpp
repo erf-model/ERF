@@ -193,9 +193,9 @@ void SAM::Cloud () {
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
             else {
                 // Changes in each component
-                delta_qv =  qcl_array(i,j,k) + qci_array(i,j,k);
-                delta_qc = -qcl_array(i,j,k);
-                delta_qi = -qci_array(i,j,k);
+                delta_qv = qcl_array(i,j,k) + qci_array(i,j,k);
+                delta_qc = qcl_array(i,j,k);
+                delta_qi = qci_array(i,j,k);
 
                 // Partition the change in non-precipitating q
                  qv_array(i,j,k) += delta_qv;
@@ -206,7 +206,7 @@ void SAM::Cloud () {
 
                 // NOTE: delta_qc & delta_qi are negative!
                 // Update temperature (endothermic since we evap/sublime)
-                tabs_array(i,j,k) += fac_cond * delta_qc + fac_sub * delta_qi;
+                tabs_array(i,j,k) -= fac_cond * delta_qc + fac_sub * delta_qi;
 
                 // Update pressure
                 pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
