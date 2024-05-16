@@ -1010,19 +1010,16 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             {
                 // Make sure the indices below match the m_mic_var_map entries
                 // in SuperDropletsMoist::Init()
-                if (containerHasElement(plot_var_names, "condensation_rate")) {
-                    MultiFab rain_mf(*(qmoist[lev][3]), make_alias, 0, 1);
-                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
-                    mf_comp += 1;
-                }
                 if (containerHasElement(plot_var_names, "qrain")) {
-                    MultiFab rain_mf(*(qmoist[lev][4]), make_alias, 0, 1);
-                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][4]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
                 if (containerHasElement(plot_var_names, "rel_humidity")) {
-                    MultiFab rain_mf(*(qmoist[lev][5]), make_alias, 0, 1);
-                    MultiFab::Copy(mf[lev],rain_mf,0,mf_comp,1,0);
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][5]),0,mf_comp,1,0);
+                    mf_comp += 1;
+                }
+                if (containerHasElement(plot_var_names, "condensation_rate")) {
+                    MultiFab::Copy(mf[lev],*(qmoist[lev][3]),0,mf_comp,1,0);
                     mf_comp += 1;
                 }
             }
