@@ -266,7 +266,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 //       theta, we alleviate that mismatch.
 
                 // Update temperature
-                tabs_array(i,j,k) += d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
+                tabs_array(i,j,k) += d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor);
 
                 // Update pressure
                 pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
