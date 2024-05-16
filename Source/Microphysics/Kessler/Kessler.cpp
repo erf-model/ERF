@@ -90,6 +90,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
             // Expose for GPU
             Real d_fac_cond = m_fac_cond;
+            Real rdOcp = m_rdOcp;
 
             ParallelFor(box3d, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
@@ -126,6 +127,14 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 // Factor for cloud analytical solution (\partial_{T} qvs * Lv/Cp)
                 Real fac = dqsat * d_fac_cond;
 
+                if (i==100 && j==2) {
+                    Print() << "Check Fac: " << IntVect(i,j,k) << ' '
+                            << d_fac_cond << ' '
+                            << L_v/Cp_d << ' '
+                            << fac << ' '
+                            << qsat*4093.0*L_v/(Cp_d*std::pow(tabs_array(i,j,k)-36.0,2)) << "\n";
+                }
+
                 // Vapor condenses to water (exothermic)
                 if(qv_array(i,j,k) > qsat){
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
@@ -150,7 +159,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                     autor = 0.0;
                     if (qcc > qcw0) {
-                        autor = 0.001;
+                        autor = alphaelq;
                     }
 
                     accrr = 2.2 * std::pow(qp_array(i,j,k) , 0.875);
@@ -168,13 +177,26 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
 
-                theta_array(i,j,k) = theta_array(i,j,k) +
-                                     theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
-                tabs_array(i,j,k)  = getTgivenRandRTh(rho_array(i,j,k),
-                                                      rho_array(i,j,k)*theta_array(i,j,k),
-                                                      qv_array(i,j,k));
-                pres_array(i,j,k)  = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k), qv_array(i,j,k)) * 0.01;
+                // NOTE: In KH78 (https://doi.org/10.1175/1520-0469(1978)035<1070:TSOTDC>2.0.CO;2) the update
+                //       equation for theta involves a coefficient \gamma = Lv/(Cp * \Pi). Where \Pi is the
+                //       exner function. Since the exner function depends upon pressure, it is also changing in
+                //       time. Taking the exner function at the start of the step leads to a mismatch between the
+                //       final qv (which is qsat) and the qsat computed with the ending thermodynamic variables
+                //       (e.g. the final temperature/theta/pressure. By updating temperature and converting to
+                //       theta, we alleviate that mismatch.
+
+                // Update temperature
+                tabs_array(i,j,k) += d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
+
+                // Update pressure
+                pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                    * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                // Update theta from temperature
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                // Pressure unit conversion
+                pres_array(i,j,k) *= 0.01;
             });
         }
     }
@@ -235,13 +257,26 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor;
                 qt_array(i,j,k) = qv_array(i,j,k) + qc_array(i,j,k);
 
-                theta_array(i,j,k) = theta_array(i,j,k) +
-                                     theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond*
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor);
-                tabs_array(i,j,k)  = getTgivenRandRTh(rho_array(i,j,k),
-                                                      rho_array(i,j,k)*theta_array(i,j,k),
-                                                      qv_array(i,j,k));
-                pres_array(i,j,k)  = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k), qv_array(i,j,k)) * 0.01;
+                // NOTE: In KH78 (https://doi.org/10.1175/1520-0469(1978)035<1070:TSOTDC>2.0.CO;2) the update
+                //       equation for theta involves a coefficient \gamma = Lv/(Cp * \Pi). Where \Pi is the
+                //       exner function. Since the exner function depends upon pressure, it is also changing in
+                //       time. Taking the exner function at the start of the step leads to a mismatch between the
+                //       final qv (which is qsat) and the qsat computed with the ending thermodynamic variables
+                //       (e.g. the final temperature/theta/pressure. By updating temperature and converting to
+                //       theta, we alleviate that mismatch.
+
+                // Update temperature
+                tabs_array(i,j,k) += d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
+
+                // Update pressure
+                pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                                    * (1.0 + R_v/R_d * qv_array(i,j,k));
+
+                // Update theta from temperature
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+
+                // Pressure unit conversion
+                pres_array(i,j,k) *= 0.01;
             });
         }
     }
