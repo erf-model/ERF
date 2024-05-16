@@ -46,7 +46,6 @@ class MaterialProperties {
         inline amrex::Real latHeatVap() const { return m_lat_vap; }
         inline amrex::Real thermCond() const { return m_therm_cond; }
         inline amrex::Real Rv() const { return m_Rv; }
-        inline amrex::Real molDiffCoeff() const { return m_mol_diff; }
 
         inline void computeSaturationPressure ( amrex::MultiFab& a_e, const amrex::MultiFab& a_T)
         {
@@ -72,7 +71,6 @@ class MaterialProperties {
         amrex::Real m_lat_vap;
         amrex::Real m_therm_cond;
         amrex::Real m_Rv;
-        amrex::Real m_mol_diff;
 
         decltype(saturation_funcs::compute_saturation_pressure_null)* m_saturation_pressure_func;
         decltype(saturation_funcs::compute_saturation_vapfrac_null)* m_saturation_vapfrac_func;
