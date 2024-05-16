@@ -135,7 +135,7 @@
         apply_bcs(S_sum, time_for_fp, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
 
 #ifdef ERF_USE_POISSON_SOLVE
-        if (solverChoice.incompressible) {
+        if (solverChoice.incompressible[level]) {
             bool have_tb = (thin_xforce[0] || thin_yforce[0] || thin_zforce[0]);
             if (solverChoice.project_every_stage || (nrk==1)) {
                 if (have_tb) {

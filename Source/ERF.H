@@ -631,8 +631,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
     amrex::Vector<amrex::MultiFab> Nturb;
-    amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
-    amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
+    amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
+                                                  // EWP:                 dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 

@@ -37,7 +37,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP
+    Fitch, EWP, None
 };
 
 enum struct LandSurfaceType {
@@ -161,12 +161,24 @@ struct SolverChoice {
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 
-        pp.query("incompressible", incompressible);
+        int nvals_inc = pp.countval("incompressible");
+        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+        amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
+        pp.getarr("incompressible",inc_in);
+        if (nvals_inc == 1) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+        } else {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+        }
+
         pp.query("constant_density", constant_density);
         pp.query("project_every_stage", project_every_stage);
         pp.query("ncorr", ncorr);
         pp.query("poisson_abstol", poisson_abstol);
         pp.query("poisson_reltol", poisson_reltol);
+#else
+        incompressible.resize(max_level+1);
+        for (int i = 0; i <= max_level; ++i) incompressible[i] = 0;
 #endif
 
         // Turn off acoustic substepping?
@@ -174,10 +186,11 @@ struct SolverChoice {
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
 #if defined(ERF_USE_POISSON_SOLVE)
-        // If this is set, it must be even
-        if (incompressible != 0 && no_substepping == 0)
-        {
-            amrex::Abort("If you specify incompressible, you must specific no_substepping");
+        for (int lev = 0; lev <= max_level; lev++) {
+            if (incompressible[lev] != 0 && no_substepping == 0)
+            {
+                amrex::Abort("If you specify incompressible, you must specific no_substepping");
+            }
         }
 #endif
 
@@ -274,19 +287,19 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
-        // Which type of windfarm model
-        static std::string windfarm_type_string = "Fitch";
-
-        pp.query("windfarm_type", windfarm_type_string);
         pp.query("latitude_lo",  latitude_lo);
         pp.query("longitude_lo", longitude_lo);
+
+        // Which type of windfarm model
+        static std::string windfarm_type_string = "None";
+        pp.query("windfarm_type", windfarm_type_string);
         if (windfarm_type_string == "Fitch") {
             windfarm_type = WindFarmType::Fitch;
         }
-        else if(windfarm_type_string == "EWP"){
+        else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
         }
-        else {
+        else if (windfarm_type_string != "None") {
             amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
         }
 
@@ -294,12 +307,14 @@ struct SolverChoice {
         pp.query("time_avg_vel",time_avg_vel);
     }
 
-    void display()
+    void display(int max_level)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
         amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
-        amrex::Print() << "incompressible              : "  << incompressible << std::endl;
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "incompressible at level     : " << lev << " is " << incompressible[lev] << std::endl;
+        }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
 
@@ -336,7 +351,6 @@ struct SolverChoice {
           diffChoice.display();
         spongeChoice.display();
 
-        int max_level = turbChoice.size()-1;
         for (int lev = 0; lev <= max_level; lev++) {
             turbChoice[lev].display(lev);
         }
@@ -387,7 +401,7 @@ struct SolverChoice {
     int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
 
-    int         incompressible      = 0;
+    amrex::Vector<int> incompressible;
     int         constant_density    = 0;
     int         project_every_stage = 1;
     int         ncorr               = 1;
