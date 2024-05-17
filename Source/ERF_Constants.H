@@ -15,9 +15,9 @@ constexpr amrex::Real Cp_l         = 4200.0;
 
 constexpr amrex::Real L_v          = 2.5e6;    // latent heat of vaporization (J / kg)
 
-constexpr amrex::Real p_0          = 1.0e5;                 // reference surface pressure [Pa]
-constexpr amrex::Real Gamma        = 1.4;             // c_p / c_v [-]
-constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant
+constexpr amrex::Real p_0          = 1.0e5;    // reference surface pressure [Pa]
+constexpr amrex::Real Gamma        = 1.4;      // c_p / c_v [-]
+constexpr amrex::Real KAPPA        = 0.41;     // von Karman constant
 constexpr amrex::Real CONST_GRAV   = 9.81;
 
 // Derived Constants
