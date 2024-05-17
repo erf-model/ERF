@@ -62,9 +62,10 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                                         a_z,
                                         a_max_particle_substeps );
 
+        // Compute new condensate mixing ratio
+        computeQc();
+
         if (a_update_qv) {
-            // Compute new condensate mixing ratio
-            computeQc();
             // Update vapour mixing ratio
             for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_v]); mfi.isValid(); ++mfi) {
 
