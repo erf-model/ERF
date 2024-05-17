@@ -46,7 +46,6 @@ namespace SupDropInit
 
     const std::string attrib_init_const = "constant";
     const std::string attrib_init_exp = "exponential";
-    const std::string attrib_init_exp_norm = "exp_normal";
 
     const std::string alg_coalescence_dsmc = "DSMC";
     const std::string alg_coalescence_cudsmc = "cuDSMC";
@@ -330,6 +329,8 @@ class SuperDropletPC : public ERFPC
 
         /*! Initial aerosol masses of each physical particle */
         std::vector<amrex::Real> m_mass_aerosol_init;
+        /*! Minimum initial  aerosol masses of each physical particle */
+        std::vector<amrex::Real> m_mass_aerosol_min;
         /*! Initial distribution type for aerosol masses */
         std::vector<std::string> m_mass_aerosol_init_type;
         int m_num_aerosols; /*!< Number of aerosols */
@@ -381,6 +382,7 @@ class SuperDropletPC : public ERFPC
             setAerosolMaterial( a_aerosol_mat );
             m_num_aerosols = m_aerosol_mat.size();
             m_mass_aerosol_init.resize(m_num_aerosols);
+            m_mass_aerosol_min.resize(m_num_aerosols);
             m_mass_aerosol_init_type.resize(m_num_aerosols);
             AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
 
