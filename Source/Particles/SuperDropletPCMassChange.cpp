@@ -141,20 +141,24 @@ void SuperDropletPC::MassChange ( int                                         a_
             }
 
             if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
+
             if (!converged) {
+
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
                 Gpu::Atomic::Max(unconverged_max_absnorm_ptr, abs_norm);
                 Gpu::Atomic::Max(unconverged_max_relnorm_ptr, rel_norm);
+
+            } else {
+
+                // update particle radius
+                radius_ptr[i] = std::sqrt(r_sq);
+
+                // update mass of particle
+                mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
+
+                // update superdroplet total mass
+                supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
             }
-
-            // update particle radius
-            radius_ptr[i] = std::sqrt(r_sq);
-
-            // update mass of particle
-            mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
-
-            // update superdroplet total mass
-            supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
 
         });
         Gpu::synchronize();

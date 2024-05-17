@@ -121,14 +121,16 @@ namespace SDMassChangeUtils
 
                 RT slope = 1.0 - a_dt * m_jac( a_u, a_T, a_e_s, a_M_s );
                 RT du = 0.0;
-                if ((slope*slope) < (1.0e-12*residual*residual)) {
+                if ((slope*slope) < (10000*residual*residual)) {
+                    // don't allow |du| > 0.01 [m^2]
                     du = 0.0;
                 } else {
                     du = - residual / slope;
                 }
 
                 RT du_norm = std::sqrt(du*du);
-                if (du_norm <= m_stol) {
+                RT u_norm = std::sqrt(a_u*a_u);
+                if (du_norm/u_norm <= m_stol) {
                     a_converged = true;
                     break;
                 }

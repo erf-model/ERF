@@ -50,7 +50,7 @@ void SuperDropletPC::readInputs ()
     /* Newton solver parameters */
     m_newton_rtol = 1.0e-6;
     m_newton_atol = 1.0e-99;
-    m_newton_stol = 1.0e-99;
+    m_newton_stol = 1.0e-12;
     m_newton_maxits = 10;
     m_mass_change_max_substeps = 1;
 
@@ -133,6 +133,11 @@ void SuperDropletPC::readInputs ()
         {
             std::string key = "initial_aerosol_mass_" + m_aerosol_mat[i]->name();
             pp.query(key.c_str(), m_mass_aerosol_init[i]);
+        }
+        m_mass_aerosol_min[i] = std::min(3.3510322e-23, m_mass_aerosol_init[i]); // 2 nm droplet size
+        {
+            std::string key = "initial_aerosol_minimum_mass_" + m_aerosol_mat[i]->name();
+            pp.query(key.c_str(), m_mass_aerosol_min[i]);
         }
         {
             std::string key = "initial_aerosol_mass_type_" + m_aerosol_mat[i]->name();
@@ -244,9 +249,10 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         for (unsigned long i=0; i < m_aerosol_mat.size(); i++) {
             Print() << "        "
                     << m_aerosol_mat[i]->name()
-                    << ", ("
-                    << "Initial distribution: " << m_mass_aerosol_init_type[i]
-                    << ", mean mass= " << m_mass_aerosol_init[i]
+                    << " ("
+                    << "Initial mass distribution: " << m_mass_aerosol_init_type[i]
+                    << ", mean=" << m_mass_aerosol_init[i]
+                    << ", min=" << m_mass_aerosol_min[i]
                     << ")" << "\n";
         }
     }
@@ -353,20 +359,13 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp) {
                 std::random_device rd;
                 std::mt19937 rng(rd());
-                std::exponential_distribution<Real> ed(1.0/m_mass_aerosol_init[i]);
+                std::exponential_distribution<Real> ed(1.0/(m_mass_aerosol_init[i]-m_mass_aerosol_min[i]));
                 for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = ed(rng);
+                    aerosol_mass_h[n] = ed(rng) + m_mass_aerosol_min[i];
                 }
             } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
                     aerosol_mass_h[n] = m_mass_aerosol_init[i];
-                }
-            } else if (m_mass_aerosol_init_type[i] == SupDropInit::attrib_init_exp_norm) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                std::uniform_real_distribution<> urd(0.0, 1.0);
-                for (int n = 0; n < np; n++) {
-                    aerosol_mass_h[n] = -std::log(urd(rng))*m_mass_aerosol_init[i];
                 }
             } else {
                 Abort("Unknown m_mass_aerosol_init_type!");
@@ -392,13 +391,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_const) {
                 for (int n = 0; n < np; n++) {
                     condensate_mass_h[n] = m_mass_condensate_init;
-                }
-            } else if (m_mass_condensate_init_type == SupDropInit::attrib_init_exp_norm) {
-                std::random_device rd;
-                std::mt19937 rng(rd());
-                std::uniform_real_distribution<> urd(0.0, 1.0);
-                for (int n = 0; n < np; n++) {
-                    condensate_mass_h[n] = -std::log(urd(rng))*m_mass_condensate_init;
                 }
             } else {
                 Abort("Unknown m_mass_condensate_init_type!");
