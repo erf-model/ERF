@@ -56,6 +56,10 @@ enum Sponge {
        ubar_sponge, vbar_sponge, nvars_sponge
 };
 
+enum struct PertType {
+    type1, type2
+};
+
 /**
  * Container holding many of the algorithmic options and parameters
  */
@@ -287,6 +291,8 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
+            pert_type = PertType::type1;
+
         pp.query("latitude_lo",  latitude_lo);
         pp.query("longitude_lo", longitude_lo);
 
@@ -456,6 +462,9 @@ struct SolverChoice {
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
+
+    // Type of perturbation
+    PertType pert_type;
 
     // Numerical diffusion
     bool use_NumDiff{false};

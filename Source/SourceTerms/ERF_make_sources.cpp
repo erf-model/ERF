@@ -276,6 +276,13 @@ void make_sources (int level,
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
         }
+
+        // *************************************************************************************
+        // Add perturbations
+        // *************************************************************************************
+        if (solverChoice.pert_type == PertType::type1) {
+            CalcTurbPert(bx, cell_src, cell_data);
+        }
     } // mfi
     } // OMP
 }

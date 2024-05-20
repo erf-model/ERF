@@ -3,8 +3,7 @@
 
 using namespace amrex;
 
-void
-CalcTurbPert (
+void CalcTurbPert (
   const Box& bx,
   const Array4<Real>& cell_rhs,
   const Array4<const Real>& cell_data)
