@@ -4,14 +4,15 @@
 using namespace amrex;
 
 void CalcTurbPert (
+  const Geometry geom,
   const Box& bx,
   const Array4<Real>& cell_rhs,
   const Array4<const Real>& cell_data)
 {
     // Domain cell size and real bounds
-    // auto dx = geom.CellSizeArray();
-    // auto ProbHiArr = geom.ProbHiArray();
-    // auto ProbLoArr = geom.ProbLoArray();
+    auto dx = geom.CellSizeArray();
+    auto ProbHiArr = geom.ProbHiArray();
+    auto ProbLoArr = geom.ProbLoArray();
 
     int n = RhoTheta_comp;  
 
