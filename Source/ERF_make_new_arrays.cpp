@@ -297,6 +297,12 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba13 = convert(ba, IntVect(1,0,1));
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+
     if (l_use_diff) {
         Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
         Tau22_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
@@ -313,14 +319,16 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau31_lev[lev] = nullptr;
             Tau32_lev[lev] = nullptr;
         }
-        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
-        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
-        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,0) );
+        SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(1,0,0)) , dm, 1, IntVect(1,1,0) );
+        SFS_hfx2_lev[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,1,0)) , dm, 1, IntVect(1,1,0) );
+        SFS_hfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba, IntVect(0,0,1)) , dm, 1, IntVect(1,1,1) );
+        SFS_diss_lev[lev] = std::make_unique<MultiFab>( ba   , dm, 1, IntVect(1,1,0) );
+        SFS_qfx3_lev[lev] = std::make_unique<MultiFab>( ba2d , dm, 1, IntVect(1,1,0) );
         SFS_hfx1_lev[lev]->setVal(0.);
         SFS_hfx2_lev[lev]->setVal(0.);
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
+        SFS_qfx3_lev[lev]->setVal(0.);
     } else {
         Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
         Tau12_lev[lev] = nullptr; Tau21_lev[lev] = nullptr;
@@ -328,6 +336,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         Tau23_lev[lev] = nullptr; Tau32_lev[lev] = nullptr;
         SFS_hfx1_lev[lev] = nullptr; SFS_hfx2_lev[lev] = nullptr; SFS_hfx3_lev[lev] = nullptr;
         SFS_diss_lev[lev] = nullptr;
+        SFS_qfx3_lev[lev] = nullptr;
     }
 
     if (l_use_kturb) {

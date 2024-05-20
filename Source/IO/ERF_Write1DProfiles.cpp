@@ -434,7 +434,7 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
             fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
                                          + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-            fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
+            fab_arr(i, j, k, 6) = 0.5 * ( hfx3_arr(i,j,k) + hfx3_arr(i,j,k+1) );
             fab_arr(i, j, k, 7) =  diss_arr(i,j,k);
         });
     }

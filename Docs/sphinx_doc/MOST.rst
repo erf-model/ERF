@@ -141,6 +141,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
    .. math::
 
       (\rho \theta)_{z} = \frac{(\rho \theta)_{i,j,1} - (\rho \theta)_{i,j,0}}{\Delta z}
+
       (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
 
    Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implentation with terrain will require local vector rotations. While the ERF dycore accounts for

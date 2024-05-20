@@ -124,6 +124,7 @@ ABLMost::impose_most_bcs (const int& lev,
                           MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
                           MultiFab* heat_flux,
+                          MultiFab* qv_flux,
                           MultiFab* eddyDiffs,
                           MultiFab* z_phys)
 {
@@ -134,6 +135,7 @@ ABLMost::impose_most_bcs (const int& lev,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux,
+                         qv_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
@@ -142,6 +144,7 @@ ABLMost::impose_most_bcs (const int& lev,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux,
+                         qv_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
@@ -150,6 +153,7 @@ ABLMost::impose_most_bcs (const int& lev,
                          xzmom_flux, zxmom_flux,
                          yzmom_flux, zymom_flux,
                          heat_flux,
+                         qv_flux,
                          eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
@@ -171,6 +175,7 @@ ABLMost::compute_most_bcs (const int& lev,
                            MultiFab* xzmom_flux, MultiFab* zxmom_flux,
                            MultiFab* yzmom_flux, MultiFab* zymom_flux,
                            MultiFab* heat_flux,
+                           MultiFab* qv_flux,
                            MultiFab* eddyDiffs,
                            MultiFab* z_phys,
                            const Real& dz_no_terrain,
@@ -180,7 +185,6 @@ ABLMost::compute_most_bcs (const int& lev,
     const int icomp = 0;
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
-        // TODO: No LSM lateral ghost cells, should this change?
         // Valid CC box
         Box vbx = mfi.validbox(); vbx.makeSlab(2,klo-1);
 
@@ -200,6 +204,7 @@ ABLMost::compute_most_bcs (const int& lev,
         auto t31_arr = (zxmom_flux && m_exp_most) ? zxmom_flux->array(mfi) : Array4<Real>{};
         auto t32_arr = (zymom_flux && m_exp_most) ? zymom_flux->array(mfi) : Array4<Real>{};
         auto hfx_arr = (m_exp_most) ? heat_flux->array(mfi) : Array4<Real>{};
+        auto qfx_arr = (m_exp_most && use_moisture ) ? qv_flux->array(mfi) : Array4<Real>{};
 
         const auto  eta_arr  = eddyDiffs->array(mfi);
 
@@ -255,7 +260,7 @@ ABLMost::compute_most_bcs (const int& lev,
                         lsm_flux_arr(i,j,klo) = Tflux;
                     }
                     else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                        hfx_arr(i,j,klo-1) = Tflux;
+                        hfx_arr(i,j,klo) = Tflux;
                     }
                 });
 
@@ -270,7 +275,10 @@ ABLMost::compute_most_bcs (const int& lev,
                                                               cons_arr, velx_arr, vely_arr,
                                                               umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
-                        amrex::ignore_unused(Qflux);
+
+                        if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
+                            qfx_arr(i,j,klo) = Qflux;
+                        }
                     });
                 }
 
@@ -288,10 +296,9 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, um_arr, u_star_arr,
                                                             dest_arr);
                     if ((k == klo-1) && vbxx.contains(i,j,k) && exp_most) {
-                        t13_arr(i,j,klo) = -stressx;
-                        if (t31_arr) t31_arr(i,j,klo) = -stressx;
+                        t13_arr(i,j,klo) = stressx;
+                        if (t31_arr) t31_arr(i,j,klo) = stressx;
                     }
-                    amrex::ignore_unused(stressx);
                 });
 
             } else if (var_idx == Vars::yvel) {
@@ -308,10 +315,9 @@ ABLMost::compute_most_bcs (const int& lev,
                                                             umm_arr, vm_arr, u_star_arr,
                                                             dest_arr);
                     if ((k == klo-1) && vbxy.contains(i,j,k) && exp_most) {
-                        t23_arr(i,j,klo) = -stressy;
-                        if (t32_arr) t32_arr(i,j,klo) = -stressy;
+                        t23_arr(i,j,klo) = stressy;
+                        if (t32_arr) t32_arr(i,j,klo) = stressy;
                     }
-                    amrex::ignore_unused(stressy);
                 });
             }
         } // var_idx

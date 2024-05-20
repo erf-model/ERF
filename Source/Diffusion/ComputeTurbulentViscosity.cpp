@@ -5,9 +5,7 @@
 #include <Diffusion.H>
 #include <TileNoZ.H>
 #include <TerrainMetrics.H>
-#include <Microphysics_Utils.H>
-#include <ERF_Constants.H>
-#include <EOS.H>
+#include <Utils.H>
 
 using namespace amrex;
 
@@ -66,7 +64,6 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     {
       Real Cs = turbChoice.Cs;
       Real inv_Pr_t = turbChoice.Pr_t_inv;
-      bool use_moisture = (cons_in.nComp() >= RhoQ2_comp+1);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -106,65 +103,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
               Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
               Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
-              // NOTE: The effect of the Brunt-Vaisal freq is included here. We account
-              //       for moist and dry conditions by following the work in DK 82
-              //       (https://doi.org/10.1175/1520-0469(1982)039<2152:OTEOMO>2.0.CO;2)
-              //       The simplified approximation given in (36) is employed here for
-              //       the moist case.
-              Real N2;
+              // Brunt-Vaisala frequency
               Real fb = 1.0;
-              Real Th, Th_hi, Th_lo;
-              if (use_moisture) {
-                  Real qv, T, P;
-                  Real qsat, qsat_hi, qsat_lo;
-
-                  // Qs hi
-                  qv = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp);
-                  T  = getTgivenRandRTh(cell_data(i,j,k+1,Rho_comp),
-                                        cell_data(i,j,k+1,RhoTheta_comp),
-                                        qv);
-                  P  = getPgivenRTh(cell_data(i,j,k+1,RhoTheta_comp), qv) * 0.01; // convert to mbar
-                  erf_qsatw(T, P, qsat_hi);
-
-                  // Qs lo
-                  qv = cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp);
-                  T  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
-                                        cell_data(i,j,k-1,RhoTheta_comp),
-                                        qv);
-                  P  = getPgivenRTh(cell_data(i,j,k-1,RhoTheta_comp), qv) * 0.01; // convert to mbar
-                  erf_qsatw(T, P, qsat_lo);
-
-                  // Qs at cc (do last so T is in correct location)
-                  qv = cell_data(i,j,k,RhoQ1_comp)/cell_data(i,j,k,Rho_comp);
-                  T  = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
-                                        cell_data(i,j,k,RhoTheta_comp),
-                                        qv);
-                  P  = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp), qv) * 0.01; // convert to mbar
-                  erf_qsatw(T, P, qsat);
-
-                  Real r = R_d/R_v;
-                  Th     = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
-                  Th_hi  = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
-                  Th_lo  = cell_data(i,j,k-1,RhoTheta_comp) / cell_data(i,j,k-1,Rho_comp);
-                  Real Factor = ( 1. + (L_v*qsat/(R_d*T)) ) /
-                                ( 1. + (r*L_v*L_v*qsat/(Cp_d*R_d*T*T)) );
-                  Real Grad1  = (1./Th) * 0.5 * ( Th_hi - Th_lo ) * dzInv;
-                  Grad1      += (L_v/(Cp_d*T)) * 0.5 * ( qsat_hi - qsat_lo ) * dzInv;
-
-                  Real qw_hi = qsat_hi + cell_data(i,j,k+1,RhoQ2_comp)/cell_data(i,j,k+1,Rho_comp);
-                  Real qw_lo = qsat_lo + cell_data(i,j,k-1,RhoQ2_comp)/cell_data(i,j,k-1,Rho_comp);
-                  Real Gradw = 0.5 * ( qw_hi - qw_lo ) * dzInv;
-
-                  N2 = CONST_GRAV * ( Factor * Grad1 - Gradw );
-              }
-              // dry case
-              else {
-                  Th    = cell_data(i,j,k  ,RhoTheta_comp) / cell_data(i,j,k  ,Rho_comp);
-                  Th_hi = cell_data(i,j,k+1,RhoTheta_comp) / cell_data(i,j,k+1,Rho_comp);
-                  Th_lo = cell_data(i,j,k-1,RhoTheta_comp) / cell_data(i,j,k-1,Rho_comp);
-                  N2 = CONST_GRAV * (1./Th) * 0.5 * ( Th_hi - Th_lo ) * dzInv;
-              }
-
+              Real N2 = Brunt_Vaisala_Freq(i, j, k, dzInv, cell_data);
               if (N2 > 0.0) {
                   fb = std::sqrt( std::max(0.0, (1.0 - N2*inv_Pr_t/(2.0*SmnSmn))) );
               }

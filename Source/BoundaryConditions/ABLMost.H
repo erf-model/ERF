@@ -225,6 +225,7 @@ public:
                      amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
+                     amrex::MultiFab* qv_flux,
                      amrex::MultiFab* eddyDiffs,
                      amrex::MultiFab* z_phys);
 
@@ -235,6 +236,7 @@ public:
                       amrex::MultiFab* xzmom_flux, amrex::MultiFab* zxmom_flux,
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
+                      amrex::MultiFab* qv_flux,
                       amrex::MultiFab* eddyDiffs,
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,

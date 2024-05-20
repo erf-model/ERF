@@ -58,6 +58,7 @@ constexpr amrex::Real nzeror       = 8.e6;   // Intercept coeff. for rain
 constexpr amrex::Real nzeros       = 3.e6;   // Intersept coeff. for snow
 constexpr amrex::Real nzerog       = 4.e6;   // Intersept coeff. for graupel
 constexpr amrex::Real qp_threshold = 1.e-8;  // minimal rain/snow water content
+constexpr amrex::Real qc_crit      = 10.0;   // Convert 0.01 g/kg for N2 computation
 
 constexpr amrex::Real boltz    = 1.38065e-23;
 constexpr amrex::Real avogadro = 6.02214e26;
@@ -85,6 +86,7 @@ constexpr amrex::Real cgrau = b_grau / 4.0;
 constexpr amrex::Real latvap   = 2.5e6;     // Latent heat of vaporization (J/kg)
 constexpr amrex::Real latice   = 3.337e5;   // latent heat of fusion (J/kg)
 constexpr amrex::Real Rd_on_Rv = R_d/R_v;
+constexpr amrex::Real Rv_on_Rd = R_v/R_d;
 constexpr amrex::Real tmelt    = 273.15;  // melting temp.
 constexpr amrex::Real h2otrip  = 273.15;  // Triple point temperature of water (K)
 constexpr amrex::Real tboil    = 373.16;  // Boiling point of water at 1 atm (K)

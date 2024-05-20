@@ -9,6 +9,10 @@
 #include <ABLMost.H>
 #include <ERF_FillPatcher.H>
 
+#include <Microphysics_Utils.H>
+#include <ERF_Constants.H>
+#include <EOS.H>
+
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
@@ -388,4 +392,105 @@ ApplyInvertedMask (amrex::MultiFab& dst,
     }
 }
 
+/*
+ * Compute the Brunt-Vaisala frequency for dry and moist environments
+ */
+AMREX_GPU_HOST
+AMREX_FORCE_INLINE
+amrex::Real
+Brunt_Vaisala_Freq (int& i,
+                    int& j,
+                    int& k,
+                    amrex::Real& dzInv,
+                    const amrex::Array4<const amrex::Real>& cell_data)
+{
+    // NOTE: The effect of the Brunt-Vaisala freq is included here. We account
+    //       for moist and dry conditions similar to  DK 82
+    //       (https://doi.org/10.1175/1520-0469(1982)039<2152:OTEOMO>2.0.CO;2)
+    //       The exact implementation follows the WRF 2019 documentation and can
+    //       be found in Sec 4.2.4
+    amrex::Real N2;
+    amrex::Real T, P;
+    amrex::Real Th, Th_hi, Th_lo;
+    bool use_moisture = (cell_data.ncomp >= RhoQ2_comp+1);
+    Th = cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp);
+    if (use_moisture) {
+        amrex::Real qv, qv_hi, qv_lo;
+        amrex::Real qc, qw_hi, qw_lo;
+        amrex::Real qsat, qsat_hi, qsat_lo;
+
+        // Qvs at cc
+        qv = cell_data(i,j,k,RhoQ1_comp   )/cell_data(i,j,k,Rho_comp);
+        qc = cell_data(i,j,k,RhoQ2_comp   )/cell_data(i,j,k,Rho_comp);
+        T  = getTgivenRandRTh(cell_data(i,j,k,Rho_comp),
+                              cell_data(i,j,k,RhoTheta_comp),
+                              qv);
+        P  = getPgivenRTh(cell_data(i,j,k,RhoTheta_comp), qv) * 0.01; // convert to mbar
+        erf_qsatw(T, P, qsat);
+
+        if ( (qv > qsat) || (qc > qc_crit) ) {
+            // Compute A coefficient
+            amrex::Real A = ( 1. + Rv_on_Rd * (mwwv/mwdair) * L_v * qv / (R_d * T) );
+            A /= ( 1. + (mwwv/mwdair) * L_v * L_v * qv / (Cp_d * R_v * T * T) );
+            A *= (1./Th);
+
+            // Comput qw on hi and lo face
+            qw_hi = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp)
+                  + cell_data(i,j,k+1,RhoQ2_comp)/cell_data(i,j,k+1,Rho_comp);
+            qw_lo = cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp)
+                  + cell_data(i,j,k-1,RhoQ2_comp)/cell_data(i,j,k-1,Rho_comp);
+
+            // Compute Theta_e on hi face
+            qv_hi = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp);
+            T  = getTgivenRandRTh(cell_data(i,j,k+1,Rho_comp),
+                                  cell_data(i,j,k+1,RhoTheta_comp),
+                                  qv_hi);
+            P  = getPgivenRTh(cell_data(i,j,k+1,RhoTheta_comp), qv_hi) * 0.01; // convert to mbar
+            erf_qsatw(T, P, qsat_hi);
+            Th_hi  = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+            Th_hi *= ( 1. + L_v * qsat_hi / (Cp_d * T) );
+
+            // Compute Theta_e on lo face
+            qv_lo = cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp);
+            T  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
+                                  cell_data(i,j,k-1,RhoTheta_comp),
+                                  qv_lo);
+            P  = getPgivenRTh(cell_data(i,j,k-1,RhoTheta_comp), qv_lo) * 0.01; // convert to mbar
+            erf_qsatw(T, P, qsat_lo);
+            Th_lo  = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+            Th_lo *= ( 1. + L_v * qsat_lo / (Cp_d * T) );
+
+            // Compute N2
+            N2 = CONST_GRAV * ( A * 0.5 * ( Th_hi - Th_lo ) * dzInv
+                                  - 0.5 * ( qw_hi - qw_lo ) * dzInv );
+        } else {
+            // Comput qw on hi and lo face
+            qv_hi = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp);
+            qv_lo = cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp);
+
+            // Comput qw on hi and lo face
+            qw_hi = qv_hi + cell_data(i,j,k+1,RhoQ2_comp)/cell_data(i,j,k+1,Rho_comp);
+            qw_lo = qv_lo + cell_data(i,j,k-1,RhoQ2_comp)/cell_data(i,j,k-1,Rho_comp);
+
+            // Compute theta on hi and lo face
+            Th_hi  = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+            Th_lo  = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+
+            // Compute N2
+            N2 = CONST_GRAV * ( (1./Th) * 0.5 * ( Th_hi - Th_lo ) * dzInv
+                             + Rv_on_Rd * 0.5 * ( qv_hi - qv_lo ) * dzInv
+                                        - 0.5 * ( qw_hi - qw_lo ) * dzInv );
+        }
+    // No moisture present
+    } else {
+        // Compute theta on hi and lo face
+        Th_hi  = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
+        Th_lo  = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+
+        // Compute N2
+        N2 = CONST_GRAV * ( (1./Th) * 0.5 * ( Th_hi - Th_lo ) * dzInv );
+    }
+
+    return N2;
+}
 #endif

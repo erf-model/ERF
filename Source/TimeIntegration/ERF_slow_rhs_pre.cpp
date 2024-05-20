@@ -43,6 +43,7 @@ using namespace amrex;
  * @param[in] SmnSmn strain rate magnitude
  * @param[in] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in] Hfx3 heat flux in z-dir
+ * @param[in] Qfx3 qv   flux in z-dir
  * @param[in] Diss dissipation of turbulent kinetic energy
  * @param[in]  geom   Container for geometric information
  * @param[in]  solverChoice  Container for solver parameters
@@ -85,7 +86,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* Tau23, MultiFab* Tau31, MultiFab* Tau32,
                        MultiFab* SmnSmn,
                        MultiFab* eddyDiffs,
-                       MultiFab* Hfx3, MultiFab* Diss,
+                       MultiFab* Hfx3,
+                       MultiFab* Qfx3,
+                       MultiFab* Diss,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
                        std::unique_ptr<ABLMost>& most,
@@ -201,12 +204,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // *****************************************************************************
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************
-
-    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
-    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
-    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
-    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
-    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -435,6 +432,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Array4<Real> hfx_z = Hfx3->array(mfi);
             Array4<Real> diss  = Diss->array(mfi);
+            Array4<Real> qfx_z = Qfx3->array(mfi);
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
@@ -448,14 +446,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, diss, mu_turb, dc, tc,
+                                       hfx_z, qfx_z, diss, mu_turb, dc, tc,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             } else {
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, l_exp_most, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                       hfx_z, diss,
+                                       hfx_z, qfx_z, diss,
                                        mu_turb, dc, tc,
                                        tm_arr, grav_gpu, bc_ptr_d, l_use_most);
             }
