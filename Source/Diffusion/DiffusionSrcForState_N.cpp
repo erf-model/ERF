@@ -290,10 +290,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
                 zflux(i,j,k,qty_index) = qfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
@@ -392,10 +390,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
                 zflux(i,j,k,qty_index) = hfx_z(i,j,0);
             } else if (most_on_zlo && (qty_index == RhoQ1_comp)) {
-                Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
                 zflux(i,j,k,qty_index) = qfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = -rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
