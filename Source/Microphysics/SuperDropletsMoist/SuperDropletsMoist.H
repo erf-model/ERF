@@ -20,6 +20,7 @@ namespace MicVar_SD {
         dqcdt,       /*!< Condensation rate */
         q_r,         /*!< Rain */
         rh,          /*!< relative humidity */
+        rain_accum,  /*!< rain accumulation (mm) */
         NumVars
     };
 }
@@ -86,6 +87,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             computeQc();
             computeQt();
+            rainAccumulation();
             Copy_Micro_to_State(a_cons_vars);
         }
 
@@ -145,6 +147,39 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             }
         }
 
+        /*! \brief Compute rain accumulation */
+        inline virtual void rainAccumulation ()
+        {
+            auto domain = m_geom.Domain();
+            int k_lo = domain.smallEnd(2);
+            auto dt = m_dt;
+
+            auto& vapour_mat = m_super_droplets->getVapourMaterial();
+            auto mat_density = vapour_mat.density();
+
+            MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
+                               m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),
+                               1,
+                               m_mic_fab_vars[MicVar_SD::rain_accum]->nGrowVect() );
+            m_super_droplets->massFluxCondensate(mf_zflux, 2);
+
+            for ( MFIter mfi((*m_mic_fab_vars[MicVar_SD::rain_accum]),TilingIfNotGPU());
+                  mfi.isValid(); ++mfi ) {
+                Box bx = mfi.tilebox();
+                const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
+                const Array4<Real>& rain_accum_arr = m_mic_fab_vars[MicVar_SD::rain_accum]->array(mfi);
+
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+                {
+                    if (k == k_lo) {
+                        auto rain_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
+                        rain_accum_arr(i,j,k) += (rain_accum * 1000.0 /* [m] -> [mm] */);
+                    }
+                });
+            }
+
+        }
+
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
@@ -184,7 +219,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Geometry m_geom;
 
         /*! number of microphysics variables */
-        const int m_qmoist_size = 6;
+        const int m_qmoist_size = 7;
         /*! number of state variables for this moisture model */
         const int m_qstate_size = 2;
 

@@ -18,6 +18,9 @@ void SuperDropletsMoist::Advance ( const Real& a_dt, /*!< Timestep */
                    << m_super_droplets->TotalNumberOfParticles()
                    << " particles.\n";
 
+    // update dt
+    m_dt = a_dt;
+
     // Compute mass/size change due to evaporation/condensation
     if (m_flag_phase_change) {
         phaseChange ( a_dt, a_z, true );
