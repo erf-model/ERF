@@ -1241,7 +1241,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
@@ -1257,7 +1257,6 @@ struct custom_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
         theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
-        amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
         // NOTE: the following is  rho * <T'w'> (-K*T_z)
         amrex::Real moflux  = (std::abs(tstar) > eps) ? rho * tstar : 0.0;

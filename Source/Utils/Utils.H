@@ -135,7 +135,7 @@ Time_Avg_Vel_atCC (const amrex::Real& dt,
  * @param[in] bx_yhi box for high y relaxation
  * @param[out] rhs_arr RHS array
  */
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
@@ -225,7 +225,7 @@ wrfbdy_set_rhs_in_spec_region (const amrex::Real& dt,
  * @param[in] data_arr data array
  * @param[out] rhs_arr RHS array
  */
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 wrfbdy_compute_laplacian_relaxation (const int& icomp,
@@ -349,7 +349,7 @@ wrfbdy_compute_laplacian_relaxation (const int& icomp,
 /*
  * Effectively a Multiply for a MultiFab and an iMultiFab mask
  */
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 ApplyMask (amrex::MultiFab& dst,
@@ -370,7 +370,8 @@ ApplyMask (amrex::MultiFab& dst,
         }
     }
 }
-AMREX_GPU_HOST
+
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 ApplyInvertedMask (amrex::MultiFab& dst,
@@ -395,7 +396,7 @@ ApplyInvertedMask (amrex::MultiFab& dst,
 /*
  * Compute the Brunt-Vaisala frequency for dry and moist environments
  */
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Brunt_Vaisala_Freq (int& i,

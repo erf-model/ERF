@@ -19,7 +19,7 @@ zenith (int& calday,
         amrex::Real uniform_angle=-1.0);
 
 
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 shr_orb_cosz (const amrex::Real& jday,
@@ -45,7 +45,7 @@ shr_orb_cosz (const amrex::Real& jday,
 }
 
 
-AMREX_GPU_HOST
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 void
 shr_orb_decl (const amrex::Real& calday,
