@@ -94,6 +94,14 @@ class SuperDropletPC : public ERFPC
             define(a_vap_mat, a_aerosol_mat);
         }
 
+        /*! \brief Destructor */
+        ~SuperDropletPC()
+        {
+            if (m_mass_change_logging) {
+                fclose(m_mass_change_log);
+            }
+        }
+
         /*! \brief Set vapour material */
         virtual inline void setVapourMaterial ( const std::string& a_name )
         {
@@ -260,6 +268,11 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_newton_atol;  /*!< Newton solver - absolute tolerance */
         amrex::Real m_newton_stol;  /*!< Newton solver - step tolerance */
         int m_newton_maxits;        /*!< Newton solver - maximum iterations */
+
+        /* Mass change equation (un)convergence logs */
+        bool m_mass_change_logging; /*!< Whether to log unconverged particles */
+        FILE* m_mass_change_log; /*!< File handle for log with unconverged info */
+        std::string m_mass_change_log_fname; /*!< Name of unconverged info log file */
 
         int m_mass_change_max_substeps; /*!< Max substeps for mass change update */
         int m_max_substeps_actual; /*!< Actual max substeps taken by mass change function */
