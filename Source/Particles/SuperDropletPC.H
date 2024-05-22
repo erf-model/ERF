@@ -101,7 +101,10 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Get vapour material */
-        virtual inline MaterialProperties& getVapourMaterial() const { return (*m_vapour_mat); }
+        virtual inline MaterialProperties& getVapourMaterial() const
+        {
+            return (*m_vapour_mat);
+        }
 
         /*! \brief Set aerosol material */
         virtual inline void setAerosolMaterial ( const std::string& a_name )
@@ -118,105 +121,15 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> varNames () const override
-        {
-            BL_PROFILE("ERFPCPC::varNames()");
-            amrex::Vector<std::string> retval = {   AMREX_D_DECL("xvel","yvel","zvel"),
-                                                    "particle_mass",
-                                                    "radius",
-                                                    "multiplicity",
-                                                    "superdroplet_mass",
-                                                    "terminal_velocity",
-                                                    "t_coalescence" };
-            for (int i = 0; i < m_num_aerosols; i++) {
-                retval.push_back(std::string("aerosol_mass_"+m_aerosol_mat[i]->name()));
-            }
-            return retval;
-        }
+        virtual amrex::Vector<std::string> varNames () const override;
 
-        /*! Get real-type particle attribute names */
-        virtual amrex::Vector<std::string> meshPlotVarNames () const override
-        {
-            BL_PROFILE("ERFPCPC::varNames()");
-            amrex::Vector<std::string> retval = { AMREX_D_DECL("mass_flux_x",
-                                                               "mass_flux_y",
-                                                               "mass_flux_z"),
-                                                  "number_density",
-                                                  "mass_density",
-                                                  "radius",
-                                                  ("mass_density_"+m_vapour_mat->name()),
-                                                  AMREX_D_DECL (
-                                                      ("mass_flux_x_"+m_vapour_mat->name()),
-                                                      ("mass_flux_y_"+m_vapour_mat->name()),
-                                                      ("mass_flux_z_"+m_vapour_mat->name()) ) };
-            for (int i = 0; i < m_num_aerosols; i++) {
-                retval.push_back(std::string("aerosol_mass_density_"+m_aerosol_mat[i]->name()));
-                retval.push_back(std::string("aerosol_mass_flux_x_"+m_aerosol_mat[i]->name()));
-                retval.push_back(std::string("aerosol_mass_flux_y_"+m_aerosol_mat[i]->name()));
-                retval.push_back(std::string("aerosol_mass_flux_z_"+m_aerosol_mat[i]->name()));
-            }
-            return retval;
-        }
+        /*! \brief Get Eulerian plot variable names */
+        virtual amrex::Vector<std::string> meshPlotVarNames () const override;
 
-        /*! Compute mesh variable from particles */
-        virtual void computeMeshVar(    const std::string&  a_var_name,
-                                        amrex::MultiFab&    a_mf,
-                                        const int           a_lev) const override
-        {
-            a_mf.setVal(0.0);
-            if (a_lev == 0) {
-                if (a_var_name == "number_density") {
-                    numberDensity( a_mf );
-                } else if (a_var_name == "mass_density") {
-                    massDensity( a_mf );
-                } else if (a_var_name == ("mass_density_"+m_vapour_mat->name())) {
-                    massDensityCondensate( a_mf );
-                } else if (a_var_name == ("mass_flux_x_"+m_vapour_mat->name())) {
-                    massFluxCondensate( a_mf, 0 );
-                } else if (a_var_name == ("mass_flux_y_"+m_vapour_mat->name())) {
-                    massFluxCondensate( a_mf, 1 );
-                } else if (a_var_name == ("mass_flux_z_"+m_vapour_mat->name())) {
-                    massFluxCondensate( a_mf, 2 );
-                } else if (a_var_name == "mass_flux_x") {
-                    massFlux( a_mf, 0 );
-                } else if (a_var_name == "mass_flux_y") {
-                    massFlux( a_mf, 1 );
-                } else if (a_var_name == "mass_flux_z") {
-                    massFlux( a_mf, 2 );
-                } else if (a_var_name == "radius") {
-                    effectiveRadius( a_mf );
-                } else {
-                    for (int i = 0; i < m_num_aerosols; i++) {
-                        std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
-                        if (a_var_name == var_name) {
-                            aerosolMassDensity( a_mf, i );
-                            break;
-                        }
-                    }
-                    for (int i = 0; i < m_num_aerosols; i++) {
-                        std::string var_name = "aerosol_mass_flux_x_"+m_aerosol_mat[i]->name();
-                        if (a_var_name == var_name) {
-                            aerosolMassFlux( a_mf, i, 0 );
-                            break;
-                        }
-                    }
-                    for (int i = 0; i < m_num_aerosols; i++) {
-                        std::string var_name = "aerosol_mass_flux_y_"+m_aerosol_mat[i]->name();
-                        if (a_var_name == var_name) {
-                            aerosolMassFlux( a_mf, i, 1 );
-                            break;
-                        }
-                    }
-                    for (int i = 0; i < m_num_aerosols; i++) {
-                        std::string var_name = "aerosol_mass_flux_z_"+m_aerosol_mat[i]->name();
-                        if (a_var_name == var_name) {
-                            aerosolMassFlux( a_mf, i, 2 );
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        /*! \brief Compute mesh variable from particles */
+        virtual void computeMeshVar( const std::string&,
+                                     amrex::MultiFab&,
+                                     const int ) const override;
 
         /*! \brief Initialize super-droplets in domain */
         inline virtual void InitializeParticles (const MFPtr& a_ptr = nullptr) override
@@ -370,25 +283,7 @@ class SuperDropletPC : public ERFPC
     private:
 
         /*! \brief define super-droplets */
-        inline void define ( const std::string& a_vap_mat,
-                             const std::vector<std::string>& a_aerosol_mat)
-        {
-            m_num_unconverged_particles = 0;
-            m_max_substeps_actual = 1;
-
-            m_aerosol_mat.clear();
-
-            setVapourMaterial( a_vap_mat );
-            setAerosolMaterial( a_aerosol_mat );
-            m_num_aerosols = m_aerosol_mat.size();
-            m_mass_aerosol_init.resize(m_num_aerosols);
-            m_mass_aerosol_min.resize(m_num_aerosols);
-            m_mass_aerosol_init_type.resize(m_num_aerosols);
-            AMREX_ASSERT(m_num_aerosols <= SupDropInit::num_aerosols_max);
-
-            add_superdroplet_attributes();
-            readInputs();
-        }
+        void define ( const std::string&, const std::vector<std::string>& );
 
         /*! \brief add super-droplet method-specific particle attributes */
         void add_superdroplet_attributes();
