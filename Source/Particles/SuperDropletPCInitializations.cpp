@@ -51,7 +51,7 @@ void SuperDropletPC::readInputs ()
     m_newton_rtol = 1.0e-6;
     m_newton_atol = 1.0e-99;
     m_newton_stol = 1.0e-12;
-    m_newton_maxits = 10;
+    m_newton_maxits = 50;
     m_mass_change_max_substeps = 1;
 
     /* read these parameters if specified */
