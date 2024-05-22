@@ -260,6 +260,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                     auto pj = inds[fbin_stop-1-p];
 
                     if (pi == pj) { return; }
+                    if (mult_ptr[pi] == 0) { return; }
+                    if (mult_ptr[pj] == 0) { return; }
 
                     ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
                     for (int d = 0; d < AMREX_SPACEDIM; d++) {
@@ -366,6 +368,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                         auto pj = inds[bin_stop-1-p];
 
                         if (pi == pj) { continue; }
+                        if (mult_ptr[pi] == 0) { return; }
+                        if (mult_ptr[pj] == 0) { return; }
 
                         ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
                         for (int d = 0; d < AMREX_SPACEDIM; d++) {

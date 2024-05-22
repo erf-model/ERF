@@ -6,6 +6,66 @@
 
 using namespace amrex;
 
+/*! Compute mesh variable from particles */
+void SuperDropletPC::computeMeshVar( const std::string&  a_var_name,
+                                     MultiFab&           a_mf,
+                                     const int           a_lev) const
+{
+    a_mf.setVal(0.0);
+    if (a_lev == 0) {
+        if (a_var_name == "number_density") {
+            numberDensity( a_mf );
+        } else if (a_var_name == "mass_density") {
+            massDensity( a_mf );
+        } else if (a_var_name == ("mass_density_"+m_vapour_mat->name())) {
+            massDensityCondensate( a_mf );
+        } else if (a_var_name == ("mass_flux_x_"+m_vapour_mat->name())) {
+            massFluxCondensate( a_mf, 0 );
+        } else if (a_var_name == ("mass_flux_y_"+m_vapour_mat->name())) {
+            massFluxCondensate( a_mf, 1 );
+        } else if (a_var_name == ("mass_flux_z_"+m_vapour_mat->name())) {
+            massFluxCondensate( a_mf, 2 );
+        } else if (a_var_name == "mass_flux_x") {
+            massFlux( a_mf, 0 );
+        } else if (a_var_name == "mass_flux_y") {
+            massFlux( a_mf, 1 );
+        } else if (a_var_name == "mass_flux_z") {
+            massFlux( a_mf, 2 );
+        } else if (a_var_name == "radius") {
+            effectiveRadius( a_mf );
+        } else {
+            for (int i = 0; i < m_num_aerosols; i++) {
+                std::string var_name = "aerosol_mass_density_"+m_aerosol_mat[i]->name();
+                if (a_var_name == var_name) {
+                    aerosolMassDensity( a_mf, i );
+                    break;
+                }
+            }
+            for (int i = 0; i < m_num_aerosols; i++) {
+                std::string var_name = "aerosol_mass_flux_x_"+m_aerosol_mat[i]->name();
+                if (a_var_name == var_name) {
+                    aerosolMassFlux( a_mf, i, 0 );
+                    break;
+                }
+            }
+            for (int i = 0; i < m_num_aerosols; i++) {
+                std::string var_name = "aerosol_mass_flux_y_"+m_aerosol_mat[i]->name();
+                if (a_var_name == var_name) {
+                    aerosolMassFlux( a_mf, i, 1 );
+                    break;
+                }
+            }
+            for (int i = 0; i < m_num_aerosols; i++) {
+                std::string var_name = "aerosol_mass_flux_z_"+m_aerosol_mat[i]->name();
+                if (a_var_name == var_name) {
+                    aerosolMassFlux( a_mf, i, 2 );
+                    break;
+                }
+            }
+        }
+    }
+}
+
 /*! This returns the total number of particles that all the super-droplets represent */
 Real SuperDropletPC::TotalNumberOfParticles ()
 {
@@ -319,7 +379,13 @@ void SuperDropletPC::effectiveRadius (  MultiFab&  a_mf,  /*!< Effective radius 
         auto mf_arr = a_mf.array(mfi);
         const auto nd_arr = number_density.const_array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                          { mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0); } );
+                          {
+                              if (nd_arr(i,j,k,0) > 0) {
+                                  mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0);
+                              } else {
+                                  mf_arr(i,j,k,a_comp) = 0.0;
+                              }
+                          } );
     }
 
 
