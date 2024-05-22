@@ -1198,7 +1198,7 @@ struct custom_flux
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
 
         return moflux;
     }
@@ -1238,7 +1238,7 @@ struct custom_flux
 
         amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? -tstar*ustar : 0.0;
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -1254,10 +1254,7 @@ struct custom_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
         }
 
         return moflux;
