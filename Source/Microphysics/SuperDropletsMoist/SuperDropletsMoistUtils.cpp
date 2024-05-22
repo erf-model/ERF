@@ -81,6 +81,22 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
     a_cons_vars.FillBoundary(m_geom.periodicity());
 }
 
+/*! Update microphysics variables */
+void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
+{
+    Copy_State_to_Micro(a_cons_vars);
+}
+
+/*! Compute qc, qt, and rain accumulation,and update state variables
+ *  from microphysics variables */
+void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars)
+{
+    computeQc();
+    computeQt();
+    rainAccumulation();
+    Copy_Micro_to_State(a_cons_vars);
+}
+
 /*! Convert a multifab containing density of something to its mixing ratio */
 void SuperDropletsMoist::densityToRatio (  MultiFab& a_var, /*!< Multifab */
                                            const int a_comp /*!< Component */ )
@@ -121,6 +137,63 @@ void SuperDropletsMoist::ratioToDensity (  MultiFab& a_var, /*!< Multifab */
     }
 
     a_var.FillBoundary(m_geom.periodicity());
+}
+
+/*! compute condensate mixing ratio */
+void SuperDropletsMoist::computeQc ()
+{
+    m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]));
+    densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
+}
+
+/*! compute qt (total) */
+void SuperDropletsMoist::computeQt ()
+{
+    for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        bx.grow(m_mic_fab_vars[MicVar_SD::q_t]->nGrowVect());
+
+        auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
+        auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
+
+        ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
+    }
+}
+
+/*! Compute rain accumulation */
+void SuperDropletsMoist::rainAccumulation ()
+{
+    auto domain = m_geom.Domain();
+    int k_lo = domain.smallEnd(2);
+    auto dt = m_dt;
+
+    auto& vapour_mat = m_super_droplets->getVapourMaterial();
+    auto mat_density = vapour_mat.density();
+
+    MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
+                       m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),
+                       1,
+                       m_mic_fab_vars[MicVar_SD::rain_accum]->nGrowVect() );
+    m_super_droplets->massFluxCondensate(mf_zflux, 2);
+
+    for ( MFIter mfi((*m_mic_fab_vars[MicVar_SD::rain_accum]),TilingIfNotGPU());
+          mfi.isValid(); ++mfi ) {
+        Box bx = mfi.tilebox();
+        const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
+        const Array4<Real>& rain_accum_arr = m_mic_fab_vars[MicVar_SD::rain_accum]->array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            if (k == k_lo) {
+                auto rain_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
+                rain_accum_arr(i,j,k) += (rain_accum * 1000.0 /* [m] -> [mm] */);
+            }
+        });
+    }
+
 }
 
 #endif

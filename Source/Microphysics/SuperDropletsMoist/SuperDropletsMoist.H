@@ -77,19 +77,10 @@ class SuperDropletsMoist : public NullMoistLagrangian {
                               const Vector<MFPtr>& ) override;
 
         /*! \brief Update microphysics variables */
-        inline virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override
-        {
-            Copy_State_to_Micro(a_cons_vars);
-        }
+        virtual void Update_Micro_Vars (MultiFab& a_cons_vars) override;
 
-        /*! \brief state variables from microphysics variables */
-        inline virtual void Update_State_Vars (MultiFab& a_cons_vars) override
-        {
-            computeQc();
-            computeQt();
-            rainAccumulation();
-            Copy_Micro_to_State(a_cons_vars);
-        }
+        /*! \brief Update state variables from microphysics variables */
+        virtual void Update_State_Vars (MultiFab& a_cons_vars) override;
 
         /*! \brief Copy moisture model vars from state to member multifabs */
         virtual void Copy_State_to_Micro (const MultiFab&) override;
@@ -105,10 +96,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief returns number of variables in this moisture model */
-        inline virtual int Qmoist_Size () override { return m_qmoist_size; }
+        inline virtual int Qmoist_Size () override
+        {
+            return m_qmoist_size;
+        }
 
         /*! \brief returns number of conserved variables in this moisture model */
-        inline virtual int Qstate_Size () override { return m_qstate_size; }
+        inline virtual int Qstate_Size () override
+        {
+            return m_qstate_size;
+        }
 
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer() override
@@ -121,65 +118,14 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_name;
         }
 
-    //protected: ideally, but can't due to extended lambda capture rules (CUDA)
-
         /*! \brief compute condensate mixing ratio */
-        inline virtual void computeQc ()
-        {
-            m_super_droplets->massDensityCondensate(*(m_mic_fab_vars[MicVar_SD::q_c]));
-            densityToRatio(*(m_mic_fab_vars[MicVar_SD::q_c]));
-        }
+        virtual void computeQc ();
 
         /*! \brief compute qt (total) */
-        inline virtual void computeQt ()
-        {
-            for ( MFIter mfi(*m_mic_fab_vars[MicVar_SD::q_t]); mfi.isValid(); ++mfi) {
-
-                Box bx = mfi.tilebox();
-                bx.grow(m_mic_fab_vars[MicVar_SD::q_t]->nGrowVect());
-
-                auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
-                auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
-                auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
-
-                ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-                { q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k); });
-            }
-        }
+        virtual void computeQt ();
 
         /*! \brief Compute rain accumulation */
-        inline virtual void rainAccumulation ()
-        {
-            auto domain = m_geom.Domain();
-            int k_lo = domain.smallEnd(2);
-            auto dt = m_dt;
-
-            auto& vapour_mat = m_super_droplets->getVapourMaterial();
-            auto mat_density = vapour_mat.density();
-
-            MultiFab mf_zflux( m_mic_fab_vars[MicVar_SD::rain_accum]->boxArray(),
-                               m_mic_fab_vars[MicVar_SD::rain_accum]->DistributionMap(),
-                               1,
-                               m_mic_fab_vars[MicVar_SD::rain_accum]->nGrowVect() );
-            m_super_droplets->massFluxCondensate(mf_zflux, 2);
-
-            for ( MFIter mfi((*m_mic_fab_vars[MicVar_SD::rain_accum]),TilingIfNotGPU());
-                  mfi.isValid(); ++mfi ) {
-                Box bx = mfi.tilebox();
-                const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
-                const Array4<Real>& rain_accum_arr = m_mic_fab_vars[MicVar_SD::rain_accum]->array(mfi);
-
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                {
-                    if (k == k_lo) {
-                        auto rain_accum = std::max(0.0, -zflux_arr(i,j,k)*dt/mat_density);
-                        rain_accum_arr(i,j,k) += (rain_accum * 1000.0 /* [m] -> [mm] */);
-                    }
-                });
-            }
-
-        }
-
+        virtual void rainAccumulation ();
 
         /*! \brief Convert a multifab containing density of something to its mixing ratio */
         void densityToRatio ( MultiFab&, const int a_comp = 0 );
