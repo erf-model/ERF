@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 10
+max_step = 20
 
 amrex.fpe_trap_invalid = 1
 
@@ -8,8 +8,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY
 erf.latitude_lo      =   35.0
 erf.longitude_lo     = -100.0
-geometry.prob_extent =  10000.0 10000.0  1000
-amr.n_cell           =   100     100       40
+geometry.prob_extent =  100000.0 100000.0  1000
+amr.n_cell           =   50     50       80
 
 #erf.grid_stretching_ratio = 1.025
 #erf.initial_dz = 16.0
@@ -30,13 +30,13 @@ yhi.type = "Outflow"
 
 # TIME STEP CONTROL
 erf.use_native_mri = 1
-erf.fixed_dt       = 0.25  # fixed time step depending on grid resolution
+erf.fixed_dt       = 3.0  # fixed time step depending on grid resolution
 #erf.fixed_fast_dt  = 0.0025
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
-amr.v                = 1       # verbosity in Amr.cpp
+amr.v              = 1       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -73,10 +73,10 @@ erf.pbl_type        = "None"
 
 erf.init_type = "uniform"
 
-erf.windfarm_type = "Fitch"
+erf.windfarm_type = "EWP"
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.0
+prob.rho_0 = 1.226
 prob.A_0 = 1.0
 
 prob.U_0 = 10.0
