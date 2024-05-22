@@ -235,6 +235,11 @@ ABLMost::compute_most_bcs (const int& lev,
         auto lsm_flux_arr = (m_lsm_flux_lev[lev][0]) ? m_lsm_flux_lev[lev][0]->array(mfi) :
                                                        Array4<Real> {};
 
+        // NOTE: The returned fluxes (tflux/qflux/stressx/stressy) are the diffusive fluxes
+        //       defined as F_d = -K \partial \phi / \partial z. This is consistent with the
+        //       computation of the diffusion source term as well as the buoyancy source for
+        //       turbulence modeling (e.g. Deardorff)
+
         for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
         {
             const Box& bx = (*mfs[var_idx])[mfi].box();
@@ -248,7 +253,7 @@ ABLMost::compute_most_bcs (const int& lev,
                 {
                     Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
                     Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                    Real Tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
+                    Real tflux = flux_comp.compute_t_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
                                                           cons_arr, velx_arr, vely_arr,
                                                           umm_arr, tm_arr, u_star_arr, t_star_arr, t_surf_arr,
                                                           dest_arr);
@@ -257,10 +262,10 @@ ABLMost::compute_most_bcs (const int& lev,
                     // TODO: make sure not to double-count surface heat flux if using a LSM
                     int is_land = (lmask_arr) ? lmask_arr(i,j,klo) : 1;
                     if (is_land && lsm_flux_arr && vbx.contains(i,j,k)) {
-                        lsm_flux_arr(i,j,klo) = Tflux;
+                        lsm_flux_arr(i,j,klo) = tflux;
                     }
                     else if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                        hfx_arr(i,j,klo) = Tflux;
+                        hfx_arr(i,j,klo) = tflux;
                     }
                 });
 
@@ -271,13 +276,13 @@ ABLMost::compute_most_bcs (const int& lev,
                     {
                         Real dz  = (zphys_arr) ? ( zphys_arr(i,j,klo  ) - zphys_arr(i,j,klo-1) ) : dz_no_terrain;
                         Real dz1 = (zphys_arr) ? ( zphys_arr(i,j,klo+1) - zphys_arr(i,j,klo  ) ) : dz_no_terrain;
-                        Real Qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
+                        Real qflux = flux_comp.compute_q_flux(i, j, k, n, icomp, dz, dz1, exp_most, eta_arr,
                                                               cons_arr, velx_arr, vely_arr,
                                                               umm_arr, qm_arr, u_star_arr, q_star_arr, t_surf_arr,
                                                               dest_arr);
 
                         if ((k == klo-1) && vbx.contains(i,j,k) && exp_most) {
-                            qfx_arr(i,j,klo) = Qflux;
+                            qfx_arr(i,j,klo) = qflux;
                         }
                     });
                 }

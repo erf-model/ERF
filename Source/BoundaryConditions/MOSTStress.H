@@ -637,10 +637,7 @@ struct moeng_flux
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        // Note: Kh = eta/rho
-        //      qfx = -Kh dQ/dz  ==> +ve qfx corresponds to moisture injection from the surface
-        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-        dest_arr(i,j,k,icomp+n) = rho*(qv + moflux*rho/eta*deltaz);
+        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
 
         return moflux;
     }
@@ -699,9 +696,9 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * (theta_mean-theta_surf);
         amrex::Real num2    = wsp_mean * (theta-theta_mean);
-        // NOTE: the following is  rho * <T'w'> (-K*T_z)
+        // NOTE: the following is  rho * <T'w'> = -K*T_z
         amrex::Real moflux  = (std::abs(tstar) > eps) ?
-                              -tstar*ustar*(num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
+                              -rho * tstar * ustar * (num1+num2)/((theta_mean-theta_surf)*wsp_mean) : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -716,10 +713,7 @@ struct moeng_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
@@ -775,8 +769,8 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx-umean);
-        // NOTE: the following is  rho * <u'w'> (-K*u_z)
-        amrex::Real stressx = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+        // NOTE: the following is  rho * <u'w'> = -K*u_z
+        amrex::Real stressx = -rho * ustar * ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -848,8 +842,8 @@ struct moeng_flux
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely-vmean);
-        // NOTE: the following is  rho * <v'w'> (-K*v_z)
-        amrex::Real stressy = -rho*ustar*ustar * (num1+num2)/(wsp_mean*wsp_mean);
+        // NOTE: the following is  rho * <v'w'> = -K*v_z
+        amrex::Real stressy = -rho * ustar * ustar * (num1+num2)/(wsp_mean*wsp_mean);
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -933,10 +927,7 @@ struct donelan_flux
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        // Note: Kh = eta/rho
-        //      qfx = -Kh dQ/dz  ==> +ve qfx corresponds to moisture injection from the surface
-        // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-        dest_arr(i,j,k,icomp+n) = rho*(qv + moflux*rho/eta*deltaz);
+        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
 
         return moflux;
     }
@@ -963,7 +954,7 @@ struct donelan_flux
                     const amrex::Array4<const amrex::Real>& t_surf_arr,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, theta, eta;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -972,14 +963,13 @@ struct donelan_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
         amrex::Real Cd = 0.0012;
         amrex::Real wsp_mean    = umm_arr(ic,jc,zlo);
         amrex::Real theta_surf  = t_surf_arr(ic,jc,zlo);
         amrex::Real theta_mean  = tm_arr(ic,jc,zlo);
-        // NOTE: the following is  rho * <T'w'> (-K*T_z)
-        amrex::Real moflux      = Cd * wsp_mean * (theta_surf - theta_mean);
+        // NOTE: the following is  rho * <T'w'> = -K*T_z
+        amrex::Real moflux      = rho * Cd * wsp_mean * (theta_surf - theta_mean);
         amrex::Real deltaz      = dz * (zlo - k);
 
         if (exp_most) {
@@ -994,10 +984,7 @@ struct donelan_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   =  eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
@@ -1053,7 +1040,7 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        // NOTE: the following is  rho * <u'w'> (-K*u_z)
+        // NOTE: the following is  rho * <u'w'> = -K*u_z
         amrex::Real stressx = rho * Cd * velx * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1126,7 +1113,7 @@ struct donelan_flux
         } else {
             Cd = 0.0024;
         }
-        // NOTE: the following is  rho * <v'w'> (-K*v_z)
+        // NOTE: the following is  rho * <v'w'> = -K*v_z
         amrex::Real stressy = rho * Cd * vely * wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1198,7 +1185,7 @@ struct custom_flux
         qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
-        // NOTE: the following is  rho * <Q'w'> (-K*Q_z)
+        // NOTE: the following is  rho * <Q'w'> = -K*Q_z
         amrex::Real moflux  = (std::abs(qstar) > eps) ? rho * qstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1215,10 +1202,7 @@ struct custom_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      qfx = -Kh dQ/dz  ==> +ve qfx corresponds to moisture injection from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(qv + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
@@ -1246,7 +1230,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, theta;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1255,10 +1239,9 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        // NOTE: the following is  rho * <T'w'> (-K*T_z)
+        // NOTE: the following is  rho * <T'w'> = -K*T_z
         amrex::Real moflux  = (std::abs(tstar) > eps) ? rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1275,10 +1258,7 @@ struct custom_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) + moflux*rho/eta*deltaz;
         }
 
         return moflux;
@@ -1325,7 +1305,7 @@ struct custom_flux
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic-1,jc,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        // NOTE: the following is  rho * <u'w'> (-K*u_z)
+        // NOTE: the following is  rho * <u'w'> = -K*u_z
         amrex::Real stressx = -rho * ustar * ustar * velx / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
@@ -1389,7 +1369,7 @@ struct custom_flux
 
         amrex::Real ustar   = 0.5 * ( u_star_arr(ic,jc-1,zlo) + u_star_arr(ic,jc,zlo) );
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
-        // NOTE: the following is rho * <u'w'> (-K*v_z)
+        // NOTE: the following is rho * <u'w'> = -K*v_z
         amrex::Real stressy = -rho * ustar * ustar * vely / wsp;
         amrex::Real deltaz  = dz * (zlo - k);
 
