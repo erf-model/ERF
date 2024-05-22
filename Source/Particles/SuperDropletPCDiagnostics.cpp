@@ -168,14 +168,26 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceRealSum(&avg_par_vy,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_par_vz,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::ReduceRealSum(&avg_term_v,1,ParallelDescriptor::IOProcessorNumber());
-    avg_par_mass /= num_total_particles;
-    avg_t_coales /= num_total_particles;
-    avg_par_radius /= num_total_particles;
-    avg_multiplic /= num_superdroplets;
-    avg_par_vx /= num_total_particles;
-    avg_par_vy /= num_total_particles;
-    avg_par_vz /= num_total_particles;
-    avg_term_v /= num_total_particles;
+
+    if (num_total_particles > 0) {
+        avg_par_mass /= num_total_particles;
+        avg_t_coales /= num_total_particles;
+        avg_par_radius /= num_total_particles;
+        avg_multiplic /= num_superdroplets;
+        avg_par_vx /= num_total_particles;
+        avg_par_vy /= num_total_particles;
+        avg_par_vz /= num_total_particles;
+        avg_term_v /= num_total_particles;
+    } else {
+        avg_par_mass = 0;
+        avg_t_coales = 0;
+        avg_par_radius = 0;
+        avg_multiplic = 0;
+        avg_par_vx = 0;
+        avg_par_vy = 0;
+        avg_par_vz = 0;
+        avg_term_v = 0;
+    }
 
     m_t_coalescence = max_t_coales;
 

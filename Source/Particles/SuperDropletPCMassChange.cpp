@@ -106,6 +106,7 @@ void SuperDropletPC::MassChange ( int                                         a_
         {
             ParticleType& p = p_pbox[i];
             if (p.id() <= 0) { return; }
+            if (mult_ptr[i] == 0.0) { return; }
 
             ParticleReal sat_ratio, e_sat, temperature;
             if (use_terrain) {

@@ -107,13 +107,14 @@ namespace SDMassChangeUtils
                 RT residual = a_u - (a_r + a_dt * m_rhs( a_u, a_S, a_T, a_e_s, a_M_s ));
                 a_res_norm_a = std::sqrt(residual*residual);
 
-                if (k == 0) { res_norm0 = a_res_norm_a; }
-                a_res_norm_r = a_res_norm_a / res_norm0;
-
                 if (a_res_norm_a <= m_atol) {
                     a_converged = true;
                     break;
                 }
+
+                if (k == 0) { res_norm0 = a_res_norm_a; }
+                a_res_norm_r = a_res_norm_a / res_norm0;
+
                 if (a_res_norm_r <= m_rtol) {
                     a_converged = true;
                     break;
