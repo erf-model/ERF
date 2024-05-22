@@ -64,8 +64,8 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     // If the target area is contained at a finer level, use the finest data possible
     for (int ilev = 0; ilev < grids.size(); ilev++) {
 
-        Real* xLo = m_geom[ilev].ProbLo();
-        auto const dxi = geom[ilev].InvCellSizeArray();
+        const Real* xLo = m_geom[ilev].ProbLo();
+        auto const dxi  = geom[ilev].InvCellSizeArray();
         const Box& domain = m_geom[ilev].Domain();
 
         // We create the smallest box that contains all of the cell centers
