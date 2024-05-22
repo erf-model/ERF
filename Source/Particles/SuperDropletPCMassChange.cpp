@@ -33,6 +33,9 @@ void SuperDropletPC::MassChange ( int                                         a_
     const Real mat_density = m_vapour_mat->density();
     const std::string vap_name = m_vapour_mat->name();
 
+    const bool log_unconverged = m_mass_change_logging;
+    [[maybe_unused]] FILE* file_handle = m_mass_change_log;
+
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -143,7 +146,21 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
 
-            if (!converged) {
+            if ((!converged) && (rel_norm > 1.0)) {
+
+                if (log_unconverged) {
+
+#ifndef AMREX_USE_CUDA
+                    fprintf(file_handle,
+                            "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e, norms=%1.2e(abs),%1.2e(rel)\n",
+                            radius_ptr[i],
+                            sat_ratio,
+                            temperature,
+                            e_sat,
+                            solute_mass,
+                            abs_norm, rel_norm );
+#endif
+                }
 
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
                 Gpu::Atomic::Max(unconverged_max_absnorm_ptr, abs_norm);

@@ -51,8 +51,12 @@ void SuperDropletPC::readInputs ()
     m_newton_rtol = 1.0e-6;
     m_newton_atol = 1.0e-99;
     m_newton_stol = 1.0e-12;
-    m_newton_maxits = 50;
+    m_newton_maxits = 100;
     m_mass_change_max_substeps = 1;
+
+    /* log file for unconverged particles */
+    m_mass_change_logging = false;
+    m_mass_change_log_fname = "unconverged_superdroplets.log";
 
     /* read these parameters if specified */
     pp.query("nucleate_particles", m_nucleate_particles);
@@ -67,6 +71,8 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_atol", m_newton_atol);
     pp.query("newton_solver_stol", m_newton_stol);
     pp.query("newton_solver_maxits", m_newton_maxits);
+    pp.query("mass_change_unconverged_log", m_mass_change_logging);
+    pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
     pp.query("mass_change_max_particle_substeps", m_mass_change_max_substeps);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
@@ -208,6 +214,13 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
 
     add_superdroplet_attributes();
     readInputs();
+
+#ifdef AMREX_USE_CUDA
+    AMREX_ASSERT(!m_mass_change_logging);
+#endif
+    if (m_mass_change_logging) {
+        m_mass_change_log = fopen(m_mass_change_log_fname.c_str(), "w");
+    }
 }
 
 /*! Initialize super-droplets in domain given an initialization type */
