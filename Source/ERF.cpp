@@ -38,6 +38,9 @@ int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
 int ERF::verbose       = 0;
+#ifdef ERF_USE_POISSON_SOLVE
+int ERF::mg_verbose    = 0;
+#endif
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -116,12 +119,13 @@ ERF::ERF ()
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
@@ -179,6 +183,11 @@ ERF::ERF ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc.resize(nlevs_max);
+#endif
+
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -273,6 +282,11 @@ ERF::ERF ()
     // Size lat long arrays if using netcdf
     lat_m.resize(nlevs_max);
     lon_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        lat_m[lev] = nullptr;
+        lon_m[lev] = nullptr;
+    }
 #endif
 
     // Initialize tagging criteria for mesh refinement
@@ -812,7 +826,12 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(vars_new);
+            Real dummy_dt = 1.0;
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
+                pp_inc[lev].setVal(0.);
+            }
         }
     }
 #endif
@@ -885,11 +904,12 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-#endif
+        bool use_exp_most = solverChoice.use_explicit_most;
+        if (use_exp_most) {
+            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        }
 
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
                                            sst_lev, lmask_lev, lsm_data, lsm_flux
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
@@ -1220,6 +1240,9 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
+#ifdef ERF_USE_POISSON_SOLVE
+        pp.query("mg_v", mg_verbose);
+#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1432,7 +1455,7 @@ ERF::ReadParameters ()
     }
 
     if (verbose > 0) {
-        solverChoice.display();
+        solverChoice.display(max_level);
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
@@ -1779,12 +1802,13 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)

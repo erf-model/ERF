@@ -44,7 +44,11 @@ class Radiation {
 
     // init
     void initialize (const amrex::MultiFab& cons_in,
+                     amrex::MultiFab* lsm_fluxes,
+                     amrex::MultiFab* lsm_zenith,
                      amrex::MultiFab* qheating_rates,
+                     amrex::MultiFab* lat,
+                     amrex::MultiFab* lon,
                      amrex::Vector<amrex::MultiFab*> qmoist,
                      const amrex::BoxArray& grids,
                      const amrex::Geometry& geom,
@@ -87,6 +91,10 @@ class Radiation {
                                  const real2d& flux_dn,
                                  const real2d& pint,
                                  const real2d& heating_rate);
+    void
+    export_surface_fluxes(FluxesByband& fluxes,
+                          std::string band);
+
   private:
     // geometry
     amrex::Geometry m_geom;
@@ -96,6 +104,23 @@ class Radiation {
 
     // Pointer to the radiation source terms
     amrex::MultiFab* qrad_src;
+
+    // Pointer to latitude and longitude
+    amrex::MultiFab* m_lat = nullptr;
+    amrex::MultiFab* m_lon = nullptr;
+
+    // Pointer to output data for LSM
+    amrex::MultiFab* m_lsm_fluxes = nullptr;
+    amrex::MultiFab* m_lsm_zenith = nullptr;
+
+    // Specified uniform angle for radiation
+    amrex::Real uniform_angle = 78.463;
+
+    // Orbital properties (constant for now)
+    static constexpr amrex::Real eccen  =   0.0;                   // Earth's eccentricity factor (unitless) (typically 0 to 0.1)
+    static constexpr amrex::Real obliqr =  23.0 * PI / 180.0;      // Earth's obliquity in radians
+    static constexpr amrex::Real mvelpp = 103.0 * PI / 180.0 + PI; // Earth's moving vernal equinox longitude of perihelion plus pi (radians)
+    static constexpr amrex::Real lambm0 = -3.2503635878519378e-2;  // Mean longitude of perihelion at the vernal equinox (radians)
 
     // number of vertical levels
     int nlev, zlo, zhi;
@@ -145,7 +170,7 @@ class Radiation {
     // radiation data
     const std::vector<std::string> active_gases = {
                                                    "H2O", "CO2", "O3", "N2O",
-                                                   "CO", "CH4", "O2", "N2" };
+                                                   "CO" , "CH4", "O2", "N2" };
 
     bool spectralflux  = false;  // calculate fluxes (up and down) per band.
 

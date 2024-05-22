@@ -25,8 +25,9 @@ class AerRadProps {
                     int nswbands_, int nlwbands_,
                     int ncoloum, int nlevel, int num_rh, int top_levels,
                     const std::vector<std::string>& aerosol_names,
-                    const real2d& zint, const real2d& pmiddle, const real2d& temperature,
-                    const real2d& qtotal, const real2d& geom_rad);
+                    const real2d& zint, const real2d& pmiddle, const real2d& pint,
+                    const real2d& temperature, const real2d& qtotal,
+                    const real2d& geom_rad);
 
    void aer_rad_props_sw (const int& list_idx,
                           const real& dt,

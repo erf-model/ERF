@@ -123,17 +123,16 @@ public:
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
-    void project_velocities (              amrex::Vector<amrex::MultiFab >& vars);
-    void project_velocities (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+
+    // Project the velocities to be divergence-free with a thin body
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
-    // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (              amrex::Vector<amrex::MultiFab >& vars, const amrex::Real dt);
-    void project_velocities_tb (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars, const amrex::Real dt);
 #endif
 
     // Init (NOT restart or regrid)
@@ -166,6 +165,8 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
@@ -603,6 +604,10 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+#ifdef ERF_USE_POISSON_SOLVE
+    amrex::Vector<amrex::MultiFab> pp_inc;
+#endif
+
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
@@ -625,14 +630,13 @@ private:
     std::unique_ptr<Microphysics> micro;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
-//#if defined(ERF_USE_WINDFARM)
     amrex::Vector<amrex::MultiFab> Nturb;
-    amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
-    amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
+    amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
+                                                  // EWP:                 dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
-//#endif
+
     LandSurface lsm;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data; // (lev,ncomp) Components: theta, q1, q2
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux; // (lev,ncomp) Components: theta, q1, q2
@@ -640,6 +644,10 @@ private:
 #if defined(ERF_USE_RRTMGP)
     Radiation rad;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> qheating_rates;  // radiation heating rate source terms
+
+    // Containers for additional SLM inputs
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> sw_lw_fluxes; // Direct SW (visible, NIR), Diffuse SW (visible, NIR), LW flux
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> solar_zenith; // Solar zenith angle
 #endif
 
     // Fillpatcher classes for coarse-fine boundaries
@@ -835,6 +843,9 @@ private:
 #endif
 
     static int verbose;
+#ifdef ERF_USE_POISSON_SOLVE
+    static int mg_verbose;
+#endif
 
     // Diagnostic output interval
     static int sum_interval;
