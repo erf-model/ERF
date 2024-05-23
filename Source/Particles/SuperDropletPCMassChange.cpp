@@ -146,9 +146,9 @@ void SuperDropletPC::MassChange ( int                                         a_
 
             if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
 
-            if ((!converged) && (rel_norm > 1.0)) {
+            if (!converged) {
 
-                if (log_unconverged) {
+                if (log_unconverged && (rel_norm > 1.0)) {
 
 #ifndef AMREX_USE_CUDA
                     fprintf(file_handle,
