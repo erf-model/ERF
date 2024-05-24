@@ -8,7 +8,7 @@ using namespace amrex;
 /**
  * Split cloud components according to saturation pressures; source theta from latent heat.
  */
-void SAM::Cloud () {
+void SAM::Cloud (const SolverChoice& sc) {
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;
@@ -54,43 +54,57 @@ void SAM::Cloud () {
             //       This ensures the omn splitting is enforced
             //       before the Newton iteration, which assumes it is.
 
-            // Cloud ice not permitted (melt to form water)
-            if(tabs_array(i,j,k) >= tbgmax) {
-                omn = 1.0;
-                delta_qi = qci_array(i,j,k);
-                qci_array(i,j,k)   = 0.0;
-                qcl_array(i,j,k)  += delta_qi;
-                tabs_array(i,j,k) -= fac_fus * delta_qi;
+			if(sc.moisture_type == MoistureType::SAM){
+            	// Cloud ice not permitted (melt to form water)
+            	if(tabs_array(i,j,k) >= tbgmax) {
+                	omn = 1.0;
+                	delta_qi = qci_array(i,j,k);
+                	qci_array(i,j,k)   = 0.0;
+                	qcl_array(i,j,k)  += delta_qi;
+                	tabs_array(i,j,k) -= fac_fus * delta_qi;
+                	pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                    	                 * (1.0 + R_v/R_d * qv_array(i,j,k));
+                	theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                	pres_array(i,j,k) *= 0.01;
+            	}
+            	// Cloud water not permitted (freeze to form ice)
+            	else if(tabs_array(i,j,k) <= tbgmin) {
+                	omn = 0.0;
+                	delta_qc = qcl_array(i,j,k);
+                	qcl_array(i,j,k)   = 0.0;
+                	qci_array(i,j,k)  += delta_qc;
+                	tabs_array(i,j,k) += fac_fus * delta_qc;
+                	pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                    	                 * (1.0 + R_v/R_d * qv_array(i,j,k));
+                	theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                	pres_array(i,j,k) *= 0.01;
+            	}
+            	// Mixed cloud phase (split according to omn)
+            	else {
+                	omn = an*tabs_array(i,j,k)-bn;
+                	delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
+                	delta_qi = qci_array(i,j,k) - qn_array(i,j,k) * (1.0 - omn);
+                	qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
+                	qci_array(i,j,k)   = qn_array(i,j,k) * (1.0 - omn);
+                	tabs_array(i,j,k) += fac_fus * delta_qc;
+                	pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                    	                 * (1.0 + R_v/R_d * qv_array(i,j,k));
+                	theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                	pres_array(i,j,k) *= 0.01;
+            	}
+			}
+			else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce){
+				// No ice. ie omn = 1.0
+                delta_qc = qcl_array(i,j,k) - qn_array(i,j,k);
+				delta_qi = 0.0;
+                qcl_array(i,j,k)   = qn_array(i,j,k);
+				qci_array(i,j,k)   = 0.0;
+                tabs_array(i,j,k) += fac_cond * delta_qc;
                 pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) *= 0.01;
-            }
-            // Cloud water not permitted (freeze to form ice)
-            else if(tabs_array(i,j,k) <= tbgmin) {
-                omn = 0.0;
-                delta_qc = qcl_array(i,j,k);
-                qcl_array(i,j,k)   = 0.0;
-                qci_array(i,j,k)  += delta_qc;
-                tabs_array(i,j,k) += fac_fus * delta_qc;
-                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                     * (1.0 + R_v/R_d * qv_array(i,j,k));
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) *= 0.01;
-            }
-            // Mixed cloud phase (split according to omn)
-            else {
-                omn = an*tabs_array(i,j,k)-bn;
-                delta_qc = qcl_array(i,j,k) - qn_array(i,j,k) * omn;
-                delta_qi = qci_array(i,j,k) - qn_array(i,j,k) * (1.0 - omn);
-                qcl_array(i,j,k)   = qn_array(i,j,k) * omn;
-                qci_array(i,j,k)   = qn_array(i,j,k) * (1.0 - omn);
-                tabs_array(i,j,k) += fac_fus * delta_qc;
-                pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                     * (1.0 + R_v/R_d * qv_array(i,j,k));
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                pres_array(i,j,k) *= 0.01;
-            }
+			}
 
             // Initial guess for temperature & pressure
             Real tabs = tabs_array(i,j,k);
@@ -120,20 +134,25 @@ void SAM::Cloud () {
                     erf_dtqsatw(tabs, pres, dqsatw);
                     erf_dtqsati(tabs, pres, dqsati);
 
-                    // Cloud ice not permitted (condensation & fusion)
-                    if(tabs >= tbgmax) {
-                        omn   = 1.0;
-                    }
-                    // Cloud water not permitted (sublimation & fusion)
-                    else if(tabs <= tbgmin) {
-                        omn    = 0.0;
-                        lstarw = fac_sub;
-                    }
-                    // Mixed cloud phase (condensation & fusion)
-                    else {
-                        omn   = an*tabs-bn;
-                        domn  = an;
-                    }
+					if(sc.moisture_type == MoistureType::SAM) {
+                    	// Cloud ice not permitted (condensation & fusion)
+                    	if(tabs >= tbgmax) {
+                        	omn   = 1.0;
+                    	}
+                    	// Cloud water not permitted (sublimation & fusion)
+                    	else if(tabs <= tbgmin) {
+                        	omn    = 0.0;
+                        	lstarw = fac_sub;
+                    	}
+                    	// Mixed cloud phase (condensation & fusion)
+                    	else {
+                        	omn   = an*tabs-bn;
+                        	domn  = an;
+                    	}
+					} else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+						omn = 1.0;
+						domn = 0.0;
+					}
 
                     // Linear combination of each component
                     qsat   =  omn * qsatw  + (1.0-omn) * qsati;

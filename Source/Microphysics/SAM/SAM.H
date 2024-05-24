@@ -63,7 +63,7 @@ public:
     virtual ~SAM () = default;
 
     // cloud physics
-    void Cloud ();
+    void Cloud (const SolverChoice& sc);
 
     // ice physics
     void IceFall ();
@@ -121,14 +121,16 @@ public:
     // wrapper to do all the updating
     void
     Advance (const amrex::Real& dt_advance,
-             const SolverChoice& /*solverChoice*/) override
+             const SolverChoice& sc) override
     {
         dt = dt_advance;
 
-        this->Cloud();
-        this->IceFall();
-        this->Precip();
-        this->PrecipFall();
+        this->Cloud(sc);
+		if(sc.moisture_type == MoistureType::SAM) {
+        	this->IceFall();
+        	this->Precip();
+        	this->PrecipFall();
+		}
     }
 
     amrex::MultiFab*

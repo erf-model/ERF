@@ -33,7 +33,7 @@ enum struct MoistureModelType{
 };
 
 enum struct MoistureType {
-    Kessler, SAM, Kessler_NoRain, None
+    Kessler, SAM, SAM_NoPrecip_NoIce, Kessler_NoRain, None
 };
 
 enum struct WindFarmType {
@@ -95,6 +95,8 @@ struct SolverChoice {
         pp.query("moisture_model", moisture_model_string);
         if (moisture_model_string == "SAM") {
             moisture_type = MoistureType::SAM;
+		} else if (moisture_model_string == "SAM_NoPrecip_NoIce") {
+			moisture_type = MoistureType::SAM_NoPrecip_NoIce;
         } else if (moisture_model_string == "Kessler") {
             moisture_type = MoistureType::Kessler;
         }else if (moisture_model_string == "Kessler_NoRain") {
@@ -107,7 +109,8 @@ struct SolverChoice {
         // Set a different default for moist vs dry
         if (moisture_type != MoistureType::None) {
             if (moisture_type == MoistureType::Kessler_NoRain ||
-                moisture_type == MoistureType::SAM) {
+                moisture_type == MoistureType::SAM ||
+				moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
                 buoyancy_type = 1; // asserted in make buoyancy
             } else {
                 buoyancy_type = 2; // uses Tprime
