@@ -126,11 +126,11 @@ public:
         dt = dt_advance;
 
         this->Cloud(sc);
-		if(sc.moisture_type == MoistureType::SAM) {
-        	this->IceFall();
-        	this->Precip();
-        	this->PrecipFall();
-		}
+        if(sc.moisture_type == MoistureType::SAM) {
+            this->IceFall();
+            this->Precip();
+            this->PrecipFall();
+        }
     }
 
     amrex::MultiFab*
