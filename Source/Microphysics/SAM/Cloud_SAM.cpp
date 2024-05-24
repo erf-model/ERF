@@ -57,7 +57,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
             //       before the Newton iteration, which assumes it is.
 
             omn = 1.0;
-            if(sc.moisture_type == MoistureType::SAM){
+            //if(sc.moisture_type == MoistureType::SAM){
                 // Cloud ice not permitted (melt to form water)
                 if(tabs_array(i,j,k) >= tbgmax) {
                     omn = 1.0;
@@ -95,8 +95,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                     pres_array(i,j,k) *= 0.01;
                 }
-            }
-            else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce){
+            //}
+            //else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce){
                 // No ice. ie omn = 1.0
                 delta_qc = qcl_array(i,j,k) - qn_array(i,j,k);
                 delta_qi = 0.0;
@@ -107,7 +107,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) *= 0.01;
-            }
+            //}
 
             // Initial guess for temperature & pressure
             Real tabs = tabs_array(i,j,k);
