@@ -8,7 +8,7 @@ using namespace amrex;
 /**
  * Split cloud components according to saturation pressures; source theta from latent heat.
  */
-void SAM::Cloud (const SolverChoice& sc) {
+void SAM::Cloud (const SolverChoice& solverChoice) {
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;
@@ -19,6 +19,8 @@ void SAM::Cloud (const SolverChoice& sc) {
     Real rdOcp    = m_rdOcp;
 
     Real tol = 1.0e-4;
+
+    SolverChoice sc = solverChoice;
 
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto  qt_array = mic_fab_vars[MicVar::qt]->array(mfi);
