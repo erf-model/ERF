@@ -44,7 +44,8 @@ void make_sources (int level,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
-                   const Vector<Real*> d_rayleigh_ptrs_at_lev)
+                   const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                   const BoxArray& turb_ba)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -278,10 +279,11 @@ void make_sources (int level,
         }
 
         // *************************************************************************************
-        // Add perturbations
+        // Add perturbation
         // *************************************************************************************
+        // DUSTIN
         if (solverChoice.pert_type == PertType::type1) {
-            CalcTurbPert(geom, bx, cell_src, cell_data);
+            CalcTurbPert(geom, bx, cell_src, cell_data, turb_ba);
         }
     } // mfi
     } // OMP

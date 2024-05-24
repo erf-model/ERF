@@ -58,6 +58,7 @@ enum Sponge {
 
 enum struct PertType {
     type1, type2
+    // cellPert, boxPert, levelPert
 };
 
 /**
@@ -291,7 +292,7 @@ struct SolverChoice {
             amrex::Abort("Dont know this coupling_type");
         }
 
-            pert_type = PertType::type1;
+        pert_type = PertType::type1;
 
         pp.query("latitude_lo",  latitude_lo);
         pp.query("longitude_lo", longitude_lo);

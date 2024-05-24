@@ -36,7 +36,8 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_rhotheta_src,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
-                   const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                   const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                   const amrex::BoxArray& turb_ba);
 
 void make_mom_sources (int level, int nrk,
                        amrex::Real dt,
@@ -117,8 +118,9 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
-void CalcTurbPert ( const amrex::Geometry geom,
-                    const amrex::Box& bx,
-                    const amrex::Array4<amrex::Real>& cell_rhs,
-                    const amrex::Array4<const amrex::Real>& cell_data);
+void CalcTurbPert (const amrex::Geometry geom,
+                   const amrex::Box& bx,
+                   const amrex::Array4<amrex::Real>& cell_rhs,
+                   const amrex::Array4<const amrex::Real>& cell_data,
+                   const amrex::BoxArray& turb_ba);
 #endif

@@ -313,6 +313,9 @@ public:
 
     void init_from_hse (int lev);
 
+    // Initialize the Turbulent perturbation
+    void calcTurbulentPerturation (int lev);
+
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -591,6 +594,9 @@ private:
     amrex::Vector<amrex::Real> t_old;
     amrex::Vector<amrex::Real> dt;
     amrex::Vector<long> dt_mri_ratio;
+
+    // Turbulent perturbation box array
+    amrex::Vector<amrex::BoxArray> turbPert_ba;
 
     // array of multifabs to store the solution at each level of refinement
     // after advancing a level we use "swap".
