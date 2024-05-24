@@ -22,6 +22,14 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
 
     SolverChoice sc = solverChoice;
 
+    int moisture_type = 1;
+
+    if(solverChoice.moisture_type == MoistureType::SAM) {
+        moisture_type = 1;
+    } else if(solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+        moisture_type = 2;
+    }
+
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto  qt_array = mic_fab_vars[MicVar::qt]->array(mfi);
         auto  qn_array = mic_fab_vars[MicVar::qn]->array(mfi);
@@ -57,7 +65,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
             //       before the Newton iteration, which assumes it is.
 
             omn = 1.0;
-            //if(sc.moisture_type == MoistureType::SAM){
+            if(moisture_type == 1){
                 // Cloud ice not permitted (melt to form water)
                 if(tabs_array(i,j,k) >= tbgmax) {
                     omn = 1.0;
@@ -95,8 +103,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                     pres_array(i,j,k) *= 0.01;
                 }
-            //}
-            //else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce){
+            }
+            else if(moisture_type == 2){
                 // No ice. ie omn = 1.0
                 delta_qc = qcl_array(i,j,k) - qn_array(i,j,k);
                 delta_qi = 0.0;
@@ -107,7 +115,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                                      * (1.0 + R_v/R_d * qv_array(i,j,k));
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
                 pres_array(i,j,k) *= 0.01;
-            //}
+            }
 
             // Initial guess for temperature & pressure
             Real tabs = tabs_array(i,j,k);
@@ -137,7 +145,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     erf_dtqsatw(tabs, pres, dqsatw);
                     erf_dtqsati(tabs, pres, dqsati);
 
-                    //if(sc.moisture_type == MoistureType::SAM) {
+                    if(moisture_type == 1) {
                         // Cloud ice not permitted (condensation & fusion)
                         if(tabs >= tbgmax) {
                             omn   = 1.0;
@@ -152,10 +160,10 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                             omn   = an*tabs-bn;
                             domn  = an;
                         }
-                    //} else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+                    } else if(moisture_type == 2) {
                         omn = 1.0;
                         domn = 0.0;
-                    //}
+                    }
 
                     // Linear combination of each component
                     qsat   =  omn * qsatw  + (1.0-omn) * qsati;
