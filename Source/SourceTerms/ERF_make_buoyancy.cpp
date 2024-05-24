@@ -136,7 +136,7 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
         }
 
-        if (solverChoice.moisture_type == MoistureType::SAM) {
+        if (solverChoice.moisture_type == MoistureType::SAM or solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
             AMREX_ALWAYS_ASSERT(solverChoice.buoyancy_type == 1);
         }
 
