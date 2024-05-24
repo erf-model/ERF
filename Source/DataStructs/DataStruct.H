@@ -350,6 +350,8 @@ struct SolverChoice {
             amrex::Print() << ")" << std::endl;
         }
 
+        amrex::Print() << "Buoyancy_type               : " << buoyancy_type << std::endl;
+
            advChoice.display();
           diffChoice.display();
         spongeChoice.display();

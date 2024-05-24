@@ -22,12 +22,12 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
 
     SolverChoice sc = solverChoice;
 
-    int moisture_type = 1;
+    int SAM_moisture_type = 1;
 
     if(solverChoice.moisture_type == MoistureType::SAM) {
-        moisture_type = 1;
+        SAM_moisture_type = 1;
     } else if(solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
-        moisture_type = 2;
+        SAM_moisture_type = 2;
     }
 
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -65,9 +65,9 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
             //       before the Newton iteration, which assumes it is.
 
             omn = 1.0;
-            if(moisture_type == 1){
+            if (SAM_moisture_type == 1){
                 // Cloud ice not permitted (melt to form water)
-                if(tabs_array(i,j,k) >= tbgmax) {
+                if (tabs_array(i,j,k) >= tbgmax) {
                     omn = 1.0;
                     delta_qi = qci_array(i,j,k);
                     qci_array(i,j,k)   = 0.0;
@@ -79,7 +79,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     pres_array(i,j,k) *= 0.01;
                 }
                 // Cloud water not permitted (freeze to form ice)
-                else if(tabs_array(i,j,k) <= tbgmin) {
+                else if (tabs_array(i,j,k) <= tbgmin) {
                     omn = 0.0;
                     delta_qc = qcl_array(i,j,k);
                     qcl_array(i,j,k)   = 0.0;
@@ -104,7 +104,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     pres_array(i,j,k) *= 0.01;
                 }
             }
-            else if(moisture_type == 2){
+            else if (SAM_moisture_type == 2)
+            {
                 // No ice. ie omn = 1.0
                 delta_qc = qcl_array(i,j,k) - qn_array(i,j,k);
                 delta_qi = 0.0;
@@ -145,7 +146,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     erf_dtqsatw(tabs, pres, dqsatw);
                     erf_dtqsati(tabs, pres, dqsati);
 
-                    if(moisture_type == 1) {
+                    if (SAM_moisture_type == 1) {
                         // Cloud ice not permitted (condensation & fusion)
                         if(tabs >= tbgmax) {
                             omn   = 1.0;
@@ -160,7 +161,7 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                             omn   = an*tabs-bn;
                             domn  = an;
                         }
-                    } else if(moisture_type == 2) {
+                    } else if (SAM_moisture_type == 2) {
                         omn = 1.0;
                         domn = 0.0;
                     }
@@ -183,16 +184,18 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                     dtabs = -fff/dfff;
                     tabs  = tabs+dtabs;
 
-                    // Update the pressure
-                    pres = rho_array(i,j,k) * R_d * tabs
-                         * (1.0 + R_v/R_d * qsat) * 0.01;
+                    // For now at least we perform this iteration at constant pressure
+                    // For the moist bubble case, the results are indistinguisable
+                    // between running with this used vs commented out
+                    // pres = rho_array(i,j,k) * R_d * tabs
+                    //      * (1.0 + R_v/R_d * qsat) * 0.01;
 
                     // Update iteration
                     niter = niter+1;
                 } while(std::abs(dtabs) > tol && niter < 20);
 
                 // Update qsat from last iteration (dq = dq/dt * dt)
-                qsat = qsat + dqsat*dtabs;
+                qsat += dqsat*dtabs;
 
                 // Changes in each component
                 delta_qv = qv_array(i,j,k) - qsat;
@@ -209,19 +212,30 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                 // Update temperature
                 tabs_array(i,j,k) = tabs;
 
-                // Update pressure
-                pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                    * (1.0 + R_v/R_d * qv_array(i,j,k));
+                // Update theta from temperature (it is essential to do this BEFORE the pressure is updated)
+                // This would be inconsistent with updating the pressure as part of the iteration above.
+                // Empirically based on the moist bubble rise case, getting the correct theta here
+                // depends on using the old (unchanged by the phase changes) pressure.
 
-                // Update theta from temperature
-                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
+                theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
+
+                // Update pressure to be consistent with updated theta_array
+                pres_array(i,j,k) = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k));
+
+                // This was used in the earlier implmentation when we updated theta using this new pressure
+                // pres_array(i,j,k) = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
+                //                     * (1.0 + R_v/R_d * qv_array(i,j,k));
 
                 // Pressure unit conversion
                 pres_array(i,j,k) *= 0.01;
 
-            }
+            //
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv
-            else {
+            // The concept here is that if we assume the temperature change due to this conversion
+            //     doesn't change qsat, we can safely put all the moisture into qv without reaching qv > qsat
+            //     because we are in the "else" part of the test on (qt_array(i,j,k) > qsat)
+            //
+            } else {
                 // Changes in each component
                 delta_qv = qcl_array(i,j,k) + qci_array(i,j,k);
                 delta_qc = qcl_array(i,j,k);
