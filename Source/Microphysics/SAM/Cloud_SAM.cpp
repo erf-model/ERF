@@ -54,6 +54,7 @@ void SAM::Cloud (const SolverChoice& sc) {
             //       This ensures the omn splitting is enforced
             //       before the Newton iteration, which assumes it is.
 
+            omn = 1.0;
             if(sc.moisture_type == MoistureType::SAM){
                 // Cloud ice not permitted (melt to form water)
                 if(tabs_array(i,j,k) >= tbgmax) {
