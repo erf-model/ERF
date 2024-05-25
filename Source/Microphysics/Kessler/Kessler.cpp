@@ -69,7 +69,6 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
             });
         }
 
-
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             auto qv_array    = mic_fab_vars[MicVar_Kess::qv]->array(mfi);
             auto qc_array    = mic_fab_vars[MicVar_Kess::qcl]->array(mfi);
@@ -118,30 +117,28 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 //Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
 
                 // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
-                if(qv_array(i,j,k) > qsat){
+                if (qv_array(i,j,k) > qsat) {
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
                 }
 
-
-                // If water vapor is less than the saturated value, then the cloud water can evaporate, leading to evaporative cooling and
-                // reducing temperature
-                if(qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0){
+                // If water vapor is less than the saturated value, then the cloud water can evaporate,
+                // leading to evaporative cooling and reducing temperature
+                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0) {
                     dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
-            }
+                }
 
-                if(qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
+                if (qp_array(i,j,k) > 0.0 && qv_array(i,j,k) < qsat) {
                     Real C = 1.6 + 124.9*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.2046);
                     dq_rain_to_vapor = 1.0/(0.001*rho_array(i,j,k))*(1.0 - qv_array(i,j,k)/qsat)*C*std::pow(0.001*rho_array(i,j,k)*qp_array(i,j,k),0.525)/
                         (5.4e5 + 2.55e6/(pressure*qsat))*dtn;
                     // The negative sign is to make this variable (vapor formed from evaporation)
-                    // a poistive quantity (as qv/qs < 1)
+                    // a positive quantity (as qv/qs < 1)
                     dq_rain_to_vapor = std::min({qp_array(i,j,k), dq_rain_to_vapor});
 
                     // Removing latent heat due to evaporation from rain water to water vapor, reduces the (potential) temperature
                 }
 
                 // If there is cloud water present then do accretion and autoconversion to rain
-
                 if (qc_array(i,j,k) > 0.0) {
                     qcc = qc_array(i,j,k);
 
@@ -163,12 +160,12 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real dq_sed = dtn * dJinv * (1.0/rho_array(i,j,k)) * (fz_array(i,j,k+1) - fz_array(i,j,k))/dz;
                 if(std::fabs(dq_sed) < 1e-14) dq_sed = 0.0;
 
-                qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor + dq_rain_to_vapor;
-                qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
-                qp_array(i,j,k) = qp_array(i,j,k) + dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
+                qv_array(i,j,k) += -dq_vapor_to_clwater + dq_clwater_to_vapor + dq_rain_to_vapor;
+                qc_array(i,j,k) +=  dq_vapor_to_clwater - dq_clwater_to_vapor - dq_clwater_to_rain;
+                qp_array(i,j,k) +=  dq_sed + dq_clwater_to_rain - dq_rain_to_vapor;
 
-                theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond *
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
+                Real theta_over_T = theta_array(i,j,k)/tabs_array(i,j,k);
+                theta_array(i,j,k) += theta_over_T * d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor - dq_rain_to_vapor);
 
                 qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
@@ -179,8 +176,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
         }
     }
 
-
-    if(solverChoice.moisture_type == MoistureType::Kessler_NoRain){
+    if (solverChoice.moisture_type == MoistureType::Kessler_NoRain){
 
         // get the temperature, dentisy, theta, qt and qc from input
         for ( MFIter mfi(*tabs,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -217,20 +213,21 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 Real fac = qsat*L_v*L_v/(Cp_d*R_v*tabs_array(i,j,k)*tabs_array(i,j,k));
 
                 // If water vapor content exceeds saturation value, then vapor condenses to waterm and latent heat is released, increasing temperature
-                if(qv_array(i,j,k) > qsat){
+                if (qv_array(i,j,k) > qsat){
                     dq_vapor_to_clwater = std::min(qv_array(i,j,k), (qv_array(i,j,k)-qsat)/(1.0 + fac));
                 }
                 // If water vapor is less than the saturated value, then the cloud water can evaporate, leading to evaporative cooling and
                 // reducing temperature
-                if(qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0){
+                if (qv_array(i,j,k) < qsat && qc_array(i,j,k) > 0.0){
                     dq_clwater_to_vapor = std::min(qc_array(i,j,k), (qsat - qv_array(i,j,k))/(1.0 + fac));
                 }
 
-                qv_array(i,j,k) = qv_array(i,j,k) - dq_vapor_to_clwater + dq_clwater_to_vapor;
-                qc_array(i,j,k) = qc_array(i,j,k) + dq_vapor_to_clwater - dq_clwater_to_vapor;
+                qv_array(i,j,k) += -dq_vapor_to_clwater + dq_clwater_to_vapor;
+                qc_array(i,j,k) +=  dq_vapor_to_clwater - dq_clwater_to_vapor;
 
-                theta_array(i,j,k) = theta_array(i,j,k) + theta_array(i,j,k)/tabs_array(i,j,k)*d_fac_cond *
-                                     (dq_vapor_to_clwater - dq_clwater_to_vapor);
+                Real theta_over_T = theta_array(i,j,k)/tabs_array(i,j,k);
+
+                theta_array(i,j,k) += theta_over_T * d_fac_cond * (dq_vapor_to_clwater - dq_clwater_to_vapor);
 
                 qv_array(i,j,k) = std::max(0.0, qv_array(i,j,k));
                 qc_array(i,j,k) = std::max(0.0, qc_array(i,j,k));
