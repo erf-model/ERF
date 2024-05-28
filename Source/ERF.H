@@ -800,7 +800,8 @@ private:
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
+                                                    "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
@@ -812,8 +813,10 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum", "snow_accum", "graup_accum"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "rain_accum", "snow_accum", "graup_accum"
 #ifdef ERF_COMPUTE_ERROR
+                                                    // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
                                                    };

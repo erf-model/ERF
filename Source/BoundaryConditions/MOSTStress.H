@@ -1241,6 +1241,7 @@ struct custom_flux
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
 
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
+
         // NOTE: the following is  rho * <T'w'> = -K*T_z
         amrex::Real moflux  = (std::abs(tstar) > eps) ? rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
