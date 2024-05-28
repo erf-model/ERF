@@ -631,8 +631,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
     amrex::Vector<amrex::MultiFab> Nturb;
-    amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
-    amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
+    amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
+                                                  // EWP:                 dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
@@ -799,7 +799,8 @@ private:
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
+                                                    "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
@@ -811,9 +812,11 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum", "snow_accum", "graup_accum",
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "rain_accum", "snow_accum", "graup_accum",
                                                     "rel_humidity", "condensation_rate"
 #ifdef ERF_COMPUTE_ERROR
+                                                    // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
                                                    };

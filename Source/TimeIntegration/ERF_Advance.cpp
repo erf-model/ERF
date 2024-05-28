@@ -2,8 +2,7 @@
 #include <Utils.H>
 
 #ifdef ERF_USE_WINDFARM
-#include <Fitch.H>
-#include <EWP.H>
+#include <WindFarm.H>
 #endif
 
 using namespace amrex;
@@ -70,14 +69,9 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     }
 
 #if defined(ERF_USE_WINDFARM)
-    // Update with the Fitch source terms
-    if (solverChoice.windfarm_type == WindFarmType::Fitch) {
-        fitch_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_fitch[lev], Nturb[lev]);
-    }
-    else if (solverChoice.windfarm_type == WindFarmType::EWP) {
-        ewp_advance(lev, Geom(lev), dt_lev, S_old,
-                      U_old, V_old, W_old, vars_ewp[lev], Nturb[lev]);
+    if (solverChoice.windfarm_type != WindFarmType::None) {
+        advance_windfarm(lev, Geom(lev), dt_lev, S_old,
+                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], solverChoice);
     }
 
 #endif

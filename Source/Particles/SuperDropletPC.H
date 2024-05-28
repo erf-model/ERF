@@ -44,8 +44,9 @@ namespace SupDropInit
     /*! Maximum number of aerosols */
     const int num_aerosols_max = 8;
 
-    const std::string attrib_init_const = "constant";
-    const std::string attrib_init_exp = "exponential";
+    const std::string attrib_init_const = "mass_constant";
+    const std::string attrib_init_exp = "mass_exponential";
+    const std::string attrib_init_lnr = "radius_log_normal";
 
     const std::string alg_coalescence_dsmc = "DSMC";
     const std::string alg_coalescence_cudsmc = "cuDSMC";
@@ -237,8 +238,11 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_numdens_init;         /*!< Initial number density of physical particles */
         amrex::Real m_numdens_sd_init;      /*!< Initial number density of super-droplets */
 
-        std::string m_mass_condensate_init_type; /*!< type of initial distribution */
-        amrex::Real m_mass_condensate_init; /*!< Initial condensate mass of each physical particle */
+        std::string m_condensate_init_type; /*!< type of condensate initial distribution */
+        amrex::Real m_mass_condensate_mean; /*!< Initial mean condensate mass */
+        amrex::Real m_radius_condensate_min; /*!< Initial minimum condensate radius */
+        amrex::Real m_radius_condensate_max; /*!< Initial maximum condensate radius */
+
         std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
@@ -248,12 +252,16 @@ class SuperDropletPC : public ERFPC
         int m_ppc_seed; /*!< Number of seed particles per cell */
         amrex::Real m_seed_mass; /*!< Condensate mass of seed */
 
-        /*! Initial aerosol masses of each physical particle */
-        std::vector<amrex::Real> m_mass_aerosol_init;
-        /*! Minimum initial  aerosol masses of each physical particle */
+        /*! Minimum aerosol mass */
         std::vector<amrex::Real> m_mass_aerosol_min;
-        /*! Initial distribution type for aerosol masses */
-        std::vector<std::string> m_mass_aerosol_init_type;
+        /*! Mean aerosol mass */
+        std::vector<amrex::Real> m_mass_aerosol_mean;
+        /*! Minimum aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_min;
+        /*! Maximum aerosol dry radius */
+        std::vector<amrex::Real> m_radius_aerosol_max;
+        /*! Initial distribution type for aerosol */
+        std::vector<std::string> m_aerosol_init_type;
         int m_num_aerosols; /*!< Number of aerosols */
 
         int m_num_sd_per_cell;  /*!< Number of super-droplets per cell */

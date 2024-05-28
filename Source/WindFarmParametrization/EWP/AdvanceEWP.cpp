@@ -7,12 +7,12 @@ Real z_c_ewp = 100.0;
 Real C_T_ewp = 0.8, C_TKE_ewp = 0.0;
 
 void ewp_advance (int lev,
-                    const Geometry& geom,
-                    const Real& dt_advance,
-                    MultiFab& cons_in,
-                    MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                    MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
-{
+                  const Geometry& geom,
+                  const Real& dt_advance,
+                  MultiFab& cons_in,
+                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
+                  MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
+ {
     ewp_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_ewp, mf_Nturb);
     ewp_update(dt_advance, cons_in, U_old, V_old, mf_vars_ewp);
 }

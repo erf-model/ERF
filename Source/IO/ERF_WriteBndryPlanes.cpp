@@ -64,15 +64,16 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
     // If the target area is contained at a finer level, use the finest data possible
     for (int ilev = 0; ilev < grids.size(); ilev++) {
 
-        auto const dxi = geom[ilev].InvCellSizeArray();
+        const Real* xLo = m_geom[ilev].ProbLo();
+        auto const dxi  = geom[ilev].InvCellSizeArray();
         const Box& domain = m_geom[ilev].Domain();
 
         // We create the smallest box that contains all of the cell centers
         // in the physical region specified
-        int ilo = static_cast<int>(Math::floor(box_lo[0] * dxi[0])+.5);
-        int jlo = static_cast<int>(Math::floor(box_lo[1] * dxi[1])+.5);
-        int ihi = static_cast<int>(Math::floor(box_hi[0] * dxi[0])+.5)-1;
-        int jhi = static_cast<int>(Math::floor(box_hi[1] * dxi[1])+.5)-1;
+        int ilo = static_cast<int>(Math::floor((box_lo[0] - xLo[0]) * dxi[0])+.5);
+        int jlo = static_cast<int>(Math::floor((box_lo[1] - xLo[1]) * dxi[1])+.5);
+        int ihi = static_cast<int>(Math::floor((box_hi[0] - xLo[0]) * dxi[0])+.5)-1;
+        int jhi = static_cast<int>(Math::floor((box_hi[1] - xLo[1]) * dxi[1])+.5)-1;
 
         // Map this to index space -- for now we do no interpolation
         target_box.setSmall(IntVect(ilo,jlo,0));

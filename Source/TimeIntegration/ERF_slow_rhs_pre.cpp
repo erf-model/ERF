@@ -151,7 +151,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_exp_most     = (solverChoice.use_explicit_most);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    const bool l_incompressible = solverChoice.incompressible;
+    const bool l_incompressible = solverChoice.incompressible[level];
     const bool l_const_rho      = solverChoice.constant_density;
 
     // We cannot use incompressible with terrain or with moisture
@@ -164,7 +164,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const Box& domain = geom.Domain();
     const int domhi_z = domain.bigEnd(2);
-    const int domlo_z = domain.smallEnd(2);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
@@ -188,10 +187,10 @@ void erf_slow_rhs_pre (int level, int finest_level,
     std::unique_ptr<MultiFab> dflux_z;
 
     if (l_use_diff) {
-        erf_make_tau_terms(level,nrk,domain_bcs_type_d,domain_bcs_type_h,z_phys_nd,
+        erf_make_tau_terms(level,nrk,domain_bcs_type_h,z_phys_nd,
                            S_data,xvel,yvel,zvel,Omega,
                            Tau11,Tau22,Tau33,Tau12,Tau13,Tau21,Tau23,Tau31,Tau32,
-                           SmnSmn,eddyDiffs,Hfx3,Diss,geom,solverChoice,most,
+                           SmnSmn,eddyDiffs,geom,solverChoice,most,
                            detJ,mapfac_m,mapfac_u,mapfac_v);
 
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, 0);
@@ -222,12 +221,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
         Box tby = mfi.nodaltilebox(1);
         Box tbz = mfi.nodaltilebox(2);
 
-        // If we are imposing open bc's then don't add rhs terms at the boundary locations
-        if ( xlo_open && (tbx.smallEnd(0) == domain.smallEnd(0)) ) {tbx.growLo(0,-1);}
-        if ( xhi_open && (tbx.bigEnd(0)   == domain.bigEnd(0)+1) ) {tbx.growHi(0,-1);}
-        if ( ylo_open && (tby.smallEnd(1) == domain.smallEnd(1)) ) {tby.growLo(1,-1);}
-        if ( yhi_open && (tby.bigEnd(1)   == domain.bigEnd(1)+1) ) {tby.growHi(1,-1);}
-
         // We don't compute a source term for z-momentum on the bottom or top boundary
         tbz.growLo(2,-1);
         tbz.growHi(2,-1);
@@ -244,7 +237,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         const Array4<Real>& rho_u_old = S_old[IntVars::xmom].array(mfi);
         const Array4<Real>& rho_v_old = S_old[IntVars::ymom].array(mfi);
-        const Array4<Real>& rho_w_old = S_old[IntVars::zmom].array(mfi);
 
         if (l_incompressible) {
             // When incompressible we must reset these to 0 each RK step
