@@ -151,7 +151,7 @@ public:
 
     AMREX_GPU_HOST_DEVICE
     AMREX_FORCE_INLINE
-    amrex::Real
+    static amrex::Real
     NewtonIterSat (int& i, int& j, int& k,
                    const int& SAM_moisture_type,
                    const amrex::Real& fac_cond,
