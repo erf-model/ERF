@@ -189,6 +189,37 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
         avg_term_v = 0;
     }
 
+    std::vector<Real> min_mass_aerosols(m_num_aerosols);
+    std::vector<Real> max_mass_aerosols(m_num_aerosols);
+    std::vector<Real> avg_mass_aerosols(m_num_aerosols);
+
+    for (int ia = 0; ia < m_num_aerosols; ia++) {
+        min_mass_aerosols[ia] = ReduceMin( *this,
+                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ia][i]; } );
+        max_mass_aerosols[ia] = ReduceMax( *this,
+                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           { return ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ia][i]; } );
+        avg_mass_aerosols[ia] = ReduceSum( *this,
+                                           [=] AMREX_GPU_HOST_DEVICE (const PTDType& ptd, const int i) -> Real
+                                           {
+                                               auto n = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
+                                               auto m = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::ncomps+ia][i];
+                                               return n*m;
+                                           } );
+    }
+    ParallelDescriptor::ReduceRealMin(min_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealMax(max_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
+    ParallelDescriptor::ReduceRealSum(avg_mass_aerosols.data(),m_num_aerosols,ParallelDescriptor::IOProcessorNumber());
+    for (int ia = 0; ia < m_num_aerosols; ia++) {
+        if (num_total_particles > 0) {
+            avg_mass_aerosols[ia] /= num_total_particles;
+        } else {
+            avg_mass_aerosols[ia] = 0.0;
+        }
+    }
+
+
     m_t_coalescence = max_t_coales;
 
     Print() << "SuperDropletPC(" << m_name << ") attributes (min, max, avg):\n"
@@ -209,6 +240,14 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
             << min_t_coales << ", " << max_t_coales << ", " << avg_t_coales << "\n"
             << "    terminal velocity [m/s]: "
             << min_term_v << ", " << max_term_v << ", " << avg_term_v << "\n";
+
+    Print() << "    aerosol masses [kg]:\n";
+    for (int ia = 0; ia < m_num_aerosols; ia++) {
+        Print() << "        " << m_aerosol_mat[ia]->name()
+                << ": "
+                << min_mass_aerosols[ia] << ", " << max_mass_aerosols[ia] << ", " << avg_mass_aerosols[ia] << "\n";
+    }
+
 
     Long num_unconverged_particles = m_num_unconverged_particles;
     m_num_unconverged_particles = 0;
