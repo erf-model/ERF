@@ -91,10 +91,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
-              Real dxInv = cellSizeInv[0];
-              Real dyInv = cellSizeInv[1];
-              Real dzInv = cellSizeInv[2];
+              Real SmnSmn = 2.0*ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
+              Real dxInv  = cellSizeInv[0];
+              Real dyInv  = cellSizeInv[1];
+              Real dzInv  = cellSizeInv[2];
               if (use_terrain) {
                   // the terrain grid is only deformed in z for now
                   dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
@@ -103,14 +103,11 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
               Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
               Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
-              // Brunt-Vaisala frequency
-              Real fb = 1.0;
+              // Brunt-Vaisala frequency effects
               Real N2 = Brunt_Vaisala_Freq(i, j, k, dzInv, cell_data);
-              if (N2 > 0.0) {
-                  fb = std::sqrt( std::max(0.0, (1.0 - N2*inv_Pr_t/(2.0*SmnSmn))) );
-              }
+              Real fb = std::sqrt( std::max(0.0, (SmnSmn - inv_Pr_t*N2)) );
 
-              mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * fb * std::sqrt(2.0*SmnSmn);
+              mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * fb;
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
           });
       }
@@ -119,10 +116,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     //***********************************************************************************
     else if (turbChoice.les_type == LESType::Deardorff)
     {
-      const Real l_C_k        = turbChoice.Ck;
-      const Real l_C_e        = turbChoice.Ce;
-      const Real l_C_e_wall   = turbChoice.Ce_wall;
-      const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+      const Real l_C_k      = turbChoice.Ck;
+      const Real l_C_e      = turbChoice.Ce;
+      const Real l_C_e_wall = turbChoice.Ce_wall;
+      const Real Ce_lcoeff  = amrex::max(0.0, l_C_e - 1.9*l_C_k);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -137,7 +134,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         const Array4<Real>& hfx_z   = Hfx3.array(mfi);
         const Array4<Real>& diss    = Diss.array(mfi);
 
-        const Array4<Real const > &cell_data = cons_in.array(mfi);
+        const Array4<Real const >& cell_data = cons_in.array(mfi);
 
         Array4<Real const> mf_u = mapfac_u.array(mfi);
         Array4<Real const> mf_v = mapfac_v.array(mfi);
@@ -157,7 +154,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
 
           // Calculate stratification-dependent mixing length (Deardorff 1980)
-          Real eps       = std::numeric_limits<Real>::epsilon();
+          Real eps = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz;
           if (use_most && k==klo) {
               if (exp_most) {

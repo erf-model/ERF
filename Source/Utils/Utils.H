@@ -435,13 +435,13 @@ Brunt_Vaisala_Freq (int& i,
             A /= ( 1. + (mwwv/mwdair) * L_v * L_v * qv / (Cp_d * R_v * T * T) );
             A *= (1./Th);
 
-            // Comput qw on hi and lo face
+            // Comput qw at hi and lo cc
             qw_hi = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp)
                   + cell_data(i,j,k+1,RhoQ2_comp)/cell_data(i,j,k+1,Rho_comp);
             qw_lo = cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp)
                   + cell_data(i,j,k-1,RhoQ2_comp)/cell_data(i,j,k-1,Rho_comp);
 
-            // Compute Theta_e on hi face
+            // Compute Theta_e at hi cc
             qv_hi = cell_data(i,j,k+1,RhoQ1_comp)/cell_data(i,j,k+1,Rho_comp);
             T  = getTgivenRandRTh(cell_data(i,j,k+1,Rho_comp),
                                   cell_data(i,j,k+1,RhoTheta_comp),
