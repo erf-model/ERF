@@ -21,7 +21,6 @@
 #endif
 
 void erf_make_tau_terms (int level, int nrk,
-                         const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          amrex::Vector<amrex::MultiFab>& S_data,
@@ -40,8 +39,6 @@ void erf_make_tau_terms (int level, int nrk,
                                amrex::MultiFab* Tau32,
                                amrex::MultiFab* SmnSmn,
                                amrex::MultiFab* eddyDiffs,
-                               amrex::MultiFab* Hfx3,
-                               amrex::MultiFab* Diss,
                          const amrex::Geometry geom,
                          const SolverChoice& solverChoice,
                          std::unique_ptr<ABLMost>& most,

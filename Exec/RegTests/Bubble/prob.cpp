@@ -360,6 +360,14 @@ Problem::init_custom_pert(
             const Real x_r = parms.x_r, y_r = parms.y_r, z_r = parms.z_r;
             const Real theta_pert = parms.theta_pert;
 
+             int moisture_type = 1;
+
+            if(sc.moisture_type == MoistureType::SAM) {
+                moisture_type = 1;
+            } else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+                moisture_type = 2;
+            }
+
             amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k)
             {
                 // Geometry (note we must include these here to get the data on device)
@@ -410,7 +418,12 @@ Problem::init_custom_pert(
                 // Cold microphysics are present
                 int nstate = state_pert.ncomp;
                 if (nstate == NVAR_max) {
-                    Real omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
+                    Real omn;
+                    if(moisture_type == 1) {
+                        omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
+                    } else if(moisture_type == 2) {
+                        omn = 1.0;
+                    }
                     Real qn  = state_pert(i, j, k, RhoQ2_comp);
                     state_pert(i, j, k, RhoQ2_comp) = qn * omn;
                     state_pert(i, j, k, RhoQ3_comp) = qn * (1.0-omn);

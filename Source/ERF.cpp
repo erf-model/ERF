@@ -119,8 +119,7 @@ ERF::ERF ()
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -1456,7 +1455,7 @@ ERF::ReadParameters ()
     }
 
     if (verbose > 0) {
-        solverChoice.display();
+        solverChoice.display(max_level);
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
@@ -1803,8 +1802,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)

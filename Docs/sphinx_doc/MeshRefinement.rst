@@ -23,14 +23,13 @@ See the `Gridding`_ section of the AMReX documentation for details of how indivi
 Static Mesh Refinement
 ----------------------
 
-For static refinement, we control the placement of grids by specifying
-the low and high extents (in physical space) of each box in the lateral
-directions.   ERF enforces that all refinement spans the entire vertical direction.
+For static refinement, we can control the placement of grids by specifying
+the low and high extents (in physical space or index space) of each box.
 
 The following example demonstrates how to tag regions for static refinement.
-In this first example, all cells in the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
-and in the region ((.65,.75,prob_lo_z)(.85,.95,prob_hi_z)) are tagged for
-one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents of the domain:
+In this first example, all cells in the region ((.15,.25,0.)(.35,.45,1.))
+and in the region ((.65,.75,0.0)(.85,.95,1.0)) are tagged for
+one level of refinement.
 
 ::
 
@@ -39,13 +38,13 @@ one level of refinement, where prob_lo_z and prob_hi_z are the vertical extents 
 
           erf.refinement_indicators = box1 box2
 
-          erf.box1.in_box_lo = .15 .25
-          erf.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25 0.0
+          erf.box1.in_box_hi = .35 .45 1.0
 
-          erf.box2.in_box_lo = .65 .75
-          erf.box2.in_box_hi = .85 .95
+          erf.box2.in_box_lo = .65 .75 0.0
+          erf.box2.in_box_hi = .85 .95 1.0
 
-In the example below, we refine the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
+In the example below, we refine the region ((.15,.25,0.)(.35,.45,.5))
 by two levels of factor 3 refinement. In this case, the refined region at level 1 will
 be sufficient to enclose the refined region at level 2.
 
@@ -56,11 +55,11 @@ be sufficient to enclose the refined region at level 2.
 
           erf.refinement_indicators = box1
 
-          erf.box1.in_box_lo = .15 .25
-          erf.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25 0.0
+          erf.box1.in_box_hi = .35 .45 1.0
 
-And in this final example, the region ((.15,.25,prob_lo_z)(.35,.45,prob_hi_z))
-will be refined by two levels of factor 3, but the larger region, ((.05,.05,prob_lo_z)(.75,.75,prob_hi_z))
+And in this final example, the region ((.15,.25,0.)(.35,.45,1.))
+will be refined by two levels of factor 3, but the larger region, ((.05,.05,0.)(.75,.75,1.))
 will be refined by a single factor 3 refinement.
 
 ::
@@ -70,12 +69,30 @@ will be refined by a single factor 3 refinement.
 
           erf.refinement_indicators = box1 box2
 
-          erf.box1.in_box_lo = .15 .25
-          erf.box1.in_box_hi = .35 .45
+          erf.box1.in_box_lo = .15 .25 0.0
+          erf.box1.in_box_hi = .35 .45 1.0
 
-          erf.box2.in_box_lo = .05 .05
-          erf.box2.in_box_hi = .75 .75
           erf.box2.max_level = 1
+          erf.box2.in_box_lo = .05 .05 0.0
+          erf.box2.in_box_hi = .75 .75 1.0
+
+
+We note that instead of specifying the physical extent enclosed, we can instead specify the indices of
+the bounding box of the refined region in the index space of that fine level.
+To do this we use
+``in_box_lo_indices`` and ``in_box_hi_indices`` instead of ``in_box_lo`` and ``in_box_hi``.
+If we want to refine the inner region (spanning half the width in each direction) by one level of
+factor 2 refinement, and the domain has 32x64x8 cells at level 0 covering the domain, then we would set
+
+::
+
+          amr.max_level = 1
+          amr.ref_ratio = 2
+
+          erf.refinement_indicators = box1
+
+          erf.box1.in_box_lo_indices = 16 32  4
+          erf.box1.in_box_hi_indices = 47 95 11
 
 
 Dynamic Mesh Refinement
@@ -84,6 +101,8 @@ Dynamic Mesh Refinement
 Dynamically created tagging functions are based on runtime data specified in the inputs file.
 These dynamically generated functions test on either state variables or derived variables
 defined in ERF_derive.cpp and included in the derive_lst in Setup.cpp.
+(We note that static refinement can also be achieved by using the refinement criteria as specified below
+but setting ``erf.regrid_int`` to a number greater than the total number of steps that will be taken.)
 
 Available tests include
 

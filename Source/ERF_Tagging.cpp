@@ -119,11 +119,26 @@ ERF::refinement_criteria_setup ()
             ParmParse ppr(ref_prefix);
             RealBox realbox;
             int lev_for_box;
-            if (ppr.countval("in_box_lo")) {
+
+            int num_real_lo = ppr.countval("in_box_lo");
+            int num_indx_lo = ppr.countval("in_box_lo_indices");
+
+            if ( !((num_real_lo == AMREX_SPACEDIM && num_indx_lo == 0) ||
+                   (num_indx_lo == AMREX_SPACEDIM && num_real_lo == 0) ||
+                   (num_indx_lo ==              0 && num_real_lo == 0)) )
+            {
+                amrex::Abort("Must only specify box for refinement using real OR index space");
+            }
+
+            if (num_real_lo > 0) {
                 std::vector<Real> box_lo(3), box_hi(3);
                 ppr.get("max_level",lev_for_box);
                 if (lev_for_box <= max_level)
                 {
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
+
                     ppr.getarr("in_box_lo",box_lo,0,AMREX_SPACEDIM);
                     ppr.getarr("in_box_hi",box_hi,0,AMREX_SPACEDIM);
                     realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
@@ -142,6 +157,44 @@ ERF::refinement_criteria_setup ()
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
                     if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
                          (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
+                         amrex::Error("Fine box is not legit with this ref_ratio");
+                    boxes_at_level[lev_for_box].push_back(bx);
+                    Print() << "Saving in 'boxes at level' as " << bx << std::endl;
+                } // lev
+                if (init_type == "real" || init_type == "metgrid") {
+                    if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
+                        amrex::Error("Number of boxes doesnt match number of input files");
+
+                    }
+                }
+
+            } else if (num_indx_lo > 0) {
+
+                std::vector<int> box_lo(3), box_hi(3);
+                ppr.get("max_level",lev_for_box);
+                if (lev_for_box <= max_level)
+                {
+                    if (n_error_buf[0] != IntVect::TheZeroVector()) {
+                        amrex::Abort("Don't use n_error_buf > 0 when setting the box explicitly");
+                    }
+
+                    ppr.getarr("in_box_lo_indices",box_lo,0,AMREX_SPACEDIM);
+                    ppr.getarr("in_box_hi_indices",box_hi,0,AMREX_SPACEDIM);
+
+                    Box bx(IntVect(box_lo[0],box_lo[1],box_lo[2]),IntVect(box_hi[0],box_hi[1],box_hi[2]));
+                    amrex::Print() << "BOX " << bx << std::endl;
+
+                    const auto* dx  = geom[lev_for_box].CellSize();
+                    const Real* plo = geom[lev_for_box].ProbLo();
+                    realbox = RealBox(plo[0]+ box_lo[0]   *dx[0],plo[1] +box_lo[1]   *dx[1],plo[2] +box_lo[2]   *dx[2],
+                                      plo[0]+(box_hi[0]+1)*dx[0],plo[1]+(box_hi[1]+1)*dx[1],plo[2]+(box_hi[2]+1)*dx[2]);
+
+                    Print() << "Reading " << bx << " at level " << lev_for_box << std::endl;
+                    num_boxes_at_level[lev_for_box] += 1;
+
+                    if ( (box_lo[0]%ref_ratio[lev_for_box-1][0] != 0) || ((box_hi[0]+1)%ref_ratio[lev_for_box-1][0] != 0) ||
+                         (box_lo[1]%ref_ratio[lev_for_box-1][1] != 0) || ((box_hi[1]+1)%ref_ratio[lev_for_box-1][1] != 0) ||
+                         (box_lo[2]%ref_ratio[lev_for_box-1][2] != 0) || ((box_hi[2]+1)%ref_ratio[lev_for_box-1][2] != 0) )
                          amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;

@@ -272,7 +272,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_post_update(post_update_fun);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (solverChoice.incompressible) {
+    if (solverChoice.incompressible[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
 #endif
