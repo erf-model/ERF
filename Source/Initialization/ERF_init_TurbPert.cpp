@@ -1,10 +1,13 @@
-//#include <AMReX_MultiFab.H>
+//DUSTIN MA
+
 #include <ERF.H>
 #include <ERF_Constants.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;
+
+//#define DEBUG_PERTBOX_MSG
 
 void
 ERF::init_PerturbationRegion (int lev)
@@ -16,8 +19,10 @@ ERF::init_PerturbationRegion (int lev)
     BoxArray tmp_ba(turbPert_bx);                                                    // Temporary box array needed
     turbPert_ba.push_back(tmp_ba);                                                   // Publically defined in ERF.H
     turbPert_ba[lev].maxSize(IntVect(8,8,8));
+    #ifdef DEBUG_PERTBOX_MSG
     Print() << "  [ERF::init_PerturbationRegion] Subdividing into smaller boxes: "  << turbPert_ba[lev].size() << "\n"
             << "  turbPert_ba[" << lev << "] constains: " << turbPert_ba[lev];
+    #endif
 }
 
 void
@@ -51,7 +56,6 @@ ERF::calc_TurbPert_amplitude (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-#if 1
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
     {
         const Box &bx  = mfi.tilebox();
@@ -59,8 +63,10 @@ ERF::calc_TurbPert_amplitude (int lev)
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
+        #ifdef DEBUG_PERTBOX_MSG
         Print() << "\n";
         Print() << "  [ERF::calc_TurbPert_amplitude] Box being passed in reads: " << bx << "\n";
+        #endif
 
         // Perturbation on to different components
         const auto &cons_pert_arr = cons_pert.array(mfi);
@@ -81,9 +87,11 @@ ERF::calc_TurbPert_amplitude (int lev)
 
         for (int boxIdx = 0; boxIdx < turbPert_ba[lev].size(); boxIdx++) {
             if (bx.contains(turbPert_ba[lev][boxIdx])) {
+                #ifdef DEBUG_PERTBOX_MSG
                 Print() << "bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << turbPert_ba[lev][boxIdx] << "\n";
+                #endif
                 ParallelFor(turbPert_ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    //Real tmp_Src = (i + j*ba.size()[0] + k*ba.size()[0]*ba.size()[1]); // continuous count
+                    //Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
                     Real tmp_Src = (Real) (boxIdx+1.0)*1e5; // distinguish each box
     
                     // Adding temperature source onto RHS
@@ -98,9 +106,6 @@ ERF::calc_TurbPert_amplitude (int lev)
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
     } // mfi
-#endif
-    // This crurrently causes "Erroneous arithmetic operation" at run time
-    #if 1
     MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
@@ -108,5 +113,4 @@ ERF::calc_TurbPert_amplitude (int lev)
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
-    #endif
-}
+} 

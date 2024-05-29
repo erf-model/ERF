@@ -1188,6 +1188,7 @@ ERF::init_only (int lev, Real time)
     init_custom(lev);
 
     // Add turbulent perturbation
+    // DUSTIN MA
     if (solverChoice.pert_type == PertType::type1)
     {
         calc_TurbPert_updateTime (lev);
