@@ -24,6 +24,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
         SAM_moisture_type = 1;
     } else if(solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
         SAM_moisture_type = 2;
+    } else if(solverChoice.moisture_type == MoistureType::SAM_OnlyRain) {
+        SAM_moisture_type = 3;
     }
 
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]), TilingIfNotGPU()); mfi.isValid(); ++mfi) {

@@ -222,7 +222,7 @@ public:
                     omn   = an*tabs-bn;
                     domn  = an;
                 }
-            } else if (SAM_moisture_type == 2) {
+            } else if (SAM_moisture_type == 2 or SAM_moisture_type == 3) {
                 omn  = 1.0;
                 domn = 0.0;
             }
