@@ -366,6 +366,8 @@ Problem::init_custom_pert(
                 moisture_type = 1;
             } else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
                 moisture_type = 2;
+            } else if(sc.moisture_type == MoistureType::SAM_OnlyRain) {
+                moisture_type = 3;
             }
 
             amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k)
@@ -421,7 +423,7 @@ Problem::init_custom_pert(
                     Real omn;
                     if(moisture_type == 1) {
                         omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
-                    } else if(moisture_type == 2) {
+                    } else if(moisture_type == 2 or moisture_type == 3) {
                         omn = 1.0;
                     }
                     Real qn  = state_pert(i, j, k, RhoQ2_comp);
