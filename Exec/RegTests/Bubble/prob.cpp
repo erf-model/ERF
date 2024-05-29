@@ -364,7 +364,8 @@ Problem::init_custom_pert(
 
             if(sc.moisture_type == MoistureType::SAM) {
                 moisture_type = 1;
-            } else if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+            } else if(sc.moisture_type == MoistureType::SAM_NoIce ||
+                      sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
                 moisture_type = 2;
             }
 

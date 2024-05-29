@@ -66,13 +66,13 @@ public:
     void Cloud (const SolverChoice& sc);
 
     // ice physics
-    void IceFall ();
+    void IceFall (const SolverChoice& sc);
 
     // precip
-    void Precip ();
+    void Precip (const SolverChoice& sc);
 
     // precip fall
-    void PrecipFall ();
+    void PrecipFall (const SolverChoice& sc);
 
     // Set up for first time
     void
@@ -126,11 +126,9 @@ public:
         dt = dt_advance;
 
         this->Cloud(sc);
-        if(sc.moisture_type == MoistureType::SAM) {
-            this->IceFall();
-            this->Precip();
-            this->PrecipFall();
-        }
+        this->IceFall(sc);
+        this->Precip(sc);
+        this->PrecipFall(sc);
     }
 
     amrex::MultiFab*

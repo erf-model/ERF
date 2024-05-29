@@ -144,12 +144,12 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
 
                     autor = 0.0;
                     if (qcc > qcw0) {
-                        autor = 0.001;
+                        autor = alphaelq;
                     }
 
                     accrr = 0.0;
                     accrr = 2.2 * std::pow(qp_array(i,j,k) , 0.875);
-                    dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - 0.001));
+                    dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - qcw0));
 
                     // If the amount of change is more than the amount of qc present, then dq = qc
                     dq_clwater_to_rain = std::min(dq_clwater_to_rain, qc_array(i,j,k));
