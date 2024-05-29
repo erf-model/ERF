@@ -1174,7 +1174,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1183,7 +1183,6 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
@@ -1198,7 +1197,7 @@ struct custom_flux
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
 
         return moflux;
     }
@@ -1220,12 +1219,12 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, theta;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1234,11 +1233,9 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
-        amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? -tstar*ustar : 0.0;
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -1254,10 +1251,7 @@ struct custom_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
         }
 
         return moflux;

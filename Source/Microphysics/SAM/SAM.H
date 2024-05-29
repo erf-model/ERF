@@ -63,16 +63,16 @@ public:
     virtual ~SAM () = default;
 
     // cloud physics
-    void Cloud ();
+    void Cloud (const SolverChoice& sc);
 
     // ice physics
-    void IceFall ();
+    void IceFall (const SolverChoice& sc);
 
     // precip
-    void Precip ();
+    void Precip (const SolverChoice& sc);
 
     // precip fall
-    void PrecipFall ();
+    void PrecipFall (const SolverChoice& sc);
 
     // Set up for first time
     void
@@ -121,14 +121,14 @@ public:
     // wrapper to do all the updating
     void
     Advance (const amrex::Real& dt_advance,
-             const SolverChoice& /*solverChoice*/) override
+             const SolverChoice& sc) override
     {
         dt = dt_advance;
 
-        this->Cloud();
-        this->IceFall();
-        this->Precip();
-        this->PrecipFall();
+        this->Cloud(sc);
+        this->IceFall(sc);
+        this->Precip(sc);
+        this->PrecipFall(sc);
     }
 
     amrex::MultiFab*
@@ -146,6 +146,122 @@ public:
 
     int
     Qstate_Size () override { return SAM::m_qstate_size; }
+
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    static amrex::Real
+    NewtonIterSat (int& i, int& j, int& k,
+                   const int& SAM_moisture_type,
+                   const amrex::Real& fac_cond,
+                   const amrex::Real& fac_fus,
+                   const amrex::Real& fac_sub,
+                   const amrex::Real& an,
+                   const amrex::Real& bn,
+                   const amrex::Array4<amrex::Real>& tabs_array,
+                   const amrex::Array4<amrex::Real>& pres_array,
+                   const amrex::Array4<amrex::Real>& qv_array,
+                   const amrex::Array4<amrex::Real>& qc_array,
+                   const amrex::Array4<amrex::Real>& qi_array,
+                   const amrex::Array4<amrex::Real>& qn_array,
+                   const amrex::Array4<amrex::Real>& qt_array)
+    {
+        // Solution tolerance
+        amrex::Real tol = 1.0e-4;
+
+        // Saturation moisture fractions
+        amrex::Real omn, domn;
+        amrex::Real qsat, dqsat;
+        amrex::Real qsatw, dqsatw;
+        amrex::Real qsati, dqsati;
+
+        // Newton iteration vars
+        int  niter;
+        amrex::Real fff, dfff, dtabs;
+        amrex::Real lstar, dlstar;
+        amrex::Real lstarw, lstari;
+        amrex::Real delta_qv, delta_qc, delta_qi;
+
+        // Initial guess for temperature & pressure
+        amrex::Real tabs = tabs_array(i,j,k);
+        amrex::Real pres = pres_array(i,j,k);
+
+        niter = 0;
+        dtabs = 1;
+        //==================================================
+        // Newton iteration to qv=qsat (cloud phase only)
+        //==================================================
+        do {
+            // Latent heats and their derivatives wrt to T
+            lstarw  = fac_cond;
+            lstari  = fac_fus;
+            domn    = 0.0;
+
+            // Saturation moisture fractions
+            erf_qsatw(tabs, pres, qsatw);
+            erf_qsati(tabs, pres, qsati);
+            erf_dtqsatw(tabs, pres, dqsatw);
+            erf_dtqsati(tabs, pres, dqsati);
+
+            if (SAM_moisture_type == 1) {
+                // Cloud ice not permitted (condensation & fusion)
+                if(tabs >= tbgmax) {
+                    omn   = 1.0;
+                }
+                // Cloud water not permitted (sublimation & fusion)
+                else if(tabs <= tbgmin) {
+                    omn    = 0.0;
+                    lstarw = fac_sub;
+                }
+                // Mixed cloud phase (condensation & fusion)
+                else {
+                    omn   = an*tabs-bn;
+                    domn  = an;
+                }
+            } else if (SAM_moisture_type == 2) {
+                omn  = 1.0;
+                domn = 0.0;
+            }
+
+            // Linear combination of each component
+            qsat   =  omn * qsatw  + (1.0-omn) * qsati;
+            dqsat  =  omn * dqsatw + (1.0-omn) * dqsati
+                   + domn *  qsatw -     domn  *  qsati;
+            lstar  =  omn * lstarw + (1.0-omn) * lstari;
+            dlstar = domn * lstarw -     domn  * lstari;
+
+            // Function for root finding:
+            // 0 = -T_new + T_old + L_eff/C_p * (qv - qsat)
+            fff   = -tabs + tabs_array(i,j,k) +  lstar*(qv_array(i,j,k) - qsat);
+
+            // Derivative of function (T_new iterated on)
+            dfff  = -1.0 + dlstar*(qv_array(i,j,k) - qsat) - lstar*dqsat;
+
+            // Update the temperature
+            dtabs = -fff/dfff;
+            tabs += dtabs;
+
+            // Update iteration
+            niter = niter+1;
+        } while(std::abs(dtabs) > tol && niter < 20);
+
+        // Update qsat from last iteration (dq = dq/dt * dt)
+        qsat += dqsat*dtabs;
+
+        // Changes in each component
+        delta_qv = qv_array(i,j,k) - qsat;
+        delta_qc = std::max(-qc_array(i,j,k), delta_qv * omn);
+        delta_qi = std::max(-qi_array(i,j,k), delta_qv * (1.0-omn));
+
+        // Partition the change in non-precipitating q
+        qv_array(i,j,k)  = qsat;
+        qc_array(i,j,k) += delta_qc;
+        qi_array(i,j,k) += delta_qi;
+        qn_array(i,j,k)  = qc_array(i,j,k) + qi_array(i,j,k);
+        qt_array(i,j,k)  = qv_array(i,j,k) + qn_array(i,j,k);
+
+        // Return to temperature
+        return tabs;
+    }
 
 private:
     // Number of qmoist variables (qt, qv, qcl, qci, qp, qpr, qps, qpg)
