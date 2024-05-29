@@ -286,14 +286,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         if (solverChoice.pert_type == PertType::type1)
         {
-            // Hardcode values for now
-            int pertBox_offset = 0;
-            Box turbPert_bx(IntVect(0+pertBox_offset,0,0), IntVect(7+pertBox_offset,31,31));
-            BoxArray tmp_ba(turbPert_bx);                                                    // Temporary box array needed
-            turbPert_ba.push_back(tmp_ba);                                                   // Publically defined in ERF.H
-            turbPert_ba[0].maxSize(IntVect(8,8,8));
-            Print() << "  [Source/ERF_make_new_arrays.cpp] Subdividing into smaller boxes: "  << turbPert_ba[0].size() << "\n"
-                    << "  turbPert_ba[0] constains: " << turbPert_ba[0] << "\n";
+            init_PerturbationRegion(lev);
         }
     } else {
         amrex::Abort("Enforcing max level to 0 for now while implementing Turbulent perturbation boxes");

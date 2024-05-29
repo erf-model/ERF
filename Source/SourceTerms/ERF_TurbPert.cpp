@@ -16,7 +16,9 @@ void CalcTurbPert (
     //auto ProbHiArr = geom.ProbHiArray();
     //auto ProbLoArr = geom.ProbLoArray();
 
-    Print() << "[Source/SourceTerms/ERF_TurbPert.cpp] turbPert_ba[0] contains "  << turb_ba << std::endl;
+    Print() << "\n";
+    //Print() << "[Source/SourceTerms/ERF_TurbPert.cpp] turbPert_ba[0] contains "  << turb_ba << std::endl;
+    Print() << "[Source/SourceTerms/ERF_TurbPert.cpp] Box being passed in reads: " << bx << "\n";
 
     for (int boxIdx = 0; boxIdx < turb_ba.size(); boxIdx++) // Is this the best way to iteratre through the box array?
     {
@@ -29,7 +31,7 @@ void CalcTurbPert (
             {
                 // Creating artificial values to populate the boxes
                 //Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
-                Real tmp_Src = (Real) boxIdx*1e5; // distinguish each box
+                Real tmp_Src = (Real) (boxIdx+1.0)*1e5; // distinguish each box
      
                 // Adding temperature source onto RHS
                 cell_rhs(i, j, k, RhoTheta_comp) = tmp_Src;

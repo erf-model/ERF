@@ -313,9 +313,6 @@ public:
 
     void init_from_hse (int lev);
 
-    // Initialize the Turbulent perturbation
-    void calcTurbulentPerturation (int lev);
-
 #ifdef ERF_USE_MULTIBLOCK
     // constructor used when ERF is created by a multiblock driver
     // calls AmrCore constructor -> AmrMesh constructor
@@ -412,6 +409,11 @@ private:
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new,
                      amrex::Vector<amrex::MultiFab>& lev_old);
+
+    // Initialize the Turbulent perturbation
+    void init_PerturbationRegion (int lev);
+    void calc_TurbPert_amplitude (int lev);
+    void calc_TurbPert_updateTime (int lev);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);

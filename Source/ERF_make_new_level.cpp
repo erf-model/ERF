@@ -58,14 +58,6 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     init_stuff(lev, ba, dm, lev_new, lev_old);
 
     //********************************************************************************************
-    // Turbulent perturbation
-    // *******************************************************************************************
-    if (solverChoice.pert_type == PertType::type1)
-    {
-        calcTurbulentPerturation(lev);
-    }
-
-    //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
     int lsm_size  = lsm.Get_Data_Size();

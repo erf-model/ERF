@@ -61,7 +61,6 @@ ERF::init_custom (int lev)
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
-
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
         const auto &yvel_pert_arr = yvel_pert.array(mfi);

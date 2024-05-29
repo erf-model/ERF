@@ -50,7 +50,7 @@ void make_sources (int level,
     BL_PROFILE_REGION("erf_make_sources()");
 
     // *****************************************************************************
-    // Initialize source to zero since we re-compute it ever RK stage
+    // Initialize source to zero since we re-compute it every RK stage
     // *****************************************************************************
     source.setVal(0.0);
 
