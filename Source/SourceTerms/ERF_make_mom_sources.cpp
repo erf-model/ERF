@@ -280,16 +280,31 @@ void make_mom_sources (int /*level*/,
         // Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
-            });
+            if (solverChoice.custom_forcing_prim_vars) {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
+                    xmom_src_arr(i, j, k) -= rho_on_u_face * dptr_wbar_sub[k] *
+                                             0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
+                    ymom_src_arr(i, j, k) -= rho_on_v_face * dptr_wbar_sub[k] *
+                                             0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
+                                             0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
+                                             0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
+                });
+            }
         }
 
         // *****************************************************************************

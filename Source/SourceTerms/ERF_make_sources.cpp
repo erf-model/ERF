@@ -216,25 +216,46 @@ void make_sources (int level,
         // Add custom subsidence for (rho theta)
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence) {
-            const int n = RhoTheta_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
-
-            });
+             if (solverChoice.custom_moisture_forcing) {
+                const int n = RhoTheta_comp;
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
+                                                0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
+                                                0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
+                    });
+                }
+            }
         }
 
         // *************************************************************************************
         // Add custom subsidence for RhoQ1
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
-            const int n = RhoQ1_comp;
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                cell_src(i,j,k,n) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
-            });
+            if (solverChoice.custom_moisture_forcing) {
+                const int n = RhoQ1_comp;
+                if (solverChoice.custom_forcing_prim_vars) {
+                    const int nr = Rho_comp;
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
+                                                0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
+                    });
+                } else {
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
+                                                0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
+                    });
+                }
+            }
         }
 
         // *************************************************************************************
