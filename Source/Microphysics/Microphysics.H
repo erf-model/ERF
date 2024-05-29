@@ -59,6 +59,7 @@ public:
     {
         if (    (a_moisture_type == MoistureType::SAM)
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+             || (a_moisture_type == MoistureType::SAM_OnlyRain)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)
              || (a_moisture_type == MoistureType::None) ) {

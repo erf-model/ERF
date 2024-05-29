@@ -18,8 +18,6 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
     Real fac_fus  = m_fac_fus;
     Real rdOcp    = m_rdOcp;
 
-    SolverChoice sc = solverChoice;
-
     int SAM_moisture_type = 1;
 
     if(solverChoice.moisture_type == MoistureType::SAM) {

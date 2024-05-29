@@ -6,7 +6,7 @@ using namespace amrex;
 /**
  * Autoconversion (A30), Accretion (A28), Evaporation (A24)
  */
-void SAM::Precip () {
+void SAM::Precip (const SolverChoice& solverChoice) {
 
     Real powr1 = (3.0 + b_rain) / 4.0;
     Real powr2 = (5.0 + b_rain) / 8.0;
@@ -36,6 +36,14 @@ void SAM::Precip () {
     Real eps = std::numeric_limits<Real>::epsilon();
 
     Real dtn = dt;
+
+    int SAM_moisture_type = 1;
+
+    if(solverChoice.moisture_type == MoistureType::SAM) {
+        SAM_moisture_type = 1;
+    } else if(solverChoice.moisture_type == MoistureType::SAM_OnlyRain) {
+        SAM_moisture_type = 3;
+    }
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -80,6 +88,14 @@ void SAM::Precip () {
                 omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
                 omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
                 omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+
+                // If using SAM_OnlyRian option, only rain and cloud water exist
+                // and hence we set omega_n = 1.0, omega_p = 1.0 and omega_g = 0.0
+                if(SAM_moisture_type == 3){
+                    omn = 1.0;
+                    omp = 1.0;
+                    omg = 0.0;
+                }
 
                 qcc = qcl_array(i,j,k);
                 qii = qci_array(i,j,k);

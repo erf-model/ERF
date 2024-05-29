@@ -11,7 +11,7 @@ using namespace amrex;
  *
  * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
  */
-void SAM::PrecipFall ()
+void SAM::PrecipFall (const SolverChoice& solverChoice)
 {
     Real rho_0 = 1.29;
 
@@ -49,6 +49,14 @@ void SAM::PrecipFall ()
     MultiFab fz;
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow);
 
+    int SAM_moisture_type = 1;
+
+    if(solverChoice.moisture_type == MoistureType::SAM) {
+        SAM_moisture_type = 1;
+    } else if(solverChoice.moisture_type == MoistureType::SAM_OnlyRain) {
+        SAM_moisture_type = 3;
+    }
+
     //  Add sedimentation of precipitation field to the vert. vel.
     for (MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qp_array   = qp->array(mfi);
@@ -82,6 +90,12 @@ void SAM::PrecipFall ()
             if(qp_avg > qp_threshold) {
                 Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
                 Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                // If using SAM_OnlyRain option, only rain and cloud water exist
+                // and hence we set omega_p = 1.0 and omega_g = 0.0
+                if(SAM_moisture_type == 3){
+                    omp = 1.0;
+                    omg = 0.0;
+                }
                 Real qrr = omp*qp_avg;
                 Real qss = (1.0-omp)*(1.0-omg)*qp_avg;
                 Real qgg = (1.0-omp)*(omg)*qp_avg;
@@ -101,6 +115,12 @@ void SAM::PrecipFall ()
             if(k==k_lo){
                 Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
                 Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                // If using SAM_OnlyRain option, only rain and cloud water exist
+                // and hence we set omega_p = 1.0 and omega_g = 0.0
+                if(SAM_moisture_type == 3){
+                    omp = 1.0;
+                    omg = 0.0;
+                }
                 rain_accum_array(i,j,k)  = rain_accum_array(i,j,k) +  rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
                 snow_accum_array(i,j,k)  = snow_accum_array(i,j,k) +  rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vrain*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
                 graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vrain*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
@@ -135,6 +155,12 @@ void SAM::PrecipFall ()
             Real dqp = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
             Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
             Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+            // If using SAM_OnlyRain option, only rain and cloud water exist
+            // and hence we set omega_p = 1.0 and omega_g = 0.0
+            if(SAM_moisture_type == 3){
+                omp = 1.0;
+                omg = 0.0;
+            }
 
             qpr_array(i,j,k) = std::max(0.0, qpr_array(i,j,k) + dqp*omp);
             qps_array(i,j,k) = std::max(0.0, qps_array(i,j,k) + dqp*(1.0-omp)*(1.0-omg));

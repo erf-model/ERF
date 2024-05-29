@@ -69,10 +69,10 @@ public:
     void IceFall ();
 
     // precip
-    void Precip ();
+    void Precip (const SolverChoice& sc);
 
     // precip fall
-    void PrecipFall ();
+    void PrecipFall (const SolverChoice& sc);
 
     // Set up for first time
     void
@@ -128,8 +128,11 @@ public:
         this->Cloud(sc);
         if(sc.moisture_type == MoistureType::SAM) {
             this->IceFall();
-            this->Precip();
-            this->PrecipFall();
+        }
+        if(sc.moisture_type == MoistureType::SAM or
+           sc.moisture_type == MoistureType::SAM_OnlyRain) {
+            this->Precip(sc);
+            this->PrecipFall(sc);
         }
     }
 
