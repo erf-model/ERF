@@ -58,6 +58,7 @@ public:
     static MoistureModelType modelType (const MoistureType a_moisture_type)
     {
         if (    (a_moisture_type == MoistureType::SAM)
+             || (a_moisture_type == MoistureType::SAM_NoIce)
              || (a_moisture_type == MoistureType::SAM_NoPrecip_NoIce)
              || (a_moisture_type == MoistureType::Kessler)
              || (a_moisture_type == MoistureType::Kessler_NoRain)

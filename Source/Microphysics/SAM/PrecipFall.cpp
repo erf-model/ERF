@@ -11,8 +11,11 @@ using namespace amrex;
  *
  * @param[in] hydro_type Type selection for the precipitation advection hydrodynamics scheme (0-3)
  */
-void SAM::PrecipFall ()
+void
+SAM::PrecipFall (const SolverChoice& sc)
 {
+    if(sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
+
     Real rho_0 = 1.29;
 
     Real gamr3 = erf_gammafff(4.0+b_rain);
@@ -49,6 +52,11 @@ void SAM::PrecipFall ()
     MultiFab fz;
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, ngrow);
 
+    int SAM_moisture_type = 1;
+    if (sc.moisture_type == MoistureType::SAM_NoIce) {
+        SAM_moisture_type = 2;
+    }
+
     //  Add sedimentation of precipitation field to the vert. vel.
     for (MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qp_array   = qp->array(mfi);
@@ -80,8 +88,14 @@ void SAM::PrecipFall ()
 
             Real Pprecip = 0.0;
             if(qp_avg > qp_threshold) {
-                Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-                Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                Real omp, omg;
+                if (SAM_moisture_type == 2) {
+                    omp = 1.0;
+                    omg = 0.0;
+                } else {
+                    omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
+                    omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                }
                 Real qrr = omp*qp_avg;
                 Real qss = (1.0-omp)*(1.0-omg)*qp_avg;
                 Real qgg = (1.0-omp)*(omg)*qp_avg;
@@ -99,8 +113,14 @@ void SAM::PrecipFall ()
             fz_array(i,j,k) = Pprecip * std::sqrt(rho_0/rho_avg);
 
             if(k==k_lo){
-                Real omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
-                Real omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                Real omp, omg;
+                if (SAM_moisture_type == 2) {
+                    omp = 1.0;
+                    omg = 0.0;
+                } else {
+                    omp = std::max(0.0,std::min(1.0,(tab_avg-tprmin)*a_pr));
+                    omg = std::max(0.0,std::min(1.0,(tab_avg-tgrmin)*a_gr));
+                }
                 rain_accum_array(i,j,k)  = rain_accum_array(i,j,k) +  rho_avg*(omp*qp_avg)*vrain*dtn/rhor*1000.0; // Divide by rho_water and convert to mm
                 snow_accum_array(i,j,k)  = snow_accum_array(i,j,k) +  rho_avg*(1.0-omp)*(1.0-omg)*qp_avg*vrain*dtn/rhos*1000.0; // Divide by rho_snow and convert to mm
                 graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + rho_avg*(1.0-omp)*(omg)*qp_avg*vrain*dtn/rhog*1000.0; // Divide by rho_graupel and convert to mm
@@ -133,8 +153,14 @@ void SAM::PrecipFall ()
             // Precipitating sedimentation (A19)
             //==================================================
             Real dqp = dJinv * (1.0/rho_array(i,j,k)) * ( fz_array(i,j,k+1) - fz_array(i,j,k) ) * coef;
-            Real omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-            Real omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+            Real omp, omg;
+            if (SAM_moisture_type == 2) {
+                omp = 1.0;
+                omg = 0.0;
+            } else {
+                omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+                omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+            }
 
             qpr_array(i,j,k) = std::max(0.0, qpr_array(i,j,k) + dqp*omp);
             qps_array(i,j,k) = std::max(0.0, qps_array(i,j,k) + dqp*(1.0-omp)*(1.0-omg));

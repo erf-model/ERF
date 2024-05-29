@@ -11,7 +11,8 @@ using namespace amrex;
  * @param[out] cons Conserved variables
  * @param[out] qmoist: qv, qc, qi, qr, qs, qg
  */
-void SAM::Copy_Micro_to_State (MultiFab& cons)
+void
+SAM::Copy_Micro_to_State (MultiFab& cons)
 {
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons,TilingIfNotGPU()); mfi.isValid(); ++mfi) {

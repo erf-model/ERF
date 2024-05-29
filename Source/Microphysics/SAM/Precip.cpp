@@ -6,7 +6,11 @@ using namespace amrex;
 /**
  * Autoconversion (A30), Accretion (A28), Evaporation (A24)
  */
-void SAM::Precip () {
+void
+SAM::Precip (const SolverChoice& sc)
+{
+
+    if (sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
 
     Real powr1 = (3.0 + b_rain) / 4.0;
     Real powr2 = (5.0 + b_rain) / 8.0;
@@ -36,6 +40,11 @@ void SAM::Precip () {
     Real eps = std::numeric_limits<Real>::epsilon();
 
     Real dtn = dt;
+
+    int SAM_moisture_type = 1;
+    if (sc.moisture_type == MoistureType::SAM_NoIce) {
+        SAM_moisture_type = 2;
+    }
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -77,9 +86,15 @@ void SAM::Precip () {
 
             // Work to be done for autoc/accr or evap
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
-                omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
-                omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-                omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                if (SAM_moisture_type == 2) {
+                    omn = 1.0;
+                    omp = 1.0;
+                    omg = 0.0;
+                } else {
+                    omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
+                    omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                }
 
                 qcc = qcl_array(i,j,k);
                 qii = qci_array(i,j,k);
@@ -167,12 +182,11 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta (endothermic fusion & exothermic melting)
+                    // Update temperature
                     tabs_array(i,j,k) += fac_fus * ( dqca * (1.0 - omp) - dqia * omp );
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) *= 0.01;
+
+                    // Update theta
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
                 }
 
                 //==================================================
@@ -211,12 +225,11 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta (endothermic)
+                    // Update temperature
                     tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) /= 100.0;
+
+                    // Update theta
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
                 }
             }
         });
