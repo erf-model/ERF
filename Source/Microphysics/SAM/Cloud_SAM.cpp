@@ -173,7 +173,7 @@ SAM::Cloud (const SolverChoice& sc)
 
                     // Update theta
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
-                  
+
                 }
             }
         });
