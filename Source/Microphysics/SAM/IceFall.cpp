@@ -7,7 +7,11 @@ using namespace amrex;
 /**
  * Sedimentation of cloud ice (A32)
  */
-void SAM::IceFall () {
+void SAM::IceFall (const SolverChoice& sc) {
+
+    if(sc.moisture_type == MoistureType::SAM_NoIce ||
+       sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce)
+      return;
 
     Real dz   = m_geom.CellSize(2);
     Real dtn  = dt;

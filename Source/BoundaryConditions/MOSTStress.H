@@ -1174,7 +1174,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1183,7 +1183,6 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
@@ -1220,12 +1219,12 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, theta;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1234,9 +1233,7 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
-        amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
