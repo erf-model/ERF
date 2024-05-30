@@ -1191,8 +1191,9 @@ ERF::init_only (int lev, Real time)
     // DUSTIN MA
     if (solverChoice.pert_type == PertType::type1)
     {
-        calc_TurbPert_updateTime (lev);
-        calc_TurbPert_amplitude(lev);
+        init_TurbPert_updateTime (lev);
+        init_TurbPert_amplitude(lev);
+        Print() << "Turbulent perturbation region initialized\n";
     }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.

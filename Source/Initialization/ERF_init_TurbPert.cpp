@@ -1,4 +1,5 @@
-//DUSTIN MA
+// May 28th, 2024
+// DUSTIN MA
 
 #include <ERF.H>
 #include <ERF_Constants.H>
@@ -26,7 +27,7 @@ ERF::init_PerturbationRegion (int lev)
 }
 
 void
-ERF::calc_TurbPert_updateTime (int lev)
+ERF::init_TurbPert_updateTime (int lev)
 {
 
 }
@@ -34,7 +35,7 @@ ERF::calc_TurbPert_updateTime (int lev)
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
 void
-ERF::calc_TurbPert_amplitude (int lev)
+ERF::init_TurbPert_amplitude (int lev)
 {
     auto& lev_new = vars_new[lev];
 
@@ -65,7 +66,7 @@ ERF::calc_TurbPert_amplitude (int lev)
 
         #ifdef DEBUG_PERTBOX_MSG
         Print() << "\n";
-        Print() << "  [ERF::calc_TurbPert_amplitude] Box being passed in reads: " << bx << "\n";
+        Print() << "  [ERF::init_TurbPert_amplitude] Box being passed in reads: " << bx << "\n";
         #endif
 
         // Perturbation on to different components
@@ -92,7 +93,7 @@ ERF::calc_TurbPert_amplitude (int lev)
                 #endif
                 ParallelFor(turbPert_ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     //Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
-                    Real tmp_Src = (Real) (boxIdx+1.0)*1e5; // distinguish each box
+                    Real tmp_Src = (Real) (boxIdx+1.0); // distinguish each box
     
                     // Adding temperature source onto RHS
                     cons_pert_arr(i, j, k, RhoTheta_comp) = tmp_Src;
