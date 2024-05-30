@@ -202,12 +202,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     // Define updates and fluxes in the current RK stage
     // *****************************************************************************
 
-    // Open bc will be imposed upon all vars (we only access cons here for simplicity)
-    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
-    const bool xhi_open = (bc_ptr_h[BCVars::cons_bc].hi(0) == ERFBCType::open);
-    const bool ylo_open = (bc_ptr_h[BCVars::cons_bc].lo(1) == ERFBCType::open);
-    const bool yhi_open = (bc_ptr_h[BCVars::cons_bc].hi(1) == ERFBCType::open);
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
