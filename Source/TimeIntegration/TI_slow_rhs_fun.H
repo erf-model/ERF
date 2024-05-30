@@ -45,7 +45,7 @@
                      mapfac_u[level], mapfac_v[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     turbPert_ba[level]);
+                     turbPert);
 
         // Moving terrain
         if ( solverChoice.use_terrain &&  (solverChoice.terrain_type == TerrainType::Moving) )
@@ -415,7 +415,7 @@
                      mapfac_u[level], mapfac_v[level],
                      dptr_rhotheta_src, dptr_rhoqt_src,
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev,
-                     turbPert_ba[level]);
+                     turbPert);
 
         int n_qstate = micro->Get_Qstate_Size();
         make_mom_sources(level, nrk, slow_dt, S_data, S_prim,

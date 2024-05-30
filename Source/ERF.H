@@ -39,6 +39,9 @@
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
 
+// DUSTIN MA
+#include<TurbPertStruct.H>
+
 #ifdef ERF_USE_PARTICLES
 #include "ParticleData.H"
 #endif
@@ -411,9 +414,7 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void init_PerturbationRegion (int lev);
-    void init_TurbPert_amplitude (int lev);
-    void init_TurbPert_updateTime (int lev);
+    void init_TurbPert_amplitude (int lev, TurbPert& turbPert);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
@@ -596,9 +597,6 @@ private:
     amrex::Vector<amrex::Real> t_old;
     amrex::Vector<amrex::Real> dt;
     amrex::Vector<long> dt_mri_ratio;
-
-    // Turbulent perturbation box array
-    amrex::Vector<amrex::BoxArray> turbPert_ba;
 
     // array of multifabs to store the solution at each level of refinement
     // after advancing a level we use "swap".
@@ -827,6 +825,9 @@ private:
 
     // algorithm choices
     static SolverChoice solverChoice;
+
+    // Turbulent Perturbation
+    static TurbPert turbPert;
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species

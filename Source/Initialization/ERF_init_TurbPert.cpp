@@ -8,34 +8,18 @@
 
 using namespace amrex;
 
-//#define DEBUG_PERTBOX_MSG
-
-void
-ERF::init_PerturbationRegion (int lev)
-{
-    // Hardcode values for now
-    // Values can be read from class later
-    int pertBox_offset = 0;
-    Box turbPert_bx(IntVect(0+pertBox_offset,0,0), IntVect(7+pertBox_offset,31,31));
-    BoxArray tmp_ba(turbPert_bx);                                                    // Temporary box array needed
-    turbPert_ba.push_back(tmp_ba);                                                   // Publically defined in ERF.H
-    turbPert_ba[lev].maxSize(IntVect(8,8,8));
-    #ifdef DEBUG_PERTBOX_MSG
-    Print() << "  [ERF::init_PerturbationRegion] Subdividing into smaller boxes: "  << turbPert_ba[lev].size() << "\n"
-            << "  turbPert_ba[" << lev << "] constains: " << turbPert_ba[lev];
-    #endif
-}
-
+/*
 void
 ERF::init_TurbPert_updateTime (int lev)
 {
 
 }
+*/
 
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
 void
-ERF::init_TurbPert_amplitude (int lev)
+ERF::init_TurbPert_amplitude (int lev, TurbPert& turbPert)
 {
     auto& lev_new = vars_new[lev];
 
@@ -64,11 +48,6 @@ ERF::init_TurbPert_amplitude (int lev)
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
-        #ifdef DEBUG_PERTBOX_MSG
-        Print() << "\n";
-        Print() << "  [ERF::init_TurbPert_amplitude] Box being passed in reads: " << bx << "\n";
-        #endif
-
         // Perturbation on to different components
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
@@ -86,20 +65,8 @@ ERF::init_TurbPert_amplitude (int lev)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        for (int boxIdx = 0; boxIdx < turbPert_ba[lev].size(); boxIdx++) {
-            if (bx.contains(turbPert_ba[lev][boxIdx])) {
-                #ifdef DEBUG_PERTBOX_MSG
-                Print() << "bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << turbPert_ba[lev][boxIdx] << "\n";
-                #endif
-                ParallelFor(turbPert_ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    //Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
-                    Real tmp_Src = (Real) (boxIdx+1.0); // distinguish each box
-    
-                    // Adding temperature source onto RHS
-                    cons_pert_arr(i, j, k, RhoTheta_comp) = tmp_Src;
-                });
-            }
-        } // boxIdx
+        // Structure call on TurbPert
+        turbPert.calc_TurbPert_amplitude(lev, bx, cons_pert_arr);
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
@@ -114,4 +81,4 @@ ERF::init_TurbPert_amplitude (int lev)
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
-} 
+}
