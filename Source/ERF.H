@@ -414,7 +414,7 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void init_TurbPert_amplitude (int lev, TurbPert& turbPert);
+    void init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
@@ -827,7 +827,7 @@ private:
     static SolverChoice solverChoice;
 
     // Turbulent Perturbation
-    static TurbPert turbPert;
+    static TurbulentPerturbation turbPert;
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species

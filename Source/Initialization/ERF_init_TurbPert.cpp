@@ -19,7 +19,7 @@ ERF::init_TurbPert_updateTime (int lev)
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
 void
-ERF::init_TurbPert_amplitude (int lev, TurbPert& turbPert)
+ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
 {
     auto& lev_new = vars_new[lev];
 

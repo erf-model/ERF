@@ -5,9 +5,9 @@
  * Container holding quantities related to turbulent perturbation parameters
  */
 
-#define DEBUG_PERTBOX_MSG
+//#define DEBUG_PERTBOX_MSG
 
-struct TurbPert {
+struct TurbulentPerturbation {
   public:
 
     // Initializing Perturbation Region

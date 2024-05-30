@@ -29,7 +29,7 @@ Vector<AMRErrorTag> ERF::ref_tags;
 SolverChoice ERF::solverChoice;
 
 // DUSTIN MA
-TurbPert ERF::turbPert;
+TurbulentPerturbation ERF::turbPert;
 
 // Time step control
 Real ERF::cfl           =  0.8;

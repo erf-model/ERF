@@ -45,7 +45,7 @@ void make_sources (int level,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
                    const Vector<Real*> d_rayleigh_ptrs_at_lev,
-                   TurbPert& turbPert)
+                   TurbulentPerturbation& turbPert)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 

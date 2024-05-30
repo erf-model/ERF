@@ -38,7 +38,7 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
                    const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
-                   TurbPert& turbPert);
+                   TurbulentPerturbation& turbPert);
 
 void make_mom_sources (int level, int nrk,
                        amrex::Real dt,
@@ -124,5 +124,5 @@ void CalcTurbPert (const int level,
                    const amrex::Box& bx,
                    const amrex::Array4<amrex::Real>& cell_rhs,
                    const amrex::Array4<const amrex::Real>& cell_data,
-                   TurbPert& turbPert);
+                   TurbulentPerturbation& turbPert);
 #endif
