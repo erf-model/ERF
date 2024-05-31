@@ -126,7 +126,9 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             int jflip =  2*dom_hi.y + 1 - j;
             if (bc_ptr_w[n].hi(1) == ERFBCType::ext_dir) {
                 dest_arr(i,j,k) = l_bc_extdir_vals_d[n][4];
-                dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+                if (l_use_terrain) {
+                    dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
+                }
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::foextrap) {
                 dest_arr(i,j,k) =  dest_arr(i,dom_hi.y,k);
             } else if (bc_ptr_w[n].hi(1) == ERFBCType::open) {
