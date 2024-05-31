@@ -5,7 +5,7 @@
  * Container holding quantities related to turbulent perturbation parameters
  */
 
-//#define DEBUG_PERTBOX_MSG
+#define DEBUG_PERTBOX_MSG
 
 struct TurbulentPerturbation {
   public:
@@ -14,10 +14,16 @@ struct TurbulentPerturbation {
     void init_PerturbationRegion (int lev)
     {
         int pertBox_offset = 0;
-        amrex::Box turbPert_bx(amrex::IntVect(0+pertBox_offset,0,0), amrex::IntVect(7+pertBox_offset,31,31));
+        amrex::IntVect regionLo(0+pertBox_offset,0,0);
+        amrex::IntVect regionHi(7+pertBox_offset,31,31);
+
+        amrex::IntVect boxSize(8,8,8);
+
+        amrex::Box turbPert_bx(regionLo, regionHi);
         amrex::BoxArray tmp_ba(turbPert_bx);
         turbPert_ba.push_back(tmp_ba);
-        turbPert_ba[lev].maxSize(amrex::IntVect(8,8,8));
+        turbPert_ba[lev].maxSize(boxSize);
+
         #ifdef DEBUG_PERTBOX_MSG
         amrex::Print() << "  [TurbPert::init_PerturbationRegion] Subdividing into smaller boxes: "  << turbPert_ba[lev].size() << "\n"
                 << "  turbPert_ba[" << lev << "] constains: " << turbPert_ba[lev];
@@ -32,7 +38,7 @@ struct TurbulentPerturbation {
     }
 
     // Calculate perturbation amplitude
-    void calc_TurbPert_amplitude (int lev, const amrex::Box bx, const auto &cons_pert_arr)
+    void calc_TurbPert_amplitude (int lev, const amrex::Box bx, const int comp, const auto &src_arr)
     {
         #ifdef DEBUG_PERTBOX_MSG
         amrex::Print() << "  [TurbPert::calc_TurbPert_amplitude] Inside of structure function\n";
@@ -43,11 +49,13 @@ struct TurbulentPerturbation {
                 amrex::Print() << "bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << turbPert_ba[lev][boxIdx] << "\n";
                 #endif
                 ParallelFor(turbPert_ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+
+                    // Perturbation Calculation
                     //Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
                     amrex::Real tmp_Src = (amrex::Real) (boxIdx+1.0); // distinguish each box
 
                     // Adding temperature source onto RHS
-                    cons_pert_arr(i, j, k, RhoTheta_comp) = tmp_Src;
+                    src_arr(i, j, k, comp) = tmp_Src;
                 });
             }
         } // boxIdx

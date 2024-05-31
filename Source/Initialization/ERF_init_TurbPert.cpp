@@ -66,7 +66,8 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         // Structure call on TurbPert
-        turbPert.calc_TurbPert_amplitude(lev, bx, cons_pert_arr);
+        turbPert.calc_TurbPert_amplitude(lev, bx, RhoTheta_comp, cons_pert_arr);
+        //turbPert.calc_TurbPert_amplitude(lev, bx,             0, xvel_pert_arr);
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
@@ -74,10 +75,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
     } // mfi
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
     MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
