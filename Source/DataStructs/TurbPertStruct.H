@@ -54,7 +54,7 @@ struct TurbulentPerturbation {
 
     }
 
-    // TODO:
+    // TODO: Access velocity data to calculate perturbation based on simulation values
     // Calculate perturbation amplitude
     void calc_TurbPert_amplitude (const int lev,
                                   const amrex::Box& bx,

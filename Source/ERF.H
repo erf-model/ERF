@@ -414,6 +414,7 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
+    void init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert);
     void init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert);
 
     // Initialize the integrator object

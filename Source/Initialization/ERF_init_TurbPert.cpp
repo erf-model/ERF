@@ -8,13 +8,11 @@
 
 using namespace amrex;
 
-/*
 void
-ERF::init_TurbPert_updateTime (int lev)
+ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
 {
-
+    turbPert.calc_TurbPert_updateTime(lev);
 }
-*/
 
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
