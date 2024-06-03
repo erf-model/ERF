@@ -1452,7 +1452,7 @@ ERF::ReadParameters ()
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
     } else {
-        Abort("Dont know this moisture_type!") ;
+        Abort("Dont know this LandSurfaceType!") ;
     }
 
     if (verbose > 0) {

@@ -8,7 +8,9 @@ using namespace amrex;
 /**
  * Split cloud components according to saturation pressures; source theta from latent heat.
  */
-void SAM::Cloud (const SolverChoice& solverChoice) {
+void
+SAM::Cloud (const SolverChoice& sc)
+{
 
     constexpr Real an = 1.0/(tbgmax-tbgmin);
     constexpr Real bn = tbgmin*an;
@@ -18,13 +20,9 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
     Real fac_fus  = m_fac_fus;
     Real rdOcp    = m_rdOcp;
 
-    SolverChoice sc = solverChoice;
-
     int SAM_moisture_type = 1;
-
-    if(solverChoice.moisture_type == MoistureType::SAM) {
-        SAM_moisture_type = 1;
-    } else if(solverChoice.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
+    if (sc.moisture_type == MoistureType::SAM_NoIce ||
+        sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) {
         SAM_moisture_type = 2;
     }
 
@@ -128,17 +126,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                                                   qv_array  , qcl_array  , qci_array,
                                                   qn_array  , qt_array);
 
-                // Update theta from temperature (it is essential to do this BEFORE the pressure is updated)
-                // This would be inconsistent with updating the pressure as part of the iteration above.
-                // Empirically based on the moist bubble rise case, getting the correct theta here
-                // depends on using the old (unchanged by the phase changes) pressure.
+                // Update theta
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
-
-                // Update pressure to be consistent with updated theta_array
-                pres_array(i,j,k) = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k));
-
-                // Pressure unit conversion
-                pres_array(i,j,k) *= 0.01;
 
             //
             // We cannot blindly relax to qsat, but we can convert qc/qi -> qv.
@@ -163,17 +152,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                 // Update temperature (endothermic since we evap/sublime)
                 tabs_array(i,j,k) -= fac_cond * delta_qc + fac_sub * delta_qi;
 
-                // Update theta from temperature (it is essential to do this BEFORE the pressure is updated)
-                // This would be inconsistent with updating the pressure as part of the iteration above.
-                // Empirically based on the moist bubble rise case, getting the correct theta here
-                // depends on using the old (unchanged by the phase changes) pressure.
+                // Update theta
                 theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
-
-                // Update pressure to be consistent with updated theta_array
-                pres_array(i,j,k) = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k));
-
-                // Pressure unit conversion
-                pres_array(i,j,k) *= 0.01;
 
                 // Verify assumption that qv > qsat does not occur
                 erf_qsatw(tabs_array(i,j,k), pres_array(i,j,k), qsatw);
@@ -189,17 +169,8 @@ void SAM::Cloud (const SolverChoice& solverChoice) {
                                                       qv_array  , qcl_array  , qci_array,
                                                       qn_array  , qt_array);
 
-                    // Update theta from temperature (it is essential to do this BEFORE the pressure is updated)
-                    // This would be inconsistent with updating the pressure as part of the iteration above.
-                    // Empirically based on the moist bubble rise case, getting the correct theta here
-                    // depends on using the old (unchanged by the phase changes) pressure.
+                    // Update theta
                     theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
-
-                    // Update pressure to be consistent with updated theta_array
-                    pres_array(i,j,k) = getPgivenRTh(rho_array(i,j,k)*theta_array(i,j,k),qv_array(i,j,k));
-
-                    // Pressure unit conversion
-                    pres_array(i,j,k) *= 0.01;
 
                 }
             }
