@@ -826,7 +826,7 @@ private:
     // algorithm choices
     static SolverChoice solverChoice;
 
-    // Turbulent Perturbation
+    // Turbulent perturbation structure
     static TurbulentPerturbation turbPert;
 
 #ifdef ERF_USE_PARTICLES

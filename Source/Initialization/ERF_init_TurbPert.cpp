@@ -38,6 +38,15 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
     yvel_pert.setVal(0.);
     zvel_pert.setVal(0.);
 
+    int fix_random_seed = 0;
+    ParmParse pp("erf"); pp.query("fix_random_seed", fix_random_seed);
+    // Note that the value of 1024UL is not significant -- the point here is just to set the
+    //     same seed for all MPI processes for the purpose of regression testing
+    if (fix_random_seed) {
+        Print() << "Fixing the random seed" << std::endl;
+        InitRandom(1024UL);
+    }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -65,9 +74,9 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        // Structure call on TurbPert
-        turbPert.calc_TurbPert_amplitude(lev, bx, RhoTheta_comp, cons_pert_arr);
-        //turbPert.calc_TurbPert_amplitude(lev, bx,             0, xvel_pert_arr);
+        // Calculate perturbation amplitude
+        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, RhoTheta_comp, cons_pert_arr);
+        //turbPert.calc_TurbPert_amplitude(lev, zbx, turbPert.turbPert_zba,             0, zvel_pert_arr); // doing conserved quantitied only
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
@@ -76,7 +85,5 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
                                solverChoice);
     } // mfi
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
     MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
 }

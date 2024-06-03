@@ -162,6 +162,18 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                     &rV_new[lev], &rW_new[lev]}, fillset);
     }
 
+    // XXX DUSTIN MA DEBUG Paraview viewing error
+    for ( MFIter mfi(vars_new[0][Vars::zvel],TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<Real const>&  z_data = vars_new[0][Vars::zvel].const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            if (i==0 && j==0) Print() << "CHECK [w] @ " << IntVect(i,j,k) << " = ["
+                                      << z_data(i,j,k) << "]\n";
+        });
+    }
+
     // Get qmoist pointers if using moisture
     bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
     for (int lev = 0; lev <= finest_level; ++lev) {
