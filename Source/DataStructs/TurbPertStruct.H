@@ -23,7 +23,7 @@ struct TurbulentPerturbation {
         // Defining perturbation box size
         amrex::IntVect boxSize(8,8,8);
 
-        // Creating structure box array for conserved quantities
+        // Creating structure box array for conserved quantity
         amrex::Box tmp_cbx(regionLo, regionHi, amrex::IntVect(0,0,0)); // Cell center
         amrex::BoxArray tmp_cba(tmp_cbx);
         turbPert_cba.push_back(tmp_cba);
@@ -33,6 +33,13 @@ struct TurbulentPerturbation {
                        << turbPert_cba[lev].size() << "\n"
                        << "  turbPert_cba[" << lev << "] constains: " << turbPert_cba[lev];
         #endif
+
+        // Creating multiFab for conserved quantity
+        amrex::DistributionMapping dm;
+        dm.define(turbPert_cba[lev],2);
+        amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, PertBox::NumTypes, 0);
+
+        amrex::Print() << mf_turbPert_c.boxArray() << "\n" << mf_turbPert_c.DistributionMap() << "\n";
 
         // Creating structure box array for z velocity
         amrex::BoxArray tmp_zba = amrex::convert(tmp_cba, amrex::IntVect(0,0,1)); // Convert for Z
@@ -66,16 +73,14 @@ struct TurbulentPerturbation {
         amrex::Print() << "  [TurbPert::calc_TurbPert_amplitude] Inside of structure function\n";
         #endif
 
-        int baSize = ba[lev].size();
-        for (int boxIdx = 0; boxIdx < baSize; boxIdx++) {
-            amrex::Box baIdx = ba[lev][boxIdx];
-            if (bx.contains(baIdx)) {
-
+        for (int boxIdx = 0; boxIdx < (int) ba[lev].size(); boxIdx++) {
+            if (bx.contains(ba[lev][boxIdx])) {
                 #ifdef DEBUG_PERTBOX_MSG
                 amrex::Print() << "  bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << ba[lev][boxIdx] << "\n";
                 #endif
 
                 #ifdef INDEX_PERTURB
+                // This exists for debugging purpose
                 ParallelFor(ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     //amrex::Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
                     amrex::Real tmp_Src = (amrex::Real) (boxIdx+1.0); // distinguish each box
@@ -90,13 +95,16 @@ struct TurbulentPerturbation {
                     src_arr(i,j,k,comp) = tmp_Src;
                 });
                 #endif
-            }
+            } // if
         } // boxIdx
     }
 
     // Turbulent perturbation box array
     amrex::Vector<amrex::BoxArray> turbPert_cba;
     amrex::Vector<amrex::BoxArray> turbPert_zba;
+
+    // Creating MultiFab for Data
+    amrex::MultiFab mf_turbPert_c;
 
   private:
 
