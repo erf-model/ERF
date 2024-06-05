@@ -74,11 +74,12 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
 
         // Calculate perturbation amplitude
         // MultiFab
-        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c.boxArray() << "\n";
+        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c->boxArray() << "\n";
+        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c->DistributionMap() << "\n";
         //turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.mf_turbPert_c.boxArray(), RhoTheta_comp, cons_pert_arr); // Using MultiFab
 
         // DEBUG
-        exit(0);
+        //exit(0);
 
         // Box Array
         turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, RhoTheta_comp, cons_pert_arr); // Using boxArray

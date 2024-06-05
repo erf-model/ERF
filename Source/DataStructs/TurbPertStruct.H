@@ -71,12 +71,13 @@ struct TurbulentPerturbation {
         // XXX: TESTING NOW
         int ncomp = PertBox::NumTypes;
         int ngrow = 0;
-        amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This works, but mf_turbPert_c is only seen inside this function
+        mf_turbPert_c = std::make_unique<amrex::MultiFab>(turbPert_cba[lev], dm, ncomp, ngrow);
+        //amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This works, but mf_turbPert_c is only seen inside this function
         //mf_turbPert_c.define(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This gives a "pure virtual method called" at runtime
 
         #ifdef DEBUG_PERTBOX_MSG
         amrex::Print() << "--------------------------DEBUGGING--------------------------\n"
-                       << mf_turbPert_c.boxArray() << "\n" << mf_turbPert_c.DistributionMap() << "\n";
+                       << mf_turbPert_c->boxArray() << "\n" << mf_turbPert_c->DistributionMap() << "\n";
         #endif
 
         // Creating structure box array for z velocity
@@ -142,7 +143,8 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::BoxArray> turbPert_zba;
 
     // Creating MultiFab for Data
-    amrex::MultiFab mf_turbPert_c;
+    //amrex::MultiFab mf_turbPert_c;
+    std::unique_ptr<amrex::MultiFab> mf_turbPert_c = nullptr;
 
   private:
 
