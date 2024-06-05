@@ -73,7 +73,15 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         // Calculate perturbation amplitude
-        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, RhoTheta_comp, cons_pert_arr);
+        // MultiFab
+        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c.boxArray() << "\n";
+        //turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.mf_turbPert_c.boxArray(), RhoTheta_comp, cons_pert_arr); // Using MultiFab
+
+        // DEBUG
+        exit(0);
+
+        // Box Array
+        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, RhoTheta_comp, cons_pert_arr); // Using boxArray
         //turbPert.calc_TurbPert_amplitude(lev, zbx, turbPert.turbPert_zba,             0, zvel_pert_arr); // doing conserved quantitied only
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,

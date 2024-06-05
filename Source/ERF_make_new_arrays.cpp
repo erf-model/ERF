@@ -286,7 +286,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         if (solverChoice.pert_type == PertType::type1)
         {
-            turbPert.init_PerturbationRegion(lev);
+            turbPert.init_PerturbationRegion(lev, ba, dm);
         }
     } else {
         amrex::Abort("Enforcing max level to 0 for now while implementing Turbulent perturbation boxes");

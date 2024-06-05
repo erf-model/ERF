@@ -5,17 +5,25 @@
  * Container holding quantities related to turbulent perturbation parameters
  */
 
+#include <AMReX_MultiFab.H>
+
 #define DEBUG_PERTBOX_MSG
+
+#define MANUAL_DISTRIBUTION_MAP_ASSIGNMENT
+
 //#define INDEX_PERTURB
 #define RANDOM_PERTURB
 
 struct TurbulentPerturbation {
   public:
 
-    //TODO: May need to come back to generalize this so that input options will initialize perturb region identity
     // Initializing Perturbation Region
-    void init_PerturbationRegion (const int lev)
+    void init_PerturbationRegion (const int lev,                             // Level of current data
+                                  const amrex::BoxArray& data_ba,            // Box array from AMReX domain decomposition
+                                  const amrex::DistributionMapping& data_dm) // Distribution map from AMReX domain decomposition
     {
+        // TODO: Need to use user Param to define this (Currently HARDCODED)
+        // Perturbation box region setup
         int pertBox_offset = 0;
         amrex::IntVect regionLo(0+pertBox_offset, 0, 0);
         amrex::IntVect regionHi(7+pertBox_offset,31,31);
@@ -34,12 +42,42 @@ struct TurbulentPerturbation {
                        << "  turbPert_cba[" << lev << "] constains: " << turbPert_cba[lev];
         #endif
 
-        // Creating multiFab for conserved quantity
+        // TODO: Once mf is accessing data (ie. u, and v velocitices), come back and test if this fails... for science
+        #ifdef MANUAL_DISTRIBUTION_MAP_ASSIGNMENT
+        // N^2 search to build local distribution map
+        const amrex::Vector<int> d_pmap = data_dm.ProcessorMap();
+        amrex::Vector<int> p_pmap(turbPert_cba[lev].size()); // Initialization of p_pmap with npbx elements
+
+        for (int pbx(0); pbx < turbPert_cba[lev].size(); ++pbx) {
+            bool found = false;
+            for (int dbx(0); dbx < (int) data_ba.size(); ++dbx) {
+                amrex::Box m_dbx = data_ba[dbx];
+                if (m_dbx.contains(turbPert_cba[lev][pbx])) {
+                    found = true;
+                    p_pmap[pbx] = d_pmap[dbx];
+                    continue;
+                } // found
+            } // data box
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "Perturbation box not contained in a valid box!");
+        } // pert box
+
+        amrex::DistributionMapping dm(p_pmap);
+        #else
         amrex::DistributionMapping dm;
         dm.define(turbPert_cba[lev],2);
-        amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, PertBox::NumTypes, 0);
+        #endif
 
-        amrex::Print() << mf_turbPert_c.boxArray() << "\n" << mf_turbPert_c.DistributionMap() << "\n";
+        // Creating multiFab for conserved quantity
+        // XXX: TESTING NOW
+        int ncomp = PertBox::NumTypes;
+        int ngrow = 0;
+        amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This works, but mf_turbPert_c is only seen inside this function
+        //mf_turbPert_c.define(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This gives a "pure virtual method called" at runtime
+
+        #ifdef DEBUG_PERTBOX_MSG
+        amrex::Print() << "--------------------------DEBUGGING--------------------------\n"
+                       << mf_turbPert_c.boxArray() << "\n" << mf_turbPert_c.DistributionMap() << "\n";
+        #endif
 
         // Creating structure box array for z velocity
         amrex::BoxArray tmp_zba = amrex::convert(tmp_cba, amrex::IntVect(0,0,1)); // Convert for Z
