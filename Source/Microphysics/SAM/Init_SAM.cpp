@@ -18,7 +18,8 @@ using namespace amrex;
  * @param[in] geom Geometry associated with these MultiFabs and grids
  * @param[in] dt_advance Timestep for the advance
  */
-void SAM::Init (const MultiFab& cons_in,
+void
+SAM::Init (const MultiFab& cons_in,
                 const BoxArray& grids,
                 const Geometry& geom,
                 const Real& dt_advance,
@@ -83,7 +84,8 @@ void SAM::Init (const MultiFab& cons_in,
  *
  * @param[in] cons_in Conserved variables input
  */
-void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
+void
+SAM::Copy_State_to_Micro (const MultiFab& cons_in)
 {
     // Get the temperature, density, theta, qt and qp from input
     for ( MFIter mfi(cons_in); mfi.isValid(); ++mfi) {
@@ -129,7 +131,7 @@ void SAM::Copy_State_to_Micro (const MultiFab& cons_in)
             tabs_array(i,j,k)  = getTgivenRandRTh(states_array(i,j,k,Rho_comp),
                                                   states_array(i,j,k,RhoTheta_comp),
                                                   qv_array(i,j,k));
-            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k))/100.;
+            pres_array(i,j,k)  = getPgivenRTh(states_array(i,j,k,RhoTheta_comp), qv_array(i,j,k)) * 0.01;
         });
     }
 }

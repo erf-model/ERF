@@ -38,6 +38,9 @@ int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
 int ERF::verbose       = 0;
+#ifdef ERF_USE_POISSON_SOLVE
+int ERF::mg_verbose    = 0;
+#endif
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -116,8 +119,7 @@ ERF::ERF ()
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
@@ -181,6 +183,11 @@ ERF::ERF ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc.resize(nlevs_max);
+#endif
+
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -819,7 +826,12 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(0, finest_level, vars_new);
+            Real dummy_dt = 1.0;
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
+                pp_inc[lev].setVal(0.);
+            }
         }
     }
 #endif
@@ -1228,6 +1240,9 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
+#ifdef ERF_USE_POISSON_SOLVE
+        pp.query("mg_v", mg_verbose);
+#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1436,11 +1451,11 @@ ERF::ReadParameters ()
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
     } else {
-        Abort("Dont know this moisture_type!") ;
+        Abort("Dont know this LandSurfaceType!") ;
     }
 
     if (verbose > 0) {
-        solverChoice.display();
+        solverChoice.display(max_level);
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
@@ -1787,8 +1802,7 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)

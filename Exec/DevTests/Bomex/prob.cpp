@@ -227,7 +227,8 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         if (z_cc < parms.cutoff) {
             src[k] = parms.advection_heating_rate;
         } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-            src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
+            Real slope = -parms.advection_heating_rate / parms.cutoff_transition;
+            src[k] = (z_cc-parms.cutoff) * slope + parms.advection_heating_rate;
         } else {
             src[k] = 0.0;
         }
@@ -269,7 +270,8 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
         if (z_cc < parms.moisture_cutoff) {
             qsrc[k] = parms.advection_moisture_rate;
         } else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
-            qsrc[k] = parms.advection_moisture_rate * (z_cc-parms.moisture_cutoff)/parms.moisture_cutoff_transition;
+            Real slope = -parms.advection_moisture_rate / parms.moisture_cutoff_transition;
+            qsrc[k] = (z_cc-parms.moisture_cutoff) * slope + parms.advection_moisture_rate;
         } else {
             qsrc[k] = 0.0;
         }

@@ -123,17 +123,16 @@ public:
 
 #ifdef ERF_USE_POISSON_SOLVE
     // Project the velocities to be divergence-free
-    void project_velocities (                                        amrex::Vector<amrex::MultiFab >& vars);
-    void project_velocities (int lev_min, int lev_max, amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars);
+    void project_velocities (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
+
+    // Project the velocities to be divergence-free with a thin body
+    void project_velocities_tb (int lev, amrex::Real dt, amrex::Vector<amrex::MultiFab >& vars, amrex::MultiFab& p);
 
     // Define the projection bc's based on the domain bc types
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM>
       get_projection_bc (amrex::Orientation::Side side) const noexcept;
     bool projection_has_dirichlet (amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> bcs) const;
 
-    // Project the velocities to be divergence-free with a thin body
-    void project_velocities_tb (              amrex::Vector<amrex::MultiFab >& vars, const amrex::Real dt);
-    void project_velocities_tb (amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars, const amrex::Real dt);
 #endif
 
     // Init (NOT restart or regrid)
@@ -605,6 +604,10 @@ private:
 #endif
     amrex::Vector<std::unique_ptr<MRISplitIntegrator<amrex::Vector<amrex::MultiFab> > > > mri_integrator_mem;
 
+#ifdef ERF_USE_POISSON_SOLVE
+    amrex::Vector<amrex::MultiFab> pp_inc;
+#endif
+
     // Vector over levels of routines to impose physical boundary conditions
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_cons>> physbcs_cons;
     amrex::Vector<std::unique_ptr<ERFPhysBCFunct_u>> physbcs_u;
@@ -628,8 +631,8 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) This has up to 8 components: qt, qv, qc, qi, qp, qr, qs, qg
 
     amrex::Vector<amrex::MultiFab> Nturb;
-    amrex::Vector<amrex::MultiFab> vars_fitch; // Vabs, Vabsdt, dudt, dvdt, dTKEdt
-    amrex::Vector<amrex::MultiFab> vars_ewp; // dudt, dvdt, dTKEdt
+    amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
+                                                  // EWP:                 dudt, dvdt, dTKEdt
     amrex::Real hub_height, rotor_dia, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
@@ -796,7 +799,8 @@ private:
     const amrex::Vector<std::string> derived_names {"soundspeed", "temp", "theta", "KE", "QKE", "scalar",
                                                     "vorticity_x","vorticity_y","vorticity_z",
                                                     "magvel", "divU",
-                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens", "eq_pot_temp", "num_turb",
+                                                    "pres_hse", "dens_hse", "pressure", "pert_pres", "pert_dens",
+                                                    "eq_pot_temp", "num_turb",
                                                     "dpdx", "dpdy", "pres_hse_x", "pres_hse_y",
                                                     "z_phys", "detJ" , "mapfac", "lat_m", "lon_m",
                                                     // Time averaged velocity
@@ -808,8 +812,10 @@ private:
                                                     // mynn pbl lengthscale
                                                     "Lpbl",
                                                     // moisture vars
-                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "rain_accum", "snow_accum", "graup_accum"
+                                                    "qt", "qv", "qc", "qi", "qp", "qrain", "qsnow", "qgraup", "qsat",
+                                                    "rain_accum", "snow_accum", "graup_accum"
 #ifdef ERF_COMPUTE_ERROR
+                                                    // error vars
                                                     ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
 #endif
                                                    };
@@ -840,6 +846,9 @@ private:
 #endif
 
     static int verbose;
+#ifdef ERF_USE_POISSON_SOLVE
+    static int mg_verbose;
+#endif
 
     // Diagnostic output interval
     static int sum_interval;

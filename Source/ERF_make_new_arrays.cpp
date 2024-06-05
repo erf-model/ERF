@@ -141,6 +141,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc[lev].define(ba, dm, 1, 1);
+    pp_inc[lev].setVal(0.0);
+#endif
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************
@@ -231,14 +236,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::EWP){
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_ewp[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        vars_windfarm[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
+                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
 
@@ -406,7 +409,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
-    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
+    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }

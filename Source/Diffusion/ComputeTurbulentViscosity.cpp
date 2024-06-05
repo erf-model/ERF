@@ -191,10 +191,11 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           // Calculate SFS quantities
           // - dissipation
           Real Ce;
-          if ((l_C_e_wall > 0) && (k==0))
+          if ((l_C_e_wall > 0) && (k==0)) {
               Ce = l_C_e_wall;
-          else
+          } else {
               Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+          }
           diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
           // - heat flux
           //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will

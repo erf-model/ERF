@@ -43,10 +43,8 @@ AdvectionSrcForRho (const Box& bx,
                     const Array4<const Real>& mf_m,
                     const Array4<const Real>& mf_u,
                     const Array4<const Real>& mf_v,
-                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr
-#ifdef ERF_USE_POISSON_SOLVE
-                    ,const bool const_rho
-#endif
+                    const GpuArray<const Array4<Real>, AMREX_SPACEDIM>& flx_arr,
+                    const bool const_rho
                    )
 {
     BL_PROFILE_VAR("AdvectionSrcForRho", AdvectionSrcForRho);
@@ -73,14 +71,12 @@ AdvectionSrcForRho (const Box& bx,
         avg_zmom(i,j,k  ) = (flx_arr[2])(i,j,k,0);
     });
 
-#ifdef ERF_USE_POISSON_SOLVE
     if (const_rho) {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             advectionSrc(i,j,k,0) = 0.0;
         });
     } else
-#endif
     {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
