@@ -114,14 +114,6 @@ namespace IntVars {
     };
 }
 
-namespace PertBox {
-    enum {
-        delta_t = 0,
-        delta_phi,
-        NumTypes
-    };
-}
-
 // We separate out horizontal and vertical turbulent diffusivities
 // These are the same for LES, but different for PBL models
 namespace EddyDiff {

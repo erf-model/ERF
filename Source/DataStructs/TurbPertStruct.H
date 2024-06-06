@@ -11,11 +11,13 @@
 
 #define MANUAL_DISTRIBUTION_MAP_ASSIGNMENT
 
-//#define INDEX_PERTURB
-#define RANDOM_PERTURB
-
 struct TurbulentPerturbation {
+
   public:
+
+    ~TurbulentPerturbation () { 
+        amrex::Print() << "~TurbulentPerturbation destructor\n";
+    }
 
     // Initializing Perturbation Region
     void init_PerturbationRegion (const int lev,                             // Level of current data
@@ -37,47 +39,9 @@ struct TurbulentPerturbation {
         turbPert_cba.push_back(tmp_cba);
         turbPert_cba[lev].maxSize(boxSize);
         #ifdef DEBUG_PERTBOX_MSG
-        amrex::Print() << "  [TurbPert::init_PerturbationRegion] C subdividing into smaller boxes: "
+        amrex::Print() << "[TurbPert::init_PerturbationRegion] C subdividing into smaller boxes: "
                        << turbPert_cba[lev].size() << "\n"
-                       << "  turbPert_cba[" << lev << "] constains: " << turbPert_cba[lev];
-        #endif
-
-        // TODO: Once mf is accessing data (ie. u, and v velocitices), come back and test if this fails... for science
-        #ifdef MANUAL_DISTRIBUTION_MAP_ASSIGNMENT
-        // N^2 search to build local distribution map
-        const amrex::Vector<int> d_pmap = data_dm.ProcessorMap();
-        amrex::Vector<int> p_pmap(turbPert_cba[lev].size()); // Initialization of p_pmap with npbx elements
-
-        for (int pbx(0); pbx < turbPert_cba[lev].size(); ++pbx) {
-            bool found = false;
-            for (int dbx(0); dbx < (int) data_ba.size(); ++dbx) {
-                amrex::Box m_dbx = data_ba[dbx];
-                if (m_dbx.contains(turbPert_cba[lev][pbx])) {
-                    found = true;
-                    p_pmap[pbx] = d_pmap[dbx];
-                    continue;
-                } // found
-            } // data box
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "Perturbation box not contained in a valid box!");
-        } // pert box
-
-        amrex::DistributionMapping dm(p_pmap);
-        #else
-        amrex::DistributionMapping dm;
-        dm.define(turbPert_cba[lev],2);
-        #endif
-
-        // Creating multiFab for conserved quantity
-        // XXX: TESTING NOW
-        int ncomp = PertBox::NumTypes;
-        int ngrow = 0;
-        mf_turbPert_c = std::make_unique<amrex::MultiFab>(turbPert_cba[lev], dm, ncomp, ngrow);
-        //amrex::MultiFab mf_turbPert_c(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This works, but mf_turbPert_c is only seen inside this function
-        //mf_turbPert_c.define(turbPert_cba[lev], dm, ncomp, ngrow); // XXX This gives a "pure virtual method called" at runtime
-
-        #ifdef DEBUG_PERTBOX_MSG
-        amrex::Print() << "--------------------------DEBUGGING--------------------------\n"
-                       << mf_turbPert_c->boxArray() << "\n" << mf_turbPert_c->DistributionMap() << "\n";
+                       << "turbPert_cba[" << lev << "] constains: " << turbPert_cba[lev];
         #endif
 
         // Creating structure box array for z velocity
@@ -85,34 +49,46 @@ struct TurbulentPerturbation {
         turbPert_zba.push_back(tmp_zba);
         turbPert_zba[lev].maxSize(boxSize);
         #ifdef DEBUG_PERTBOX_MSG
-        amrex::Print() << "  [TurbPert::init_PerturbationRegion] Z subdividing into smaller boxes: "
+        amrex::Print() << "[TurbPert::init_PerturbationRegion] Z subdividing into smaller boxes: "
                        << turbPert_zba[lev].size() << "\n"
-                       << "  turbPert_zba[" << lev << "] constains: " << turbPert_zba[lev];
+                       << "turbPert_zba[" << lev << "] constains: " << turbPert_zba[lev];
         #endif
+
+        // Initialize perturbation update time and amplitude array
+        pb_updateTime.resize(turbPert_cba[lev].size());
+        pb_amplitude.resize(turbPert_cba[lev].size());
 
         amrex:: Print() << "Turbulence perturbation region initialized\n";
     }
 
+#define LENGTH_SCALING
+#define WIDTH_SCALING
+#define DIAGONAL_SCALING
+
     // TODO: Write in function to call specific box to calculate new amplitude if update time is larger than the elapsed time
     // Calculate perturbation update time
-    void calc_TurbPert_updateTime (const int lev)
+    void calc_TurbPert_updateTime (const int lev, amrex::Vector<amrex::Real>& pb_t)
     {
-
+       for (int boxIdx = 0; boxIdx < (int) pb_t.size(); boxIdx++) {
+           pb_t[boxIdx] = (amrex::Real) (boxIdx+1.0);
+       }
     }
+
+#define INDEX_PERTURB
+//#define RANDOM_PERTURB
 
     // TODO: Access velocity data to calculate perturbation based on simulation values
     // Calculate perturbation amplitude
-    void calc_TurbPert_amplitude (const int lev,
-                                  const amrex::Box& bx,
-                                  const amrex::Vector<amrex::BoxArray>& ba,
-                                  const int comp,
-                                  const auto &src_arr)
+    void calc_TurbPert_amplitude (const int lev,                            // Current level
+                                  const amrex::Box& bx,                     // TileBox bx
+                                  const amrex::Vector<amrex::BoxArray>& ba, // Perturbation boxArray
+                                  amrex::Vector<amrex::Real>& amp,
+                                  const int comp,                           // Component to modify
+                                  const auto &src_arr)                      // Source Array to apply perturbation
     {
-        #ifdef DEBUG_PERTBOX_MSG
-        amrex::Print() << "  [TurbPert::calc_TurbPert_amplitude] Inside of structure function\n";
-        #endif
-
         for (int boxIdx = 0; boxIdx < (int) ba[lev].size(); boxIdx++) {
+            // Populating array with values
+            amp[boxIdx] = (amrex::Real) (boxIdx+1.0);
             if (bx.contains(ba[lev][boxIdx])) {
                 #ifdef DEBUG_PERTBOX_MSG
                 amrex::Print() << "  bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << ba[lev][boxIdx] << "\n";
@@ -122,7 +98,7 @@ struct TurbulentPerturbation {
                 // This exists for debugging purpose
                 ParallelFor(ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     //amrex::Real tmp_Src = (i + j*bx.size()[0] + k*bx.size()[0]*bx.size()[1]); // continuous count
-                    amrex::Real tmp_Src = (amrex::Real) (boxIdx+1.0); // distinguish each box
+                    amrex::Real tmp_Src = amp[boxIdx]; // distinguish each box
                     src_arr(i, j, k, comp) = tmp_Src;
                 });
                 #endif
@@ -130,7 +106,7 @@ struct TurbulentPerturbation {
                 #ifdef RANDOM_PERTURB
                 ParallelForRNG(ba[lev][boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                     amrex::Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-                    amrex::Real tmp_Src = (amrex::Real) (boxIdx+1.0) * (rand_double*2.0 - 1.0); // Automatically rescales between -1.0 and 1.0
+                    amrex::Real tmp_Src = amp[boxIdx] * (rand_double*2.0 - 1.0); // Automatically rescales between -1.0 and 1.0
                     src_arr(i,j,k,comp) = tmp_Src;
                 });
                 #endif
@@ -142,9 +118,9 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::BoxArray> turbPert_cba;
     amrex::Vector<amrex::BoxArray> turbPert_zba;
 
-    // Creating MultiFab for Data
-    //amrex::MultiFab mf_turbPert_c;
-    std::unique_ptr<amrex::MultiFab> mf_turbPert_c = nullptr;
+    // Perturbation box quantities
+    amrex::Vector<amrex::Real> pb_updateTime;
+    amrex::Vector<amrex::Real> pb_amplitude;
 
   private:
 

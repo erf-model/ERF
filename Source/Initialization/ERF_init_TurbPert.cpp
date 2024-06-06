@@ -11,7 +11,15 @@ using namespace amrex;
 void
 ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
 {
-    turbPert.calc_TurbPert_updateTime(lev);
+    auto& lev_new = vars_new[lev];
+
+    // Grabing data from velocity field
+    MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+
+
+    // Computing initial perturbation frequency
+    turbPert.calc_TurbPert_updateTime(lev, turbPert.pb_updateTime);
 }
 
 // Calculate the perturbation region amplitude.
@@ -72,18 +80,13 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        // Calculate perturbation amplitude
-        // MultiFab
-        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c->boxArray() << "\n";
-        Print() << " Outside Structure, DO I SEE mf_turbPert_c? --------> " << turbPert.mf_turbPert_c->DistributionMap() << "\n";
-        //turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.mf_turbPert_c.boxArray(), RhoTheta_comp, cons_pert_arr); // Using MultiFab
-
-        // DEBUG
-        //exit(0);
-
-        // Box Array
-        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, RhoTheta_comp, cons_pert_arr); // Using boxArray
+        // Computing perturbation amplitude
+        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, turbPert.pb_amplitude, RhoTheta_comp, cons_pert_arr); // Using boxArray
         //turbPert.calc_TurbPert_amplitude(lev, zbx, turbPert.turbPert_zba,             0, zvel_pert_arr); // doing conserved quantitied only
+
+        for (int ct = 0; ct < (int) turbPert.pb_updateTime.size(); ct++) {
+            Print() << "[update Time | amplitude] = [" << turbPert.pb_updateTime[ct] << " | " << turbPert.pb_amplitude[ct] << "]\n";
+        }
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
