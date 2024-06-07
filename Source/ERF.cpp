@@ -28,9 +28,6 @@ Vector<AMRErrorTag> ERF::ref_tags;
 
 SolverChoice ERF::solverChoice;
 
-// DUSTIN MA
-TurbulentPerturbation ERF::turbPert;
-
 // Time step control
 Real ERF::cfl           =  0.8;
 Real ERF::fixed_dt      = -1.0;
@@ -1195,8 +1192,7 @@ ERF::init_only (int lev, Real time)
     if (solverChoice.pert_type == PertType::type1)
     {
         init_TurbPert_updateTime(lev,turbPert);
-        init_TurbPert_amplitude(lev, turbPert);
-        Print() << "Turbulent perturbation region initialized\n";
+        init_TurbPert_amplitude(lev,turbPert);
     }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.

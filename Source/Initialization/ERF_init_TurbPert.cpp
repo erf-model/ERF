@@ -16,10 +16,22 @@ ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
     // Grabing data from velocity field
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    xvel_data.setVal(10.0); // HACK
+    yvel_data.setVal(0.);   // HACK
 
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
+    {
+        const Box &bx  = mfi.tilebox();
+        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
 
-    // Computing initial perturbation frequency
-    turbPert.calc_TurbPert_updateTime(lev, turbPert.pb_updateTime);
+        const auto &xvel_data_arr = xvel_data.array(mfi);
+        const auto &yvel_data_arr = yvel_data.array(mfi);
+
+        // Computing initial perturbation frequency
+        turbPert.calc_TurbPert_updateTime(lev, bx, xvel_data_arr, yvel_data_arr);
+    }
+    Print() << "Turbulent perturbation region initialized with ba " << turbPert.mf_perturb_updateTime.boxArray().size() << " boxes\n";
 }
 
 // Calculate the perturbation region amplitude.
@@ -81,12 +93,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         // Computing perturbation amplitude
-        turbPert.calc_TurbPert_amplitude(lev,  bx, turbPert.turbPert_cba, turbPert.pb_amplitude, RhoTheta_comp, cons_pert_arr); // Using boxArray
-        //turbPert.calc_TurbPert_amplitude(lev, zbx, turbPert.turbPert_zba,             0, zvel_pert_arr); // doing conserved quantitied only
-
-        for (int ct = 0; ct < (int) turbPert.pb_updateTime.size(); ct++) {
-            Print() << "[update Time | amplitude] = [" << turbPert.pb_updateTime[ct] << " | " << turbPert.pb_amplitude[ct] << "]\n";
-        }
+        turbPert.calc_TurbPert_amplitude(lev,  bx, RhoTheta_comp, cons_pert_arr); // Using boxArray
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
@@ -95,5 +102,12 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
                                solverChoice);
     } // mfi
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
+
+    Print() << "Perturbation region amplitude initialized using : "
+    #ifdef RANDOM_PERTURB
+            << "Random number perturbation amplitude" 
+    #else
+            << "Artificial index fill"
+    #endif
+            << "\n";
 }

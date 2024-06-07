@@ -828,7 +828,7 @@ private:
     static SolverChoice solverChoice;
 
     // Turbulent perturbation structure
-    static TurbulentPerturbation turbPert;
+    TurbulentPerturbation turbPert;
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species
