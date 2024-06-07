@@ -303,21 +303,25 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     InterpType_H interp_w_h(w); InterpType_V interp_w_v(w); // Z-MOM
     WallInterpType interp_w_wall(w); // Z-MOM @ wall
 
-    amrex::ParallelFor(bxx, bxy, bxz,
+    amrex::ParallelFor(bxx,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_u_rhs(i, j, k) = -AdvectionSrcForXMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_u_h, interp_u_v,
                                                     upw_frac_h, upw_frac_v,
                                                     cellSizeInv, mf_u_inv, mf_v_inv);
-    },
+    });
+
+    amrex::ParallelFor(bxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_v_rhs(i, j, k) = -AdvectionSrcForYMom_N(i, j, k, rho_u, rho_v, rho_w,
                                                     interp_v_h, interp_v_v,
                                                     upw_frac_h, upw_frac_v,
                                                     cellSizeInv, mf_u_inv, mf_v_inv);
-    },
+    });
+
+    amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
