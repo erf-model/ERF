@@ -1,4 +1,13 @@
 # 24.05
+    -- AMReX submodule set to 24.06 release hash (f141191)
+
+    -- SAM microphysics corrections (#1634/#1629)
+
+    -- Open boundaries with viscous terms (#1615)
+
+    -- Incompressible pathway (#1612/#1613)
+
+# 24.05
     -- AMReX submodule set to 24.05 release hash (76d09f5)
     
     -- Explict MOST as runtime option (#1605)
