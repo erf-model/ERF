@@ -61,6 +61,7 @@ erf.moisture_model  = "Kessler"
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.15
+#erf.Sc_t = 0.3333333
 
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true

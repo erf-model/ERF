@@ -234,6 +234,14 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         }
     }
 
+    FILE* out_file;
+    out_file = fopen("IC_Qr.txt","w");
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        fprintf(out_file,"%0.15g %0.15g\n", z_cc, src[k]);
+    }
+    fclose(out_file);
+
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, src.begin(), src.end(), d_src.begin());
 }
@@ -277,6 +285,14 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
         }
     }
 
+    FILE* out_file;
+    out_file = fopen("IC_dqvdt.txt","w");
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        fprintf(out_file,"%0.15g %0.15g\n", z_cc, qsrc[k]);
+    }
+    fclose(out_file);
+
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, qsrc.begin(), qsrc.end(), d_qsrc.begin());
 }
@@ -307,6 +323,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
+
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
     Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
@@ -322,6 +339,14 @@ Problem::update_w_subsidence (const Real& /*time*/,
             wbar[k] = 0.0;
         }
     }
+
+    FILE* out_file;
+    out_file = fopen("IC_subsidence.txt","w");
+    for (int k = 0; k <= khi; k++) {
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        fprintf(out_file,"%0.15g %0.15g\n", z_cc, wbar[k]);
+    }
+    fclose(out_file);
 
     // Copy from host version to device version
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, wbar.begin(), wbar.end(), d_wbar.begin());
