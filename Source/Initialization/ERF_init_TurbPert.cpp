@@ -28,7 +28,7 @@ ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
         const auto &yvel_data_arr = yvel_data.array(mfi);
 
         // Computing initial perturbation frequency
-        turbPert.calc_TurbPert_updateTime(lev, bx, xvel_data_arr, yvel_data_arr);
+        turbPert.calc_TurbPert_updateTime(lev, 0., bx, xvel_data_arr, yvel_data_arr);
     }
     Print() << "Turbulent perturbation update time initialized\n";
 }
