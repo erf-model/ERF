@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 2000
+max_step = 3000
 
 amrex.fpe_trap_invalid = 1
 
@@ -23,21 +23,25 @@ geometry.is_periodic = 0 0 0
 
 zlo.type = "SlipWall"
 zhi.type = "SlipWall"
-xlo.type = "Outflow"
+xlo.type = "Inflow"
 xhi.type = "Outflow"
 ylo.type = "Outflow"
 yhi.type = "Outflow"
 
-erf.sponge_strength = 0.1
-erf.use_xlo_sponge_damping = true
-erf.xlo_sponge_end = 10000.0
-erf.use_xhi_sponge_damping = true
-erf.xhi_sponge_start = 90000.0
+xlo.velocity = 10. 0. 0.
+xlo.density  = 1.226
+xlo.theta    = 300.
 
-erf.sponge_density = 1.226
-erf.sponge_x_velocity = 10.0
-erf.sponge_y_velocity = 0.0
-erf.sponge_z_velocity = 0.0
+#erf.sponge_strength = 0.1
+#erf.use_xlo_sponge_damping = true
+#erf.xlo_sponge_end = 10000.0
+#erf.use_xhi_sponge_damping = true
+#erf.xhi_sponge_start = 90000.0
+
+#erf.sponge_density = 1.226
+#erf.sponge_x_velocity = 10.0
+#erf.sponge_y_velocity = 0.0
+#erf.sponge_z_velocity = 0.0
 
 
 # TIME STEP CONTROL
@@ -79,13 +83,13 @@ erf.use_gravity = false
 erf.molec_diff_type = "ConstantAlpha"
 erf.les_type        = "None"
 erf.Cs              = 1.5
-erf.dynamicViscosity = 0.0
+erf.dynamicViscosity = 10.0
 
 erf.pbl_type        = "None"
 
 erf.init_type = "uniform"
 
-erf.windfarm_type = "Fitch"
+erf.windfarm_type = "EWP"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.226
