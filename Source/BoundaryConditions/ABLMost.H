@@ -241,7 +241,6 @@ public:
                      amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                      amrex::MultiFab* heat_flux,
                      amrex::MultiFab* qv_flux,
-                     amrex::MultiFab* eddyDiffs,
                      amrex::MultiFab* z_phys);
 
     template<typename FluxCalc>
@@ -252,7 +251,6 @@ public:
                       amrex::MultiFab* yzmom_flux, amrex::MultiFab* zymom_flux,
                       amrex::MultiFab* heat_flux,
                       amrex::MultiFab* qv_flux,
-                      amrex::MultiFab* eddyDiffs,
                       amrex::MultiFab* z_phys,
                       const amrex::Real& dz_no_terrain,
                       const FluxCalc& flux_comp);

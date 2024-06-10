@@ -48,7 +48,6 @@ SAM::Precip (const SolverChoice& sc)
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);

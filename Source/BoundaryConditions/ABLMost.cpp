@@ -140,7 +140,6 @@ ABLMost::impose_most_bcs (const int& lev,
                           MultiFab* yzmom_flux, MultiFab* zymom_flux,
                           MultiFab* heat_flux,
                           MultiFab* qv_flux,
-                          MultiFab* eddyDiffs,
                           MultiFab* z_phys)
 {
     const int klo = 0;
@@ -151,7 +150,6 @@ ABLMost::impose_most_bcs (const int& lev,
                          yzmom_flux, zymom_flux,
                          heat_flux,
                          qv_flux,
-                         eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else if (flux_type == FluxCalcType::DONELAN) {
         donelan_flux flux_comp(klo);
@@ -160,7 +158,6 @@ ABLMost::impose_most_bcs (const int& lev,
                          yzmom_flux, zymom_flux,
                          heat_flux,
                          qv_flux,
-                         eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     } else {
         custom_flux flux_comp(klo);
@@ -169,7 +166,6 @@ ABLMost::impose_most_bcs (const int& lev,
                          yzmom_flux, zymom_flux,
                          heat_flux,
                          qv_flux,
-                         eddyDiffs,
                          z_phys, m_geom[lev].CellSize(2), flux_comp);
     }
 }
@@ -191,7 +187,6 @@ ABLMost::compute_most_bcs (const int& lev,
                            MultiFab* yzmom_flux, MultiFab* zymom_flux,
                            MultiFab* heat_flux,
                            MultiFab* qv_flux,
-                           MultiFab* eddyDiffs,
                            MultiFab* z_phys,
                            const Real& dz_no_terrain,
                            const FluxCalc& flux_comp)
