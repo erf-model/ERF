@@ -16,11 +16,10 @@ ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
     // Grabing data from velocity field
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
-    xvel_data.setVal(10.0); // HACK
-    yvel_data.setVal(0.);   // HACK
+    MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
-    {
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box &bx  = mfi.tilebox();
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
@@ -31,7 +30,7 @@ ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
         // Computing initial perturbation frequency
         turbPert.calc_TurbPert_updateTime(lev, bx, xvel_data_arr, yvel_data_arr);
     }
-    Print() << "Turbulent perturbation region initialized with ba " << turbPert.mf_perturb_updateTime.boxArray().size() << " boxes\n";
+    Print() << "Turbulent perturbation update time initialized\n";
 }
 
 // Calculate the perturbation region amplitude.
@@ -68,8 +67,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
-    {
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box &bx  = mfi.tilebox();
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
@@ -107,7 +105,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
     #ifdef RANDOM_PERTURB
             << "Random number perturbation amplitude" 
     #else
-            << "Artificial index fill"
+            << "Artificial number index fill"
     #endif
             << "\n";
 }
