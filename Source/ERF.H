@@ -706,6 +706,10 @@ private:
     amrex::Vector<amrex::MultiFab> base_state;
     amrex::Vector<amrex::MultiFab> base_state_new;
 
+    // Wave coupling data
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave;
+
     // array of flux registers
     amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
 

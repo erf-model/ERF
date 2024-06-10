@@ -39,6 +39,9 @@ public:
                       amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_lev,
                       amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_data,
                       amrex::Vector<amrex::Vector<amrex::MultiFab*>> lsm_flux,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Hwave,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Lwave,
+                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& eddyDiffs,
                       amrex::Real start_bdy_time = 0.0,
                       amrex::Real bdy_time_interval = 0.0)
     : m_exp_most(use_exp_most),
@@ -117,6 +120,8 @@ public:
         } else if (rough_string == "modified_charnock") {
             rough_type = RoughCalcType::MODIFIED_CHARNOCK;
             pp.query("most.modified_charnock_depth",depth);
+        } else if (rough_string == "wave_coupled") {
+            rough_type = RoughCalcType::WAVE_COUPLED;
         } else {
             amrex::Abort("Undefined MOST roughness type!");
         }
@@ -154,6 +159,16 @@ public:
                 m_lsm_data_lev[lev][n] = lsm_data[lev][n];
                 m_lsm_flux_lev[lev][n] = lsm_flux[lev][n];
             }
+        }
+
+        // Get pointers to wave data
+        m_Hwave_lev.resize(nlevs);
+        m_Lwave_lev.resize(nlevs);
+        m_eddyDiffs_lev.resize(nlevs);
+        for (int lev(0); lev<nlevs; ++lev) {
+            m_Hwave_lev[lev] = Hwave[lev].get();
+            m_Lwave_lev[lev] = Lwave[lev].get();
+            m_eddyDiffs_lev[lev] = eddyDiffs[lev].get();
         }
 
         for (int lev = 0; lev < nlevs; lev++) {
@@ -308,7 +323,8 @@ public:
     enum struct RoughCalcType {
         CONSTANT = 0,      ///< Constant z0
         CHARNOCK,
-        MODIFIED_CHARNOCK
+        MODIFIED_CHARNOCK,
+        WAVE_COUPLED
     };
 
     FluxCalcType   flux_type{FluxCalcType::MOENG};
@@ -318,7 +334,7 @@ public:
 private:
     bool use_moisture;
     bool m_exp_most = false;
-    amrex::Real z0_const;
+    amrex::Real z0_const{0.1};
     amrex::Real surf_temp;
     amrex::Real surf_heating_rate{0};
     amrex::Real surf_temp_flux{0};
@@ -343,6 +359,9 @@ private:
     amrex::Vector<amrex::Vector<amrex::iMultiFab*>> m_lmask_lev;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
+    amrex::Vector<amrex::MultiFab*>  m_Hwave_lev;
+    amrex::Vector<amrex::MultiFab*>  m_Lwave_lev;
+    amrex::Vector<amrex::MultiFab*>  m_eddyDiffs_lev;
 };
 
 #endif /* ABLMOST_H */

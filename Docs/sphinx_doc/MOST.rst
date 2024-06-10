@@ -150,13 +150,13 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
 MOST Inputs
 ~~~~~~~~~~~~~~~~~~~
-To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports three methods for parameterizing the surface roughness: ``constant``, ``charnock``, and ``modified_charnock``. The latter two methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_. The rougness calculation method may be specified with
+To evaluate the fluxes with MOST, the surface rougness parameter :math:`z_{0}` must be specified. This quantity may be considered a constant or may be parameterized through the friction velocity :math:`u_{\star}`. ERF supports four methods for parameterizing the surface roughness: ``constant``, ``charnock``, ``modified_charnock``, and ``wave_coupled``. The latter three methods parameterize :math:`z_{0} = f(u_{\star})` and are described in `Jimenez & Dudhia, American Meteorological Society, 2018 <https://doi.org/10.1175/JAMC-D-17-0137.1>`_ and `Warner et. al, Ocean Modelling, 2010 <https://doi.org/10.1016/j.ocemod.2010.07.010>`_. The rougness calculation method may be specified with
 
 ::
 
-   erf.most.roughness_type    = STRING    #Z_0 type (constant, charnock, modified_charnock)
+   erf.most.roughness_type    = STRING    #Z_0 type (constant, charnock, modified_charnock, wave_couples)
 
-If the ``charnock`` method is employed, the :math:`a` constant may be specified with ``erf.most.charnock_constant`` (defaults to 0.0185). If the ``modified_charnock`` method is employed, the depth :math:`d` may be specified with ``erf.most.modified_charnock_depth`` (defaults to 30 m).
+If the ``charnock`` method is employed, the :math:`a` constant may be specified with ``erf.most.charnock_constant`` (defaults to 0.0185). If the ``modified_charnock`` method is employed, the depth :math:`d` may be specified with ``erf.most.modified_charnock_depth`` (defaults to 30 m). If the ``wave_coupled`` method is employed, the user must provide wave height and mean wavelength data.
 
 When computing an average :math:`\overline{\phi}` for the MOST boundary, where :math:`\phi` denotes a generic variable, ERF supports a variety of approaches. Specifically, ``planar averages`` and ``local region averages`` may be computed with or without ``time averaging``. With each averaging methodology, the query point :math:`z` may be determined from the following procedures: specified vertical distance :math:`z_{ref}` from the bottom surface, specified :math:`k_{index}`, or (when employing terrain-fit coordinates) specified normal vector length :math:`z_{ref}`. The available inputs to the MOST boundary and their associated data types are
 

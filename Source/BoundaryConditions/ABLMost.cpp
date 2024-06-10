@@ -36,8 +36,11 @@ ABLMost::update_fluxes (const int& lev,
             } else if (rough_type == RoughCalcType::CHARNOCK) {
                 surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
-            } else {
+            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux);
+            } else {
+                surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
@@ -48,8 +51,11 @@ ABLMost::update_fluxes (const int& lev,
             } else if (rough_type == RoughCalcType::CHARNOCK) {
                 surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
-            } else {
+            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
                 surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux);
+            } else {
+                surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } else {
@@ -59,8 +65,11 @@ ABLMost::update_fluxes (const int& lev,
             } else if (rough_type == RoughCalcType::CHARNOCK) {
                 adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
                 compute_fluxes(lev, max_iters, most_flux);
-            } else {
+            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
                 adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux);
+            } else {
+                adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
                 compute_fluxes(lev, max_iters, most_flux);
             }
         } // theta flux
@@ -102,10 +111,16 @@ ABLMost::compute_fluxes (const int& lev,
         const auto umm_arr = umm_ptr->array(mfi);
         const auto z0_arr  = z_0[lev].array();
 
+        // Wave properties if they exist
+        const auto Hwave_arr = (m_Hwave_lev[lev]) ? m_Hwave_lev[lev]->array(mfi) : Array4<Real> {};
+        const auto Lwave_arr = (m_Lwave_lev[lev]) ? m_Lwave_lev[lev]->array(mfi) : Array4<Real> {};
+        const auto eta_arr   = m_eddyDiffs_lev[lev]->array(mfi);
+
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
-                                   u_star_arr, t_star_arr, t_surf_arr, olen_arr);
+                                   u_star_arr, t_star_arr, t_surf_arr, olen_arr,
+                                   Hwave_arr, Lwave_arr, eta_arr);
         });
     }
 }
@@ -206,7 +221,7 @@ ABLMost::compute_most_bcs (const int& lev,
         auto hfx_arr = (m_exp_most) ? heat_flux->array(mfi) : Array4<Real>{};
         auto qfx_arr = (m_exp_most && use_moisture ) ? qv_flux->array(mfi) : Array4<Real>{};
 
-        const auto  eta_arr  = eddyDiffs->array(mfi);
+        const auto  eta_arr  = m_eddyDiffs_lev[lev]->array(mfi);
 
         const auto zphys_arr = (z_phys) ? z_phys->const_array(mfi) : Array4<const Real>{};
 
