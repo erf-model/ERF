@@ -326,7 +326,7 @@ the default modules: ::
 
 Then, build ERF using the cray compilers (if wishing to use other compilers, you can swap the ``PrgEnv-cray`` module
 for another module as appropriate, see Kestrel user documentation for more details): ::
-  
+
   make realclean; make -j COMP=cray
 
 For compiling and running on GPUs, the following commands can be used to set up your environment: ::
@@ -345,10 +345,10 @@ or problems distributed across too many nodes (resulting in fewer than around 1 
 the compute capability of the GPUs may be unsaturated and the performance gain from running on GPUs
 may not justify the higher AU charge. The trade-off is problem dependent, so users may wish to assess
 performance for their particular case and objectives in terms of wall time, AUs used, etc to determine the
-optimal strategy if running large jobs. 
+optimal strategy if running large jobs.
 
 Another note about using Kestrel is that partial node allocations are possible, which means the full memory
 available on each node may not be assigned by default. In general, using the ``--exclusive`` flag when
 requesting nodes through the slurm scheduler, which will allocate entire nodes exlcusively for your request,
 is recommended. Otherwise, memory intensive operations such as CUDA compilation may fail. You can alternatively
-request a particular amount of memory with the ``--mem=XXX`` or ``--mem-per-cpu=XXX`` slurm inputs. 
+request a particular amount of memory with the ``--mem=XXX`` or ``--mem-per-cpu=XXX`` slurm inputs.
