@@ -27,10 +27,12 @@ public:
     {
         AMREX_ASSERT( Microphysics::modelType(a_model_type) == MoistureModelType::Eulerian );
         m_moist_model.resize(nlev);
-        if (a_model_type == MoistureType::SAM) {
+        if (a_model_type == MoistureType::SAM ||
+            a_model_type == MoistureType::SAM_NoIce ||
+            a_model_type == MoistureType::SAM_NoPrecip_NoIce) {
             SetModel<SAM>();
             amrex::Print() << "SAM moisture model!\n";
-        } else if (a_model_type == MoistureType::Kessler or
+        } else if (a_model_type == MoistureType::Kessler ||
                    a_model_type == MoistureType::Kessler_NoRain) {
             SetModel<Kessler>();
             amrex::Print() << "Kessler moisture model!\n";
