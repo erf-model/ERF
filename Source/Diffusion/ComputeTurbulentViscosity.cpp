@@ -324,10 +324,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 if (use_KE) {
                    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                    {
-                       // NOTE: Vertical component already set in the valid and ghost regions
                        int indx   = n;
                        int indx_v = indx + offset;
                        mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+                       mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
                    });
                 }
                 break;
@@ -337,7 +337,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     int indx   = n;
                     int indx_v = indx + offset;
                     mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
-                    mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    // NOTE: Theta_v has already been set for Deardorff
+                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
                 });
                 break;
           }
