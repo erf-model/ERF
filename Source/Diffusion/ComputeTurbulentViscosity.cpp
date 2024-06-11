@@ -110,101 +110,101 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     //***********************************************************************************
     else if (turbChoice.les_type == LESType::Deardorff)
     {
-      const Real l_C_k        = turbChoice.Ck;
-      const Real l_C_e        = turbChoice.Ce;
-      const Real l_C_e_wall   = turbChoice.Ce_wall;
-      const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
-      const Real l_abs_g      = const_grav;
-      const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
+        const Real l_C_k        = turbChoice.Ck;
+        const Real l_C_e        = turbChoice.Ce;
+        const Real l_C_e_wall   = turbChoice.Ce_wall;
+        const Real Ce_lcoeff    = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+        const Real l_abs_g      = const_grav;
+        const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
-      for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-      {
-          Box bxcc  = mfi.tilebox();
-
-        const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
-        const Array4<Real>& hfx_x   = Hfx1.array(mfi);
-        const Array4<Real>& hfx_y   = Hfx2.array(mfi);
-        const Array4<Real>& hfx_z   = Hfx3.array(mfi);
-        const Array4<Real>& diss    = Diss.array(mfi);
-
-        const Array4<Real const > &cell_data = cons_in.array(mfi);
-
-        Array4<Real const> mf_u = mapfac_u.array(mfi);
-        Array4<Real const> mf_v = mapfac_v.array(mfi);
-
-        Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
-
-        ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        for ( MFIter mfi(eddyViscosity,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-          Real dxInv = cellSizeInv[0];
-          Real dyInv = cellSizeInv[1];
-          Real dzInv = cellSizeInv[2];
-          if (use_terrain) {
-              // the terrain grid is only deformed in z for now
-              dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
-          }
-          Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
-          Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+            Box bxcc  = mfi.tilebox();
 
-          // Calculate stratification-dependent mixing length (Deardorff 1980)
-          Real eps       = std::numeric_limits<Real>::epsilon();
-          Real dtheta_dz;
-          if (use_most && k==klo) {
-              if (exp_most) {
-                  dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                              - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-              } else {
-                  dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                        / cell_data(i,j,k  ,Rho_comp)
-                                    + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                        / cell_data(i,j,k+1,Rho_comp)
-                                    -     cell_data(i,j,k+2,RhoTheta_comp)
-                                        / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-              }
-          } else {
-              dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                                - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
-          }
-          Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-          Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
-          Real length;
-          if (strat <= eps) {
-              length = DeltaMsf;
-          } else {
-              length = 0.76 * std::sqrt(E / strat);
-              // mixing length should be _reduced_ for stable stratification
-              length = amrex::min(length, DeltaMsf);
-              // following WRF, make sure the mixing length isn't too small
-              length = amrex::max(length, 0.001 * DeltaMsf);
-          }
+            const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+            const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+            const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+            const Array4<Real>& hfx_z   = Hfx3.array(mfi);
+            const Array4<Real>& diss    = Diss.array(mfi);
 
-          // Calculate eddy diffusivities
-          // K = rho * C_k * l * KE^(1/2)
-          mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
-          mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
-          // KH = (1 + 2*l/delta) * mu_turb
-          mu_turb(i,j,k,EddyDiff::Theta_v) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
+            const Array4<Real const > &cell_data = cons_in.array(mfi);
 
-          // Calculate SFS quantities
-          // - dissipation
-          Real Ce;
-          if ((l_C_e_wall > 0) && (k==0)) {
-              Ce = l_C_e_wall;
-          } else {
-              Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
-          }
-          diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
-          // - heat flux
-          //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
-          //    be overwritten when BCs are applied)
-          hfx_x(i,j,k) = 0.0;
-          hfx_y(i,j,k) = 0.0;
-          hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
-        });
-      }
+            Array4<Real const> mf_u = mapfac_u.array(mfi);
+            Array4<Real const> mf_v = mapfac_v.array(mfi);
+
+            Array4<Real const> z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+
+            ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dxInv = cellSizeInv[0];
+                Real dyInv = cellSizeInv[1];
+                Real dzInv = cellSizeInv[2];
+                if (use_terrain) {
+                    // the terrain grid is only deformed in z for now
+                    dzInv /= Compute_h_zeta_AtCellCenter(i,j,k, cellSizeInv, z_nd_arr);
+                }
+                Real cellVolMsf = 1.0 / (dxInv * mf_u(i,j,0) * dyInv * mf_v(i,j,0) * dzInv);
+                Real DeltaMsf   = std::pow(cellVolMsf,1.0/3.0);
+
+                // Calculate stratification-dependent mixing length (Deardorff 1980)
+                Real eps       = std::numeric_limits<Real>::epsilon();
+                Real dtheta_dz;
+                if (use_most && k==klo) {
+                    if (exp_most) {
+                        dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                    - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+                    } else {
+                        dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
+                                              / cell_data(i,j,k  ,Rho_comp)
+                                          + 4 * cell_data(i,j,k+1,RhoTheta_comp)
+                                              / cell_data(i,j,k+1,Rho_comp)
+                                          -     cell_data(i,j,k+2,RhoTheta_comp)
+                                              / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+                    }
+                } else {
+                    dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                      - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+                }
+                Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                Real length;
+                if (strat <= eps) {
+                    length = DeltaMsf;
+                } else {
+                    length = 0.76 * std::sqrt(E / strat);
+                    // mixing length should be _reduced_ for stable stratification
+                    length = amrex::min(length, DeltaMsf);
+                    // following WRF, make sure the mixing length isn't too small
+                    length = amrex::max(length, 0.001 * DeltaMsf);
+                }
+
+                // Calculate eddy diffusivities
+                // K = rho * C_k * l * KE^(1/2)
+                mu_turb(i,j,k,EddyDiff::Mom_h) = cell_data(i,j,k,Rho_comp) * l_C_k * length * std::sqrt(E);
+                mu_turb(i,j,k,EddyDiff::Mom_v) = mu_turb(i,j,k,EddyDiff::Mom_h);
+                // KH = (1 + 2*l/delta) * mu_turb
+                mu_turb(i,j,k,EddyDiff::Theta_v) = (1.+2.*length/DeltaMsf) * mu_turb(i,j,k,EddyDiff::Mom_v);
+
+                // Calculate SFS quantities
+                // - dissipation
+                Real Ce;
+                if ((l_C_e_wall > 0) && (k==0)) {
+                    Ce = l_C_e_wall;
+                } else {
+                    Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+                }
+                diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
+                // - heat flux
+                //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+                //    be overwritten when BCs are applied)
+                hfx_x(i,j,k) = 0.0;
+                hfx_y(i,j,k) = 0.0;
+                hfx_z(i,j,k) = -mu_turb(i,j,k,EddyDiff::Theta_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
+            });
+        }
     }
 
     // Extrapolate Kturb in x/y, fill remaining elements (relevent to lev==0)
