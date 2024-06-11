@@ -28,7 +28,7 @@ ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
         const auto &yvel_data_arr = yvel_data.array(mfi);
 
         // Computing initial perturbation frequency
-        turbPert.calc_TurbPert_updateTime(lev, 0., bx, xvel_data_arr, yvel_data_arr);
+        turbPert.calc_tpi_updateTime(lev, 0., bx, xvel_data_arr, yvel_data_arr);
     }
     Print() << "Turbulent perturbation update time initialized\n";
 }
@@ -91,7 +91,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
         // Computing perturbation amplitude
-        turbPert.calc_TurbPert_amplitude(lev,  bx, RhoTheta_comp, cons_pert_arr); // Using boxArray
+        turbPert.apply_tpi(lev,  bx, RhoTheta_comp, cons_pert_arr); // Using boxArray
 
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,

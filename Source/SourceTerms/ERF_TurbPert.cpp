@@ -16,6 +16,6 @@ void CalcTurbPert (
     //auto ProbHiArr = geom.ProbHiArray();
     //auto ProbLoArr = geom.ProbLoArray();
 
-    turbPert.calc_TurbPert_amplitude(level, bx, RhoTheta_comp, cell_rhs);
+    turbPert.apply_tpi(level, bx, RhoTheta_comp, cell_rhs);
     //turbPert.apply_TurbPert(level, bx, turbPert.turbPert_cba, turbPert.pb_amplitude, RhoTheta_comp, cell_rhs);
 }
