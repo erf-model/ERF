@@ -5,8 +5,8 @@ using namespace amrex;
 Real R_ewp = 178.3/2.0;
 Real z_c_ewp = 119.0;
 Real C_T_ewp = 0.8, C_TKE_ewp = 0.0;
-Real K_turb = 10.0;
-Real sigma_0 = 1.5*R_ewp;
+Real K_turb = 1.0;
+Real sigma_0 = 1.7*R_ewp;
 
 
 void ewp_advance (int lev,
@@ -105,7 +105,7 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-            Real L_wake = std::pow(dx[0]*dx[1],0.5);
+            Real L_wake = std::pow(dx[0]*dx[1],0.5)/2.0;
             Real sigma_e = Vabs/(3.0*K_turb*L_wake)*(std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction

@@ -1,0 +1,312 @@
+Advection/AdvectionSrcForState.cpp:    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+Advection/AdvectionSrcForState.cpp:    Box  bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi;
+Advection/AdvectionSrcForState.cpp:    if (xlo_open) {
+Advection/AdvectionSrcForState.cpp:        if ( bx.smallEnd(0) == domain.smallEnd(0)) {  bx_xlo = makeSlab( bx,0,domain.smallEnd(0));}
+Advection/AdvectionSrcForState.cpp:    if (xlo_open) {
+Advection/AdvectionSrcForState.cpp:        AdvectionSrcForOpenBC_Tangent_Cons(bx_xlo, 0, icomp, ncomp, advectionSrc, cell_prim,
+Advection/AdvectionSrcForMom.cpp:                Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterK(i  ,j,k,cellSizeInv,z_nd);
+Advection/AdvectionSrcForMom.cpp:                                       (v(i-1,j,k) + v(i,j,k)) * met_h_zeta_xlo;
+Advection/AdvectionSrcForMom.cpp:                Real met_h_zeta_xlo = Compute_h_zeta_AtEdgeCenterJ(i  ,j  ,k  ,cellSizeInv,z_nd);
+Advection/AdvectionSrcForMom.cpp:                                     (w(i-1,j,k) + w(i,j,k)) * met_h_zeta_xlo;
+Advection/AdvectionSrcForMom.cpp:    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+Advection/AdvectionSrcForMom.cpp:    if (xlo_open)
+Advection/AdvectionSrcForMom.cpp:        Box tbx_xlo, tby_xlo, tbz_xlo;
+Advection/AdvectionSrcForMom.cpp:        if (tbx.smallEnd(0) == domain.smallEnd(0)) { tbx_xlo = makeSlab(tbx,0,domain.smallEnd(0));}
+Advection/AdvectionSrcForMom.cpp:        if (tby.smallEnd(0) == domain.smallEnd(0)) { tby_xlo = makeSlab(tby,0,domain.smallEnd(0));}
+Advection/AdvectionSrcForMom.cpp:        if (tbz.smallEnd(0) == domain.smallEnd(0)) { tbz_xlo = makeSlab(tbz,0,domain.smallEnd(0));}
+Advection/AdvectionSrcForMom.cpp:        AdvectionSrcForOpenBC_Normal(tbx_xlo, 0, rho_u_rhs, u, cell_data, cellSizeInv, do_lo);
+Advection/AdvectionSrcForMom.cpp:        AdvectionSrcForOpenBC_Tangent_Ymom(tby_xlo, 0, rho_v_rhs, v,
+Advection/AdvectionSrcForMom.cpp:        AdvectionSrcForOpenBC_Tangent_Zmom(tbz_xlo, 0, rho_w_rhs, w,
+Advection/AdvectionSrcForOpenBC.cpp:            Real prim_xlo = 0.5 * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
+Advection/AdvectionSrcForOpenBC.cpp:            Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
+BoundaryConditions/BoundaryConditions_zvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_zvel.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_zvel.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_zvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_zvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_zvel.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_zvel.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_zvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:    const auto& bdatxlo = (*bndry_data[0])[lev].const_array();
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:            Box bx_xlo(bx); bx_xlo.setBig(0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:            if (var_idx == Vars::xvel) bx_xlo.setBig(0,dom_lo.x);
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:                bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_bndryreg.cpp:                        dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                                                  bx_xlo, bx_xhi,
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                    ParallelFor(bx_xlo, bx_xhi,
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                        dest_arr(i,j,k,comp_idx) = oma   * bdatxlo_n  (ii,jj,k,0)
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                                                 + alpha * bdatxlo_np1(ii,jj,k,0);
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                                                  bx_xlo, bx_xhi,
+BoundaryConditions/BoundaryConditions_realbdy.cpp:                    ParallelFor(bx_xlo, bx_xhi,
+BoundaryConditions/MOSTStress.H:        int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+BoundaryConditions/MOSTStress.H:                     + velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo) );
+BoundaryConditions/MOSTStress.H:        int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+BoundaryConditions/MOSTStress.H:                     + velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo) );
+BoundaryConditions/MOSTStress.H:        int jxlo = j <= lbound(velx_arr).y ? lbound(velx_arr).y : j-1;
+BoundaryConditions/MOSTStress.H:                     + velx_arr(ix,jxlo,zlo)+velx_arr(ix+1,jxlo,zlo) );
+BoundaryConditions/BoundaryConditions_cons.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_cons.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_cons.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_cons.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_cons.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_cons.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_yvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_yvel.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_yvel.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
+BoundaryConditions/BoundaryConditions_yvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_xvel.cpp:    // xlo: ori = 0
+BoundaryConditions/BoundaryConditions_xvel.cpp:        Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
+BoundaryConditions/BoundaryConditions_xvel.cpp:        Box bx_xlo_face(bx); bx_xlo_face.setSmall(0,dom_lo.x  ); bx_xlo_face.setBig(0,dom_lo.x  );
+BoundaryConditions/BoundaryConditions_xvel.cpp:            bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+BoundaryConditions/BoundaryConditions_xvel.cpp:            bx_xlo_face, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
+DataStructs/SpongeStruct.H:        pp.query("use_xlo_sponge_damping", use_xlo_sponge_damping);
+DataStructs/SpongeStruct.H:        pp.query("xlo_sponge_end"  , xlo_sponge_end);
+DataStructs/SpongeStruct.H:    bool    use_xlo_sponge_damping     = false;
+DataStructs/SpongeStruct.H:    amrex::Real xlo_sponge_end, xhi_sponge_start;
+Diffusion/DiffusionSrcForState_T.cpp:            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_lo  , qty_index) + xflux(i+1, j  , k_lo  , qty_index) );
+Diffusion/DiffusionSrcForState_T.cpp:            Real xfluxbar = 1.5*xfluxlo - 0.5*xfluxhi;
+Diffusion/DiffusionSrcForState_T.cpp:            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_lo  , qty_index) + yflux(i  , j+1, k_lo  , qty_index) );
+Diffusion/DiffusionSrcForState_T.cpp:            Real yfluxbar = 1.5*yfluxlo - 0.5*yfluxhi;
+Diffusion/DiffusionSrcForState_T.cpp:            Real xfluxlo  = 0.5 * ( xflux(i  , j  , k_hi-2, qty_index) + xflux(i+1, j  , k_hi-2, qty_index) );
+Diffusion/DiffusionSrcForState_T.cpp:            Real xfluxbar = 1.5*xfluxhi - 0.5*xfluxlo;
+Diffusion/DiffusionSrcForState_T.cpp:            Real yfluxlo  = 0.5 * ( yflux(i  , j  , k_hi-2, qty_index) + yflux(i  , j+1, k_hi-2, qty_index) );
+Diffusion/DiffusionSrcForState_T.cpp:            Real yfluxbar = 1.5*yfluxhi - 0.5*yfluxlo;
+EB/eb_box.cpp:        Real xlo = boxLo[0] + offset;
+EB/eb_box.cpp:            xlo = 2.0 * geom[0].ProbLo(0) - geom[0].ProbHi(0);
+EB/eb_box.cpp:        Array<Real, 2> point_lox{xlo, 0.0};
+EB/eb_box.cpp:        Array<Real, 3> point_lox{xlo, 0.0, 0.0};
+ERF.cpp:Vector<std::string> BCNames = {"xlo", "ylo", "zlo", "xhi", "yhi", "zhi"};
+ERF.H:                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
+ERF.H:                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
+ERF.H:    amrex::Vector<amrex::Vector<amrex::FArrayBox>> bdy_data_xlo;
+Initialization/ERF_init_bcs.cpp:    f("xlo", Orientation(Direction::x,Orientation::low));
+Initialization/ERF_init_from_wrfinput.cpp:                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+Initialization/ERF_init_from_wrfinput.cpp:                                             bdy_data_xlo,bdy_data_xhi,bdy_data_ylo,bdy_data_yhi,
+Initialization/ERF_init_from_wrfinput.cpp:        convert_wrfbdy_data(domain,bdy_data_xlo,
+Initialization/ERF_init_windfarm.cpp:    std::vector<Real> lat, lon, xloc, yloc;
+Initialization/ERF_init_windfarm.cpp:        xloc.push_back(dx_turb);
+Initialization/ERF_init_windfarm.cpp:        fprintf(file_turbloc_vtk, "%s %ld %s\n", "POINTS", xloc.size(), "float");
+Initialization/ERF_init_windfarm.cpp:        for(int it=0; it<xloc.size(); it++){
+Initialization/ERF_init_windfarm.cpp:            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 1e-12);
+Initialization/ERF_init_windfarm.cpp:            for(int it=0; it<xloc.size(); it++){
+Initialization/ERF_init_windfarm.cpp:                if( xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2 and
+Initialization/ERF_init_from_metgrid.cpp:    bdy_data_xlo.resize(ntimes);
+Initialization/ERF_init_from_metgrid.cpp:    const Box pbx_xlo(plo, phi);
+Initialization/ERF_init_from_metgrid.cpp:    Box xlo_plane_no_stag(pbx_xlo);
+Initialization/ERF_init_from_metgrid.cpp:    Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
+Initialization/ERF_init_from_metgrid.cpp:    Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
+Initialization/ERF_init_from_metgrid.cpp:                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_x_stag, 1));
+Initialization/ERF_init_from_metgrid.cpp:                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_y_stag, 1));
+Initialization/ERF_init_from_metgrid.cpp:                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+Initialization/ERF_init_from_metgrid.cpp:                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+Initialization/ERF_init_from_metgrid.cpp:                bdy_data_xlo[it].push_back(FArrayBox(xlo_plane_no_stag, 1));
+Initialization/ERF_init_from_metgrid.cpp:    amrex::Box xlo_plane, xhi_plane, ylo_plane, yhi_plane;
+Initialization/ERF_init_from_metgrid.cpp:            auto xlo_arr = bdy_data_xlo[it][ivar].array();
+Initialization/ERF_init_from_metgrid.cpp:                xlo_plane = xlo_plane_x_stag; xhi_plane = xhi_plane_x_stag;
+Initialization/ERF_init_from_metgrid.cpp:                xlo_plane = xlo_plane_y_stag; xhi_plane = xhi_plane_y_stag;
+Initialization/ERF_init_from_metgrid.cpp:                xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
+Initialization/ERF_init_from_metgrid.cpp:                xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
+Initialization/ERF_init_from_metgrid.cpp:                xlo_plane = xlo_plane_no_stag; xhi_plane = xhi_plane_no_stag;
+Initialization/ERF_init_from_metgrid.cpp:            ParallelFor(xlo_plane, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+Initialization/ERF_init_from_metgrid.cpp:                xlo_arr(i,j,k,0)   = fabs_for_bcs_arr(i,j,k)*Factor;
+Initialization/ERF_init_from_metgrid.cpp:    Box gvbx_xlo(valid_bx); Box gvbx_xhi(valid_bx);
+Initialization/ERF_init_from_metgrid.cpp:    gvbx_xlo.grow(IntVect(1,1,0)); gvbx_xhi.grow(IntVect(1,1,0));
+Initialization/ERF_init_from_metgrid.cpp:    gvbx_xlo.makeSlab(0,gvbx_xlo.smallEnd(0)); gvbx_xhi.makeSlab(0,gvbx_xhi.bigEnd(0));
+Initialization/ERF_init_from_metgrid.cpp:        ParallelFor(gvbx_xlo, gvbx_xhi,
+IO/Checkpoint.cpp:     int num_time = bdy_data_xlo.size();
+IO/Checkpoint.cpp:     int num_var  = bdy_data_xlo[0].size();
+IO/Checkpoint.cpp:       bdy_h_file << bdy_data_xlo[0][ivar].box() << "\n";
+IO/Checkpoint.cpp:         bdy_data_xlo[itime][ivar].writeOn(bdy_d_file,0,1);
+IO/Checkpoint.cpp:            bdy_data_xlo.resize(num_time);
+IO/Checkpoint.cpp:                bdy_data_xlo[itime].resize(num_var);
+IO/Checkpoint.cpp:                    bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
+IO/Checkpoint.cpp:                    bdy_data_xlo[itime][ivar].readFrom(bdy_d_file);
+IO/Checkpoint.cpp:          bdy_data_xlo.resize(num_time);
+IO/Checkpoint.cpp:            bdy_data_xlo[itime].resize(num_var);
+IO/Checkpoint.cpp:              bdy_data_xlo[itime][ivar].resize(bx_v[4*ivar  ]);
+IO/Checkpoint.cpp:                ParallelDescriptor::Bcast(bdy_data_xlo[itime][ivar].dataPtr(),bdy_data_xlo[itime][ivar].box().numPts(),ioproc);
+IO/NCWpsFile.H:                             amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+IO/NCColumnFile.cpp: * @param xloc Location of the column in the x-dimension
+IO/NCColumnFile.cpp:                         const Real xloc,
+IO/NCColumnFile.cpp:    amrex::Vector<Real> loc = {xloc, yloc};
+IO/NCColumnFile.cpp: * @param xloc Location of the column in the x-dimension
+IO/NCColumnFile.cpp:                          const std::string& colfile_name, const Real xloc, const Real yloc,
+IO/NCColumnFile.cpp:  if (xloc < geom[0].ProbLo(0) || xloc > geom[0].ProbHi(0) ||
+IO/NCColumnFile.cpp:  const Real x_cell_loc = probBox.smallEnd(0) + (xloc - geom[lev].ProbLo(0))* geom[lev].InvCellSize(0);
+IO/ReadFromWRFBdy.cpp:                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+IO/ReadFromWRFBdy.cpp:    bdy_data_xlo.resize(ntimes);
+IO/ReadFromWRFBdy.cpp:                // xlo bdy
+IO/ReadFromWRFBdy.cpp:                const Box pbx_xlo(plo, phi);
+IO/ReadFromWRFBdy.cpp:                Box xlo_plane_no_stag(pbx_xlo);
+IO/ReadFromWRFBdy.cpp:                Box xlo_plane_x_stag = pbx_xlo; xlo_plane_x_stag.shiftHalf(0,-1);
+IO/ReadFromWRFBdy.cpp:                Box xlo_plane_y_stag = convert(pbx_xlo, {0, 1, 0});
+IO/ReadFromWRFBdy.cpp:                Box xlo_line(IntVect(lo[0], lo[1], 0), IntVect(lo[0]+width-1, hi[1], 0));
+IO/ReadFromWRFBdy.cpp:                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_x_stag, 1, Arena_Used)); // U
+IO/ReadFromWRFBdy.cpp:                        bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_y_stag , 1, Arena_Used)); // V
+IO/ReadFromWRFBdy.cpp:                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // R
+IO/ReadFromWRFBdy.cpp:                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // T
+IO/ReadFromWRFBdy.cpp:                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_plane_no_stag, 1, Arena_Used)); // QV
+IO/ReadFromWRFBdy.cpp:                      bdy_data_xlo[nt].push_back(FArrayBox(xlo_line, 1, Arena_Used));
+IO/ReadFromWRFBdy.cpp:                    num_pts  = bdy_data_xlo[0][bdyVarType].box().numPts();
+IO/ReadFromWRFBdy.cpp:                    int ioff = bdy_data_xlo[0][bdyVarType].smallEnd()[0];
+IO/ReadFromWRFBdy.cpp:                        fab_arr  = bdy_data_xlo[nt][bdyVarType].array();
+IO/ReadFromWRFBdy.cpp:                    num_pts  = bdy_data_xlo[0][bdyVarType].box().numPts();
+IO/ReadFromWRFBdy.cpp:                    int ioff = bdy_data_xlo[0][bdyVarType].smallEnd()[0];
+IO/ReadFromWRFBdy.cpp:                        fab_arr  = bdy_data_xlo[nt][bdyVarType].array();
+IO/ReadFromWRFBdy.cpp:            ParallelDescriptor::Bcast(bdy_data_xlo[nt][i].dataPtr(),bdy_data_xlo[nt][i].box().numPts(),ioproc);
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:    const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:    const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:    if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/ERF_moist_set_rhs.cpp:               Vector<Vector<FArrayBox>>& bdy_data_xlo,
+SourceTerms/ERF_moist_set_rhs.cpp:    const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][WRFBdyVars::QV].const_array();
+SourceTerms/ERF_moist_set_rhs.cpp:    const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][WRFBdyVars::QV].const_array();
+SourceTerms/ERF_moist_set_rhs.cpp:    Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+SourceTerms/ERF_moist_set_rhs.cpp:                                  bx_xlo, bx_xhi,
+SourceTerms/ERF_moist_set_rhs.cpp:    FArrayBox QV_xlo, QV_xhi, QV_ylo, QV_yhi;
+SourceTerms/ERF_moist_set_rhs.cpp:    QV_xlo.resize(bx_xlo,1,The_Async_Arena()); QV_xhi.resize(bx_xhi,1,The_Async_Arena());
+SourceTerms/ERF_moist_set_rhs.cpp:    Array4<Real> arr_xlo = QV_xlo.array();  Array4<Real> arr_xhi = QV_xhi.array();
+SourceTerms/ERF_moist_set_rhs.cpp:    ParallelFor(bx_xlo, bx_xhi,
+SourceTerms/ERF_moist_set_rhs.cpp:        arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k)
+SourceTerms/ERF_moist_set_rhs.cpp:                       + alpha * bdatxlo_np1(ii,jj,k);
+SourceTerms/ERF_moist_set_rhs.cpp:                                      bx_xlo, bx_xhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                      bx_xlo,  bx_xhi,  bx_ylo,  bx_yhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                      arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                      bx_xlo, bx_xhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                            bx_xlo, bx_xhi, bx_ylo, bx_yhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                            arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+SourceTerms/ERF_moist_set_rhs.cpp:                                  bx_xlo, bx_xhi,
+SourceTerms/ERF_moist_set_rhs.cpp:    ParallelFor(bx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+SourceTerms/ERF_moist_set_rhs.cpp:        if (arr_xlo(i,j,k) != new_cons(i,j,k,RhoQ1_comp)) {
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    const int use_xlo_sponge_damping = spongeChoice.use_xlo_sponge_damping;
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    const Real xlo_sponge_end   = spongeChoice.xlo_sponge_end;
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:    if(use_xlo_sponge_damping)AMREX_ALWAYS_ASSERT(xlo_sponge_end   > ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:        if(use_xlo_sponge_damping){
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:            if (x < xlo_sponge_end) {
+SourceTerms/ERF_ApplySpongeZoneBCs.cpp:                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+SourceTerms/Src_headers.H:               amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+TimeIntegration/ERF_slow_rhs_pre.cpp:    const bool xlo_open = (bc_ptr_h[BCVars::cons_bc].lo(0) == ERFBCType::open);
+TimeIntegration/ERF_fast_rhs_MT.cpp:            Real h_zeta_stg_xlo = Compute_h_zeta_AtIface(i,  j  , k, dxInv, z_nd_stg);
+TimeIntegration/ERF_fast_rhs_MT.cpp:            Real xflux_lo = cur_xmom(i  ,j,k) - stg_xmom(i  ,j,k)*h_zeta_stg_xlo;
+TimeIntegration/TI_slow_headers.H:                       amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+TimeIntegration/ERF_slow_rhs_post.cpp:                        Vector<Vector<FArrayBox>>& bdy_data_xlo,
+TimeIntegration/ERF_slow_rhs_post.cpp:                          bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi);
+TimeIntegration/TI_slow_rhs_fun.H:                                                       bdy_data_xlo, bdy_data_xhi,
+TimeIntegration/TI_slow_rhs_fun.H:                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+TimeIntegration/TI_slow_rhs_fun.H:                              bdy_data_xlo, bdy_data_xhi, bdy_data_ylo, bdy_data_yhi,
+TimeIntegration/TI_slow_rhs_fun.H:                                                       bdy_data_xlo, bdy_data_xhi,
+Utils/Utils.H:                                    amrex::Box& bx_xlo,
+Utils/Utils.H:                                         amrex::Vector<amrex::Vector<amrex::FArrayBox>>& bdy_data_xlo,
+Utils/Utils.H: * @param[in] bx_xlo box for low x relaxation
+Utils/Utils.H:                               const amrex::Box& bx_xlo,
+Utils/Utils.H:                               const amrex::Array4<const amrex::Real>& arr_xlo,
+Utils/Utils.H:    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+Utils/Utils.H:            amrex::Real tend = ( arr_xlo(i,j,k) - data_arr(i,j,k,n+icomp) ) / dt;
+Utils/Utils.H: * @param[in] bx_xlo box for low x relaxation
+Utils/Utils.H: * @param[in] arr_xlo array for low x relaxation
+Utils/Utils.H:                                     const amrex::Box& bx_xlo,
+Utils/Utils.H:                                     const amrex::Array4<const amrex::Real>& arr_xlo,
+Utils/Utils.H:    amrex::ParallelFor(bx_xlo, num_var, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+Utils/Utils.H:        amrex::Real delta    = arr_xlo(i  ,j  ,k,n) - d;
+Utils/Utils.H:        amrex::Real delta_xp = arr_xlo(i+1,j  ,k,n) - d_ip1;
+Utils/Utils.H:        amrex::Real delta_xm = arr_xlo(i-1,j  ,k,n) - d_im1;
+Utils/Utils.H:        amrex::Real delta_yp = arr_xlo(i  ,j+1,k,n) - d_jp1;
+Utils/Utils.H:        amrex::Real delta_ym = arr_xlo(i  ,j-1,k,n) - d_jm1;
+Utils/PlaneAverage.H:    [[nodiscard]] amrex::Real xlo () const { return m_xlo; }
+Utils/PlaneAverage.H:    amrex::Real m_xlo; /** bottom of domain in axis direction */
+Utils/PlaneAverage.H:    m_xlo    = m_geom.ProbLo(m_axis);
+Utils/PlaneAverage.H:       m_line_xcentroid[i] = m_xlo + (i + 0.5) * m_dx;
+Utils/PlaneAverage.H:    if (x > m_xlo + 0.5 * m_dx) {
+Utils/PlaneAverage.H:        ind = static_cast<int>(floor((x - m_xlo) / m_dx - 0.5));
+Utils/PlaneAverage.H:        const amrex::Real x1 = m_xlo + (ind + 0.5) * m_dx;
+Utils/InteriorGhostCells.cpp: * @param[out] bx_xlo halo box at x_lo boundary
+Utils/InteriorGhostCells.cpp:                               Box& bx_xlo,
+Utils/InteriorGhostCells.cpp:    Box gdom_xlo(domain); Box gdom_xhi(domain);
+Utils/InteriorGhostCells.cpp:    gdom_xlo.setBig(0,dom_lo.x+width-1); gdom_xhi.setSmall(0,dom_hi.x-width+1);
+Utils/InteriorGhostCells.cpp:    gdom_ylo.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_ylo.setBig(0,gdom_xhi.smallEnd(0)-1);
+Utils/InteriorGhostCells.cpp:    gdom_yhi.setSmall(0,gdom_xlo.bigEnd(0)+1); gdom_yhi.setBig(0,gdom_xhi.smallEnd(0)-1);
+Utils/InteriorGhostCells.cpp:    gdom_xlo.growLo(0,-set_width); gdom_xhi.growHi(0,-set_width);
+Utils/InteriorGhostCells.cpp:    gdom_xlo.grow  (1,-set_width); gdom_xhi.grow  (1,-set_width);
+Utils/InteriorGhostCells.cpp:    gdom_xlo.growLo(0,ng_vect[0]); gdom_xhi.growHi(0,ng_vect[0]);
+Utils/InteriorGhostCells.cpp:    gdom_xlo.grow  (1,ng_vect[1]); gdom_xhi.grow  (1,ng_vect[1]);
+Utils/InteriorGhostCells.cpp:        gdom_xlo.growHi(0,ng_vect[0]); gdom_xhi.growLo(0,ng_vect[0]);
+Utils/InteriorGhostCells.cpp:    bx_xlo = (bx & gdom_xlo);
+Utils/InteriorGhostCells.cpp: * @param[in] bdy_data_xlo boundary data on interior of low x-face
+Utils/InteriorGhostCells.cpp:                                    Vector<Vector<FArrayBox>>& bdy_data_xlo,
+Utils/InteriorGhostCells.cpp:    FArrayBox U_xlo, U_xhi, U_ylo, U_yhi;
+Utils/InteriorGhostCells.cpp:    FArrayBox V_xlo, V_xhi, V_ylo, V_yhi;
+Utils/InteriorGhostCells.cpp:    FArrayBox R_xlo, R_xhi, R_ylo, R_yhi;
+Utils/InteriorGhostCells.cpp:    FArrayBox T_xlo, T_xhi, T_ylo, T_yhi;
+Utils/InteriorGhostCells.cpp:        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+Utils/InteriorGhostCells.cpp:                                      bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:            U_xlo.resize(bx_xlo,1,The_Async_Arena()); U_xhi.resize(bx_xhi,1,The_Async_Arena());
+Utils/InteriorGhostCells.cpp:            V_xlo.resize(bx_xlo,1,The_Async_Arena()); V_xhi.resize(bx_xhi,1,The_Async_Arena());
+Utils/InteriorGhostCells.cpp:            R_xlo.resize(bx_xlo,1,The_Async_Arena()); R_xhi.resize(bx_xhi,1,The_Async_Arena());
+Utils/InteriorGhostCells.cpp:            T_xlo.resize(bx_xlo,1,The_Async_Arena()); T_xhi.resize(bx_xhi,1,The_Async_Arena());
+Utils/InteriorGhostCells.cpp:        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+Utils/InteriorGhostCells.cpp:                                      bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:        Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+Utils/InteriorGhostCells.cpp:            arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
+Utils/InteriorGhostCells.cpp:            arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
+Utils/InteriorGhostCells.cpp:            arr_xlo = R_xlo.array(); arr_xhi = R_xhi.array();
+Utils/InteriorGhostCells.cpp:            arr_xlo = T_xlo.array(); arr_xhi = T_xhi.array();
+Utils/InteriorGhostCells.cpp:        const auto& bdatxlo_n   = bdy_data_xlo[n_time  ][ivar].const_array();
+Utils/InteriorGhostCells.cpp:        const auto& bdatxlo_np1 = bdy_data_xlo[n_time+1][ivar].const_array();
+Utils/InteriorGhostCells.cpp:        ParallelFor(bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:            arr_xlo(i,j,k) = oma   * bdatxlo_n  (ii,jj,k,0)
+Utils/InteriorGhostCells.cpp:                           + alpha * bdatxlo_np1(ii,jj,k,0);
+Utils/InteriorGhostCells.cpp:        Box bx_xlo, bx_xhi, bx_ylo, bx_yhi;
+Utils/InteriorGhostCells.cpp:                                      bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:        Array4<Real> rarr_xlo = R_xlo.array();  Array4<Real> rarr_xhi = R_xhi.array();
+Utils/InteriorGhostCells.cpp:        Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+Utils/InteriorGhostCells.cpp:            arr_xlo = U_xlo.array(); arr_xhi = U_xhi.array();
+Utils/InteriorGhostCells.cpp:            ParallelFor(bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:                Real rho_interp = 0.5 * ( rarr_xlo(i-1,j,k) + rarr_xlo(i,j,k) );
+Utils/InteriorGhostCells.cpp:                arr_xlo(i,j,k) *= rho_interp;
+Utils/InteriorGhostCells.cpp:            arr_xlo = V_xlo.array(); arr_xhi = V_xhi.array();
+Utils/InteriorGhostCells.cpp:            ParallelFor(bx_xlo, bx_xhi,
+Utils/InteriorGhostCells.cpp:                Real rho_interp = 0.5 * ( rarr_xlo(i,j-1,k) + rarr_xlo(i,j,k) );
+Utils/InteriorGhostCells.cpp:                arr_xlo(i,j,k) *= rho_interp;
+Utils/InteriorGhostCells.cpp:                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+Utils/InteriorGhostCells.cpp:                                              tbx_xlo, tbx_xhi,
+Utils/InteriorGhostCells.cpp:                Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
+Utils/InteriorGhostCells.cpp:                                              tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+Utils/InteriorGhostCells.cpp:                                              arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+Utils/InteriorGhostCells.cpp:                Box tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi;
+Utils/InteriorGhostCells.cpp:                                              tbx_xlo, tbx_xhi,
+Utils/InteriorGhostCells.cpp:                Array4<Real> arr_xlo;  Array4<Real> arr_xhi;
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = U_xlo.array(); arr_xhi = U_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = V_xlo.array(); arr_xhi = V_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = R_xlo.array(); arr_xhi = R_xhi.array();
+Utils/InteriorGhostCells.cpp:                    arr_xlo  = T_xlo.array(); arr_xhi = T_xhi.array();
+Utils/InteriorGhostCells.cpp:                                                    tbx_xlo, tbx_xhi, tbx_ylo, tbx_yhi,
+Utils/InteriorGhostCells.cpp:                                                    arr_xlo, arr_xhi, arr_ylo, arr_yhi,
+Utils/InteriorGhostCells.cpp:                                              tbx_xlo, tbx_xhi,
+Utils/InteriorGhostCells.cpp:                ParallelFor(tbx_xlo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+Utils/InteriorGhostCells.cpp:                    if (arr_xlo(i,j,k) != data_arr(i,j,k,icomp)) {
