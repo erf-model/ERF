@@ -19,7 +19,6 @@ erf.most.tstar  = 8.0e-3 # theta flux
 erf.most.qstar  = 5.2e-5 # qv    flux
 erf.most.z0     = 0.1
 erf.most.zref   = 20.0
-erf.use_explicit_most = true
 
 // NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
