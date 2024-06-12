@@ -1,13 +1,13 @@
+#include <ERF.H>
+#include <WindFarm.H>
 #include <EWP.H>
 #include <IndexDefines.H>
+
 using namespace amrex;
 
-Real R_ewp = 178.3/2.0;
-Real z_c_ewp = 119.0;
-Real C_T_ewp = 0.8, C_TKE_ewp = 0.0;
+//Real C_T_ewp = 0.8;
+Real C_TKE_ewp = 0.0;
 Real K_turb = 1.0;
-Real sigma_0 = 1.7*R_ewp;
-
 
 void ewp_advance (int lev,
                   const Geometry& geom,
@@ -63,6 +63,7 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();
   auto ProbLoArr = geom.ProbLoArray();
+  Real sigma_0 = 1.7*rotor_rad;
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
@@ -105,11 +106,13 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
+            Real C_T_ewp = interpolate_1d(wind_speed.dataPtr(), thrust_coeff.dataPtr(), z, wind_speed.size());
+
             Real L_wake = std::pow(dx[0]*dx[1],0.5)/2.0;
             Real sigma_e = Vabs/(3.0*K_turb*L_wake)*(std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(M_PI/8.0,0.5)*C_T_ewp*std::pow(R_ewp,2)*std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*std::exp(-0.5*std::pow((z - z_c_ewp)/sigma_e,2));
+            Real fac = -std::pow(M_PI/8.0,0.5)*C_T_ewp*std::pow(rotor_rad,2)*std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*std::exp(-0.5*std::pow((z - hub_height)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = 0.0;

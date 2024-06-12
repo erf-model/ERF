@@ -89,7 +89,7 @@ erf.pbl_type        = "None"
 
 erf.init_type = "uniform"
 
-erf.windfarm_type = "EWP"
+erf.windfarm_type = "Fitch"
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.226
