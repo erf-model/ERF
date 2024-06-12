@@ -283,7 +283,8 @@ void make_sources (int level,
         // *************************************************************************************
         // DUSTIN MA
         if (solverChoice.pert_type == PertType::type1) {
-            CalcTurbPert(level, geom, bx, cell_src, cell_data, turbPert);
+            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
+            turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src);
         }
     } // mfi
     } // OMP

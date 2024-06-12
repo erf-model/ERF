@@ -9,34 +9,59 @@
 using namespace amrex;
 
 void
-ERF::init_TurbPert_updateTime (int lev, TurbulentPerturbation& turbPert)
+ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbPert)
 {
+    // Grabing data from velocity field
     auto& lev_new = vars_new[lev];
 
-    // Grabing data from velocity field
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const Box &bx  = mfi.tilebox();
-        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
-        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
+    // Creating local perturbation box array
+    BoxArray m_pb_ba = turbPert.pb_ba[lev];
+    Real* m_pb_um = turbPert.get_pb_um();
 
-        const auto &xvel_data_arr = xvel_data.array(mfi);
-        const auto &yvel_data_arr = yvel_data.array(mfi);
+    // Compute u average within box union
+    auto m_ixtype = xvel_data.boxArray().ixType();
+    for (MFIter mfi(xvel_data, TileNoZ()) ; mfi.isValid(); ++mfi) {
+        //const Box &vbx = mfi.tilebox();
+        const Box &vbx = mfi.validbox();
 
-        // Computing initial perturbation frequency
-        turbPert.calc_tpi_updateTime(lev, 0., bx, xvel_data_arr, yvel_data_arr);
-    }
-    Print() << "Turbulent perturbation update time initialized\n";
+        for (int i = 0; i < m_pb_ba.size(); i++) {
+            Box pbx = convert(m_pb_ba[i], m_ixtype);
+            Box ubx = pbx & vbx;
+
+            if (ubx.ok()) {
+                int npts = ubx.numPts();
+                Gpu::DeviceVector<Real> tmp_d(1,0.);
+                Real* tmp = tmp_d.data();
+                const Array4<const Real> & xvel_arry = xvel_data.array(mfi);
+
+                // Operating over box union
+                ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    tmp[0] += xvel_arry(i,j,k);
+                });
+                m_pb_um[i] = tmp[0] / (Real) npts;
+            } // if
+        } // for
+    } // MFIter
+
+    #ifdef DEBUG_PERTBOX_MSG
+    turbPert.debug();
+    #endif
+
+    // Computing perturbation update time
+    turbPert.calc_tpi_update(lev, dt);
+
+    Print() << "Turbulent perturbation update time and amplitude initialized\n";
 }
 
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
 void
-ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
+ERF::TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
 {
     auto& lev_new = vars_new[lev];
 
@@ -48,6 +73,9 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
     MultiFab xvel_pert(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
     MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
+
+    // Only storing for conserved quantity for now 
+    auto m_ixtype = cons_pert.boxArray().ixType();
 
     // Default perturbations to zero
     cons_pert.setVal(0.);
@@ -68,7 +96,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const Box &bx  = mfi.tilebox();
+        const Box &bx  = mfi.tilebox(); // Note: tilebox() = validbox() when tiling is off
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
@@ -90,9 +118,7 @@ ERF::init_TurbPert_amplitude (int lev, TurbulentPerturbation& turbPert)
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        // Computing perturbation amplitude
-        turbPert.apply_tpi(lev,  bx, RhoTheta_comp, cons_pert_arr); // Using boxArray
-
+        turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cons_pert_arr); // Using boxArray
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,

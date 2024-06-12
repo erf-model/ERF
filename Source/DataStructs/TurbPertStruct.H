@@ -19,11 +19,11 @@ struct TurbulentPerturbation {
 #define LENGTH_REF
 
     // Initializing Perturbation Region
-    void init_tpi (const int lev,                             // Level of current data
-                                  const amrex::IntVect& nx,
-                                  amrex::GpuArray<amrex::Real,3> const dx,
-                                  const amrex::BoxArray& data_ba,            // Box array from AMReX domain decomposition
-                                  const amrex::DistributionMapping& data_dm) // Distribution map from AMReX domain decomposition
+    // Note: Box will always be initialized at cell centered
+    void init_tpi (const int lev,
+                   const amrex::IntVect& nx,
+                   amrex::GpuArray<amrex::Real,3> const dx)
+
     {
         // TODO: Use user Param to define this (Currently HARDCODED)
         // Perturbation box region setup
@@ -38,50 +38,23 @@ struct TurbulentPerturbation {
         tpi_lref = 8*dx[0];
         #endif
 
-        // TODO: Generalize for xbx, ybx, and zbx using amrex::convert()
         // Creating structure box array for conserved quantity
-        amrex::Box cbx(regionLo, regionHi, amrex::IntVect(0,0,0)); // Cell center
-        amrex::BoxArray cba(cbx);
-        cba.maxSize(boxSize);
+        amrex::Box tmp_bx(regionLo, regionHi, amrex::IntVect(0,0,0));
+        amrex::BoxArray tmp_ba(tmp_bx);
+        tmp_ba.maxSize(boxSize);
+        pb_ba.push_back(tmp_ba);
 
-        // N^2 search to build local distribution map
-        const amrex::Vector<int> d_pmap = data_dm.ProcessorMap();
-        amrex::Vector<int> p_pmap(cba.size()); // Initialization of p_pmap with npbx elements
+        // Initializing mean U vector
+        pb_um.resize(pb_ba[lev].size(), 0.);
+        pb_vm.resize(pb_ba[lev].size(), 0.);
 
-        for (int pbx(0); pbx < cba.size(); ++pbx) {
-            bool found = false;
-
-            for (int dbx(0); dbx < (int) data_ba.size(); ++dbx) {
-                amrex::Box m_dbx = data_ba[dbx];
-
-                if (m_dbx.contains(cba[pbx])) {
-                    found = true;
-                    p_pmap[pbx] = d_pmap[dbx];
-                    continue;
-                } // found
-            } // data box
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(found, "Perturbation box not contained in a valid box!");
-        } // pert box
-
-        amrex::DistributionMapping dm(p_pmap);
-
-        #ifdef DEBUG_PERTBOX_MSG
-        amrex::Print() << "[TurbPert::init_tpi]\nmf_tpi_freq.DistributionMap():\n" << dm << "\n";
-        #endif
-
-        // TODO: The following 3 mf can probably be combined into 1
-        // Creating multifab for update time
-        mf_tpi_freq.define(cba, dm, 1, 0);
-        mf_tpi_etime.define(cba, dm, 1, 0);
-        mf_tpi_amp.define(cba, dm, 1, 0);
-
-        // Initializing mf data
-        mf_tpi_freq.setVal(1.);
-        mf_tpi_etime.setVal(0.);
-        mf_tpi_amp.setVal(0.);
+        // Set size of vector and initialize
+        pb_freq.resize(pb_ba[lev].size(), -1.0);
+        pb_local_etime.resize(pb_ba[lev].size(), 0.0);
+        pb_amp.resize(pb_ba[lev].size(), 0.0);
 
         // Function finalizing output message
-        amrex::Print() << "Turbulent perturbation region initialized with ba " << mf_tpi_freq.boxArray().size() << " boxes\n";
+        amrex::Print() << "Turbulent perturbation region initialized with ba " << pb_ba[lev].size() << " boxes\n";
 
         amrex::Print() << "Using ";
         #ifdef DIAGONAL_REF
@@ -92,117 +65,94 @@ struct TurbulentPerturbation {
         amrex::Print() << "distance as reference for turbulent inlet perturbation: tpi_lref = " << tpi_lref << "\n";
     }
 
-//#define INDEX_PERTURB // Used for box debugging
-#define RANDOM_PERTURB
-
-    // TODO: Write in function to call specific box to calculate new amplitude if update time is larger than the elapsed time
-    // Calculate perturbation update time
-    void calc_tpi_updateTime (const int lev,
-                                   const amrex::Real dt_lev0,
-                                   const amrex::Box& bx,
-                                   amrex::Array4<amrex::Real> const& xvel,
-                                   amrex::Array4<amrex::Real> const& yvel)
+    // Inside this function, perturbation box update freqnecy and perturbation
+    // amplitude are calculated. Condition of local elapsed time must be triggered
+    // for the frequency to update and a new perturbation amplitude to be calculated
+    void calc_tpi_update (const int lev,
+                          const amrex::Real dt)
     {
-       // Reading in Multifab boxArray
-       amrex::BoxArray ba = mf_tpi_freq.boxArray();
+        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+            if ( (pb_freq[boxIdx] <= pb_local_etime[boxIdx]) && 
+                ((pb_um[boxIdx] != 0.) || (pb_vm[boxIdx] != 0.)) ) { // TODO: Second part of condition may need to change
+                // Eq. 10 from Muñoz-Esparza et al. (2015)
+                pb_freq[boxIdx] = tpi_lref / sqrt(pb_um[boxIdx]*pb_um[boxIdx] + pb_vm[boxIdx]*pb_vm[boxIdx]);
 
-       for (int boxIdx = 0; boxIdx < ba.size(); boxIdx++) {
-           //bool check = false;
+                // Trigger amplitude calculation per perturbation box
+                calc_tpi_amp(boxIdx);
 
-           // Checking if perturbation boxes are within current rank box
-           if (bx.contains(ba[boxIdx])) {
-               // Reading in current boxIdx for perturbation boxes
-               amrex::Array4<amrex::Real> const& pb_freq  = mf_tpi_freq.array(boxIdx);
-               amrex::Array4<amrex::Real> const& pb_etime = mf_tpi_etime.array(boxIdx);
+                // Reset local elapsed time
+                pb_local_etime[boxIdx] = 0.;
+            } else {
+                // Increase by timestep
+                pb_local_etime[boxIdx] += dt;
+            } // if
 
-               amrex::Array4<amrex::Real> const& pb_amp   = mf_tpi_amp.array(boxIdx); // XXX HACK
-
-               ParallelFor(ba[boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   #ifdef RANDOM_PERTURB
-                   if (pb_freq(i,j,k,0) >= pb_etime(i,j,k,0)) { 
-                       // Eq. 10 from Muñoz-Esparza et al. (2015)
-                       pb_freq(i,j,k,0) = tpi_lref / sqrt(xvel(i,j,k,0)*xvel(i,j,k,0) + yvel(i,j,k,0*yvel(i,j,k,0)));
-
-                       pb_amp(i,j,k,0) = pb_freq(i,j,k,0); // XXX HACK
-
-                       // Set elapsed time back to 0.
-                       pb_etime(i,j,k,0) = 0.;
-
-                       // Bool to trigger new amplitdue calculation
-                       //check = true;
-                   }
-                   #endif
-
-                   #ifdef INDEX_PERTURB
-                   pb_freq(i,j,k,0) = (amrex::Real) boxIdx+1.;
-                   #endif
-
-                   // Incrementing time value for each box
-                   pb_etime(i,j,k,0) += dt_lev0;
-               });
-
-               // Calculate new amplitude
-               //if (check) calc_tpi_amp(lev, bx, ba, 0);
-           } // if bx.contain()
-       } // for
+            #ifdef DEBUG_PERTBOX_MSG
+            amrex::Print() << "pb_freq[" << boxIdx << "] = " << pb_freq[boxIdx] << "\n";
+            #endif
+        } // for
     }
 
-    //TODO: Inside of this function I am operating from ba being already within the geom box
-    // therfore another would be redudant. We can directly access data from u and v velocity
-    // to compute (1) average of velocity between top and bottom perturbaiton box planes, or
-    // (2) compute the box volume average of the velocity components.
-    // Will need to find out how to compute this plane average first.
-    void calc_tpi_amp (const int lev,         // Current level
-                       const amrex::Box& bx,  // TileBox bx
-                       const amrex::BoxArray& ba, 
-                       const int comp)        // Component to modify
-    {
+#define INDEX_PERTURB
 
+    // Inside of this function, perturbation amplitude is computed.
+    // This is where all of the different ways of computing perturbation amplitude will be defined
+    void calc_tpi_amp (const int boxIdx)
+    {
+        pb_amp[boxIdx] = sqrt(pb_um[boxIdx]*pb_um[boxIdx] + pb_vm[boxIdx]*pb_vm[boxIdx]); 
+
+        #ifdef INDEX_PERTURB
+        pb_amp[boxIdx] = (amrex::Real) (boxIdx + 1.);
+        #endif
     }
 
-    // TODO: Access velocity data to calculate perturbation based on simulation values
-    // Calculate perturbation amplitude
-    void apply_tpi (const int lev,                            // Current level
-                    const amrex::Box& bx,                     // TileBox bx
+    // Applying perturbation amplitude onto source term and using random number generation
+    void apply_tpi (const int lev,
+                    const amrex::Box& vbx,                    // box union from upper level
                     const int comp,                           // Component to modify
+                    const amrex::IndexType m_ixtype,          // IntVect type of src_arr
                     amrex::Array4<amrex::Real> const& src_arr)// Source Array to apply perturbation
     {
-        amrex::BoxArray ba = mf_tpi_amp.boxArray();
-        for (int boxIdx = 0; boxIdx < ba.size(); boxIdx++) {
+        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                    // Random number generation between 0 and 1
+                    amrex::Real rand_double = amrex::Random(engine);
 
-            // Populating array with values
-            if (bx.contains(ba[boxIdx])) {
-                amrex::Array4<amrex::Real> const& pb_amp = mf_tpi_amp.array(boxIdx);
-
-                #ifdef DEBUG_PERTBOX_MSG
-                amrex::Print() << "  bx: " << bx << " -- contains perturbation box #" << boxIdx << ": " << ba[boxIdx] << "\n";
-                #endif
-
-                // Applying random perturbation to perturbation amplitude
-                ParallelForRNG(ba[boxIdx], [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                    #ifdef RANDOM_PERTURB
-                    amrex::Real rand_double = amrex::Random(engine);  // Between 0.0 and 1.0
-                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp(i,j,k,0);
-                    #endif
-
-                    #ifdef INDEX_PERTURB
-                    src_arr(i, j, k, comp) = pb_amp(i,j,k,0);
-                    #endif
+                    // Rescale between -1 and 1 and multiple with amplitude
+                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp[boxIdx];
+                    //src_arr(i,j,k,comp) = pb_amp[boxIdx];
                 });
-            } // if
-        } // boxIdx
+            }
+        }
     }
 
+    amrex::Real* get_pb_um() { return pb_um.data(); }
+
+    void debug() {
+        for (int i=0; i < pb_um.size(); i++){
+            amrex::Print()<< "pb_um[" << i << "] = " << pb_um[i] << "\n";
+        }
+    }
+ 
+    // Public data members 
+    amrex::Vector<amrex::BoxArray> pb_ba;
+
+    // Perturbation box mean velocities
+    amrex::Vector<amrex::Real> pb_um;
+    amrex::Vector<amrex::Real> pb_vm;
 
   private:
 
-    // Turbulent perturbation inleft reference length
+    // Turbulent perturbation inlet reference length
     amrex::Real tpi_lref;
 
-    // Perturbation box mf
-    amrex::MultiFab mf_tpi_freq;  // Update Time
-    amrex::MultiFab mf_tpi_etime; // Elapsed Time
-    amrex::MultiFab mf_tpi_amp;   // Amplitdue
+    // Perturbation update time
+    amrex::Vector<amrex::Real> pb_freq;
+    amrex::Vector<amrex::Real> pb_local_etime;
+    amrex::Vector<amrex::Real> pb_amp;
 
 };
 #endif
