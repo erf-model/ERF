@@ -1,2 +1,0 @@
-CEXE_sources += AdvanceEWP.cpp
-CEXE_headers += EWP.H
