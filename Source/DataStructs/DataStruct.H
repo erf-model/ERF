@@ -40,6 +40,10 @@ enum struct WindFarmType {
     Fitch, EWP, None
 };
 
+enum struct WindFarmLocType{
+    lat_lon, x_y
+};
+
 enum struct LandSurfaceType {
     SLM, MM5, None
 };
@@ -305,9 +309,24 @@ struct SolverChoice {
         else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
         }
-        else if (windfarm_type_string != "None") {
-            amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
+        else {
+            amrex::Abort("Dont know this windfarm_type. windfarm_type has to be Fitch or EWP.");
         }
+
+        static std::string windfarm_loc_type_string = "None";
+        pp.query("windfarm_loc_type", windfarm_loc_type_string);
+        if (windfarm_loc_type_string == "lat_lon") {
+            windfarm_loc_type = WindFarmLocType::lat_lon;
+        }
+        else if (windfarm_loc_type_string == "x_y") {
+            windfarm_loc_type = WindFarmLocType::x_y;
+        }
+        else {
+            amrex::Abort("Dont know this windfarm_loc_type. windfarm_loc_type has to be specified as lat-lon or x-y.");
+        }
+
+        pp.query("windfarm_loc_table",  windfarm_loc_table);
+        pp.query("windfarm_spec_table", windfarm_spec_table);
 
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
@@ -473,6 +492,7 @@ struct SolverChoice {
     TerrainType  terrain_type;
     MoistureType moisture_type;
     WindFarmType windfarm_type;
+    WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
@@ -486,5 +506,6 @@ struct SolverChoice {
     bool use_moist_background {false};
 
     amrex::Real latitude_lo, longitude_lo;
+    std::string windfarm_loc_table, windfarm_spec_table;
 };
 #endif

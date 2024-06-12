@@ -16,10 +16,20 @@ using namespace amrex;
 void
 ERF::init_windfarm (int lev)
 {
+    if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
+        init_windfarm_lat_lon(lev, solverChoice.windfarm_loc_table);
+    }
+    read_in_table(solverChoice.windfarm_spec_table);
+}
+
+void
+ERF::init_windfarm_lat_lon (int lev, std::string windfarm_loc_table)
+{
     // Read turbine locations from windturbines.txt
-    std::ifstream file("windturbines.txt");
+    std::ifstream file(windfarm_loc_table);
     if (!file.is_open()) {
-        amrex::Error("Wind turbines location file windturbines.txt not found");
+        amrex::Error("Wind turbines location table not found. Either the inputs is missing the"
+                     " erf.windfarm_loc_table entry or the file specified in the entry " + windfarm_loc_table + " is missing.");
     }
     // Vector of vectors to store the matrix
     std::vector<Real> lat, lon, xloc, yloc;
@@ -91,7 +101,5 @@ ERF::init_windfarm (int lev)
             }
         });
     }
-    read_in_table();
 }
-
 

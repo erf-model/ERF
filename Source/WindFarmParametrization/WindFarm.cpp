@@ -6,7 +6,7 @@ using namespace amrex;
 amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
 amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
-void read_in_table()
+void read_in_table(std::string windfarm_spec_table)
 {
 
     //The first line is the number of pairs entries for the power curve and thrust coefficient.
@@ -16,12 +16,13 @@ void read_in_table()
     //The remaining lines contain the three values of: wind speed, thrust coefficient, and power production in kW.
 
      // Read turbine data from wind-turbine-1.tbl
-    std::ifstream file_turb_table("wind-turbine-1.tbl");
+    std::ifstream file_turb_table(windfarm_spec_table);
     if (!file_turb_table.is_open()) {
-        amrex::Error("Wind turbines location file wind-turbine-1.tbl not found");
+        amrex::Error("Wind farm specifications table not found. Either the inputs is missing the "
+                      "erf.windfarm_spec_table entry or the file specified in the entry - " + windfarm_spec_table + " is missing.");
     }
     else {
-        amrex::Print() << "Reading in wind-turbine-1.tbl... \n";
+        amrex::Print() << "Reading in wind farm specifications table: " << windfarm_spec_table << "\n";
     }
 
     int nlines;

@@ -366,6 +366,8 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
+    void init_windfarm_lat_lon(int lev, std::string windfarm_loc_table);
+    void init_windfarm_x_y(int lev);
 #endif
 
 #ifdef ERF_USE_EB
