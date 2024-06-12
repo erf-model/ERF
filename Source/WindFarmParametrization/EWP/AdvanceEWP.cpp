@@ -5,7 +5,6 @@
 
 using namespace amrex;
 
-//Real C_T_ewp = 0.8;
 Real C_TKE_ewp = 0.0;
 Real K_turb = 1.0;
 
