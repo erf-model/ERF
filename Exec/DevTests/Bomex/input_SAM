@@ -21,7 +21,7 @@ erf.most.z0     = 0.1
 erf.most.zref   = 20.0
 erf.use_explicit_most = true
 
-// NOTE: This should have a qv grad too (use hoextrapcc?!)
+# NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.00365
     
