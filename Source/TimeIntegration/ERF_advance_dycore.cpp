@@ -49,8 +49,9 @@ void ERF::advance_dycore(int level,
 
     const Box& domain = fine_geom.Domain();
 
-    DiffChoice dc = solverChoice.diffChoice;
-    TurbChoice tc = solverChoice.turbChoice[level];
+    DiffChoice dc    = solverChoice.diffChoice;
+    TurbChoice tc    = solverChoice.turbChoice[level];
+    SpongeChoice sc  = solverChoice.spongeChoice;
 
     MultiFab r_hse (base_state[level], make_alias, 0, 1); // r_0 is first  component
     MultiFab p_hse (base_state[level], make_alias, 1, 1); // p_0 is second component
@@ -75,6 +76,14 @@ void ERF::advance_dycore(int level,
     d_rayleigh_ptrs_at_lev[Rayleigh::wbar]     = solverChoice.rayleigh_damp_W   ? d_rayleigh_ptrs[level][Rayleigh::wbar].data() : nullptr;
     d_rayleigh_ptrs_at_lev[Rayleigh::thetabar] = solverChoice.rayleigh_damp_T   ? d_rayleigh_ptrs[level][Rayleigh::thetabar].data() : nullptr;
 
+    Vector<Real*> d_sponge_ptrs_at_lev;
+    if(sc.sponge_type=="input_sponge")
+    {
+        d_sponge_ptrs_at_lev.resize(Sponge::nvars_sponge);
+        d_sponge_ptrs_at_lev[Sponge::ubar_sponge]  =  d_sponge_ptrs[level][Sponge::ubar_sponge].data();
+        d_sponge_ptrs_at_lev[Sponge::vbar_sponge]  =  d_sponge_ptrs[level][Sponge::vbar_sponge].data();
+    }
+
     bool l_use_terrain = solverChoice.use_terrain;
     bool l_use_diff    = ( (dc.molec_diff_type != MolecDiffType::None) ||
                            (tc.les_type        !=       LESType::None) ||
@@ -83,6 +92,7 @@ void ERF::advance_dycore(int level,
                            (tc.pbl_type != PBLType::None) );
 
     const bool use_most = (m_most != nullptr);
+    const bool exp_most = (solverChoice.use_explicit_most);
     amrex::ignore_unused(use_most);
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
@@ -190,7 +200,7 @@ void ERF::advance_dycore(int level,
                                   *eddyDiffs, *Hfx1, *Hfx2, *Hfx3, *Diss, // to be updated
                                   fine_geom, *mapfac_u[level], *mapfac_v[level],
                                   z_phys_nd[level], tc, solverChoice.gravity,
-                                  m_most, level, bc_ptr_d);
+                                  m_most, exp_most, level, bc_ptr_d);
     }
 
     // ***********************************************************************************************
@@ -262,7 +272,7 @@ void ERF::advance_dycore(int level,
     mri_integrator.set_post_update(post_update_fun);
 
 #ifdef ERF_USE_POISSON_SOLVE
-    if (solverChoice.incompressible) {
+    if (solverChoice.incompressible[level]) {
         mri_integrator.set_slow_rhs_inc(slow_rhs_fun_inc);
     }
 #endif

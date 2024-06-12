@@ -141,6 +141,11 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     lev_new[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
     lev_old[Vars::zvel].define(convert(ba, IntVect(0,0,1)), dm, 1, IntVect(ngrow_vels,ngrow_vels,0));
 
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc[lev].define(ba, dm, 1, 1);
+    pp_inc[lev].setVal(0.0);
+#endif
+
     // ********************************************************************************************
     // These are just used for scratch in the time integrator but we might as well define them here
     // ********************************************************************************************
@@ -231,14 +236,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Variables for Ftich model for windfarm parametrization
     //*********************************************************
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_fitch[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
+                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::EWP){
-        int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
-        vars_ewp[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
-        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        vars_windfarm[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
+                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
 
@@ -246,8 +249,33 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Radiation heating source terms
     //*********************************************************
-     qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
-     qheating_rates[lev]->setVal(0.);
+    qheating_rates[lev] = std::make_unique<MultiFab>(ba, dm, 2, ngrow_state);
+    qheating_rates[lev]->setVal(0.);
+
+    //*********************************************************
+    // Radiation fluxes for coupling to LSM
+    //*********************************************************
+
+    // NOTE: Finer levels do not need to coincide with the bottom domain boundary
+    //       at k=0. We make slabs here with the kmin for a given box. Therefore,
+    //       care must be taken before applying these fluxes to an LSM model. For
+
+    // Radiative fluxes for LSM
+    if (solverChoice.lsm_type != LandSurfaceType::None)
+    {
+        BoxList m_bl = ba.boxList();
+        for (auto& b : m_bl) {
+            int kmin = b.smallEnd(2);
+            b.setRange(2,kmin);
+        }
+        BoxArray m_ba(std::move(m_bl));
+
+        sw_lw_fluxes[lev] = std::make_unique<MultiFab>(m_ba, dm, 5, ngrow_state); // SW direct (2), SW diffuse (2), LW
+        solar_zenith[lev] = std::make_unique<MultiFab>(m_ba, dm, 2, ngrow_state);
+
+        sw_lw_fluxes[lev]->setVal(0.);
+        solar_zenith[lev]->setVal(0.);
+    }
 #endif
 }
 
@@ -303,7 +331,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     }
 
     if (l_use_kturb) {
-      eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
+        eddyDiffs_lev[lev] = std::make_unique<MultiFab>( ba, dm, EddyDiff::NumDiffs, 1 );
         eddyDiffs_lev[lev]->setVal(0.0);
         if(l_use_ddorf) {
             SmnSmn_lev[lev] = std::make_unique<MultiFab>( ba, dm, 1, 0 );
@@ -381,7 +409,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
     mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
-    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible);
+    mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);
 }

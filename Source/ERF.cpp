@@ -38,6 +38,9 @@ int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
 int ERF::verbose       = 0;
+#ifdef ERF_USE_POISSON_SOLVE
+int ERF::mg_verbose    = 0;
+#endif
 
 // Frequency of diagnostic output
 int  ERF::sum_interval  = -1;
@@ -61,6 +64,9 @@ std::string ERF::nc_bdy_file; // Must provide via input
 
 // Text input_sounding file
 std::string ERF::input_sounding_file = "input_sounding";
+
+// Text input_sponge file
+std::string ERF::input_sponge_file = "input_sponge_file.txt";
 
 // Flag to trigger initialization from input_sounding like WRF's ideal.exe
 bool ERF::init_sounding_ideal = false;
@@ -113,12 +119,13 @@ ERF::ERF ()
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size lsm before readparams (chooses the model at all levels)
@@ -176,6 +183,11 @@ ERF::ERF ()
 
     vars_new.resize(nlevs_max);
     vars_old.resize(nlevs_max);
+
+#ifdef ERF_USE_POISSON_SOLVE
+    pp_inc.resize(nlevs_max);
+#endif
+
 
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
@@ -256,6 +268,15 @@ ERF::ERF ()
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
 
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -265,6 +286,17 @@ ERF::ERF ()
     // Time averaged velocity field
     vel_t_avg.resize(nlevs_max);
     t_avg_cnt.resize(nlevs_max);
+
+#ifdef ERF_USE_NETCDF
+    // Size lat long arrays if using netcdf
+    lat_m.resize(nlevs_max);
+    lon_m.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        lat_m[lev] = nullptr;
+        lon_m[lev] = nullptr;
+    }
+#endif
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
@@ -764,7 +796,14 @@ ERF::InitData ()
             bool restarting = (!restart_chkfile.empty());
             setRayleighRefFromSounding(restarting);
         }
+    }
 
+    // Read in sponge data from input file
+    if(solverChoice.spongeChoice.sponge_type == "input_sponge")
+    {
+        initSponge();
+        bool restarting = (!restart_chkfile.empty());
+        setSpongeRefFromSounding(restarting);
     }
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
@@ -796,7 +835,12 @@ ERF::InitData ()
         // Note -- this projection is only defined for no terrain
         if (solverChoice.project_initial_velocity) {
             AMREX_ALWAYS_ASSERT(solverChoice.use_terrain == 0);
-            project_velocities(vars_new);
+            Real dummy_dt = 1.0;
+            for (int lev = 0; lev <= finest_level; ++lev)
+            {
+                project_velocities(lev, dummy_dt, vars_new[lev], pp_inc[lev]);
+                pp_inc[lev].setVal(0.);
+            }
         }
     }
 #endif
@@ -869,12 +913,13 @@ ERF::InitData ()
     //       FillPatch does not call MOST, FillIntermediatePatch does.
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST)
     {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-        Print() << "Using MOST with explicitly included surface stresses" << std::endl;
-#endif
+        bool use_exp_most = solverChoice.use_explicit_most;
+        if (use_exp_most) {
+            Print() << "Using MOST with explicitly included surface stresses" << std::endl;
+        }
 
-        m_most = std::make_unique<ABLMost>(geom, vars_old, Theta_prim, Qv_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux
+        m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1162,6 +1207,11 @@ ERF::init_only (int lev, Real time)
 #ifdef ERF_USE_WINDFARM
     init_windfarm(lev);
 #endif
+
+   if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
+        input_sponge(lev);
+   }
+
 }
 
 // read in some parameters from inputs file
@@ -1199,6 +1249,9 @@ ERF::ReadParameters ()
 
         // Verbosity
         pp.query("v", verbose);
+#ifdef ERF_USE_POISSON_SOLVE
+        pp.query("mg_v", mg_verbose);
+#endif
 
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
@@ -1308,6 +1361,9 @@ ERF::ReadParameters ()
         // Text input_sounding file
         pp.query("input_sounding_file", input_sounding_file);
 
+        // Text input_sounding file
+        pp.query("input_sponge_file", input_sponge_file);
+
         // Flag to trigger initialization from input_sounding like WRF's ideal.exe
         pp.query("init_sounding_ideal", init_sounding_ideal);
 
@@ -1404,11 +1460,11 @@ ERF::ReadParameters ()
         lsm.SetModel<NullSurf>();
         Print() << "Null land surface model!\n";
     } else {
-        Abort("Dont know this moisture_type!") ;
+        Abort("Dont know this LandSurfaceType!") ;
     }
 
     if (verbose > 0) {
-        solverChoice.display();
+        solverChoice.display(max_level);
     }
 
     if (solverChoice.coupling_type == CouplingType::TwoWay && cf_width > 0) {
@@ -1755,12 +1811,13 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
 #ifdef ERF_USE_WINDFARM
     Nturb.resize(nlevs_max);
-    vars_fitch.resize(nlevs_max);
-    vars_ewp.resize(nlevs_max);
+    vars_windfarm.resize(nlevs_max);
 #endif
 
 #if defined(ERF_USE_RRTMGP)
     qheating_rates.resize(nlevs_max);
+    sw_lw_fluxes.resize(nlevs_max);
+    solar_zenith.resize(nlevs_max);
 #endif
 
     // NOTE: size micro before readparams (chooses the model at all levels)
@@ -1855,6 +1912,15 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     // Base state
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
+
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
 
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);

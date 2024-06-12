@@ -20,6 +20,33 @@
 #include <AMReX_EBMultiFabUtil.H>
 #endif
 
+void erf_make_tau_terms (int level, int nrk,
+                         const amrex::Vector<amrex::BCRec>& domain_bcs_type,
+                         std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                         amrex::Vector<amrex::MultiFab>& S_data,
+                         const amrex::MultiFab& xvel,
+                         const amrex::MultiFab& yvel,
+                         const amrex::MultiFab& zvel,
+                               amrex::MultiFab& Omega,
+                               amrex::MultiFab* Tau11,
+                               amrex::MultiFab* Tau22,
+                               amrex::MultiFab* Tau33,
+                               amrex::MultiFab* Tau12,
+                               amrex::MultiFab* Tau13,
+                               amrex::MultiFab* Tau21,
+                               amrex::MultiFab* Tau23,
+                               amrex::MultiFab* Tau31,
+                               amrex::MultiFab* Tau32,
+                               amrex::MultiFab* SmnSmn,
+                               amrex::MultiFab* eddyDiffs,
+                         const amrex::Geometry geom,
+                         const SolverChoice& solverChoice,
+                         std::unique_ptr<ABLMost>& most,
+                         std::unique_ptr<amrex::MultiFab>& dJ,
+                         std::unique_ptr<amrex::MultiFab>& mapfac_m,
+                         std::unique_ptr<amrex::MultiFab>& mapfac_u,
+                         std::unique_ptr<amrex::MultiFab>& mapfac_v);
+
 /**
  * Function for computing the slow RHS for the evolution equations for the density, potential temperature and momentum.
  *
@@ -27,9 +54,10 @@
 void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::Real dt,
                       amrex::Vector<amrex::MultiFab>& S_rhs,
+                      amrex::Vector<amrex::MultiFab>& S_old,
                       amrex::Vector<amrex::MultiFab>& S_data,
-                      const amrex::MultiFab& S_prim,
-                            amrex::Vector<amrex::MultiFab >& S_scratch,
+                              const amrex::MultiFab & S_prim,
+                      amrex::Vector<amrex::MultiFab>& S_scratch,
                       const amrex::MultiFab& xvel,
                       const amrex::MultiFab& yvel,
                       const amrex::MultiFab& zvel,
@@ -63,6 +91,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       std::unique_ptr<amrex::MultiFab>& az,
                       std::unique_ptr<amrex::MultiFab>& dJ,
                       const amrex::MultiFab* p0,
+#ifdef ERF_USE_POISSON_SOLVE
+                      const amrex::MultiFab& pp_inc,
+#endif
                       std::unique_ptr<amrex::MultiFab>& mapfac_m,
                       std::unique_ptr<amrex::MultiFab>& mapfac_u,
                       std::unique_ptr<amrex::MultiFab>& mapfac_v,
@@ -169,6 +200,7 @@ void erf_slow_rhs_inc (int level, int nrk,
                        std::unique_ptr<amrex::MultiFab>& az,
                        std::unique_ptr<amrex::MultiFab>& dJ,
                        const amrex::MultiFab* p0,
+                       const amrex::MultiFab& pp_inc,
                        std::unique_ptr<amrex::MultiFab>& mapfac_m,
                        std::unique_ptr<amrex::MultiFab>& mapfac_u,
                        std::unique_ptr<amrex::MultiFab>& mapfac_v);

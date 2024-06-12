@@ -69,8 +69,8 @@ void make_sources (int level,
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
-    Table1D<Real>      dptr_t_plane, dptr_q_plane;
-    TableData<Real, 1>  t_plane_tab,  q_plane_tab;
+    Table1D<Real>      dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
+    TableData<Real, 1>  t_plane_tab,  qv_plane_tab, qc_plane_tab;
     if (dptr_wbar_sub)
     {
         PlaneAverage t_ave(&S_prim, geom, solverChoice.ave_plane, true);
@@ -99,23 +99,44 @@ void make_sources (int level,
 
         if (solverChoice.moisture_type != MoistureType::None)
         {
-            PlaneAverage q_ave(&S_prim, geom, solverChoice.ave_plane, true);
-            q_ave.compute_averages(ZDir(), q_ave.field());
+            // Water vapor
+            PlaneAverage qv_ave(&S_prim, geom, solverChoice.ave_plane, true);
+            qv_ave.compute_averages(ZDir(), qv_ave.field());
 
-            Gpu::HostVector<  Real> q_plane_h(ncell);
-            Gpu::DeviceVector<Real> q_plane_d(ncell);
+            Gpu::HostVector<  Real> qv_plane_h(ncell);
+            Gpu::DeviceVector<Real> qv_plane_d(ncell);
 
-            q_ave.line_average(PrimQ1_comp, q_plane_h);
-            Gpu::copyAsync(Gpu::hostToDevice, q_plane_h.begin(), q_plane_h.end(), q_plane_d.begin());
+            qv_ave.line_average(PrimQ1_comp, qv_plane_h);
+            Gpu::copyAsync(Gpu::hostToDevice, qv_plane_h.begin(), qv_plane_h.end(), qv_plane_d.begin());
 
-            Real* dptr_q = q_plane_d.data();
+            Real* dptr_qv = qv_plane_d.data();
 
-            q_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+            qv_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
 
-            dptr_q_plane = q_plane_tab.table();
+            dptr_qv_plane = qv_plane_tab.table();
             ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
             {
-                dptr_q_plane(k-offset) = dptr_q[k];
+                dptr_qv_plane(k-offset) = dptr_qv[k];
+            });
+
+            // Cloud water
+            PlaneAverage qc_ave(&S_prim, geom, solverChoice.ave_plane, true);
+            qc_ave.compute_averages(ZDir(), qc_ave.field());
+
+            Gpu::HostVector<  Real> qc_plane_h(ncell);
+            Gpu::DeviceVector<Real> qc_plane_d(ncell);
+
+            qc_ave.line_average(PrimQ2_comp, qc_plane_h);
+            Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
+
+            Real* dptr_qc = qc_plane_d.data();
+
+            qc_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+
+            dptr_qc_plane = qc_plane_tab.table();
+            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+            {
+                dptr_qc_plane(k-offset) = dptr_qc[k];
             });
         }
     }
@@ -219,21 +240,27 @@ void make_sources (int level,
             const int n = RhoTheta_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i, j, k, n) += dptr_wbar_sub[k] *
+                cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
                     0.5 * (dptr_t_plane(k+1) - dptr_t_plane(k-1)) * dxInv[2];
 
             });
         }
 
         // *************************************************************************************
-        // Add custom subsidence for RhoQ1
+        // Add custom subsidence for RhoQ1 and RhoQ2
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
-            const int n = RhoQ1_comp;
+            const int nv = RhoQ1_comp;
+            const int nc = RhoQ2_comp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                cell_src(i,j,k,n) += dptr_wbar_sub[k] *
-                    0.5 * (dptr_q_plane(k+1) - dptr_q_plane(k-1)) * dxInv[2];
+                cell_src(i,j,k,nv) -= dptr_wbar_sub[k] *
+                    0.5 * (dptr_qv_plane(k+1) - dptr_qv_plane(k-1)) * dxInv[2];
+            });
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                cell_src(i,j,k,nc) -= dptr_wbar_sub[k] *
+                    0.5 * (dptr_qc_plane(k+1) - dptr_qc_plane(k-1)) * dxInv[2];
             });
         }
 
@@ -273,8 +300,9 @@ void make_sources (int level,
         // *************************************************************************************
         // Add sponging
         // *************************************************************************************
-        ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
-
+        if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
+            ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+        }
     } // mfi
     } // OMP
 }

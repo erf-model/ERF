@@ -6,7 +6,11 @@ using namespace amrex;
 /**
  * Autoconversion (A30), Accretion (A28), Evaporation (A24)
  */
-void SAM::Precip () {
+void
+SAM::Precip (const SolverChoice& sc)
+{
+
+    if (sc.moisture_type == MoistureType::SAM_NoPrecip_NoIce) return;
 
     Real powr1 = (3.0 + b_rain) / 4.0;
     Real powr2 = (5.0 + b_rain) / 8.0;
@@ -36,6 +40,11 @@ void SAM::Precip () {
     Real eps = std::numeric_limits<Real>::epsilon();
 
     Real dtn = dt;
+
+    int SAM_moisture_type = 1;
+    if (sc.moisture_type == MoistureType::SAM_NoIce) {
+        SAM_moisture_type = 2;
+    }
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -75,13 +84,17 @@ void SAM::Precip () {
             Real autor, autos;
             Real accrcr, accrcs, accris, accrcg, accrig;
 
-            //==================================================
-            // Autoconversion (A30/A31) and accretion (A27)
-            //==================================================
+            // Work to be done for autoc/accr or evap
             if (qn_array(i,j,k)+qp_array(i,j,k) > 0.0) {
-                omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
-                omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
-                omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                if (SAM_moisture_type == 2) {
+                    omn = 1.0;
+                    omp = 1.0;
+                    omg = 0.0;
+                } else {
+                    omn = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tbgmin)*a_bg));
+                    omp = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tprmin)*a_pr));
+                    omg = std::max(0.0,std::min(1.0,(tabs_array(i,j,k)-tgrmin)*a_gr));
+                }
 
                 qcc = qcl_array(i,j,k);
                 qii = qci_array(i,j,k);
@@ -90,6 +103,9 @@ void SAM::Precip () {
                 qps = qps_array(i,j,k);
                 qpg = qpg_array(i,j,k);
 
+                //==================================================
+                // Autoconversion (A30/A31) and accretion (A27)
+                //==================================================
                 if (qn_array(i,j,k) > 0.0) {
                     accrcr = 0.0;
                     accrcs = 0.0;
@@ -166,12 +182,11 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta
+                    // Update temperature
                     tabs_array(i,j,k) += fac_fus * ( dqca * (1.0 - omp) - dqia * omp );
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) /= 100.0;
+
+                    // Update theta
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
                 }
 
                 //==================================================
@@ -187,12 +202,12 @@ void SAM::Precip () {
                     dqpg = evapg1_t(k)*sqrt(qpg) + evapg2_t(k)*pow(qpg,powg2);
 
                     // NOTE: This is always a sink for precipitating comps
-                    //       since qv<qsat and thus (qv/qsat-1)<0. If we are
+                    //       since qv<qsat and thus (1 - qv/qsat)>0. If we are
                     //       in a super-saturated state (qv>qsat) the Newton
                     //       iterations in Cloud() will have handled condensation.
-                    dqpr *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqps *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
-                    dqpg *= -dtn * (qv_array(i,j,k)/qsat - 1.0);
+                    dqpr *= dtn * (1.0 - qv_array(i,j,k)/qsat);
+                    dqps *= dtn * (1.0 - qv_array(i,j,k)/qsat);
+                    dqpg *= dtn * (1.0 - qv_array(i,j,k)/qsat);
 
                     // Limit to avoid negative moisture fractions
                     dqpr = std::min(qpr_array(i,j,k),dqpr);
@@ -210,12 +225,11 @@ void SAM::Precip () {
                     qt_array(i,j,k) =  qv_array(i,j,k) +  qn_array(i,j,k);
                     qp_array(i,j,k) = qpr_array(i,j,k) + qps_array(i,j,k) + qpg_array(i,j,k);
 
-                    // Latent heat source for theta
-                    tabs_array(i,j,k) += fac_cond * dqpr + fac_sub * (dqps + dqpg);
-                    pres_array(i,j,k)  = rho_array(i,j,k) * R_d * tabs_array(i,j,k)
-                                       * (1.0 + R_v/R_d * qv_array(i,j,k));
-                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), pres_array(i,j,k), rdOcp);
-                    pres_array(i,j,k) /= 100.0;
+                    // Update temperature
+                    tabs_array(i,j,k) -= fac_cond * dqpr + fac_sub * (dqps + dqpg);
+
+                    // Update theta
+                    theta_array(i,j,k) = getThgivenPandT(tabs_array(i,j,k), 100.0*pres_array(i,j,k), rdOcp);
                 }
             }
         });

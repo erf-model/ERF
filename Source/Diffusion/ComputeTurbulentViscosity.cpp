@@ -48,7 +48,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const Geometry& geom,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
-                                   const TurbChoice& turbChoice, const Real const_grav, std::unique_ptr<ABLMost>& most)
+                                   const TurbChoice& turbChoice, const Real const_grav,
+                                   std::unique_ptr<ABLMost>& most, const bool& exp_most)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const Box& domain = geom.Domain();
@@ -88,7 +89,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
           ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
           {
-              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most);
+              Real SmnSmn = ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23,klo,use_most,exp_most);
               Real dxInv = cellSizeInv[0];
               Real dyInv = cellSizeInv[1];
               Real dzInv = cellSizeInv[2];
@@ -152,17 +153,17 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           Real eps       = std::numeric_limits<Real>::epsilon();
           Real dtheta_dz;
           if (use_most && k==klo) {
-#ifdef ERF_EXPLICIT_MOST_STRESS
-              dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
-                          - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
-#else
-              dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
-                                    / cell_data(i,j,k  ,Rho_comp)
-                                + 4 * cell_data(i,j,k+1,RhoTheta_comp)
-                                    / cell_data(i,j,k+1,Rho_comp)
-                                -     cell_data(i,j,k+2,RhoTheta_comp)
-                                    / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
-#endif
+              if (exp_most) {
+                  dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                              - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+              } else {
+                  dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
+                                        / cell_data(i,j,k  ,Rho_comp)
+                                    + 4 * cell_data(i,j,k+1,RhoTheta_comp)
+                                        / cell_data(i,j,k+1,Rho_comp)
+                                    -     cell_data(i,j,k+2,RhoTheta_comp)
+                                        / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+              }
           } else {
               dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                 - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
@@ -190,10 +191,11 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           // Calculate SFS quantities
           // - dissipation
           Real Ce;
-          if ((l_C_e_wall > 0) && (k==0))
+          if ((l_C_e_wall > 0) && (k==0)) {
               Ce = l_C_e_wall;
-          else
+          } else {
               Ce = 1.9*l_C_k + Ce_lcoeff*length / DeltaMsf;
+          }
           diss(i,j,k) = cell_data(i,j,k,Rho_comp) * Ce * std::pow(E,1.5) / length;
           // - heat flux
           //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
@@ -413,6 +415,7 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                 const std::unique_ptr<MultiFab>& z_phys_nd,
                                 const TurbChoice& turbChoice, const Real const_grav,
                                 std::unique_ptr<ABLMost>& most,
+                                const bool& exp_most,
                                 int level,
                                 const BCRec* bc_ptr,
                                 bool vert_only)
@@ -445,7 +448,8 @@ void ComputeTurbulentViscosity (const MultiFab& xvel , const MultiFab& yvel ,
                                      cons_in, eddyViscosity,
                                      Hfx1, Hfx2, Hfx3, Diss,
                                      geom, mapfac_u, mapfac_v,
-                                     z_phys_nd, turbChoice, const_grav, most);
+                                     z_phys_nd, turbChoice, const_grav,
+                                     most, exp_most);
     }
 
     if (turbChoice.pbl_type != PBLType::None) {

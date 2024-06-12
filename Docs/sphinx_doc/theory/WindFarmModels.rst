@@ -4,7 +4,9 @@ Wind farm models
 Introduction
 -------------
 
-ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently only the Fitch model (`Fitch et al. 2012`_) is supported.
+ERF supports models for wind farm parametrization in which the effects of wind turbines are represented by imposing a momentum sink on the mean flow and/or turbulent kinetic energy (TKE). Currently only the Fitch model (`Fitch et al. 2012`_) and Explicit Wake Parametrization (EWP) model (`Volker et al. 2015`_) are supported.
+
+.. _Fitch model:
 
 Fitch model
 ------------
@@ -17,15 +19,15 @@ The Fitch model for wind farms introduced in `Fitch et al. 2012`_  models the ef
 
     \frac{\partial u_{ijk}}{\partial t} &= \frac{u_{ijk}}{|V|_{ijk}}\frac{\partial |V|_{ijk}}{\partial t} \\
     \frac{\partial v_{ijk}}{\partial t} &= \frac{v_{ijk}}{|V|_{ijk}}\frac{\partial |V|_{ijk}}{\partial t} \\
-    \frac{\partial \text{TKE}_{ijk}}{\partial t} &=  \frac{0.5N^{ij}C_{TKE}(|V|_{ijk})|V|_{ijk}^3A_{ijk}}{z_{k+1}-z_k}
+    \frac{\partial \text{TKE}_{ijk}}{\partial t} &=  \frac{0.5N_{ij}C_{TKE}(|V|_{ijk})|V|_{ijk}^3A_{ijk}}{\Delta x \Delta y (z_{k+1}-z_k)}
 
 where
 
 .. math::
 
-    \frac{\partial |V|_{ijk}}{\partial t} = \frac{0.5N^{ij}C_T(|V|_{ijk})|V|_{ijk}^2A_{ijk}}{z_{k+1}-z_k}
+    \frac{\partial |V|_{ijk}}{\partial t} = \frac{0.5N_{ij}C_T(|V|_{ijk})|V|_{ijk}^2A_{ijk}}{\Delta x \Delta y (z_{k+1}-z_k)}
 
-where `u` and `v` are horizontal components of velocity, `|V|` is the velocity magnitude, :math:`N^{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`C_T` is the coefficient of thrust of the turbines, :math:`C_{TKE}` is the fraction of energy converted to turbulent kinetic energy -- both of which are functions of the velocity magnitude, and :math:`A_{ijk}` is the area intersected by the swept area of the turbine between levels :math:`z=z_k` and :math:`z= z_{k+1}`, and is explained in the next section.
+where `u` and `v` are horizontal components of velocity, `|V|` is the velocity magnitude, :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`C_T` is the coefficient of thrust of the turbines, :math:`C_{TKE}` is the fraction of energy converted to turbulent kinetic energy -- both of which are functions of the velocity magnitude, and :math:`A_{ijk}` is the area intersected by the swept area of the turbine between levels :math:`z=z_k` and :math:`z= z_{k+1}`, and is explained in the next section.
 
 Intersected area :math:`A_{ijk}`
 _________________________________
@@ -79,3 +81,35 @@ An example of the Fitch model is in ``Exec/Fitch``
    :align: center
 
    The area terminology in the Fitch model. The circle represents the area swept by the turbine blades.
+
+
+.. _explicit-wake-parametrization-ewp-model:
+
+Explicit Wake Parametrization (EWP) model
+-----------------------------------------
+
+The Explicit Wake Parametrization (EWP) model [`Volker et al. 2015`_] is very similar to the Fitch model, and models the effect of wind farms as source terms in the governing equations for the horizontal components of momentum (i.e., :math:`x` and :math:`y` momentum) and the turbulent kinetic energy (TKE). At a given cell :math:`(i,j,k)`, the source terms in the governing equations are:
+
+.. math::
+    \frac{\partial u_{ijk}}{\partial t} = -\sqrt{\frac{\pi}{8}}\frac{N_{ij}c_tr_0^2\overline{u}_0^2}{\Delta x \Delta y \sigma_e}
+    \exp\left\{-\frac{1}{2}\left(\frac{z-h}{\sigma_e}\right)^2\right\}\cos(\phi(k))
+
+.. math::
+    \frac{\partial v_{ijk}}{\partial t} = -\sqrt{\frac{\pi}{8}}\frac{N_{ij}c_tr_0^2\overline{u}_0^2}{\Delta x \Delta y \sigma_e}
+    \exp\left\{-\frac{1}{2}\left(\frac{z-h}{\sigma_e}\right)^2\right\}\sin(\phi(k))
+
+.. math::
+    \frac{\partial \text{TKE}_{ijk}}{\partial t} = -N_{ij}\rho A_rc_t\langle \overline{u}_{i,h}\overline{u'^2}_{i,h}\rangle
+
+with
+
+.. math::
+    \sigma_e = \frac{\overline{u}_0}{3KL}\left[\left(\frac{2KL}{\overline{u}_0} + \sigma_0^2\right)^{\frac{3}{2}} - \sigma_0^3\right]
+
+where :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`c_t` is the thrust coefficient, :math:`r_0` is the rotor radius, :math:`\overline{u}_0` is the mean advection velocity at hub height, :math:`h` is the hub height, :math:`\sigma_0 \approx 1.7 r_0` [`Volker et al. 2017`_] is a length scale that accounts for near-wake expansion, :math:`L` is the downstream distance that the wake travels within the cell approximated as a fraction of the cell size, :math:`K` is the turbulence eddy diffusivity (:math:`m^2/s`), :math:`\Delta x` and :math:`\Delta y` are the mesh sizes in the horizontal directions, and :math:`\phi(k)` is the wind direction with respect to the x-axis. :math:`\overline{u}_{i,h}` and :math:`\overline{u'}_{i,h}` are the mean and the fluctuating values of the velocity components (subscript :math:`i` is the direction index) at the hub height :math:`h`, :math:`A_r = \pi r^2` is the swept area of the rotor and :math:`\rho` is the density of air.
+
+The EWP model does not have a concept of intersected area by the turbine rotor like the Fitch model (see :ref:`Fitch model`). The exponential factor in the source terms for the velocities models the effect of the rotor for the momentum source/sinks, and the turbulent kinetic energy source term only depends on the density, hub-height mean velocities and fluctuations, and the total swept area of the rotor :math:`A_r`.    
+
+
+.. _`Volker et al. 2015`: https://gmd.copernicus.org/articles/8/3715/2015/
+.. _`Volker et al. 2017`: https://iopscience.iop.org/article/10.1088/1748-9326/aa5d86

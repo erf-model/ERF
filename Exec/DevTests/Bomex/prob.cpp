@@ -227,7 +227,8 @@ Problem::update_rhotheta_sources (const Real& /*time*/,
         if (z_cc < parms.cutoff) {
             src[k] = parms.advection_heating_rate;
         } else if (z_cc < parms.cutoff+parms.cutoff_transition) {
-            src[k] = parms.advection_heating_rate * (z_cc-parms.cutoff)/parms.cutoff_transition;
+            Real slope = -parms.advection_heating_rate / parms.cutoff_transition;
+            src[k] = (z_cc-parms.cutoff) * slope + parms.advection_heating_rate;
         } else {
             src[k] = 0.0;
         }
@@ -269,7 +270,8 @@ Problem::update_rhoqt_sources (const Real& /*time*/,
         if (z_cc < parms.moisture_cutoff) {
             qsrc[k] = parms.advection_moisture_rate;
         } else if (z_cc < parms.moisture_cutoff+parms.moisture_cutoff_transition) {
-            qsrc[k] = parms.advection_moisture_rate * (z_cc-parms.moisture_cutoff)/parms.moisture_cutoff_transition;
+            Real slope = -parms.advection_moisture_rate / parms.moisture_cutoff_transition;
+            qsrc[k] = (z_cc-parms.moisture_cutoff) * slope + parms.advection_moisture_rate;
         } else {
             qsrc[k] = 0.0;
         }
@@ -306,7 +308,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min
-    Real z_0    = (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
+    Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     wbar[0]     = 0.0;
@@ -359,8 +361,9 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
     for (int k = 0; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         const Real u_geo_wind = -10.0 + z_cc * 0.0018;
-        u_geos[k] =  0 ; //coriolis *  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
-        v_geos[k] =  coriolis *  u_geo_wind;
+
+        u_geos[k] =  u_geo_wind; // 0; // -coriolis_factor * v_geo_wind
+        v_geos[k] =  0 ; // coriolis *  u_geo_wind;
     }
 
     // Copy from host version to device version

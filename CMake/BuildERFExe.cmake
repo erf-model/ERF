@@ -17,10 +17,6 @@ function(build_erf_lib erf_lib_name)
 
   target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MOISTURE)
 
-  if(ERF_ENABLE_EXPLICIT_MOST_STRESS)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_EXPLICIT_MOST_STRESS)
-  endif()
-
   if(ERF_ENABLE_MULTIBLOCK)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/MultiBlock/MultiBlockContainer.cpp)
@@ -77,6 +73,7 @@ function(build_erf_lib erf_lib_name)
 
   if(ERF_ENABLE_RRTMGP)
     target_sources(${erf_lib_name} PRIVATE
+                   ${SRC_DIR}/Utils/Orbit.cpp
                    ${SRC_DIR}/Radiation/Init_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Finalize_rrtmgp.cpp
                    ${SRC_DIR}/Radiation/Run_longwave_rrtmgp.cpp
@@ -142,6 +139,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
        ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
+       ${SRC_DIR}/Initialization/ERF_input_sponge.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp
        ${SRC_DIR}/IO/ERF_WriteBndryPlanes.cpp
@@ -152,6 +150,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/writeJobInfo.cpp
        ${SRC_DIR}/IO/console_io.cpp
        ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs.cpp
+	   ${SRC_DIR}/SourceTerms/ERF_ApplySpongeZoneBCs_ReadFromFile.cpp	  
        ${SRC_DIR}/SourceTerms/ERF_make_buoyancy.cpp
        ${SRC_DIR}/SourceTerms/ERF_add_thin_body_sources.cpp
        ${SRC_DIR}/SourceTerms/ERF_make_mom_sources.cpp
@@ -166,6 +165,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_advance_lsm.cpp
        ${SRC_DIR}/TimeIntegration/ERF_advance_radiation.cpp
        ${SRC_DIR}/TimeIntegration/ERF_make_fast_coeffs.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_make_tau_terms.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_pre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_slow_rhs_post.cpp
        ${SRC_DIR}/TimeIntegration/ERF_fast_rhs_N.cpp

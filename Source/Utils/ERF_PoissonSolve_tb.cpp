@@ -11,26 +11,16 @@ using namespace amrex;
  * Project the single-level velocity field to enforce incompressibility with a
  * thin body
  */
-void ERF::project_velocities_tb (Vector<MultiFab>& vmf, const Real dt)
-{
-    Vector<Vector<MultiFab>> tmpmf(1);
-    for (auto& mf : vmf) {
-        tmpmf[0].emplace_back(mf, amrex::make_alias, 0, mf.nComp());
-    }
-    project_velocities_tb(tmpmf, dt);
-}
-
-/**
- * Project the multi-level velocity field to enforce incompressibility with a
- * thin body; we iterate on the pressure solve to obtain the body force that
- * satisfies no penetration
- */
-void
-ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
+void ERF::project_velocities_tb (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFab& pmf)
 {
     BL_PROFILE("ERF::project_velocities()");
+    AMREX_ALWAYS_ASSERT(!solverChoice.use_terrain);
 
-    const int nlevs = geom.size();
+    // Make sure the solver only sees the levels over which we are solving
+    Vector<BoxArray>            ba_tmp;   ba_tmp.push_back(vmf[Vars::cons].boxArray());
+    Vector<DistributionMapping> dm_tmp;   dm_tmp.push_back(vmf[Vars::cons].DistributionMap());
+    Vector<Geometry>          geom_tmp; geom_tmp.push_back(geom[lev]);
+    // amrex::Print() << "AT LEVEL " << lev << " BA FOR POISSON SOLVE " << vmf[Vars::cons].boxArray() << std::endl;
 
     // Use the default settings
     LPInfo info;
@@ -44,7 +34,7 @@ ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
 #endif
     {
         // Use the default settings
-        p_mlpoisson = std::make_unique<MLPoisson>(geom, grids, dmap, info);
+        p_mlpoisson = std::make_unique<MLPoisson>(geom_tmp, ba_tmp, dm_tmp, info);
     }
 
     auto bclo = get_projection_bc(Orientation::low);
@@ -52,9 +42,11 @@ ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
     bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
     p_mlpoisson->setDomainBC(bclo, bchi);
 
-    for (int ilev = 0; ilev < nlevs; ++ilev) {
-       p_mlpoisson->setLevelBC(0, nullptr);
+    if (lev > 0) {
+        p_mlpoisson->setCoarseFineBC(nullptr, ref_ratio[lev-1], LinOpBCType::Neumann);
     }
+
+    p_mlpoisson->setLevelBC(0, nullptr);
 
     Vector<MultiFab> rhs;
     Vector<MultiFab> phi;
@@ -65,100 +57,90 @@ ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
     // Used to pass array of const MFs to ComputeDivergence
     Array<MultiFab const*, AMREX_SPACEDIM> u;
 
-    rhs.resize(nlevs);
-    phi.resize(nlevs);
-    fluxes.resize(nlevs);
-    deltaf.resize(nlevs);
-    u_plus_dtdf.resize(nlevs);
+    rhs.resize(1);
+    phi.resize(1);
+    fluxes.resize(1);
+    deltaf.resize(1);
+    u_plus_dtdf.resize(1);
 
-    for (int ilev = 0; ilev < nlevs; ++ilev) {
-        rhs[ilev].define(grids[ilev], dmap[ilev], 1, 0);
-        phi[ilev].define(grids[ilev], dmap[ilev], 1, 1);
-        rhs[ilev].setVal(0.0);
-        phi[ilev].setVal(0.0);
+    rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+    phi[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+    rhs[0].setVal(0.0);
+    phi[0].setVal(0.0);
 
-        for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-            fluxes[ilev][idim].define(
-                convert(grids[ilev], IntVect::TheDimensionVector(idim)),
-                dmap[ilev], 1, 0);
-            u_plus_dtdf[ilev][idim].define(
-                convert(grids[ilev], IntVect::TheDimensionVector(idim)),
-                dmap[ilev], 1, 0);
-            deltaf[ilev][idim].define(
-                convert(grids[ilev], IntVect::TheDimensionVector(idim)),
-                dmap[ilev], 1, 0);
-            deltaf[ilev][idim].setVal(0.0); // start with f^* == f^{n-1}
-        }
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+             fluxes[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+        u_plus_dtdf[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+
+             deltaf[0][idim].define(convert(ba_tmp[0], IntVect::TheDimensionVector(idim)), dm_tmp[0], 1, 0);
+             deltaf[0][idim].setVal(0.0); // start with f^* == f^{n-1}
     }
 
+#if 0
     // DEBUG
-    u[0] = &(vars[0][Vars::xvel]);
-    u[1] = &(vars[0][Vars::yvel]);
-    u[2] = &(vars[0][Vars::zvel]);
+    u[0] = &(vmf[Vars::xvel]);
+    u[1] = &(vmf[Vars::yvel]);
+    u[2] = &(vmf[Vars::zvel]);
     computeDivergence(rhs[0], u, geom[0]);
     Print() << "Max norm of divergence before solve at level 0 : " << rhs[0].norm0() << std::endl;
+#endif
 
     for (int itp = 0; itp < solverChoice.ncorr; ++itp)
     {
-        for (int ilev = 0; ilev < nlevs; ++ilev)
-        {
-            // Calculate u + dt*deltaf
-            for (int idim = 0; idim < 3; ++idim) {
-                MultiFab::Copy(u_plus_dtdf[ilev][idim], deltaf[ilev][idim], 0, 0, 1, 0);
-                u_plus_dtdf[ilev][0].mult(-dt,0,1,0);
-            }
-            MultiFab::Add(u_plus_dtdf[ilev][0], vars[ilev][Vars::xvel], 0, 0, 1, 0);
-            MultiFab::Add(u_plus_dtdf[ilev][1], vars[ilev][Vars::yvel], 0, 0, 1, 0);
-            MultiFab::Add(u_plus_dtdf[ilev][2], vars[ilev][Vars::zvel], 0, 0, 1, 0);
+        // Calculate u + dt*deltaf
+        for (int idim = 0; idim < 3; ++idim) {
+            MultiFab::Copy(u_plus_dtdf[0][idim], deltaf[0][idim], 0, 0, 1, 0);
+            u_plus_dtdf[0][0].mult(-l_dt,0,1,0);
+        }
+        MultiFab::Add(u_plus_dtdf[0][0], vmf[Vars::xvel], 0, 0, 1, 0);
+        MultiFab::Add(u_plus_dtdf[0][1], vmf[Vars::yvel], 0, 0, 1, 0);
+        MultiFab::Add(u_plus_dtdf[0][2], vmf[Vars::zvel], 0, 0, 1, 0);
 
-            u[0] = &(u_plus_dtdf[ilev][0]);
-            u[1] = &(u_plus_dtdf[ilev][1]);
-            u[2] = &(u_plus_dtdf[ilev][2]);
-            computeDivergence(rhs[ilev], u, geom[ilev]);
+        u[0] = &(u_plus_dtdf[0][0]);
+        u[1] = &(u_plus_dtdf[0][1]);
+        u[2] = &(u_plus_dtdf[0][2]);
+        computeDivergence(rhs[0], u, geom_tmp[0]);
 
-            // DEBUG
-            if (itp==0) {
-                for (MFIter mfi(rhs[ilev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+#if 0
+        // DEBUG
+        if (itp==0) {
+            for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+            {
+                const Box& bx = mfi.tilebox();
+                const Array4<Real const>& divU = rhs[0].const_array(mfi);
+                const Array4<Real const>& uarr = vmf[Vars::xvel].const_array(mfi);
+                const Array4<Real const>& varr = vmf[Vars::yvel].const_array(mfi);
+                const Array4<Real const>& warr = vmf[Vars::zvel].const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    const Box& bx = mfi.tilebox();
-                    const Array4<Real const>& divU = rhs[ilev].const_array(mfi);
-                    const Array4<Real const>& uarr = vars[ilev][Vars::xvel].const_array(mfi);
-                    const Array4<Real const>& varr = vars[ilev][Vars::yvel].const_array(mfi);
-                    const Array4<Real const>& warr = vars[ilev][Vars::zvel].const_array(mfi);
-                    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-                    {
-                        if ((i>=120) && (i<=139) && (j==0) && ((k>=127)&&(k<=128))) {
-                            amrex::AllPrint() << "before project div"<<IntVect(i,j,k)<<" = "<< divU(i,j,k)
-                                << " u: " << uarr(i,j,k) << " " << uarr(i+1,j,k)
-                                << " v: " << varr(i,j,k) << " " << varr(i,j+1,k)
-                                << " w: " << warr(i,j,k) << " " << warr(i,j,k+1)
-                                << std::endl;
-                        }
-                    });
-                }
+                    if ((i>=120) && (i<=139) && (j==0) && ((k>=127)&&(k<=128))) {
+                        amrex::AllPrint() << "before project div"<<IntVect(i,j,k)<<" = "<< divU(i,j,k)
+                            << " u: " << uarr(i,j,k) << " " << uarr(i+1,j,k)
+                            << " v: " << varr(i,j,k) << " " << varr(i,j+1,k)
+                            << " w: " << warr(i,j,k) << " " << warr(i,j,k+1)
+                            << std::endl;
+                    }
+                });
             }
+        }
+#endif
 
-            // If all Neumann BCs, adjust RHS to make sure we can converge
-            if (need_adjust_rhs) {
-                Real offset = volWgtSumMF(ilev, rhs[ilev], 0, *mapfac_m[ilev], false, false);
-                amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
-                rhs[ilev].plus(-offset, 0, 1);
-            }
+        // If all Neumann BCs, adjust RHS to make sure we can converge
+        if (need_adjust_rhs) {
+            Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
+            // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
+            rhs[0].plus(-offset, 0, 1);
         }
 
         // Initialize phi to 0
-        for (int ilev = 0; ilev < nlevs; ++ilev)
-        {
-            phi[ilev].setVal(0.0);
-        }
+        phi[0].setVal(0.0);
 
         MLMG mlmg(*p_mlpoisson);
         int max_iter = 100;
         mlmg.setMaxIter(max_iter);
 
-        int verbose = 1;
-        mlmg.setVerbose(verbose);
-        //mlmg.setBottomVerbose(verbose);
+        mlmg.setVerbose(mg_verbose);
+        //mlmg.setBottomVerbose(mg_verbose);
 
         // solve for dt*p
         mlmg.solve(GetVecOfPtrs(phi),
@@ -169,121 +151,102 @@ ERF::project_velocities_tb (Vector<Vector<MultiFab>>& vars, const Real dt)
         mlmg.getFluxes(GetVecOfArrOfPtrs(fluxes));
 
         // Calculate new intermediate body force with updated gradp
-        for (int ilev = 0; ilev < nlevs; ++ilev)
-        {
-            if (thin_xforce[ilev]) {
-                MultiFab::Copy(   deltaf[ilev][0], fluxes[ilev][0], 0, 0, 1, 0);
-                ApplyInvertedMask(deltaf[ilev][0], *xflux_imask[ilev]);
-            }
-            if (thin_yforce[ilev]) {
-                MultiFab::Copy(   deltaf[ilev][1], fluxes[ilev][1], 0, 0, 1, 0);
-                ApplyInvertedMask(deltaf[ilev][1], *yflux_imask[ilev]);
-            }
-            if (thin_zforce[ilev]) {
-                MultiFab::Copy(   deltaf[ilev][2], fluxes[ilev][2], 0, 0, 1, 0);
-                ApplyInvertedMask(deltaf[ilev][2], *zflux_imask[ilev]);
-            }
-
-            // DEBUG
-    //        for (MFIter mfi(rhs[ilev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    //        {
-    //            const Box& bx = mfi.tilebox();
-    //            const Array4<Real const>& dfz_arr = deltaf[ilev][2].const_array(mfi);
-    //            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-    //            {
-    //                if ((i>=120) && (i<=139) && (j==0) && (k==128)) {
-    //                    amrex::AllPrint()
-    //                        << " piter" << itp
-    //                        << " dfz"<<IntVect(i,j,k)<<" = "<< dfz_arr(i,j,k)
-    //                        << std::endl;
-    //                }
-    //            });
-    //        }
+        if (thin_xforce[lev]) {
+            MultiFab::Copy(   deltaf[0][0], fluxes[0][0], 0, 0, 1, 0);
+            ApplyInvertedMask(deltaf[0][0], *xflux_imask[0]);
         }
+        if (thin_yforce[lev]) {
+            MultiFab::Copy(   deltaf[0][1], fluxes[0][1], 0, 0, 1, 0);
+            ApplyInvertedMask(deltaf[0][1], *yflux_imask[0]);
+        }
+        if (thin_zforce[lev]) {
+            MultiFab::Copy(   deltaf[0][2], fluxes[0][2], 0, 0, 1, 0);
+            ApplyInvertedMask(deltaf[0][2], *zflux_imask[0]);
+        }
+
+        // DEBUG
+        //        for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        //        {
+        //            const Box& bx = mfi.tilebox();
+        //            const Array4<Real const>& dfz_arr = deltaf[0][2].const_array(mfi);
+        //            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        //            {
+        //                if ((i>=120) && (i<=139) && (j==0) && (k==128)) {
+        //                    amrex::AllPrint()
+        //                        << " piter" << itp
+        //                        << " dfz"<<IntVect(i,j,k)<<" = "<< dfz_arr(i,j,k)
+        //                        << std::endl;
+        //                }
+        //            });
+        //        }
+
+        // Update pressure variable with phi -- note that phi is change in pressure, not the full pressure
+        MultiFab::Saxpy(pmf, 1.0, phi[0],0,0,1,0);
 
         // Subtract grad(phi) from the velocity components
         Real beta = 1.0;
-        for (int ilev = 0; ilev < nlevs; ++ilev) {
-            MultiFab::Saxpy(vars[ilev][Vars::xvel], beta, fluxes[ilev][0], 0, 0, 1, 0);
-            MultiFab::Saxpy(vars[ilev][Vars::yvel], beta, fluxes[ilev][1], 0, 0, 1, 0);
-            MultiFab::Saxpy(vars[ilev][Vars::zvel], beta, fluxes[ilev][2], 0, 0, 1, 0);
-            if (thin_xforce[ilev]) {
-                ApplyMask(vars[ilev][Vars::xvel], *xflux_imask[ilev]);
-            }
-            if (thin_yforce[ilev]) {
-                ApplyMask(vars[ilev][Vars::yvel], *yflux_imask[ilev]);
-            }
-            if (thin_zforce[ilev]) {
-                ApplyMask(vars[ilev][Vars::zvel], *zflux_imask[ilev]);
-            }
+        MultiFab::Saxpy(vmf[Vars::xvel], beta, fluxes[0][0], 0, 0, 1, 0);
+        MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);
+        MultiFab::Saxpy(vmf[Vars::zvel], beta, fluxes[0][2], 0, 0, 1, 0);
+        if (thin_xforce[lev]) {
+            ApplyMask(vmf[Vars::xvel], *xflux_imask[0]);
         }
-    } // pressure-force iterations
+        if (thin_yforce[lev]) {
+            ApplyMask(vmf[Vars::yvel], *yflux_imask[0]);
+        }
+        if (thin_zforce[lev]) {
+            ApplyMask(vmf[Vars::zvel], *zflux_imask[0]);
+        }
+    } // itp: pressure-force iterations
 
     // Subtract grad(phi) from the velocity components
 //    Real beta = 1.0;
-//    for (int ilev = 0; ilev < nlevs; ++ilev) {
-//        MultiFab::Saxpy(vars[ilev][Vars::xvel], beta, fluxes[ilev][0], 0, 0, 1, 0);
-//        MultiFab::Saxpy(vars[ilev][Vars::yvel], beta, fluxes[ilev][1], 0, 0, 1, 0);
-//        MultiFab::Saxpy(vars[ilev][Vars::zvel], beta, fluxes[ilev][2], 0, 0, 1, 0);
-//        if (thin_xforce[ilev]) {
-//            ApplyMask(vars[ilev][Vars::xvel], *xflux_imask[ilev]);
+//    for (int ilev = lev_min; ilev <= lev_max; ++ilev) {
+//        MultiFab::Saxpy(vmf[Vars::xvel], beta, fluxes[0][0], 0, 0, 1, 0);
+//        MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);
+//        MultiFab::Saxpy(vmf[Vars::zvel], beta, fluxes[0][2], 0, 0, 1, 0);
+//        if (thin_xforce[lev]) {
+//            ApplyMask(vmf[Vars::xvel], *xflux_imask[0]);
 //        }
-//        if (thin_yforce[ilev]) {
-//            ApplyMask(vars[ilev][Vars::yvel], *yflux_imask[ilev]);
+//        if (thin_yforce[lev]) {
+//            ApplyMask(vmf[Vars::yvel], *yflux_imask[0]);
 //        }
-//        if (thin_zforce[ilev]) {
-//            ApplyMask(vars[ilev][Vars::zvel], *zflux_imask[ilev]);
+//        if (thin_zforce[lev]) {
+//            ApplyMask(vmf[Vars::zvel], *zflux_imask[0]);
 //        }
 //    }
 
-    // Average down the velocity from finest to coarsest to ensure consistency across levels
-    int finest_level = nlevs - 1;
-    Array<MultiFab const*, AMREX_SPACEDIM> u_fine;
-    Array<MultiFab      *, AMREX_SPACEDIM> u_crse;
-    for (int ilev = finest_level; ilev > 0; --ilev)
-    {
-        IntVect rr  = geom[ilev].Domain().size() / geom[ilev-1].Domain().size();
-        u_fine[0] = &(vars[ilev  ][Vars::xvel]);
-        u_fine[1] = &(vars[ilev  ][Vars::yvel]);
-        u_fine[2] = &(vars[ilev  ][Vars::zvel]);
-        u_crse[0] = &(vars[ilev-1][Vars::xvel]);
-        u_crse[1] = &(vars[ilev-1][Vars::yvel]);
-        u_crse[2] = &(vars[ilev-1][Vars::zvel]);
-        average_down_faces(u_fine, u_crse, rr, geom[ilev-1]);
-    }
-
-#if 1
+#if 0
     // Confirm that the velocity is now divergence free
-    for (int ilev = 0; ilev < nlevs; ++ilev)
-    {
-        u[0] = &(vars[ilev][Vars::xvel]);
-        u[1] = &(vars[ilev][Vars::yvel]);
-        u[2] = &(vars[ilev][Vars::zvel]);
-        computeDivergence(rhs[ilev], u, geom[ilev]);
-        Print() << "Max norm of divergence after solve at level " << ilev << " : " << rhs[ilev].norm0() << std::endl;
+    u[0] = &(vmf[Vars::xvel]);
+    u[1] = &(vmf[Vars::yvel]);
+    u[2] = &(vmf[Vars::zvel]);
+    computeDivergence(rhs[0], u, geom_tmp[0]);
+    Print() << "Max norm of divergence after solve at level " << lev << " : " << rhs[0].norm0() << std::endl;
 
-        for (MFIter mfi(rhs[ilev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+#if 0
+    for (MFIter mfi(rhs[0], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<Real const>& divU = rhs[0].const_array(mfi);
+        const Array4<Real const>& uarr = u[0]->const_array(mfi);
+        const Array4<Real const>& varr = u[1]->const_array(mfi);
+        const Array4<Real const>& warr = u[2]->const_array(mfi);
+        const Array4<Real const>& fzarr = thin_zforce[0]->const_array(mfi);
+        const Array4<Real const>& dfzarr = deltaf[0][2].const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            const Box& bx = mfi.tilebox();
-            const Array4<Real const>& divU = rhs[ilev].const_array(mfi);
-            const Array4<Real const>& uarr = u[0]->const_array(mfi);
-            const Array4<Real const>& varr = u[1]->const_array(mfi);
-            const Array4<Real const>& warr = u[2]->const_array(mfi);
-            const Array4<Real const>& fzarr = thin_zforce[ilev]->const_array(mfi);
-            const Array4<Real const>& dfzarr = deltaf[ilev][2].const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                if ((i>=120) && (i<=139) && (j==0) && ((k>=127)&&(k<=128))) {
-                    amrex::AllPrint() << "after project div"<<IntVect(i,j,k)<<" = "<< divU(i,j,k)
-                        << " u: " << uarr(i,j,k) << " " << uarr(i+1,j,k)
-                        << " v: " << varr(i,j,k) << " " << varr(i,j+1,k)
-                        << " w: " << warr(i,j,k) << " " << warr(i,j,k+1)
-                        << " fz = " << fzarr(i,j,k) << " + " << dfzarr(i,j,k)
-                        << std::endl;
-                }
-            });
-        }
+            if ((i>=120) && (i<=139) && (j==0) && ((k>=127)&&(k<=128))) {
+                amrex::AllPrint() << "after project div"<<IntVect(i,j,k)<<" = "<< divU(i,j,k)
+                    << " u: " << uarr(i,j,k) << " " << uarr(i+1,j,k)
+                    << " v: " << varr(i,j,k) << " " << varr(i,j+1,k)
+                    << " w: " << warr(i,j,k) << " " << warr(i,j,k+1)
+                    << " fz = " << fzarr(i,j,k) << " + " << dfzarr(i,j,k)
+                    << std::endl;
+            }
+        });
     }
+#endif
 #endif
 }
 #endif
