@@ -27,18 +27,19 @@ where
 
     \frac{\partial |V|_{ijk}}{\partial t} = \frac{0.5N_{ij}C_T(|V|_{ijk})|V|_{ijk}^2A_{ijk}}{\Delta x \Delta y (z_{k+1}-z_k)}
 
-where `u` and `v` are horizontal components of velocity, `|V|` is the velocity magnitude, :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`C_T` is the coefficient of thrust of the turbines, :math:`C_{TKE}` is the fraction of energy converted to turbulent kinetic energy -- both of which are functions of the velocity magnitude, and :math:`A_{ijk}` is the area intersected by the swept area of the turbine between levels :math:`z=z_k` and :math:`z= z_{k+1}`, and is explained in the next section.
+where `u` and `v` are horizontal components of velocity, `|V|` is the velocity magnitude, :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)` (see Fig. :numref:`fig:WindFarm`), :math:`C_T` is the coefficient of thrust of the turbines, :math:`C_{TKE}` is the fraction of energy converted to turbulent kinetic energy -- both of which are functions of the velocity magnitude, and :math:`A_{ijk}` is the area intersected by the swept area of the turbine between levels :math:`z=z_k` and :math:`z= z_{k+1}`, and is explained in the next section.
+
 
 Intersected area :math:`A_{ijk}`
-_________________________________
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Consider :math:`A_k^{k+1}` -- the area intersected by the swept area of the wind turbine between :math:`z=z_k` and :math:`z = z_{k+1}`. We have (see Figs. `2` and `3` below)
+Consider :math:`A_k^{k+1}` -- the area intersected by the swept area of the wind turbine between :math:`z=z_k` and :math:`z = z_{k+1}`. We have (see Figs. :numref:`fig:WindTurbine_Fitch` and :numref:`fig:Fitch_Aijk` below)
 
 .. math::
 
     A_k = \frac{\pi R^2}{2} - A_{ks}
 
-where :math:`A_{ks}` is the area of the segment of the circle as shown in Fig. `3`. We have from geometry, :math:`d_k = \min(|z_k - z_c|,R)` is the perpendicular distance of the center of the turbine to :math:`z = z_k`, where :math:`z_c` is the height of the center of the turbine from the ground. The area of the segment is
+where :math:`A_{ks}` is the area of the segment of the circle as shown in Fig. :numref:`fig:Fitch_Aijk`. We have from geometry, :math:`d_k = \min(|z_k - h|,R)` is the perpendicular distance of the center of the turbine to :math:`z = z_k`, where :math:`h` is the height of the center of the turbine from the ground. The area of the segment is
 
 .. math::
 
@@ -52,13 +53,13 @@ Hence, we have the intersected area :math:`A_{ijk}\equiv A_k^{k+1}` as
 
     A_k^{k+1} =
     \begin{cases}
-        |A_k - A_{k+1}| & \text{if } (z_k - z_c)(z_{k+1}-z_c) > 0 \\
-        |A_k + A_{k+1}| & \text{if } (z_k - z_c)(z_{k+1}-z_c) \le 0 \\
+        |A_k - A_{k+1}| & \text{if } (z_k - h)(z_{k+1}-h) > 0 \\
+        |A_k + A_{k+1}| & \text{if } (z_k - h)(z_{k+1}-h) \le 0 \\
     \end{cases}
 
 An example of the Fitch model is in ``Exec/Fitch``
 
-.. 1:
+.. _fig:WindFarm:
 
 .. figure:: ../figures/WindFarm_Fitch.png
    :width: 300
@@ -66,15 +67,15 @@ An example of the Fitch model is in ``Exec/Fitch``
 
    Horizontal view of the wind farm in the Fitch model -- shows a wind farm in cell `(i,j)` with 5 wind turbines. The turbines are discretized only in the vertical direction.
 
-.. 2:
+.. _fig:WindTurbine_Fitch:
 
 .. figure:: ../figures/WindTurbine_Fitch.png
-   :width: 300
+   :width: 400
    :align: center
 
    The vertical discretization of the wind turbine in the Fitch model.
 
-.. 3:
+.. _fig:Fitch_Aijk:
 
 .. figure:: ../figures/FitchModel_A_ijk.png
    :width: 400
@@ -108,8 +109,96 @@ with
 
 where :math:`N_{ij}` is the number of turbines in cell :math:`(i,j)`, :math:`c_t` is the thrust coefficient, :math:`r_0` is the rotor radius, :math:`\overline{u}_0` is the mean advection velocity at hub height, :math:`h` is the hub height, :math:`\sigma_0 \approx 1.7 r_0` [`Volker et al. 2017`_] is a length scale that accounts for near-wake expansion, :math:`L` is the downstream distance that the wake travels within the cell approximated as a fraction of the cell size, :math:`K` is the turbulence eddy diffusivity (:math:`m^2/s`), :math:`\Delta x` and :math:`\Delta y` are the mesh sizes in the horizontal directions, and :math:`\phi(k)` is the wind direction with respect to the x-axis. :math:`\overline{u}_{i,h}` and :math:`\overline{u'}_{i,h}` are the mean and the fluctuating values of the velocity components (subscript :math:`i` is the direction index) at the hub height :math:`h`, :math:`A_r = \pi r^2` is the swept area of the rotor and :math:`\rho` is the density of air.
 
-The EWP model does not have a concept of intersected area by the turbine rotor like the Fitch model (see :ref:`Fitch model`). The exponential factor in the source terms for the velocities models the effect of the rotor for the momentum source/sinks, and the turbulent kinetic energy source term only depends on the density, hub-height mean velocities and fluctuations, and the total swept area of the rotor :math:`A_r`.
+The EWP model does not have a concept of intersected area by the turbine rotor like the Fitch model (see :ref:`Fitch model`). The exponential factor in the source terms for the velocities models the effect of the rotor for the momentum sinks (see Fig. :numref:`fig:WindTurbine_EWP`), and the turbulent kinetic energy source term only depends on the density, hub-height mean velocities and fluctuations, and the total swept area of the rotor :math:`A_r`.
 
+.. _fig:WindTurbine_EWP:
+
+.. figure:: ../figures/WindTurbine_EWP.png
+   :width: 400
+   :align: center
+
+   In the EWP model, the exponential factor in the source terms for the velocities models the effect of the rotor for the momentum sinks unlike the Fitch model which computes the 
+   intersected area (see Fig. :numref:`fig:WindTurbine_Fitch`). 
 
 .. _`Volker et al. 2015`: https://gmd.copernicus.org/articles/8/3715/2015/
 .. _`Volker et al. 2017`: https://iopscience.iop.org/article/10.1088/1748-9326/aa5d86
+
+
+.. _Inputs:
+
+Inputs for wind farm parametrization models
+------------------------------------------------------------
+
+Fitch, EWP
+~~~~~~~~~~~
+
+The following are the inputs required for simulations with Fitch, EWP models.
+
+.. code-block:: cpp
+
+    erf.windfarm_type = "Fitch" // or "EWP"
+    erf.windfarm_loc_type = "lat_lon" // or "x_y"
+
+    // If using lat_lon, then the latitude and longitude of 
+    // the bottom-corner of the domain has to be specified. 
+    // The following means 35 deg N, 100 deg W (note the negative sign)
+
+    erf.latitude_lo      =   35.0 // To be specified if using lat_lon
+    erf.longitude_lo     = -100.0 // To be specified if using lat_lon
+
+    erf.windfarm_loc_table = "windturbines_1WT.txt"
+    erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
+
+| ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.	
+| ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``. ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as 
+
+.. code-block:: cpp
+
+	geometry.prob_lo     = -25000.   0.  -10000
+	geometry.prob_hi     =  25000. 10000. 10000.
+ 
+| then ``(erf.latitude_lo, erf.longitude_lo)`` corresponds to ``(-25000, 0, -10000)``.
+| The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm. For the latitude-longitude format, here is a sample. Each line specifies the latitude and longitude of the wind turbine location. The third entry simply has to be always 1 (WRF requires the third entry to be always 1, so maintaining same format here). The first entry means that the turbine is located at ``35.7828 deg N, 99.0168 deg W`` (note the negative sign in the entry corresponding to West).
+
+.. code-block:: cpp
+
+	35.7828828829 -99.0168 1
+	35.8219219219 -99.0168 1
+	35.860960961 -99.0168 1
+	35.9 -99.0168 1
+	35.939039039 -99.0168 1
+	35.9780780781 -99.0168 1
+	36.0171171171 -99.0168 1
+	35.7828828829 -98.9705333333 1
+
+
+
+
+| The ``erf.windfarm_spec_table`` gives the specifications of the wind turbines in the wind farm. All wind turbines are assumed to have the same specifications. Here is a sample specifications table.
+
+.. code-block:: cpp
+
+	4
+	119.0 178.0 0.130 2.0
+	9   0.805    50.0 
+	10   0.805    50.0 
+	11   0.805    50.0 
+	12   0.805    50.0 
+
+The first line is the number of pairs of entries for the power curve and thrust coefficient (there are 4 entries in this table which are in the last four lines of the table).
+The second line gives the height in meters of the turbine hub, the diameter in
+meters of the rotor, the standing thrust coefficient, and the nominal power of the turbine in MW.
+The remaining lines (four in this case) contain the three values of: wind speed (m/s), thrust coefficient, and power production in kW.
+
+
+
+
+
+
+
+
+
+
+
+
+
