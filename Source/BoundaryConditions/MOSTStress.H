@@ -88,7 +88,10 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         t_star_arr(i,j,k) = 0.0;
@@ -128,7 +131,10 @@ struct adiabatic_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -181,7 +187,10 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -190,6 +199,65 @@ struct adiabatic_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+
+        t_star_arr(i,j,k) = 0.0;
+          olen_arr(i,j,k) = 1.0e16;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+};
+
+
+/**
+ * Adiabatic with wave-coupled roughness
+ */
+struct adiabatic_wave_coupled
+{
+    adiabatic_wave_coupled (amrex::Real zref,
+                            amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real z0    = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
+                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
             u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -231,7 +299,10 @@ struct surface_flux
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -291,7 +362,10 @@ struct surface_flux_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -355,7 +429,10 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -368,6 +445,76 @@ struct surface_flux_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                   (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+
+        t_surf_arr(i,j,k) = mdata.surf_temp_flux * (std::log(mdata.zref / z0) - psi_h) /
+                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
+        t_star_arr(i,j,k) = -mdata.surf_temp_flux / u_star_arr(i,j,k);
+          olen_arr(i,j,k) = Olen;
+           z0_arr(i,j,k)  = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+};
+
+
+/**
+ * Surface flux with wave-coupled roughness
+ */
+struct surface_flux_wave_coupled
+{
+    surface_flux_wave_coupled (amrex::Real zref,
+                               amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
+                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -416,7 +563,10 @@ struct surface_temp
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -478,7 +628,10 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -544,7 +697,10 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& u_star_arr,
                   const amrex::Array4<amrex::Real>& t_star_arr,
                   const amrex::Array4<amrex::Real>& t_surf_arr,
-                  const amrex::Array4<amrex::Real>& olen_arr) const
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -558,6 +714,78 @@ struct surface_temp_mod_charnock
         do {
             ustar = u_star_arr(i,j,k);
             z0    = std::exp( (2.7*ustar - 1.8/mdata.Cnk_b) / (ustar + 0.17/mdata.Cnk_b) );
+            tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
+                     (std::log(mdata.zref / z0) - psi_h);
+            Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
+                    (mdata.kappa * mdata.gravity * tflux);
+            zeta  = mdata.zref / Olen;
+            psi_m = sfuns.calc_psi_m(zeta);
+            psi_h = sfuns.calc_psi_h(zeta);
+            u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / (std::log(mdata.zref / z0) - psi_m);
+            ++iter;
+        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+
+        t_star_arr(i,j,k) = mdata.kappa * (tm_arr(i,j,k) - t_surf_arr(i,j,k)) /
+                            (std::log(mdata.zref / z0) - psi_h);
+          olen_arr(i,j,k) = Olen;
+            z0_arr(i,j,k) = z0;
+    }
+
+private:
+    most_data mdata;
+    similarity_funs sfuns;
+    const amrex::Real tol = 1.0e-5;
+};
+
+
+/**
+ * Surface temperature with wave-coupled roughness
+ */
+struct surface_temp_wave_coupled
+{
+    surface_temp_wave_coupled (amrex::Real zref,
+                               amrex::Real flux)
+    {
+        mdata.zref = zref;
+        mdata.surf_temp_flux = flux;
+    }
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    void
+    iterate_flux (const int& i,
+                  const int& j,
+                  const int& k,
+                  const int& max_iters,
+                  const amrex::Array4<amrex::Real>& z0_arr,
+                  const amrex::Array4<const amrex::Real>& umm_arr,
+                  const amrex::Array4<const amrex::Real>& tm_arr,
+                  const amrex::Array4<amrex::Real>& u_star_arr,
+                  const amrex::Array4<amrex::Real>& t_star_arr,
+                  const amrex::Array4<amrex::Real>& t_surf_arr,
+                  const amrex::Array4<amrex::Real>& olen_arr,
+                  const amrex::Array4<amrex::Real>& Hwave_arr,
+                  const amrex::Array4<amrex::Real>& Lwave_arr,
+                  const amrex::Array4<amrex::Real>& eta_arr) const
+    {
+        int iter = 0;
+        amrex::Real ustar = 0.0;
+        amrex::Real z0    = 0.0;
+        amrex::Real tflux = 0.0;
+        amrex::Real zeta  = 0.0;
+        amrex::Real psi_m = 0.0;
+        amrex::Real psi_h = 0.0;
+        amrex::Real Olen  = 0.0;
+        int ie, je;
+        ie = i  < lbound(eta_arr).x ? lbound(eta_arr).x : i;
+        je = j  < lbound(eta_arr).y ? lbound(eta_arr).y : j;
+        ie = ie > ubound(eta_arr).x ? ubound(eta_arr).x : ie;
+        je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
+        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
+        do {
+            ustar = u_star_arr(i,j,k);
+            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
+                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h);
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
@@ -1174,7 +1402,7 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, qv;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1183,7 +1411,6 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        qv    = cons_arr(ic,jc,zlo,RhoQ1_comp) / rho;
 
         amrex::Real qstar   = q_star_arr(ic,jc,zlo);
         amrex::Real moflux  = (std::abs(qstar) > eps) ? -rho * qstar : 0.0;
@@ -1198,7 +1425,7 @@ struct custom_flux
         je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
         eta   = eta_arr(ie,je,zlo,EddyDiff::Q_v); // == rho * alpha [kg/m^3 * m^2/s]
         eta   = amrex::max(eta,eta_eps);
-        dest_arr(i,j,k,icomp+n) = rho*(qv - moflux*rho/eta*deltaz);
+        dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
 
         return moflux;
     }
@@ -1220,12 +1447,12 @@ struct custom_flux
                     const amrex::Array4<const amrex::Real>& /*vely_arr*/,
                     const amrex::Array4<const amrex::Real>& /*umm_arr*/,
                     const amrex::Array4<const amrex::Real>& /*tm_arr*/,
-                    const amrex::Array4<const amrex::Real>& u_star_arr,
+                    const amrex::Array4<const amrex::Real>& /*u_star_arr*/,
                     const amrex::Array4<const amrex::Real>& t_star_arr,
                     const amrex::Array4<const amrex::Real>& /*t_surf_arr*/,
                     const amrex::Array4<amrex::Real>& dest_arr) const
     {
-        amrex::Real rho, eta, theta;
+        amrex::Real rho, eta;
 
         int ic, jc;
         ic = i  < lbound(cons_arr).x ? lbound(cons_arr).x : i;
@@ -1234,11 +1461,9 @@ struct custom_flux
         jc = jc > ubound(cons_arr).y ? ubound(cons_arr).y : jc;
 
         rho   = cons_arr(ic,jc,zlo,Rho_comp);
-        theta = cons_arr(ic,jc,zlo,RhoTheta_comp) / rho;
 
-        amrex::Real ustar   = u_star_arr(ic,jc,zlo);
         amrex::Real tstar   = t_star_arr(ic,jc,zlo);
-        amrex::Real moflux  = (std::abs(tstar) > eps) ? -tstar*ustar : 0.0;
+        amrex::Real moflux  = (std::abs(tstar) > eps) ? -rho * tstar : 0.0;
         amrex::Real deltaz  = dz * (zlo - k);
 
         if (exp_most) {
@@ -1254,10 +1479,7 @@ struct custom_flux
             je = je > ubound(eta_arr).y ? ubound(eta_arr).y : je;
             eta   = eta_arr(ie,je,zlo,EddyDiff::Theta_v); // == rho * alpha [kg/m^3 * m^2/s]
             eta   = amrex::max(eta,eta_eps);
-            // Note: Kh = eta/rho
-            //      hfx = -Kh dT/dz  ==> +ve hfx corresponds to heating from the surface
-            // Extrapolate from klo to ghost cell a distance of -deltaz; negative signs cancel
-            dest_arr(i,j,k,icomp+n) = rho*(theta + moflux*rho/eta*deltaz);
+            dest_arr(i,j,k,icomp+n) = dest_arr(i,j,zlo,icomp+n) - moflux*rho/eta*deltaz;
         }
 
         return moflux;

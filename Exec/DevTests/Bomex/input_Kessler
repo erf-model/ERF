@@ -58,7 +58,7 @@ erf.dryscal_vert_adv_type    = WENOZ5
 erf.moistscal_horiz_adv_type = WENOZ5
 erf.moistscal_vert_adv_type  = WENOZ5
 
-erf.moisture_model  = "SAM"
+erf.moisture_model  = "Kessler"
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
