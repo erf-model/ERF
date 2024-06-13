@@ -22,7 +22,7 @@ erf.most.zref   = 20.0
 
 # NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
-zhi.theta_grad = 0.00365
+#zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.5 # fixed time step depending on grid resolution

@@ -49,7 +49,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                                    const Geometry& geom,
                                    const MultiFab& mapfac_u, const MultiFab& mapfac_v,
                                    const std::unique_ptr<MultiFab>& z_phys_nd,
-                                   const TurbChoice& turbChoice, const Real /*const_grav*/,
+                                   const TurbChoice& turbChoice, const Real const_grav,
                                    std::unique_ptr<ABLMost>& most, const bool& exp_most)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
@@ -104,8 +104,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
               Real CsDeltaSqrMsf = Cs*Cs*DeltaMsf*DeltaMsf;
 
               // Brunt-Vaisala frequency effects
-              Real N2 = Brunt_Vaisala_Freq(i, j, k, dzInv, cell_data);
-              Real fb = std::sqrt( std::max(0.0, (SmnSmn - inv_Pr_t*N2)) );
+              //Real N2 = Brunt_Vaisala_Freq(i, j, k, dzInv, cell_data);
+              Real fb = std::sqrt(SmnSmn); //std::sqrt( std::max(0.0, (SmnSmn - inv_Pr_t*N2)) );
 
               mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * fb;
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
@@ -120,6 +120,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         const Real l_C_e      = turbChoice.Ce;
         const Real l_C_e_wall = turbChoice.Ce_wall;
         const Real Ce_lcoeff  = amrex::max(0.0, l_C_e - 1.9*l_C_k);
+
+        // Remove if using moist BV frequency
+        const Real l_abs_g      = const_grav;
+        const Real l_inv_theta0 = 1.0 / turbChoice.theta_ref;
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -172,6 +176,8 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
+                /*
+                // Account for moist BV frequency
                 Real E  = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
                 Real N2 = Brunt_Vaisala_Freq(i, j, k, dzInv, cell_data);
                 Real N  = std::sqrt(N2); // stratification
@@ -180,6 +186,20 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     length = DeltaMsf;
                 } else {
                     length = 0.76 * std::sqrt(E / N);
+                    // mixing length should be _reduced_ for stable stratification
+                    length = amrex::min(length, DeltaMsf);
+                    // following WRF, make sure the mixing length isn't too small
+                    length = amrex::max(length, 0.001 * DeltaMsf);
+                }
+                */
+                // Only valid for dry BV frequency
+                Real E     = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real strat = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                Real length;
+                if (strat <= eps) {
+                    length = DeltaMsf;
+                } else {
+                    length = 0.76 * std::sqrt(E / strat);
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, DeltaMsf);
                     // following WRF, make sure the mixing length isn't too small
