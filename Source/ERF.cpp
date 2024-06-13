@@ -1187,10 +1187,9 @@ ERF::init_only (int lev, Real time)
     //   background flow set based on init_type
     init_custom(lev);
 
-    // Add turbulent perturbation
-    // DUSTIN MA
-    if (solverChoice.pert_type == PertType::type1)
-    {
+    // Initialize turbulent perturbation
+    if (solverChoice.pert_type == PertType::type1) {
+        TurbPert_constants(lev);
         TurbPert_update(lev, 0., turbPert);
         TurbPert_amplitude(lev, turbPert);
     }

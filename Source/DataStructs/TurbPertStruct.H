@@ -18,6 +18,15 @@ struct TurbulentPerturbation {
 //#define DIAGONAL_REF
 #define LENGTH_REF
 
+/*    void init_tpi_const(const amrex::Real T_0)
+    {
+       // Bulk Richardson number
+       tpi_nonDim = 0.042;
+
+       // Ambient Temperature
+       tpi_Tinfty = T_0;
+    }*/
+
     // Initializing Perturbation Region
     // Note: Box will always be initialized at cell centered
     void init_tpi (const int lev,
@@ -31,6 +40,11 @@ struct TurbulentPerturbation {
         amrex::IntVect regionLo(0+pertBox_offset, 0, 0);
         amrex::IntVect regionHi(7+pertBox_offset, nx[1], nx[2]);
         amrex::IntVect boxSize(8,8,8);
+
+        // TODO: This will need to be changed later on
+        tpi_Lpb = 8*dx[0];
+        tpi_Wpb = 8*dx[1];
+        tpi_Hpb = 8*dx[2];
 
         #ifdef DIAGONAL_REF
         tpi_lref = sqrt(8*8*dx[0]*dx[0] + 8*8*dx[1]*dx[1]);
@@ -65,16 +79,15 @@ struct TurbulentPerturbation {
         amrex::Print() << "distance as reference for turbulent inlet perturbation: tpi_lref = " << tpi_lref << "\n";
     }
 
-    // Inside this function, perturbation box update freqnecy and perturbation
-    // amplitude are calculated. Condition of local elapsed time must be triggered
-    // for the frequency to update and a new perturbation amplitude to be calculated
+    // perturbation box update freqnecy is calculate and perturbation amplitude
+    // function is triggered through local elapsed time
     void calc_tpi_update (const int lev,
                           const amrex::Real dt)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( (pb_freq[boxIdx] <= pb_local_etime[boxIdx]) && 
                 ((pb_um[boxIdx] != 0.) || (pb_vm[boxIdx] != 0.)) ) { // TODO: Second part of condition may need to change
-                // Eq. 10 from Muñoz-Esparza et al. (2015)
+                // Ma and Senocak (2015) Eq. 15
                 pb_freq[boxIdx] = tpi_lref / sqrt(pb_um[boxIdx]*pb_um[boxIdx] + pb_vm[boxIdx]*pb_vm[boxIdx]);
 
                 // Trigger amplitude calculation per perturbation box
@@ -93,20 +106,35 @@ struct TurbulentPerturbation {
         } // for
     }
 
-#define INDEX_PERTURB
+//#define EKERT_FORMULATION
+#define BULK_RICHARDSON_FORMULATION 
+//#define GRAD_RICHARDSON_FORMULATION 
 
-    // Inside of this function, perturbation amplitude is computed.
-    // This is where all of the different ways of computing perturbation amplitude will be defined
+    // Perturbation amplitude calcluation
+    // TODO: This is where all of the different ways of computing perturbation amplitude will be defined
     void calc_tpi_amp (const int boxIdx)
     {
-        pb_amp[boxIdx] = sqrt(pb_um[boxIdx]*pb_um[boxIdx] + pb_vm[boxIdx]*pb_vm[boxIdx]); 
+        beta = 1./tpi_Tinfty;
 
-        #ifdef INDEX_PERTURB
-        pb_amp[boxIdx] = (amrex::Real) (boxIdx + 1.);
+        Um = pb_um[boxIdx];
+        Vm = pb_vm[boxIdx];
+
+        // Reset the perturbation amplitude
+        pb_amp[boxIdx] = 0.; 
+
+        #ifdef BULK_RICHARDSON_FORMULATION
+        // Ma and Senocak (2023) Eq. 17
+        pb_amp[boxIdx] = tpi_nonDim * Um * Um * Um / (g * beta * tpi_lref * tpi_Hpb);
         #endif
+
     }
 
-    // Applying perturbation amplitude onto source term and using random number generation
+//#define INDEX_PERTURB
+
+    // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
+    // Random perturbation is applied as a white noise on the temperature source term
+    // it becomes colored through the filtering of temperature transport equation from
+    // the eddy diffusivity.
     void apply_tpi (const int lev,
                     const amrex::Box& vbx,                    // box union from upper level
                     const int comp,                           // Component to modify
@@ -123,7 +151,11 @@ struct TurbulentPerturbation {
 
                     // Rescale between -1 and 1 and multiple with amplitude
                     src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp[boxIdx];
-                    //src_arr(i,j,k,comp) = pb_amp[boxIdx];
+
+                    // For box region debug only
+                    #ifdef INDEX_PERTURB
+                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx +1.);
+                    #endif
                 });
             }
         }
@@ -131,7 +163,8 @@ struct TurbulentPerturbation {
 
     amrex::Real* get_pb_um() { return pb_um.data(); }
 
-    void debug() {
+    void debug()
+    {
         for (int i=0; i < pb_um.size(); i++){
             amrex::Print()<< "pb_um[" << i << "] = " << pb_um[i] << "\n";
         }
@@ -144,10 +177,24 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::Real> pb_um;
     amrex::Vector<amrex::Real> pb_vm;
 
+    // Public constant constants
+    amrex::Real tpi_Tinfty;
+    amrex::Real tpi_nonDim;
+
   private:
 
-    // Turbulent perturbation inlet reference length
+    // Private constant constants
+    amrex::Real g = CONST_GRAV;
+    amrex::Real beta;
+
+    amrex::Real tpi_Hpb;
+    amrex::Real tpi_Lpb;
+    amrex::Real tpi_Wpb;
+
     amrex::Real tpi_lref;
+
+    amrex::Real Um;
+    amrex::Real Vm;
 
     // Perturbation update time
     amrex::Vector<amrex::Real> pb_freq;

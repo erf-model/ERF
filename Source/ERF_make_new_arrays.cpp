@@ -281,7 +281,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     // Turbulent perturbation region initialization
     //*********************************************************
-    // DUSTIN MA
+    // TODO: Test perturbation on multiple levels
     if (lev == 0)
     {
         if (solverChoice.pert_type == PertType::type1)

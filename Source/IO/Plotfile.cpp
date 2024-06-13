@@ -162,7 +162,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                                     &rV_new[lev], &rW_new[lev]}, fillset);
     }
 
-    // XXX DUSTIN MA DEBUG Paraview viewing error
+    // DUSTIN MA: DEBUG Paraview viewing issue
     /*
     for ( MFIter mfi(vars_new[0][Vars::zvel],TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {

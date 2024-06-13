@@ -39,7 +39,6 @@
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
 
-// DUSTIN MA
 #include<TurbPertStruct.H>
 
 #ifdef ERF_USE_PARTICLES
@@ -414,6 +413,7 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
+    void TurbPert_constants (const int lev);
     void TurbPert_update (const int lev, const amrex::Real dt, TurbulentPerturbation& turbPert);
     void TurbPert_amplitude (const int lev, TurbulentPerturbation& turbPert);
 

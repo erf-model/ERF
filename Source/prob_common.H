@@ -365,6 +365,16 @@ public:
         });
     }
 
+    /**
+     * Function to set constant values for turbulent pertubation calculation
+    */
+    void
+    init_turbPert_const(TurbulentPerturbation& turbPert)
+    {
+        turbPert.tpi_Tinfty = base_parms.T_0;
+        turbPert.tpi_nonDim = 0.042;
+    }
+
 protected:
     // Struct to store problem parameters
     ProbParmDefaults base_parms;

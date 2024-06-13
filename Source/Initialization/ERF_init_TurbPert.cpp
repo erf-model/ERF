@@ -8,6 +8,14 @@
 
 using namespace amrex;
 
+#define THREAD_SAFE
+
+void
+ERF::TurbPert_constants(const int lev)
+{
+    prob->init_turbPert_const(turbPert);
+}
+
 void
 ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbPert)
 {
@@ -37,12 +45,19 @@ ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbP
                 int npts = ubx.numPts();
                 Gpu::DeviceVector<Real> tmp_d(1,0.);
                 Real* tmp = tmp_d.data();
-                const Array4<const Real> & xvel_arry = xvel_data.array(mfi);
+                const Array4<const Real> & xvel_arry = xvel_data.array(mfi); 
 
                 // Operating over box union
+                #ifdef THREAD_SAFE
+                ParallelFor(Gpu::KernelInfo().setReduction(true), ubx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
+                    Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
+                #else
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                     tmp[0] += xvel_arry(i,j,k);
+                #endif
                 });
+
                 m_pb_um[i] = tmp[0] / (Real) npts;
             } // if
         } // for

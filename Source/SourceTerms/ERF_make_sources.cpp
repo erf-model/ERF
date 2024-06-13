@@ -281,7 +281,6 @@ void make_sources (int level,
         // *************************************************************************************
         // Add perturbation
         // *************************************************************************************
-        // DUSTIN MA
         if (solverChoice.pert_type == PertType::type1) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src);

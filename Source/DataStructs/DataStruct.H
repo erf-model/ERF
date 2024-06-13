@@ -15,6 +15,7 @@
 #include <DiffStruct.H>
 #include <SpongeStruct.H>
 #include <TurbStruct.H>
+#include <TurbPertStruct.H>
 
 enum struct ABLDriverType {
     None, PressureGradient, GeostrophicWind
