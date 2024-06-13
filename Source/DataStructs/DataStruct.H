@@ -41,7 +41,7 @@ enum struct WindFarmType {
 };
 
 enum struct WindFarmLocType{
-    lat_lon, x_y
+    lat_lon, x_y, None
 };
 
 enum struct LandSurfaceType {
@@ -309,11 +309,13 @@ struct SolverChoice {
         else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
         }
-        else {
-            amrex::Abort("Dont know this windfarm_type. windfarm_type has to be Fitch or EWP.");
+        else if (windfarm_type_string != "None") {
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
+                         " has to be Fitch or EWP or None.");
         }
 
         static std::string windfarm_loc_type_string = "None";
+        windfarm_loc_type = WindFarmLocType::None;
         pp.query("windfarm_loc_type", windfarm_loc_type_string);
         if (windfarm_loc_type_string == "lat_lon") {
             windfarm_loc_type = WindFarmLocType::lat_lon;
@@ -321,8 +323,9 @@ struct SolverChoice {
         else if (windfarm_loc_type_string == "x_y") {
             windfarm_loc_type = WindFarmLocType::x_y;
         }
-        else {
-            amrex::Abort("Dont know this windfarm_loc_type. windfarm_loc_type has to be specified as lat-lon or x-y.");
+        else if (windfarm_loc_type_string != "None") {
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_loc_type."
+                         " windfarm_loc_type has to be specified as lat_lon or x_y.");
         }
 
         pp.query("windfarm_loc_table",  windfarm_loc_table);

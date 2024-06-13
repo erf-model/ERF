@@ -19,6 +19,10 @@ ERF::init_windfarm (int lev)
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
         init_windfarm_lat_lon(lev, solverChoice.windfarm_loc_table);
     }
+    else {
+        amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
+                     " entry erf.windfarm_loc_table which should not be None. \n");
+    }
     read_in_table(solverChoice.windfarm_spec_table);
 }
 
