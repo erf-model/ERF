@@ -12,10 +12,10 @@ amr.n_cell           =   50     50       80
 # WINDFARM PARAMETRIZATION PARAMETERS
 erf.windfarm_type = "Fitch"
 erf.windfarm_loc_type = "lat_lon"
-erf.windfarm_loc_table = "windturbines_1WT.txt"
-erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 erf.latitude_lo      =   35.0
 erf.longitude_lo     = -100.0
+erf.windfarm_loc_table = "windturbines_1WT.txt"
+erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
 #erf.grid_stretching_ratio = 1.025
 #erf.initial_dz = 16.0
