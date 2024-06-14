@@ -135,18 +135,25 @@ Fitch, EWP
 The following are the inputs required for simulations with Fitch, EWP models.
 
 .. code-block:: cpp
+	
+    // The parametrization model - Fitch, EWP
+    erf.windfarm_type = "Fitch"
 
-    erf.windfarm_type = "Fitch" // or "EWP"
-    erf.windfarm_loc_type = "lat_lon" // or "x_y"
+    // How are the turbine locations specified? - using latitude-longitude
+    // format or x-y format? lat_lon or x_y
+    erf.windfarm_loc_type = "lat_lon"
 
     // If using lat_lon, then the latitude and longitude of
-    // the bottom-corner of the domain has to be specified.
+    // the lower bottom corner of the domain has to be specified
     // The following means 35 deg N, 100 deg W (note the negative sign)
+    erf.latitude_lo      =   35.0 
+    erf.longitude_lo     = -100.0 
 
-    erf.latitude_lo      =   35.0 // To be specified if using lat_lon
-    erf.longitude_lo     = -100.0 // To be specified if using lat_lon
-
+    // Table having the wind turbine locations
     erf.windfarm_loc_table = "windturbines_1WT.txt"
+
+    // Table having the specifications of the wind turbines. All turbines are assumed to 
+    // have the same specifications
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
 | ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
@@ -158,7 +165,8 @@ The following are the inputs required for simulations with Fitch, EWP models.
     geometry.prob_hi     =  25000. 10000. 10000.
 
 | then ``(erf.latitude_lo, erf.longitude_lo)`` corresponds to ``(-25000, 0, -10000)``.
-| The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm. For the latitude-longitude format, here is a sample. Each line specifies the latitude and longitude of the wind turbine location. The third entry simply has to be always 1 (WRF requires the third entry to be always 1, so maintaining same format here). The first entry means that the turbine is located at ``35.7828 deg N, 99.0168 deg W`` (note the negative sign in the entry corresponding to West).
+| The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm. 
+| For the latitude-longitude format, an example is as below. Each line specifies the latitude and longitude of the wind turbine location. The third entry simply has to be always 1 (WRF requires the third entry to be always 1, so maintaining same format here). The first entry means that the turbine is located at ``35.7828 deg N, 99.0168 deg W`` (note the negative sign in the entry corresponding to West).
 
 .. code-block:: cpp
 
@@ -171,8 +179,19 @@ The following are the inputs required for simulations with Fitch, EWP models.
     36.0171171171 -99.0168 1
     35.7828828829 -98.9705333333 1
 
+For the x-y format, an example is as below. Each line specifies the x and y co-ordinates of the wind turbine location in metres
 
+.. code-block:: cpp
 
+	89264.99080053 91233.3333309002
+	89259.1966417755 95566.6666710007
+	89254.1277665419 99900.0000000001
+	89249.7842982733 104233.333329
+	89246.1663427532 108566.6666691
+	89243.2739881117 112899.9999981
+	93458.6633652711 86900.0000019001
+	93450.4377452458 91233.3333309002
+	93442.9032518779 95566.6666710007
 
 | The ``erf.windfarm_spec_table`` gives the specifications of the wind turbines in the wind farm. All wind turbines are assumed to have the same specifications. Here is a sample specifications table.
 
