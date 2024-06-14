@@ -6,10 +6,17 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-erf.latitude_lo      =   35.0
-erf.longitude_lo     = -100.0
 geometry.prob_extent =  200150   202637  1000
 amr.n_cell           =   50     50       40
+
+# WINDFARM PARAMETRIZATION PARAMETERS
+erf.windfarm_type = "Fitch"
+erf.windfarm_loc_type = "lat_lon"
+erf.latitude_lo      =   35.0
+erf.longitude_lo     = -100.0
+erf.windfarm_loc_table = "windturbines_loc_lat_lon_WindFarm.txt"
+erf.windfarm_spec_table = "windturbines_spec_WindFarm.tbl"
+
 
 #erf.grid_stretching_ratio = 1.025
 #erf.initial_dz = 16.0

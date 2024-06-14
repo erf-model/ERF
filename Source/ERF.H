@@ -366,8 +366,14 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
-    void init_windfarm_lat_lon(int lev, std::string windfarm_loc_table);
-    void init_windfarm_x_y(int lev);
+    void init_windfarm_lat_lon(const int lev,
+                               const std::string windfarm_loc_table,
+                               amrex::Vector<amrex::Real>& xloc,
+                               amrex::Vector<amrex::Real>& yloc);
+    void init_windfarm_x_y(const int lev,
+                               const std::string windfarm_loc_table,
+                               amrex::Vector<amrex::Real>& xloc,
+                               amrex::Vector<amrex::Real>& yloc);
 #endif
 
 #ifdef ERF_USE_EB

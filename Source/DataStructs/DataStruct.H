@@ -508,7 +508,7 @@ struct SolverChoice {
     bool do_precip {true};
     bool use_moist_background {false};
 
-    amrex::Real latitude_lo, longitude_lo;
+    amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
     std::string windfarm_loc_table, windfarm_spec_table;
 };
 #endif

@@ -16,53 +16,17 @@ using namespace amrex;
 void
 ERF::init_windfarm (int lev)
 {
+    Vector<Real> xloc, yloc;
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
-        init_windfarm_lat_lon(lev, solverChoice.windfarm_loc_table);
+        init_windfarm_lat_lon(lev, solverChoice.windfarm_loc_table, xloc, yloc);
     }
+    else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
+        init_windfarm_x_y(lev, solverChoice.windfarm_loc_table, xloc, yloc);
+    }
+
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
                      " entry erf.windfarm_loc_table which should not be None. \n");
-    }
-    read_in_table(solverChoice.windfarm_spec_table);
-}
-
-void
-ERF::init_windfarm_lat_lon (int lev, std::string windfarm_loc_table)
-{
-    // Read turbine locations from windturbines.txt
-    std::ifstream file(windfarm_loc_table);
-    if (!file.is_open()) {
-        amrex::Error("Wind turbines location table not found. Either the inputs is missing the"
-                     " erf.windfarm_loc_table entry or the file specified in the entry " + windfarm_loc_table + " is missing.");
-    }
-    // Vector of vectors to store the matrix
-    std::vector<Real> lat, lon, xloc, yloc;
-    Real value1, value2, value3;
-    while (file >> value1 >> value2 >> value3) {
-        lat.push_back(value1);
-        lon.push_back(value2);
-    }
-    file.close();
-
-    Real rad_earth = 6371.0e3; // Radius of the earth
-    Real lat_lo  = solverChoice.latitude_lo*M_PI/180.0;
-    Real lon_lo  = solverChoice.longitude_lo*M_PI/180.0;
-
-    // (lat_lo, lon_lo) is mapped to (0,0)
-
-    for(int it=0;it<lat.size();it++){
-        lat[it] = lat[it]*M_PI/180.0;
-        lon[it] = lon[it]*M_PI/180.0;
-        Real delta_lat = (lat[it] - lat_lo);
-        Real delta_lon = (lon[it] - lon_lo);
-
-        Real term1 = std::pow(sin(delta_lat/2.0),2);
-        Real term2 = cos(lat[it])*cos(lat_lo)*std::pow(sin(delta_lon/2.0),2);
-        Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
-        Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
-        yloc.push_back(dy_turb);
-        Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
-        xloc.push_back(dx_turb);
     }
 
     // Write out a vtk file for turbine locations
@@ -105,5 +69,108 @@ ERF::init_windfarm_lat_lon (int lev, std::string windfarm_loc_table)
             }
         });
     }
+
+    read_in_table(solverChoice.windfarm_spec_table);
 }
 
+void
+ERF::init_windfarm_lat_lon (const int lev,
+                            const std::string windfarm_loc_table,
+                            Vector<Real>& xloc,
+                            Vector<Real>& yloc)
+{
+
+    if(solverChoice.latitude_lo == -1e10) {
+        amrex::Error("Are you using latitude-longitude for wind turbine locations? There needs to be"
+                     " entry for erf.latitude_lo in the inputs for"
+                     " the lower bottom corner of the domain");
+    }
+
+    if(solverChoice.longitude_lo == -1e10) {
+        amrex::Error("Are you using latitude-longitude for wind turbine locations? There needs to be"
+                     " entry erf.longitude_lo in the inputs for"
+                     " the lower bottom corner of the domain");
+    }
+
+    if(std::fabs(solverChoice.latitude_lo) > 90.0) {
+        amrex::Error("The value of erf.latitude_lo in the input file should be within -90 and 90");
+    }
+
+    if(std::fabs(solverChoice.longitude_lo) > 180.0) {
+        amrex::Error("The value of erf.longitude_lo in the input file should be within -180 and 180");
+    }
+
+    // Read turbine locations from windturbines.txt
+    std::ifstream file(windfarm_loc_table);
+    if (!file.is_open()) {
+        amrex::Error("Wind turbines location table not found. Either the inputs is missing the"
+                     " erf.windfarm_loc_table entry or the file specified in the entry " + windfarm_loc_table + " is missing.");
+    }
+    // Vector of vectors to store the matrix
+    Vector<Real> lat, lon;
+    Real value1, value2, value3;
+
+    while (file >> value1 >> value2 >> value3) {
+
+        if(std::fabs(value1) > 90.0) {
+            amrex::Error("The value of latitude for entry " + std::to_string(lat.size() + 1) +
+                         " in " + windfarm_loc_table + " should be within -90 and 90");
+        }
+
+        if(std::fabs(value2) > 180.0) {
+            amrex::Error("The value of longitude for entry " + std::to_string(lat.size() + 1) +
+                         " in " + windfarm_loc_table + " should be within -180 and 180");
+        }
+
+        if(std::fabs(solverChoice.longitude_lo) > 180.0) {
+            amrex::Error("The values of erf.longitude_lo should be within -180 and 180");
+        }
+        lat.push_back(value1);
+        lon.push_back(value2);
+    }
+    file.close();
+
+    Real rad_earth = 6371.0e3; // Radius of the earth
+
+    Real lat_lo  = solverChoice.latitude_lo*M_PI/180.0;
+    Real lon_lo  = solverChoice.longitude_lo*M_PI/180.0;
+
+    // (lat_lo, lon_lo) is mapped to (0,0)
+
+    for(int it=0;it<lat.size();it++){
+        lat[it] = lat[it]*M_PI/180.0;
+        lon[it] = lon[it]*M_PI/180.0;
+        Real delta_lat = (lat[it] - lat_lo);
+        Real delta_lon = (lon[it] - lon_lo);
+
+        Real term1 = std::pow(sin(delta_lat/2.0),2);
+        Real term2 = cos(lat[it])*cos(lat_lo)*std::pow(sin(delta_lon/2.0),2);
+        Real dist =  2.0*rad_earth*std::asin(std::sqrt(term1 + term2));
+        Real dy_turb = (lat[it] - lat_lo) * 111000.0 * 180.0/M_PI ;
+        yloc.push_back(dy_turb);
+        Real dx_turb = std::sqrt(std::pow(dist,2) - std::pow(dy_turb,2));
+        xloc.push_back(dx_turb);
+    }
+}
+
+void
+ERF::init_windfarm_x_y (const int lev,
+                            const std::string windfarm_loc_table,
+                            Vector<Real>& xloc,
+                            Vector<Real>& yloc)
+{
+    // Read turbine locations from windturbines.txt
+    std::ifstream file(windfarm_loc_table);
+    if (!file.is_open()) {
+        amrex::Error("Wind turbines location table not found. Either the inputs is missing the"
+                     " erf.windfarm_loc_table entry or the file specified in the entry " + windfarm_loc_table + " is missing.");
+    }
+    // Vector of vectors to store the matrix
+    Real value1, value2;
+
+    while (file >> value1 >> value2) {
+        xloc.push_back(value1);
+        yloc.push_back(value2);
+    }
+    file.close();
+}
