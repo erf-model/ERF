@@ -157,7 +157,7 @@ The following are the inputs required for simulations with Fitch, EWP models.
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
 1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
-2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``. 
+2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``.
 
    - If using ``lat_lon`` format, ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as
 
@@ -189,15 +189,15 @@ The following are the inputs required for simulations with Fitch, EWP models.
 
      .. code-block:: cpp
 
-	    89264.99080053 91233.3333309002
-	    89259.1966417755 95566.6666710007
-	    89254.1277665419 99900.0000000001
-	    89249.7842982733 104233.333329
-	    89246.1663427532 108566.6666691
-	    89243.2739881117 112899.9999981
-	    93458.6633652711 86900.0000019001
-	    93450.4377452458 91233.3333309002
-	    93442.9032518779 95566.6666710007
+        89264.99080053 91233.3333309002
+        89259.1966417755 95566.6666710007
+        89254.1277665419 99900.0000000001
+        89249.7842982733 104233.333329
+        89246.1663427532 108566.6666691
+        89243.2739881117 112899.9999981
+        93458.6633652711 86900.0000019001
+        93450.4377452458 91233.3333309002
+        93442.9032518779 95566.6666710007
 
 4. The ``erf.windfarm_spec_table`` gives the specifications of the wind turbines in the wind farm. All wind turbines are assumed to have the same specifications. Here is a sample specifications table.
 
