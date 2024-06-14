@@ -135,7 +135,7 @@ Fitch, EWP
 The following are the inputs required for simulations with Fitch, EWP models.
 
 .. code-block:: cpp
-	
+
     // The parametrization model - Fitch, EWP
     erf.windfarm_type = "Fitch"
 
@@ -146,13 +146,13 @@ The following are the inputs required for simulations with Fitch, EWP models.
     // If using lat_lon, then the latitude and longitude of
     // the lower bottom corner of the domain has to be specified
     // The following means 35 deg N, 100 deg W (note the negative sign)
-    erf.latitude_lo      =   35.0 
-    erf.longitude_lo     = -100.0 
+    erf.latitude_lo      =   35.0
+    erf.longitude_lo     = -100.0
 
     // Table having the wind turbine locations
     erf.windfarm_loc_table = "windturbines_1WT.txt"
 
-    // Table having the specifications of the wind turbines. All turbines are assumed to 
+    // Table having the specifications of the wind turbines. All turbines are assumed to
     // have the same specifications
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
