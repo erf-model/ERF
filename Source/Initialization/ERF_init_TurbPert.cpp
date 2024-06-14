@@ -8,13 +8,14 @@
 
 using namespace amrex;
 
-#define THREAD_SAFE
-
 void
 ERF::TurbPert_constants(const int lev)
 {
     prob->init_turbPert_const(turbPert);
 }
+
+#define USE_SLAB_AVERAGE
+//#define USE_VOLUME_AVERAGE
 
 void
 ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbPert)
@@ -40,25 +41,51 @@ ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbP
         for (int i = 0; i < m_pb_ba.size(); i++) {
             Box pbx = convert(m_pb_ba[i], m_ixtype);
             Box ubx = pbx & vbx;
+            //Box ubx = vbx & pbx; // Did not change output of ubx
 
             if (ubx.ok()) {
-                int npts = ubx.numPts();
-                Gpu::DeviceVector<Real> tmp_d(1,0.);
+                Gpu::DeviceVector<Real> tmp_d(2,0.);
                 Real* tmp = tmp_d.data();
-                const Array4<const Real> & xvel_arry = xvel_data.array(mfi); 
+                const Array4<const Real> & xvel_arry = xvel_data.array(mfi);
 
                 // Operating over box union
-                #ifdef THREAD_SAFE
+                #ifdef USE_VOLUME_AVERAGE
+                int npts = ubx.numPts();
                 ParallelFor(Gpu::KernelInfo().setReduction(true), ubx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
                     Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
-                #else
-                ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    tmp[0] += xvel_arry(i,j,k);
+                });
+                m_pb_um[i] = tmp[0] / (Real) npts;
                 #endif
+
+                #ifdef USE_SLAB_AVERAGE
+                Box ubxSlab_lo = ubx.makeSlab(2,ubx.smallEnd(2));
+                Box ubxSlab_hi = ubx.makeSlab(2,pbx.bigEnd(2));   //XXX pbx override
+                int npts_lo = ubxSlab_lo.numPts();
+                int npts_hi = ubxSlab_hi.numPts();
+
+                Print() << "\nvbx: " << vbx
+                        << "\npbx: " << pbx 
+                        << "\nubx: " << ubx
+                        << "\nsmallEnd: " << ubx.smallEnd() << " bigEnd: " << ubx.bigEnd()
+                        << "\nubxSlab_lo[" << i << "]= " << ubxSlab_lo 
+                        << "\nubxSlab_hi[" << i << "]= " << ubxSlab_hi << "\n";
+
+                // Average in the low slab
+                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
+                    Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
                 });
 
-                m_pb_um[i] = tmp[0] / (Real) npts;
+                // Average in the high slab
+                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
+                    Gpu::deviceReduceSum(&tmp[1], xvel_arry(i,j,k), handler);
+                });
+
+                // Average the sum between top and bottom
+                m_pb_um[i] = 0.5*(tmp[0] / (Real) npts_lo + tmp[1] / (Real) npts_hi); 
+                #endif
             } // if
         } // for
     } // MFIter

@@ -129,7 +129,7 @@ struct TurbulentPerturbation {
 
     }
 
-//#define INDEX_PERTURB
+#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
     // Random perturbation is applied as a white noise on the temperature source term
