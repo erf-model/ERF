@@ -59,17 +59,10 @@ ERF::TurbPert_update (const int lev, const Real dt, TurbulentPerturbation& turbP
                 #endif
 
                 #ifdef USE_SLAB_AVERAGE
-                Box ubxSlab_lo = ubx.makeSlab(2,ubx.smallEnd(2));
-                Box ubxSlab_hi = ubx.makeSlab(2,pbx.bigEnd(2));   //XXX pbx override
+                Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
+                Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
                 int npts_lo = ubxSlab_lo.numPts();
                 int npts_hi = ubxSlab_hi.numPts();
-
-                Print() << "\nvbx: " << vbx
-                        << "\npbx: " << pbx 
-                        << "\nubx: " << ubx
-                        << "\nsmallEnd: " << ubx.smallEnd() << " bigEnd: " << ubx.bigEnd()
-                        << "\nubxSlab_lo[" << i << "]= " << ubxSlab_lo 
-                        << "\nubxSlab_hi[" << i << "]= " << ubxSlab_hi << "\n";
 
                 // Average in the low slab
                 ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
