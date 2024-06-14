@@ -156,44 +156,50 @@ The following are the inputs required for simulations with Fitch, EWP models.
     // have the same specifications
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
-| ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
-| ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``. ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as
+1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
+2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``. 
 
-.. code-block:: cpp
+   - If using ``lat_lon`` format, ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as
 
-    geometry.prob_lo     = -25000.   0.  -10000
-    geometry.prob_hi     =  25000. 10000. 10000.
+     .. code-block:: cpp
 
-| then ``(erf.latitude_lo, erf.longitude_lo)`` corresponds to ``(-25000, 0, -10000)``.
-| The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm. 
-| For the latitude-longitude format, an example is as below. Each line specifies the latitude and longitude of the wind turbine location. The third entry simply has to be always 1 (WRF requires the third entry to be always 1, so maintaining same format here). The first entry means that the turbine is located at ``35.7828 deg N, 99.0168 deg W`` (note the negative sign in the entry corresponding to West).
+        geometry.prob_lo     = -25000.   0.  -10000
+        geometry.prob_hi     =  25000. 10000. 10000.
 
-.. code-block:: cpp
+     then ``(erf.latitude_lo, erf.longitude_lo)`` corresponds to ``(-25000, 0, -10000)``.
 
-    35.7828828829 -99.0168 1
-    35.8219219219 -99.0168 1
-    35.860960961 -99.0168 1
-    35.9 -99.0168 1
-    35.939039039 -99.0168 1
-    35.9780780781 -99.0168 1
-    36.0171171171 -99.0168 1
-    35.7828828829 -98.9705333333 1
+   - If using ``x_y`` format, there is no need to specify the ``erf.latitude_lo`` and ``erf.longitude_lo``.
 
-For the x-y format, an example is as below. Each line specifies the x and y co-ordinates of the wind turbine location in metres
+3. The ``erf.windfarm_loc_table`` specifies the locations of the wind turbines in the wind farm.
 
-.. code-block:: cpp
+   - For the latitude-longitude format, an example is as below. Each line specifies the latitude and longitude of the wind turbine location. The third entry simply has to be always 1 (WRF requires the third entry to be always 1, so maintaining same format here). The first entry means that the turbine is located at ``35.7828 deg N, 99.0168 deg W`` (note the negative sign in the entry corresponding to West).
 
-	89264.99080053 91233.3333309002
-	89259.1966417755 95566.6666710007
-	89254.1277665419 99900.0000000001
-	89249.7842982733 104233.333329
-	89246.1663427532 108566.6666691
-	89243.2739881117 112899.9999981
-	93458.6633652711 86900.0000019001
-	93450.4377452458 91233.3333309002
-	93442.9032518779 95566.6666710007
+     .. code-block:: cpp
 
-| The ``erf.windfarm_spec_table`` gives the specifications of the wind turbines in the wind farm. All wind turbines are assumed to have the same specifications. Here is a sample specifications table.
+        35.7828828829 -99.0168 1
+        35.8219219219 -99.0168 1
+        35.860960961 -99.0168 1
+        35.9 -99.0168 1
+        35.939039039 -99.0168 1
+        35.9780780781 -99.0168 1
+        36.0171171171 -99.0168 1
+        35.7828828829 -98.9705333333 1
+
+   - For the x-y format, an example is as below. Each line specifies the x and y co-ordinates of the wind turbine location in metres
+
+     .. code-block:: cpp
+
+	    89264.99080053 91233.3333309002
+	    89259.1966417755 95566.6666710007
+	    89254.1277665419 99900.0000000001
+	    89249.7842982733 104233.333329
+	    89246.1663427532 108566.6666691
+	    89243.2739881117 112899.9999981
+	    93458.6633652711 86900.0000019001
+	    93450.4377452458 91233.3333309002
+	    93442.9032518779 95566.6666710007
+
+4. The ``erf.windfarm_spec_table`` gives the specifications of the wind turbines in the wind farm. All wind turbines are assumed to have the same specifications. Here is a sample specifications table.
 
 .. code-block:: cpp
 
