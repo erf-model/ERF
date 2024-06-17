@@ -17,7 +17,7 @@ Problem::Problem (const Real* problo, const Real* probhi)
     pp.query("rho_0", parms.rho_0);
     pp.query("T_0", parms.T_0);
     pp.query("A_0", parms.A_0);
-    pp.query("QKE_0", parms.QKE_0);
+    pp.query("QKE_0", parms.KE_0);
 
     pp.query("U_0", parms.U_0);
     pp.query("V_0", parms.V_0);
@@ -71,7 +71,7 @@ Problem::init_custom_pert (
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
-    Array4<Real      > const& /*r_hse*/,
+    Array4<Real      > const& r_hse,
     Array4<Real      > const& /*p_hse*/,
     Array4<Real const> const& /*z_nd*/,
     Array4<Real const> const& /*z_cc*/,
@@ -111,9 +111,10 @@ Problem::init_custom_pert (
 
         // Set an initial value for QKE
         if (parms.custom_TKE) {
-            state_pert(i, j, k, RhoQKE_comp) = 1.0 - zc/3000.0; //*state_pert(i, j, k, Rho_comp);
+            state_pert(i, j, k, RhoKE_comp) = (1.0 - z/prob_hi[2]) * r_hse(i,j,k);
+        } else {
+            state_pert(i, j, k, RhoKE_comp) = parms.KE_0;
         }
-        else state_pert(i, j, k, RhoQKE_comp) = parms.QKE_0;
 
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = 0.0;
