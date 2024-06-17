@@ -386,7 +386,6 @@ ERF::FillIntermediatePatch (int lev, Real time,
                                 Tau13_lev[lev].get(), Tau31_lev[lev].get(),
                                 Tau23_lev[lev].get(), Tau32_lev[lev].get(),
                                 SFS_hfx3_lev[lev].get(),
-                                eddyDiffs_lev[lev].get(),
                                 z_phys_nd[lev].get());
     }
 

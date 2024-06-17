@@ -268,6 +268,15 @@ ERF::ERF ()
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
 
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -910,7 +919,7 @@ ERF::InitData ()
         }
 
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1903,6 +1912,15 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     // Base state
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
+
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
 
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
