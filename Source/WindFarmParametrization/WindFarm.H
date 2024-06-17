@@ -5,6 +5,11 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 
+extern amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
+extern amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
+void read_in_table(std::string windfarm_spec_table);
+
 void advance_windfarm (int lev,
                        const amrex::Geometry& geom,
                        const amrex::Real& dt_advance,
