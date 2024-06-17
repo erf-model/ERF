@@ -1200,7 +1200,7 @@ ERF::init_only (int lev, Real time)
     if (solverChoice.pert_type == PertType::type1) {
         TurbPert_constants(lev);
         TurbPert_update(lev, 0., turbPert);
-        TurbPert_amplitude(lev, turbPert);
+        TurbPert_amplitude(lev);
     }
 
     // Ensure that the face-based data are the same on both sides of a periodic domain.

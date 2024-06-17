@@ -47,7 +47,7 @@ struct TurbulentPerturbation {
         tpi_Hpb = 8*dx[2];
 
         #ifdef DIAGONAL_REF
-        tpi_lref = sqrt(8*8*dx[0]*dx[0] + 8*8*dx[1]*dx[1]);
+        tpi_lref = sqrt(boxSize(0)*boxSize(0)*dx[0]*dx[0] + boxSize(1)*boxSize(1)*dx[1]*dx[1]);
         #elif defined(LENGTH_REF)
         tpi_lref = 8*dx[0];
         #endif
@@ -58,18 +58,18 @@ struct TurbulentPerturbation {
         tmp_ba.maxSize(boxSize);
         pb_ba.push_back(tmp_ba);
 
-        // Initializing mean U vector
-        pb_um.resize(pb_ba[lev].size(), 0.);
-        pb_vm.resize(pb_ba[lev].size(), 0.);
+        // Initializing mean magnitude vector
+        pb_mag.resize(pb_ba[lev].size(), 0.);
 
         // Set size of vector and initialize
         pb_freq.resize(pb_ba[lev].size(), -1.0);
         pb_local_etime.resize(pb_ba[lev].size(), 0.0);
         pb_amp.resize(pb_ba[lev].size(), 0.0);
 
-        // Function finalizing output message
+        // Function check point message
         amrex::Print() << "Turbulent perturbation region initialized with ba " << pb_ba[lev].size() << " boxes\n";
 
+        // Function method check point message
         amrex::Print() << "Using ";
         #ifdef DIAGONAL_REF
         amrex::Print() << "box diagonal ";
@@ -86,9 +86,9 @@ struct TurbulentPerturbation {
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( (pb_freq[boxIdx] <= pb_local_etime[boxIdx]) && 
-                ((pb_um[boxIdx] != 0.) || (pb_vm[boxIdx] != 0.)) ) { // TODO: Second part of condition may need to change
+                ((pb_mag[boxIdx] != 0.)) ) { 
                 // Ma and Senocak (2015) Eq. 15
-                pb_freq[boxIdx] = tpi_lref / sqrt(pb_um[boxIdx]*pb_um[boxIdx] + pb_vm[boxIdx]*pb_vm[boxIdx]);
+                pb_freq[boxIdx] = tpi_lref / pb_mag[boxIdx];
 
                 // Trigger amplitude calculation per perturbation box
                 calc_tpi_amp(boxIdx);
@@ -99,25 +99,18 @@ struct TurbulentPerturbation {
                 // Increase by timestep
                 pb_local_etime[boxIdx] += dt;
             } // if
-
-            #ifdef DEBUG_PERTBOX_MSG
-            amrex::Print() << "pb_freq[" << boxIdx << "] = " << pb_freq[boxIdx] << "\n";
-            #endif
         } // for
     }
 
-//#define EKERT_FORMULATION
+//#define ECKERT_FORMULATION
 #define BULK_RICHARDSON_FORMULATION 
-//#define GRAD_RICHARDSON_FORMULATION 
 
     // Perturbation amplitude calcluation
-    // TODO: This is where all of the different ways of computing perturbation amplitude will be defined
     void calc_tpi_amp (const int boxIdx)
     {
-        beta = 1./tpi_Tinfty;
-
-        Um = pb_um[boxIdx];
-        Vm = pb_vm[boxIdx];
+        amrex::Real g = CONST_GRAV;
+        amrex::Real beta = 1./tpi_Tinfty;
+        amrex::Real Um = pb_mag[boxIdx];
 
         // Reset the perturbation amplitude
         pb_amp[boxIdx] = 0.; 
@@ -129,7 +122,7 @@ struct TurbulentPerturbation {
 
     }
 
-#define INDEX_PERTURB
+//#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
     // Random perturbation is applied as a white noise on the temperature source term
@@ -154,52 +147,50 @@ struct TurbulentPerturbation {
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx +1.);
+                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 1.);
                     #endif
                 });
             }
         }
     }
 
-    amrex::Real* get_pb_um() { return pb_um.data(); }
+
+    // Quality of life function definitions
+    amrex::Real* get_pb_mag() { return pb_mag.data(); }
 
     void debug()
     {
-        for (int i=0; i < pb_um.size(); i++){
-            amrex::Print()<< "pb_um[" << i << "] = " << pb_um[i] << "\n";
+        for (int i = 0; i < pb_mag.size(); i++){
+            amrex::Print()<< "pb_mag[" << i << "] = " << pb_mag[i] << "\n";
+        }
+        amrex::Print() << "\n";
+        
+        for (int i = 0; i < pb_freq.size(); i++){
+            amrex::Print()<< "pb_freq[" << i << "] = " << pb_freq[i]
+                          << " pb_local_etime[" << i << "]= " << pb_local_etime[i] <<"\n";
         }
     }
- 
-    // Public data members 
-    amrex::Vector<amrex::BoxArray> pb_ba;
-
-    // Perturbation box mean velocities
-    amrex::Vector<amrex::Real> pb_um;
-    amrex::Vector<amrex::Real> pb_vm;
 
     // Public constant constants
-    amrex::Real tpi_Tinfty;
-    amrex::Real tpi_nonDim;
+    amrex::Real tpi_Tinfty; // [K]
+    amrex::Real tpi_nonDim; 
+
+    // Public data members 
+    amrex::Vector<amrex::BoxArray> pb_ba; // PB box array
+    amrex::Vector<amrex::Real> pb_mag;    // BP mean magnitude [m/s]
 
   private:
 
     // Private constant constants
-    amrex::Real g = CONST_GRAV;
-    amrex::Real beta;
+    amrex::Real tpi_Hpb;  // PB height [m]
+    amrex::Real tpi_Lpb;  // PB length [m]
+    amrex::Real tpi_Wpb;  // PB width  [m]
+    amrex::Real tpi_lref; // PB reference length [m]
 
-    amrex::Real tpi_Hpb;
-    amrex::Real tpi_Lpb;
-    amrex::Real tpi_Wpb;
-
-    amrex::Real tpi_lref;
-
-    amrex::Real Um;
-    amrex::Real Vm;
-
-    // Perturbation update time
-    amrex::Vector<amrex::Real> pb_freq;
-    amrex::Vector<amrex::Real> pb_local_etime;
-    amrex::Vector<amrex::Real> pb_amp;
+    // Storage Arrays
+    amrex::Vector<amrex::Real> pb_freq;        // PB frequency [1/s]
+    amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
+    amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K] Ec:[K/s]
 
 };
 #endif
