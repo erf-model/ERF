@@ -5,9 +5,11 @@
 
 using namespace amrex;
 
-Real C_TKE = 0.0;
-
-Real compute_A(Real z)
+AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE
+Real compute_A(const Real z,
+               const Real hub_height,
+               const Real rotor_rad)
 {
 
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
@@ -18,11 +20,16 @@ Real compute_A(Real z)
     return A;
 }
 
-Real compute_Aijk(Real z_k, Real z_kp1)
+AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE
+Real compute_Aijk(const Real z_k,
+                  const Real z_kp1,
+                  const Real hub_height,
+                  const Real rotor_rad)
 {
 
-    Real A_k   = compute_A(z_k);
-    Real A_kp1 = compute_A(z_kp1);
+    Real A_k   = compute_A(z_k, hub_height, rotor_rad);
+    Real A_kp1 = compute_A(z_kp1, hub_height, rotor_rad);
 
     Real check = (z_k - hub_height)*(z_kp1 - hub_height);
     Real A_ijk;
@@ -102,11 +109,13 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
   int domhi_z = domain.bigEnd(2) + 1;
 
 
-  Real sum = 0.0;
-  Real *sum_area = &sum;
+  //Real sum = 0.0;
+  //Real *sum_area = &sum;
 
   // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
   mf_vars_fitch.setVal(0.0);
+  Real d_hub_height = hub_height;
+  Real d_rotor_rad = rotor_rad;
 
   for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -134,7 +143,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
             Real z_k   = kk*dx[2];
             Real z_kp1 = (kk+1)*dx[2];
 
-            Real A_ijk = compute_Aijk(z_k, z_kp1);
+            Real A_ijk = compute_Aijk(z_k, z_kp1, d_hub_height, d_rotor_rad);
 
             // Compute Fitch source terms
 
@@ -143,6 +152,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
             Real C_T = interpolate_1d(wind_speed.dataPtr(), thrust_coeff.dataPtr(), z, wind_speed.size());
+            Real C_TKE = 0.0;
 
             fitch_array(i,j,k,0) = Vabs;
             fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);

@@ -1,6 +1,6 @@
 #include <WindFarm.H>
 #include <Fitch.H>
-#include <EWP.H>
+//#include <EWP.H>
 using namespace amrex;
 
 amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
@@ -63,7 +63,7 @@ void advance_windfarm (int lev,
         fitch_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
                        mf_vars_windfarm, mf_Nturb);
     } else if (solver_choice.windfarm_type == WindFarmType::EWP) {
-          ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-                      mf_vars_windfarm, mf_Nturb);
+          //ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
+            //          mf_vars_windfarm, mf_Nturb);
     }
 }
