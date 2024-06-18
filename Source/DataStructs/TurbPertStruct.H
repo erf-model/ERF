@@ -1,11 +1,12 @@
 #ifndef _TURB_PERT_STRUCT_H_
 #define _TURB_PERT_STRUCT_H_
 
+#include <AMReX_MultiFabUtil.H>
+#include <TileNoZ.H>
+
 /**
  * Container holding quantities related to turbulent perturbation parameters
  */
-
-#define DEBUG_PERTBOX_MSG
 
 struct TurbulentPerturbation {
 
@@ -79,16 +80,24 @@ struct TurbulentPerturbation {
         amrex::Print() << "distance as reference for turbulent inlet perturbation: tpi_lref = " << tpi_lref << "\n";
     }
 
-    // perturbation box update freqnecy is calculate and perturbation amplitude
-    // function is triggered through local elapsed time
+    // Perturbation update frequency check.
+    // This function will trigger calc_tpi_meanMag() and calc_tpi_amp(), when
+    // the local elasped time is greater than the perturbation frequency
     void calc_tpi_update (const int lev,
-                          const amrex::Real dt)
+                          const amrex::Real dt,
+                          amrex::MultiFab& mf_xvel,
+                          amrex::MultiFab& mf_yvel,
+                          amrex::MultiFab& mf_cons)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            if ( (pb_freq[boxIdx] <= pb_local_etime[boxIdx]) && 
-                ((pb_mag[boxIdx] != 0.)) ) { 
+            if ( pb_freq[boxIdx] <= pb_local_etime[boxIdx] ) { 
+                // Compute mean velocity magnitude within perturbation box
+                calc_tpi_meanMag(boxIdx, lev, mf_xvel, mf_yvel, mf_cons);
+
                 // Ma and Senocak (2015) Eq. 15
-                pb_freq[boxIdx] = tpi_lref / pb_mag[boxIdx];
+                if (pb_mag[boxIdx] !=0.) {
+                    pb_freq[boxIdx] = tpi_lref / pb_mag[boxIdx];
+                }
 
                 // Trigger amplitude calculation per perturbation box
                 calc_tpi_amp(boxIdx);
@@ -100,6 +109,131 @@ struct TurbulentPerturbation {
                 pb_local_etime[boxIdx] += dt;
             } // if
         } // for
+    }
+
+// TODO: Test the difference between these two
+//#define USE_SLAB_AVERAGE
+#define USE_VOLUME_AVERAGE
+
+    // Perturbation box mean velocity magnitude calculation
+    // This is pulled into the strucutre to also utilize during runtime
+    void calc_tpi_meanMag (const int boxIdx,
+                           const int lev,
+                           amrex::MultiFab& mf_xvel,
+                           amrex::MultiFab& mf_yvel,
+                           amrex::MultiFab& mf_cons)
+
+    {
+        // Creating local copy of PB box array and magnitude
+        const amrex::BoxArray m_pb_ba = pb_ba[lev];
+        amrex::Real* m_pb_mag = get_pb_mag();
+
+        // Storage of averages per PB
+        // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
+        //        2=u (slab_hi),     3=v (slab_hi)
+        amrex::Gpu::DeviceVector<amrex::Real> tmp_d(4,0.);
+        amrex::Real* tmp = tmp_d.data();
+
+        // Averaging u components
+        for (amrex::MFIter mfi(mf_xvel, TileNoZ()) ; mfi.isValid(); ++mfi) {
+            const amrex::Box &vbx = mfi.validbox();
+            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            amrex::Box ubx = pbx & vbx;
+
+            // Operation over box union
+            if (ubx.ok()) {
+                const amrex::Array4<const amrex::Real> &xvel_arry = mf_xvel.array(mfi);
+
+                #ifdef USE_VOLUME_AVERAGE
+                int npts = ubx.numPts();
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
+                });
+                tmp[0] /= (amrex::Real) npts;
+                #endif
+
+                #ifdef USE_SLAB_AVERAGE
+                amrex::Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
+                amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
+                int npts_lo = ubxSlab_lo.numPts();
+                int npts_hi = ubxSlab_hi.numPts();
+
+                // Average u in the low slab
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
+                });
+                tmp[0] /= (amrex::Real) npts_lo;
+
+                // Average u in the high slab
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[2], xvel_arry(i,j,k), handler);
+                });
+                tmp[2] /= (amrex::Real) npts_hi;
+                #endif
+            } // if
+        } // MFIter
+
+        // Averaging v components
+        for (amrex::MFIter mfi(mf_yvel, TileNoZ()); mfi.isValid(); ++mfi) {
+            amrex::Box const& vbx = mfi.validbox();
+            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            amrex::Box ubx = pbx & vbx;
+
+            // Operation over box union
+            if (ubx.ok()) {
+                const amrex::Array4<const amrex::Real> &yvel_arry = mf_yvel.array(mfi);
+
+                #ifdef USE_VOLUME_AVERAGE
+                int npts = ubx.numPts();
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
+                });
+                tmp[1] /= (amrex::Real) npts;
+                #endif
+
+                #ifdef USE_SLAB_AVERAGE
+                amrex::Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
+                amrex::Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
+                int npts_lo = ubxSlab_lo.numPts();
+                int npts_hi = ubxSlab_hi.numPts();
+
+                // Average v in the low slab
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
+                });
+                tmp[1] /= (amrex::Real) npts_lo;
+
+                // Average v in the high slab
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k), handler);
+                });
+                tmp[3] /= (amrex::Real) npts_hi;
+                #endif
+            } // if
+        } // MFIter
+
+        // Computing the average magnitude within PB
+        for (amrex::MFIter mfi(mf_cons, TileNoZ()); mfi.isValid(); ++mfi) {
+            amrex::Box const& vbx = mfi.validbox();
+            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+                #ifdef USE_SLAB_AVERAGE
+                m_pb_mag[boxIdx] = 0.5*(sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]) + sqrt(tmp[2]*tmp[2] + tmp[3]*tmp[3]));
+                #endif
+
+                #ifdef USE_VOLUME_AVERAGE
+                m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
+                #endif
+            } // if
+        } // MFIter
+
     }
 
 //#define ECKERT_FORMULATION
@@ -158,16 +292,12 @@ struct TurbulentPerturbation {
     // Quality of life function definitions
     amrex::Real* get_pb_mag() { return pb_mag.data(); }
 
-    void debug()
+    void debug ()
     {
-        for (int i = 0; i < pb_mag.size(); i++){
-            amrex::Print()<< "pb_mag[" << i << "] = " << pb_mag[i] << "\n";
-        }
-        amrex::Print() << "\n";
-        
-        for (int i = 0; i < pb_freq.size(); i++){
-            amrex::Print()<< "pb_freq[" << i << "] = " << pb_freq[i]
-                          << " pb_local_etime[" << i << "]= " << pb_local_etime[i] <<"\n";
+        for (int i = 0; i < pb_mag.size(); i++) {
+            amrex::Print() << "[" << i<< "] pb_mag=" << pb_mag[i] 
+                           << " |  pb_freq=" << pb_freq[i] 
+                           << " |  pb_local_etime=" << pb_local_etime[i] <<"\n";
         }
     }
 

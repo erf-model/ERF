@@ -1,10 +1,9 @@
 // May 28th, 2024
 // DUSTIN MA
 
+#define DEBUG_PERTBOX_MSG
+
 #include <ERF.H>
-#include <ERF_Constants.H>
-#include <TileNoZ.H>
-#include <prob_common.H>
 
 using namespace amrex;
 
@@ -13,10 +12,6 @@ ERF::TurbPert_constants(const int lev)
 {
     prob->init_turbPert_const(turbPert);
 }
-
-// TODO: Test the difference between these two
-#define USE_SLAB_AVERAGE
-//#define USE_VOLUME_AVERAGE
 
 void
 ERF::TurbPert_update (const int lev, const Real local_dt, TurbulentPerturbation& turbPert)
@@ -29,127 +24,12 @@ ERF::TurbPert_update (const int lev, const Real local_dt, TurbulentPerturbation&
                        lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    MultiFab::Copy (cons_data, lev_new[Vars::cons], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
-    // Creating local copy of PB box array and magnitude
-    BoxArray m_pb_ba = turbPert.pb_ba[lev];
-    Real* m_pb_mag = turbPert.get_pb_mag();
-
-    for (int boxIdx = 0; boxIdx < m_pb_ba.size(); boxIdx++) {
-        // Storage of averages per PB
-        // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
-        //        2=u (slab_hi),     3=v (slab_hi)
-        Gpu::DeviceVector<Real> tmp_d(4,0.);
-        Real* tmp = tmp_d.data();
-
-        // Averaging u components
-        auto m_ixtype_x = xvel_data.boxArray().ixType();
-        for (MFIter mfi(xvel_data, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const Box &vbx = mfi.validbox();
-            Box pbx = convert(m_pb_ba[boxIdx], m_ixtype_x);
-            Box ubx = pbx & vbx;
-
-            // Operation over box union
-            if (ubx.ok()) {
-                const Array4<const Real> &xvel_arry = xvel_data.array(mfi);
-
-                #ifdef USE_VOLUME_AVERAGE
-                int npts = ubx.numPts();
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
-                });
-                tmp[0] /= (Real) npts;
-                #endif
-
-                #ifdef USE_SLAB_AVERAGE
-                Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
-                Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
-                int npts_lo = ubxSlab_lo.numPts();
-                int npts_hi = ubxSlab_hi.numPts();
-
-                // Average u in the low slab
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[0], xvel_arry(i,j,k), handler);
-                });
-                tmp[0] /= (Real) npts_lo;
-
-                // Average u in the high slab
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[2], xvel_arry(i,j,k), handler);
-                });
-                tmp[2] /= (Real) npts_hi;
-                #endif
-            } // if
-        } // MFIter
-
-        // Averaging v components
-        auto m_ixtype_y = yvel_data.boxArray().ixType();
-        for (MFIter mfi(yvel_data, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const Box &vbx = mfi.validbox();
-            Box pbx = convert(m_pb_ba[boxIdx], m_ixtype_y);
-            Box ubx = pbx & vbx;
-
-            // Operation over box union
-            if (ubx.ok()) {
-                const Array4<const Real> &yvel_arry = yvel_data.array(mfi);
-
-                #ifdef USE_VOLUME_AVERAGE
-                int npts = ubx.numPts();
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
-                });
-                tmp[1] /= (Real) npts;
-                #endif
-
-                #ifdef USE_SLAB_AVERAGE
-                Box ubxSlab_lo = makeSlab(ubx,2,ubx.smallEnd(2));
-                Box ubxSlab_hi = makeSlab(ubx,2,ubx.bigEnd(2));
-                int npts_lo = ubxSlab_lo.numPts();
-                int npts_hi = ubxSlab_hi.numPts();
-
-                // Average v in the low slab
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
-                });
-                tmp[1] /= (Real) npts_lo;
-
-                // Average v in the high slab
-                ParallelFor(Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, Gpu::Handler const& handler) noexcept {
-                    Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k), handler);
-                });
-                tmp[3] /= (Real) npts_hi;
-                #endif
-            } // if
-        } // MFIter
-
-        // Computing the average magnitude within PB
-        auto m_ixtype_c = cons_data.boxArray().ixType();
-        for (MFIter mfi(cons_data, TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const Box &vbx = mfi.validbox();
-            Box pbx = convert(m_pb_ba[boxIdx], m_ixtype_c);
-            Box ubx = pbx & vbx;
-            if (ubx.ok()) {
-                #ifdef USE_SLAB_AVERAGE
-                m_pb_mag[boxIdx] = 0.5*(sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]) + sqrt(tmp[2]*tmp[2] + tmp[3]*tmp[3]));
-                #endif
-
-                #ifdef USE_VOLUME_AVERAGE
-                m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
-                #endif
-            } // if
-        } // MFIter
-
-    } // for
-
     // Computing perturbation update time
-    turbPert.calc_tpi_update(lev, local_dt);
+    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
 
     #ifdef DEBUG_PERTBOX_MSG
     turbPert.debug();

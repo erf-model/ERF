@@ -310,6 +310,8 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.pert_type == PertType::type1) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
+
+            // Apply stored values onto cell_src
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src);
         }
     } // mfi
