@@ -35,7 +35,7 @@ jobs:
     # NOTE: -Werror was removed because ERF specifically had a lot of warnings. It will be a separate task to go through and fix them all...
     env: {CXXFLAGS: "-Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-deprecated-declarations -Wno-gnu-zero-variadic-macro-arguments -Wno-pass-failed"}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -94,7 +94,7 @@ jobs:
     #     gcovr -g -k -r . --xml regressioncov.xml  # -v
 
     # - name: Upload coverage to Codecov
-    #   uses: codecov/codecov-action@v3
+    #   uses: codecov/codecov-action@v4
     #   with:
     #     dry_run: false
     #     # token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
@@ -106,14 +106,14 @@ jobs:
     #     directory: ${{runner.workspace}}/ERF
 
     - name: Success artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: success()
       with:
         name: build-and-test
         path: |
           ${{runner.workspace}}/ERF/regressioncov.xml
     - name: Failing test artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: build-and-test
