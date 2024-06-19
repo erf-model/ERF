@@ -35,13 +35,29 @@ jobs:
           submodules: true
       - name: Prepare CUDA environment
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_nvcc.sh ${{matrix.cuda_ver}}
+      - name: Install CCache
+        run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+      - name: Set Up Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+          restore-keys: |
+               ccache-${{ github.workflow }}-${{ github.job }}-git-
       - name: Configure and build
         run: |
+          export CCACHE_COMPRESS=1
+          export CCACHE_COMPRESSLEVEL=10
+          export CCACHE_MAXSIZE=600M
+          ccache -z
+
           export PATH=/usr/local/nvidia/bin:/usr/local/cuda/bin:${PATH}
           export LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
           which nvcc || echo "nvcc not in PATH!"
           cmake -Bbuild-${{matrix.cuda_pkg}} \
             -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache \
             -DAMReX_CUDA_ERROR_CROSS_EXECUTION_SPACE_CALL=ON \
             -DAMReX_CUDA_ERROR_CAPTURE_THIS=ON           \
             -DERF_DIM:STRING=3 \
@@ -49,3 +65,21 @@ jobs:
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_REGRESSION_TESTS_ONLY:BOOL=ON .
           cmake --build build-${{matrix.cuda_pkg}} -- -j $(nproc)
+
+          ccache -s
+          du -hs ~/.cache/ccache
+
+  save_pr_number:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR number
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo $PR_NUMBER > pr_number.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: pr_number.txt
+          retention-days: 1
