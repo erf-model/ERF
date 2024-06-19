@@ -22,7 +22,7 @@ jobs:
     - name: Set Up Cache
       uses: actions/cache@v4
       with:
-        path: /Users/runner/Library/Caches/ccache
+        path: ~/Library/Caches/ccache
         key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
         restore-keys: |
              ccache-${{ github.workflow }}-${{ github.job }}-git-
@@ -47,10 +47,12 @@ jobs:
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
         export CCACHE_MAXSIZE=250M
+        export CCACHE_SLOPPINESS=time_macros
         ccache -z
 
         cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --verbose
 
+        du -hs ~/Library/Caches/ccache
         ccache -s
 
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
