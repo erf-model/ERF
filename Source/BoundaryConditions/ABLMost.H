@@ -239,12 +239,12 @@ public:
                    const amrex::Real& time,
                    int max_iters = 25);
 
-    template <typename FluxIter>
+    template <typename FluxIterLand, typename FluxIterSea>
     void
     compute_fluxes (const int& lev,
                     const int& max_iters,
-                    const FluxIter& most_flux,
-                    bool is_land);
+                    FluxIterLand* most_flux_land,
+                    FluxIterSea * most_flux_sea);
 
     void
     impose_most_bcs (const int& lev,

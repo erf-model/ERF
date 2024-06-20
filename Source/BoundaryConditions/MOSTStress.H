@@ -63,10 +63,39 @@ private:
 };
 
 
+
+/**
+ * Base iterator for derived structs
+ */
+struct null_most_iter
+{
+    virtual ~null_most_iter () = default;
+
+    AMREX_GPU_DEVICE
+    AMREX_FORCE_INLINE
+    virtual
+    void
+    iterate_flux (const int& /*i*/,
+                  const int& /*j*/,
+                  const int& /*k*/,
+                  const int& /*max_iters*/,
+                  const amrex::Array4<amrex::Real>& /*z0_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*umm_arr*/,
+                  const amrex::Array4<const amrex::Real>& /*tm_arr*/,
+                  const amrex::Array4<amrex::Real>& /*u_star_arr*/,
+                  const amrex::Array4<amrex::Real>& /*t_star_arr*/,
+                  const amrex::Array4<amrex::Real>& /*t_surf_arr*/,
+                  const amrex::Array4<amrex::Real>& /*olen_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const { }
+};
+
+
 /**
  * Adiabatic with constant roughness
  */
-struct adiabatic
+struct adiabatic : public null_most_iter
 {
     adiabatic (amrex::Real zref,
                amrex::Real flux)
@@ -75,6 +104,8 @@ struct adiabatic
         mdata.surf_temp_flux = flux;
     }
 
+    virtual ~adiabatic () = default;
+
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
     void
@@ -82,7 +113,7 @@ struct adiabatic
                   const int& j,
                   const int& k,
                   const int& /*max_iters*/,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
+                  const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& /*tm_arr*/,
                   const amrex::Array4<amrex::Real>& u_star_arr,
@@ -91,7 +122,7 @@ struct adiabatic
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         t_star_arr(i,j,k) = 0.0;
@@ -107,7 +138,7 @@ private:
 /**
  * Adiabatic with charnock roughness
  */
-struct adiabatic_charnock
+struct adiabatic_charnock : public null_most_iter
 {
     adiabatic_charnock (amrex::Real zref,
                         amrex::Real flux,
@@ -117,6 +148,8 @@ struct adiabatic_charnock
         mdata.surf_temp_flux = flux;
         mdata.Cnk_a = cnk_a;
     }
+
+    virtual ~adiabatic_charnock () = default;
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -134,7 +167,7 @@ struct adiabatic_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -162,7 +195,7 @@ private:
 /**
  * Adiabatic with modified charnock roughness
  */
-struct adiabatic_mod_charnock
+struct adiabatic_mod_charnock : public null_most_iter
 {
     adiabatic_mod_charnock (amrex::Real zref,
                             amrex::Real flux,
@@ -173,6 +206,8 @@ struct adiabatic_mod_charnock
         mdata.Cnk_d = depth;
         mdata.Cnk_b = mdata.Cnk_b1 * std::log(mdata.Cnk_b2 / mdata.Cnk_d);
     }
+
+    virtual ~adiabatic_mod_charnock () = default;
 
     AMREX_GPU_DEVICE
     AMREX_FORCE_INLINE
@@ -190,7 +225,7 @@ struct adiabatic_mod_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -218,7 +253,7 @@ private:
 /**
  * Adiabatic with wave-coupled roughness
  */
-struct adiabatic_wave_coupled
+struct adiabatic_wave_coupled : public null_most_iter
 {
     adiabatic_wave_coupled (amrex::Real zref,
                             amrex::Real flux)
@@ -243,7 +278,7 @@ struct adiabatic_wave_coupled
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -279,7 +314,7 @@ private:
 /**
  * Surface flux with constant roughness
  */
-struct surface_flux
+struct surface_flux : public null_most_iter
 {
     surface_flux (amrex::Real zref,
                   amrex::Real flux)
@@ -295,7 +330,7 @@ struct surface_flux
                   const int& j,
                   const int& k,
                   const int& max_iters,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
+                  const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
@@ -304,7 +339,7 @@ struct surface_flux
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -340,7 +375,7 @@ private:
 /**
  * Surface flux with charnock roughness
  */
-struct surface_flux_charnock
+struct surface_flux_charnock : public null_most_iter
 {
     surface_flux_charnock (amrex::Real zref,
                            amrex::Real flux,
@@ -367,7 +402,7 @@ struct surface_flux_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -406,7 +441,7 @@ private:
 /**
  * Surface flux with modified charnock roughness
  */
-struct surface_flux_mod_charnock
+struct surface_flux_mod_charnock : public null_most_iter
 {
     surface_flux_mod_charnock (amrex::Real zref,
                                amrex::Real flux,
@@ -434,7 +469,7 @@ struct surface_flux_mod_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -473,7 +508,7 @@ private:
 /**
  * Surface flux with wave-coupled roughness
  */
-struct surface_flux_wave_coupled
+struct surface_flux_wave_coupled : public null_most_iter
 {
     surface_flux_wave_coupled (amrex::Real zref,
                                amrex::Real flux)
@@ -498,7 +533,7 @@ struct surface_flux_wave_coupled
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -545,7 +580,7 @@ private:
 /**
  * Surface temperature with constant roughness
  */
-struct surface_temp
+struct surface_temp : public null_most_iter
 {
     surface_temp (amrex::Real zref,
                   amrex::Real flux)
@@ -561,7 +596,7 @@ struct surface_temp
                   const int& j,
                   const int& k,
                   const int& max_iters,
-                  const amrex::Array4<const amrex::Real>& z0_arr,
+                  const amrex::Array4<amrex::Real>& z0_arr,
                   const amrex::Array4<const amrex::Real>& umm_arr,
                   const amrex::Array4<const amrex::Real>& tm_arr,
                   const amrex::Array4<amrex::Real>& u_star_arr,
@@ -570,7 +605,7 @@ struct surface_temp
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -608,7 +643,7 @@ private:
 /**
  * Surface temperature with charnock roughness
  */
-struct surface_temp_charnock
+struct surface_temp_charnock : public null_most_iter
 {
     surface_temp_charnock (amrex::Real zref,
                            amrex::Real flux,
@@ -635,7 +670,7 @@ struct surface_temp_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -676,7 +711,7 @@ private:
 /**
  * Surface temperature with modified charnock roughness
  */
-struct surface_temp_mod_charnock
+struct surface_temp_mod_charnock : public null_most_iter
 {
     surface_temp_mod_charnock (amrex::Real zref,
                                amrex::Real flux,
@@ -704,7 +739,7 @@ struct surface_temp_mod_charnock
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& /*Hwave_arr*/,
                   const amrex::Array4<amrex::Real>& /*Lwave_arr*/,
-                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const
+                  const amrex::Array4<amrex::Real>& /*eta_arr*/) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
@@ -745,7 +780,7 @@ private:
 /**
  * Surface temperature with wave-coupled roughness
  */
-struct surface_temp_wave_coupled
+struct surface_temp_wave_coupled : public null_most_iter
 {
     surface_temp_wave_coupled (amrex::Real zref,
                                amrex::Real flux)
@@ -770,7 +805,7 @@ struct surface_temp_wave_coupled
                   const amrex::Array4<amrex::Real>& olen_arr,
                   const amrex::Array4<amrex::Real>& Hwave_arr,
                   const amrex::Array4<amrex::Real>& Lwave_arr,
-                  const amrex::Array4<amrex::Real>& eta_arr) const
+                  const amrex::Array4<amrex::Real>& eta_arr) const override
     {
         int iter = 0;
         amrex::Real ustar = 0.0;
