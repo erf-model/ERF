@@ -291,7 +291,23 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     } else {
         amrex::Abort("Enforcing max level to 0 for now while implementing Turbulent perturbation boxes");
     }
-  
+
+    //
+    // Define the land mask here and set it to all land
+    // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
+    //
+    {
+    lmask_lev[lev].resize(1);
+    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    lmask_lev[lev][0]->setVal(1);
+    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+    }
 }
 
 void
@@ -448,3 +464,6 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 }
+
+
+

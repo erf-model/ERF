@@ -27,62 +27,104 @@ ABLMost::update_fluxes (const int& lev,
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
 
+    // ***************************************************************
     // Iterate the fluxes if moeng type
+    // First iterate over land -- the only model for surface roughness
+    // over land is RoughCalcType::CONSTANT
+    // ***************************************************************
     if (flux_type == FluxCalcType::MOENG) {
+        bool is_land = true;
         if (theta_type == ThetaCalcType::HEAT_FLUX) {
-            if (rough_type == RoughCalcType::CONSTANT) {
+            if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_flux most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::CHARNOCK) {
-                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
-                compute_fluxes(lev, max_iters, most_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
-                surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
+                amrex::Abort("Unknown value for rough_type_land");
             }
         } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
             update_surf_temp(time);
-            if (rough_type == RoughCalcType::CONSTANT) {
+            if (rough_type_land == RoughCalcType::CONSTANT) {
                 surface_temp most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::CHARNOCK) {
-                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
-                surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
-                compute_fluxes(lev, max_iters, most_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
-                surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
+                amrex::Abort("Unknown value for rough_type_land");
+            }
+        } else if (theta_type == ThetaCalcType::ADIABATIC) {
+            if (rough_type_land == RoughCalcType::CONSTANT) {
+                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else {
+                amrex::Abort("Unknown value for rough_type_land");
             }
         } else {
-            if (rough_type == RoughCalcType::CONSTANT) {
-                adiabatic most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::CHARNOCK) {
-                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
-                compute_fluxes(lev, max_iters, most_flux);
-            } else if (rough_type == RoughCalcType::MODIFIED_CHARNOCK) {
-                adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
-                compute_fluxes(lev, max_iters, most_flux);
+            amrex::Abort("Unknown value for theta_type");
+        }
+    } // MOENG -- LAND
+
+    // ***************************************************************
+    // Iterate the fluxes if moeng type
+    // Next iterate over sea -- the models for surface roughness
+    // over sea are CHARNOCK, MODIFIED_CHARNOCK or WAVE_COUPLED
+    // ***************************************************************
+    if (flux_type == FluxCalcType::MOENG) {
+        bool is_land = false;
+        if (theta_type == ThetaCalcType::HEAT_FLUX) {
+            if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                surface_flux_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                surface_flux_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                surface_flux_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
             } else {
-                adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
-                compute_fluxes(lev, max_iters, most_flux);
+                amrex::Abort("Unknown value for rough_type_sea");
             }
-        } // theta flux
-    } else if (flux_type == FluxCalcType::CUSTOM) {
+
+        } else if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
+            update_surf_temp(time);
+            if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                surface_temp_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                surface_temp_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                surface_temp_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else {
+                amrex::Abort("Unknown value for rough_type_sea");
+            }
+
+        } else if (theta_type == ThetaCalcType::ADIABATIC) {
+            if (rough_type_sea == RoughCalcType::CHARNOCK) {
+                adiabatic_charnock most_flux(m_ma.get_zref(), surf_temp_flux, cnk_a);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::MODIFIED_CHARNOCK) {
+                adiabatic_mod_charnock most_flux(m_ma.get_zref(), surf_temp_flux, depth);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else if (rough_type_sea == RoughCalcType::WAVE_COUPLED) {
+                adiabatic_wave_coupled most_flux(m_ma.get_zref(), surf_temp_flux);
+                compute_fluxes(lev, max_iters, most_flux, is_land);
+            } else {
+                amrex::Abort("Unknown value for rough_type_sea");
+            }
+        } else {
+            amrex::Abort("Unknown value for theta_type");
+        }
+
+    } // MOENG -- SEA
+
+    if (flux_type == FluxCalcType::CUSTOM) {
         u_star[lev]->setVal(custom_ustar);
         t_star[lev]->setVal(custom_tstar);
         q_star[lev]->setVal(custom_qstar);
     }
 }
 
-
 /**
- * Function to compute the fluxes (u^star and t^star) for Monin Obukhov similarity theory.
+ * Function to compute the fluxes (u^star and t^star) for Monin Obukhov similarity theory
  *
  * @param[in] lev Current level
  * @param[in] max_iters maximum iterations to use
@@ -92,7 +134,8 @@ template <typename FluxIter>
 void
 ABLMost::compute_fluxes (const int& lev,
                          const int& max_iters,
-                         const FluxIter& most_flux)
+                         const FluxIter& most_flux,
+                         bool is_land)
 {
     // Pointers to the computed averages
     const auto *const tm_ptr  = m_ma.get_average(lev,2);
@@ -116,11 +159,20 @@ ABLMost::compute_fluxes (const int& lev,
         const auto Lwave_arr = (m_Lwave_lev[lev]) ? m_Lwave_lev[lev]->array(mfi) : Array4<Real> {};
         const auto eta_arr   = m_eddyDiffs_lev[lev]->array(mfi);
 
+        auto lmask_arr    = (m_lmask_lev[lev][0])    ? m_lmask_lev[lev][0]->array(mfi) :
+                                                       Array4<int> {};
+
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
-                                   u_star_arr, t_star_arr, t_surf_arr, olen_arr,
-                                   Hwave_arr, Lwave_arr, eta_arr);
+            if (is_land && lmask_arr(i,j,k) == 1) {
+                most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
+                                       u_star_arr, t_star_arr, t_surf_arr, olen_arr,
+                                       Hwave_arr, Lwave_arr, eta_arr);
+            } else if (!is_land && lmask_arr(i,j,k) == 0) {
+                most_flux.iterate_flux(i, j, k, max_iters, z0_arr, umm_arr, tm_arr,
+                                       u_star_arr, t_star_arr, t_surf_arr, olen_arr,
+                                       Hwave_arr, Lwave_arr, eta_arr);
+            }
         });
     }
 }

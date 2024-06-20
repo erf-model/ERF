@@ -320,7 +320,7 @@ public:
     // calls AmrCore constructor -> AmrMesh constructor
     ERF (const amrex::RealBox& rb, int max_level_in,
          const amrex::Vector<int>& n_cell_in, int coord,
-         const amrex::Vector<amrex::IntVect>& ref_ratios,
+         const amrex::Vector<amrex::IntVect>& ref_ratio,
          const amrex::Array<int,AMREX_SPACEDIM>& is_per,
          std::string prefix);
 
