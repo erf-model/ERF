@@ -1,3 +1,5 @@
+#ifdef ERF_USE_WW3_COUPLING
+
 #include <ERF.H>
 #include <Utils.H>
 #include <mpi.h>
@@ -5,7 +7,6 @@
 
 using namespace amrex;
 
-#ifdef ERF_USE_WW3_COUPLING
 void
 ERF::read_waves (int lev)
 {
