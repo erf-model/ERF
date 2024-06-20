@@ -108,7 +108,7 @@ ERF::FillPatch (int lev, Real time,
             FillPatchSingleLevel(*mfs_vel[Vars::zvel], time, fmf, ftime, icomp, icomp, ncomp_w,
                                  geom[lev], *physbcs_w_no_terrain[lev], BCVars::zvel_bc);
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                               ngvect_vels,time,BCVars::xvel_bc,BCVars::yvel_bc,BCVars::zvel_bc);
+                               ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
 
     } else {
@@ -122,8 +122,9 @@ ERF::FillPatch (int lev, Real time,
         mapper = &cell_cons_interp;
         FillPatchTwoLevels(mf_c, time, cmf, ctime, fmf, ftime,
                            0, 0, mf_c.nComp(), geom[lev-1], geom[lev],
-                           null_bc, BCVars::cons_bc, null_bc, BCVars::cons_bc, refRatio(lev-1),
-                           mapper, domain_bcs_type, BCVars::cons_bc);
+                           *physbcs_cons[lev-1], BCVars::cons_bc,
+                           *physbcs_cons[lev  ], BCVars::cons_bc,
+                           refRatio(lev-1), mapper, domain_bcs_type, BCVars::cons_bc);
 
         if (!cons_only) {
             mapper = &face_cons_linear_interp;
@@ -133,24 +134,34 @@ ERF::FillPatch (int lev, Real time,
             cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
             FillPatchTwoLevels(mf_u, time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               null_bc, BCVars::xvel_bc, null_bc, BCVars::xvel_bc, refRatio(lev-1),
-                               mapper, domain_bcs_type, BCVars::xvel_bc);
+                               *physbcs_u[lev-1], BCVars::xvel_bc,
+                               *physbcs_u[lev  ], BCVars::xvel_bc,
+                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::xvel_bc);
 
             MultiFab& mf_v = *mfs_vel[Vars::yvel];
             fmf = {&vars_old[lev  ][Vars::yvel], &vars_new[lev  ][Vars::yvel]};
             cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
             FillPatchTwoLevels(mf_v, time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               null_bc, BCVars::yvel_bc, null_bc, BCVars::yvel_bc, refRatio(lev-1),
-                               mapper, domain_bcs_type, BCVars::yvel_bc);
+                               *physbcs_v[lev-1], BCVars::yvel_bc,
+                               *physbcs_v[lev  ], BCVars::yvel_bc,
+                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::yvel_bc);
 
+
+            // We note there is an issue here -- we use the no-terrain version to fill the physical
+            //    bcs of the coarse data used to interpolate.  We later fix the fine data with the
+            //    correct bcs but if there was an error due to the interpolation with the wrong bcs,
+            //    we will not necessarily be able to fix that.
             MultiFab& mf_w = *mfs_vel[Vars::zvel];
             fmf = {&vars_old[lev  ][Vars::zvel], &vars_new[lev  ][Vars::zvel]};
             cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
             FillPatchTwoLevels(mf_w, time, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
-                               null_bc, BCVars::zvel_bc, null_bc, BCVars::zvel_bc, refRatio(lev-1),
-                               mapper, domain_bcs_type, BCVars::zvel_bc);
+                               *physbcs_w_no_terrain[lev-1], BCVars::zvel_bc,
+                               *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
+                               refRatio(lev-1), mapper, domain_bcs_type, BCVars::zvel_bc);
+            (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                               ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
     } // lev > 0
 
@@ -175,7 +186,7 @@ ERF::FillPatch (int lev, Real time,
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
         (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                           ngvect_vels,time,BCVars::xvel_bc,BCVars::yvel_bc,BCVars::zvel_bc);
+                           ngvect_vels,time,BCVars::zvel_bc);
     }
 }
 
@@ -287,7 +298,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                             Geom(lev).Domain(), domain_bcs_type);
     }
 
-    // We now start working on VELOCITY
+    // We now start working on conserved quantities + VELOCITY
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx)
     {
         if (cons_only && var_idx != Vars::cons) continue;
@@ -331,7 +342,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
 
         if (lev == 0)
         {
-            // This fills fine-fine ghost values of VELOCITY
+            // This fills fine-fine ghost values of cons and VELOCITY (not momentum)
             mf.FillBoundary(icomp,ncomp,ngvect,geom[lev].periodicity());
         }
         else
@@ -348,10 +359,33 @@ ERF::FillIntermediatePatch (int lev, Real time,
             Vector<MultiFab*> cmf = {&vars_old[lev-1][var_idx], &vars_new[lev-1][var_idx]};
             Vector<Real> ctime    = {t_old[lev-1], t_new[lev-1]};
 
-            FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
-                               icomp, icomp, ncomp, geom[lev-1], geom[lev],
-                               null_bc, 0, null_bc, 0, refRatio(lev-1),
-                               mapper, domain_bcs_type, bccomp);
+            if (var_idx == Vars::cons) {
+                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
+                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                                   *physbcs_cons[lev-1], BCVars::cons_bc,
+                                   *physbcs_cons[lev  ], BCVars::cons_bc,
+                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+            } else if (var_idx == Vars::xvel) {
+                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
+                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                                   *physbcs_u[lev-1], BCVars::xvel_bc,
+                                   *physbcs_u[lev  ], BCVars::xvel_bc,
+                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+            } else if (var_idx == Vars::yvel) {
+                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
+                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                                   *physbcs_v[lev-1], BCVars::yvel_bc,
+                                   *physbcs_v[lev  ], BCVars::yvel_bc,
+                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+            } else if (var_idx == Vars::zvel) {
+                FillPatchTwoLevels(mf, time, cmf, ctime, fmf, {time},
+                                   icomp, icomp, ncomp, geom[lev-1], geom[lev],
+                                   *physbcs_w_no_terrain[lev-1], BCVars::zvel_bc,
+                                   *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
+                                   refRatio(lev-1), mapper, domain_bcs_type, bccomp);
+                (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
+                                   ngvect,time,BCVars::zvel_bc);
+            }
         } // lev > 0
     } // var_idx
 
@@ -376,7 +410,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
         (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                           ngvect_vels,time,BCVars::xvel_bc,BCVars::yvel_bc,BCVars::zvel_bc);
+                           ngvect_vels,time,BCVars::zvel_bc);
     }
     // ***************************************************************************
 
@@ -534,7 +568,7 @@ ERF::FillCoarsePatch (int lev, Real time)
     (   *physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1         ,ngvect_vels,time,BCVars::xvel_bc);
     (   *physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1         ,ngvect_vels,time,BCVars::yvel_bc);
     (   *physbcs_w[lev])(vars_new[lev][Vars::zvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
-                         ngvect_vels,time,BCVars::xvel_bc,BCVars::yvel_bc,BCVars::zvel_bc);
+                         ngvect_vels,time,BCVars::zvel_bc);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

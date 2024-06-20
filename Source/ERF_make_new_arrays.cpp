@@ -277,6 +277,23 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solar_zenith[lev]->setVal(0.);
     }
 #endif
+
+    //
+    // Define the land mask here and set it to all land
+    // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
+    //
+    {
+    lmask_lev[lev].resize(1);
+    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    lmask_lev[lev][0]->setVal(1);
+    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+    }
 }
 
 void

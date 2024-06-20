@@ -78,8 +78,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
     // ********************************************************************************************
     update_diffusive_arrays(lev, ba, dm);
 
+    // ********************************************************************************************
+    // Build the data structures for holding sea surface temps
+    // ********************************************************************************************
     sst_lev[lev].resize(1);     sst_lev[lev][0] = nullptr;
-    lmask_lev[lev].resize(1); lmask_lev[lev][0] = nullptr;
 
     //********************************************************************************************
     // Thin immersed body
