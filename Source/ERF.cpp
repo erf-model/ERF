@@ -1189,13 +1189,6 @@ ERF::init_only (int lev, Real time)
     //   background flow set based on init_type
     init_custom(lev);
 
-    // Initialize turbulent perturbation
-    if (solverChoice.pert_type == PertType::type1) {
-        TurbPert_constants(lev);
-        TurbPert_update(lev, 0., turbPert);
-        TurbPert_amplitude(lev);
-    }
-
     // Ensure that the face-based data are the same on both sides of a periodic domain.
     // The data associated with the lower grid ID is considered the correct value.
     lev_new[Vars::xvel].OverrideSync(geom[lev].periodicity());
@@ -1211,6 +1204,15 @@ ERF::init_only (int lev, Real time)
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
    }
+
+    // Initialize turbulent perturbation
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
+            turbPert_constants(lev);
+            turbPert_update(lev, 0.);
+            turbPert_amplitude(lev);
+        }
+    }
 
 }
 

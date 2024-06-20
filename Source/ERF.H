@@ -29,6 +29,7 @@
 
 #include <IndexDefines.H>
 #include <DataStruct.H>
+#include <TurbPertStruct.H>
 #include <InputSoundingData.H>
 #include <InputSpongeData.H>
 #include <ABLMost.H>
@@ -38,8 +39,6 @@
 #include <ERF_MRI.H>
 #include <ERF_PhysBCFunct.H>
 #include <ERF_FillPatcher.H>
-
-#include<TurbPertStruct.H>
 
 #ifdef ERF_USE_PARTICLES
 #include "ParticleData.H"
@@ -422,9 +421,9 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void TurbPert_constants (const int lev);
-    void TurbPert_update (const int lev, const amrex::Real dt, TurbulentPerturbation& turbPert);
-    void TurbPert_amplitude (const int lev);
+    void turbPert_constants (const int lev);
+    void turbPert_update (const int lev, const amrex::Real dt);
+    void turbPert_amplitude (const int lev);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);

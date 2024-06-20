@@ -1,20 +1,26 @@
-// May 28th, 2024
-// DUSTIN MA
+/**
+ * \ERF_init_TurbPert.cpp
+ */
+
+//DUSTIN MA: May 28th, 2024
 
 #define DEBUG_PERTBOX_MSG
 
 #include <ERF.H>
+#include <AMReX_MultiFabUtil.H>
+#include <TileNoZ.H>
+#include <prob_common.H>
 
 using namespace amrex;
 
 void
-ERF::TurbPert_constants(const int lev)
+ERF::turbPert_constants(const int lev)
 {
     prob->init_turbPert_const(turbPert);
 }
 
 void
-ERF::TurbPert_update (const int lev, const Real local_dt, TurbulentPerturbation& turbPert)
+ERF::turbPert_update (const int lev, const Real local_dt)
 {
     // Grabing data from velocity field
     auto& lev_new = vars_new[lev];
@@ -41,7 +47,7 @@ ERF::TurbPert_update (const int lev, const Real local_dt, TurbulentPerturbation&
 // Calculate the perturbation region amplitude.
 // This function heavily emmulates the ERF::init_custom ()
 void
-ERF::TurbPert_amplitude (int lev)
+ERF::turbPert_amplitude (int lev)
 {
     auto& lev_new = vars_new[lev];
 
@@ -105,13 +111,6 @@ ERF::TurbPert_amplitude (int lev)
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
     } // mfi
+    // This initialization adds the initial perturbation direction on the RhoTheta field
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-
-    Print() << "Perturbation region amplitude initialized using : "
-    #ifdef RANDOM_PERTURB
-            << "Random number perturbation amplitude"
-    #else
-            << "Artificial number index fill"
-    #endif
-            << "\n";
 }

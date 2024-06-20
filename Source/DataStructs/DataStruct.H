@@ -61,9 +61,9 @@ enum Sponge {
        ubar_sponge, vbar_sponge, nvars_sponge
 };
 
-enum struct PertType {
-    type1, type2
-    // cellPert, boxPert, levelPert
+enum struct PerturbationType {
+    BPM, CPM, None
+    // Box perturbation method, Cell perturbation method, None
 };
 
 /**
@@ -230,10 +230,26 @@ struct SolverChoice {
             abl_driver_type = ABLDriverType::PressureGradient;
         } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
             abl_driver_type = ABLDriverType::GeostrophicWind;
-        } else if (!abl_driver_type_string.compare("None")){
+        } else if (!abl_driver_type_string.compare("None")) {
             abl_driver_type = ABLDriverType::None; // No ABL driver for simulating classical fluid dynamics problems
         } else {
             amrex::Error("Don't know this abl_driver_type");
+        }
+
+        // Which type of inflow turbulent generation
+        static std::string turb_pert_type_string = "None";
+        pp.query("inlet_perturbation_type",turb_pert_type_string);
+        if (!turb_pert_type_string.compare("BoxPerturbation")) {
+            pert_type = PerturbationType::BPM;
+            amrex::Print() << "Box perturbation method selected\n";
+        } else if (!turb_pert_type_string.compare("CellPerturbation")) {
+            pert_type = PerturbationType::CPM;
+            amrex::Print() << "Cell perturbation method selected\n";
+        } else if (!turb_pert_type_string.compare("None")) {
+            pert_type = PerturbationType::None;
+            amrex::Print() << "No perturbation method selected\n";
+        } else {
+            amrex::Abort("Dont know this inlet_perturbation_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
@@ -302,8 +318,6 @@ struct SolverChoice {
         } else {
             amrex::Abort("Dont know this coupling_type");
         }
-
-        pert_type = PertType::type1;
 
         pp.query("latitude_lo",  latitude_lo);
         pp.query("longitude_lo", longitude_lo);
@@ -496,7 +510,7 @@ struct SolverChoice {
     bool time_avg_vel = false;
 
     // Type of perturbation
-    PertType pert_type;
+    PerturbationType pert_type;
 
     // Numerical diffusion
     bool use_NumDiff{false};

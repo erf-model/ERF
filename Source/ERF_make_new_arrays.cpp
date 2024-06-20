@@ -284,7 +284,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // TODO: Test perturbation on multiple levels
     if (lev == 0)
     {
-        if (solverChoice.pert_type == PertType::type1)
+        if (solverChoice.pert_type == PerturbationType::BPM)
         {
             turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
         }

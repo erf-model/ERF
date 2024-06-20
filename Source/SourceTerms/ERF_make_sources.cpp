@@ -308,7 +308,7 @@ void make_sources (int level,
         // *************************************************************************************
         // Add perturbation
         // *************************************************************************************
-        if (solverChoice.pert_type == PertType::type1) {
+        if (solverChoice.pert_type == PerturbationType::BPM) {
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
 
             // Apply stored values onto cell_src

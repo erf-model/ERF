@@ -4,7 +4,6 @@ CEXE_sources += ERF_make_mom_sources.cpp
 CEXE_sources += ERF_make_sources.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs.cpp
 CEXE_sources += ERF_ApplySpongeZoneBCs_ReadFromFile.cpp
-#CEXE_sources += ERF_TurbPert.cpp
 CEXE_sources += NumericalDiffusion.cpp
 
 ifeq ($(USE_NETCDF),TRUE)
