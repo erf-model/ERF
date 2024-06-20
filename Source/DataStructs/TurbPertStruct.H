@@ -12,7 +12,7 @@ struct TurbulentPerturbation {
 
   public:
 
-    ~TurbulentPerturbation () { 
+    ~TurbulentPerturbation () {
         amrex::Print() << "~TurbulentPerturbation destructor\n";
     }
 
@@ -90,7 +90,7 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_cons)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            if ( pb_freq[boxIdx] <= pb_local_etime[boxIdx] ) { 
+            if ( pb_freq[boxIdx] <= pb_local_etime[boxIdx] ) {
                 // Compute mean velocity magnitude within perturbation box
                 calc_tpi_meanMag(boxIdx, lev, mf_xvel, mf_yvel, mf_cons);
 
@@ -237,7 +237,7 @@ struct TurbulentPerturbation {
     }
 
 //#define ECKERT_FORMULATION
-#define BULK_RICHARDSON_FORMULATION 
+#define BULK_RICHARDSON_FORMULATION
 
     // Perturbation amplitude calcluation
     void calc_tpi_amp (const int boxIdx)
@@ -247,7 +247,7 @@ struct TurbulentPerturbation {
         amrex::Real Um = pb_mag[boxIdx];
 
         // Reset the perturbation amplitude
-        pb_amp[boxIdx] = 0.; 
+        pb_amp[boxIdx] = 0.;
 
         #ifdef BULK_RICHARDSON_FORMULATION
         // Ma and Senocak (2023) Eq. 17
@@ -295,17 +295,17 @@ struct TurbulentPerturbation {
     void debug ()
     {
         for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::Print() << "[" << i<< "] pb_mag=" << pb_mag[i] 
-                           << " |  pb_freq=" << pb_freq[i] 
+            amrex::Print() << "[" << i<< "] pb_mag=" << pb_mag[i]
+                           << " |  pb_freq=" << pb_freq[i]
                            << " |  pb_local_etime=" << pb_local_etime[i] <<"\n";
         }
     }
 
     // Public constant constants
     amrex::Real tpi_Tinfty; // [K]
-    amrex::Real tpi_nonDim; 
+    amrex::Real tpi_nonDim;
 
-    // Public data members 
+    // Public data members
     amrex::Vector<amrex::BoxArray> pb_ba; // PB box array
     amrex::Vector<amrex::Real> pb_mag;    // BP mean magnitude [m/s]
 

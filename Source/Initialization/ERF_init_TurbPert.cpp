@@ -54,7 +54,7 @@ ERF::TurbPert_amplitude (int lev)
     MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
     MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
 
-    // Only storing for conserved quantity for now 
+    // Only storing for conserved quantity for now
     auto m_ixtype = cons_pert.boxArray().ixType();
 
     // Default perturbations to zero
@@ -76,7 +76,7 @@ ERF::TurbPert_amplitude (int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const Box &bx  = mfi.validbox(); 
+        const Box &bx  = mfi.validbox();
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
@@ -109,7 +109,7 @@ ERF::TurbPert_amplitude (int lev)
 
     Print() << "Perturbation region amplitude initialized using : "
     #ifdef RANDOM_PERTURB
-            << "Random number perturbation amplitude" 
+            << "Random number perturbation amplitude"
     #else
             << "Artificial number index fill"
     #endif
