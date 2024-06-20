@@ -1773,10 +1773,10 @@ ERF::Define_ERFFillPatchers (int lev)
 // constructor used when ERF is created by a multiblock driver
 ERF::ERF (const RealBox& rb, int max_level_in,
           const Vector<int>& n_cell_in, int coord,
-          const Vector<IntVect>& ref_ratios,
+          const Vector<IntVect>& ref_ratio,
           const Array<int,AMREX_SPACEDIM>& is_per,
           std::string prefix)
-    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratios, is_per)
+    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratio, is_per)
 {
     SetParmParsePrefix(prefix);
 
