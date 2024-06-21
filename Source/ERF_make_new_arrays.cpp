@@ -308,14 +308,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Turbulent perturbation region initialization
     //*********************************************************
     // TODO: Test perturbation on multiple levels
-    if (lev == 0)
-    {
-        if (solverChoice.pert_type == PerturbationType::BPM)
-        {
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
             turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
         }
-    } else {
-        amrex::Abort("Enforcing max level to 0 for now while implementing Turbulent perturbation boxes");
     }
 
     //
