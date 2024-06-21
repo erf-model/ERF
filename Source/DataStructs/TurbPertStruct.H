@@ -41,6 +41,7 @@ struct TurbulentPerturbation {
         amrex::IntVect regionLo(0+pertBox_offset, 0, 0);
         amrex::IntVect regionHi(7+pertBox_offset, nx[1], nx[2]);
         amrex::IntVect boxSize(8,8,8);
+        //amrex::IntVect boxSize(4,4,4); // HACK
 
         // TODO: This will need to be changed later on
         tpi_Lpb = 8*dx[0];
@@ -272,12 +273,14 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
+                amrex::Real amp_copy = pb_amp[boxIdx]; // This exposes a copy so the GPU can capture by value
                 ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                     // Random number generation between 0 and 1
                     amrex::Real rand_double = amrex::Random(engine);
 
                     // Rescale between -1 and 1 and multiple with amplitude
-                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp[boxIdx];
+                    //src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp[boxIdx];
+                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * amp_copy;
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
