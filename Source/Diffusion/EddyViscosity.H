@@ -36,7 +36,7 @@ ComputeSmnSmn (int& i, int& j, int& k,
                const amrex::Array4<amrex::Real const>& tau23,
                const int& klo,
                const bool& use_most,
-               const bool& exp_most)
+               const bool& /*exp_most*/)
 {
     amrex::Real s11bar = tau11(i,j,k);
     amrex::Real s22bar = tau22(i,j,k);
@@ -56,7 +56,7 @@ ComputeSmnSmn (int& i, int& j, int& k,
     // - If ERF_EXPLICIT_MOST_STRESS _is_ used, then strains may be correctly
     //   evaluated at the surface and no assumptions are needed.
     amrex::Real s13bar;
-    if (use_most && k==klo && !exp_most) {
+    if (use_most && k==klo) { // && !exp_most) {
         s13bar = 0.5  * ( tau13(i  , j  , k+1) + tau13(i+1, j  , k+1) );
     }
     else
@@ -66,7 +66,7 @@ ComputeSmnSmn (int& i, int& j, int& k,
     }
 
     amrex::Real s23bar;
-    if (use_most && k==klo && !exp_most) {
+    if (use_most && k==klo) { // && !exp_most) {
         s23bar = 0.5  * ( tau23(i  , j  , k+1) + tau23(i  , j+1, k+1) );
     }
     else
