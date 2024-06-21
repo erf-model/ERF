@@ -151,7 +151,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-            Real C_T = interpolate_1d(wind_speed.dataPtr(), thrust_coeff.dataPtr(), z, wind_speed.size());
+            Real C_T = interpolate_1d(d_wind_speed.dataPtr(), d_thrust_coeff.dataPtr(), z, d_wind_speed.size());
             Real C_TKE = 0.0;
 
             fitch_array(i,j,k,0) = Vabs;
