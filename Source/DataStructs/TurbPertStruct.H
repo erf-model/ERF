@@ -203,14 +203,14 @@ struct TurbulentPerturbation {
                 int npts_hi = ubxSlab_hi.numPts();
 
                 // Average v in the low slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=, *this]
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
                     amrex::Gpu::deviceReduceSum(&tmp[1], yvel_arry(i,j,k), handler);
                 });
                 tmp[1] /= (amrex::Real) npts_lo;
 
                 // Average v in the high slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=, *this]
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
                     amrex::Gpu::deviceReduceSum(&tmp[3], yvel_arry(i,j,k), handler);
                 });
@@ -279,7 +279,6 @@ struct TurbulentPerturbation {
                     amrex::Real rand_double = amrex::Random(engine);
 
                     // Rescale between -1 and 1 and multiple with amplitude
-                    //src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * pb_amp[boxIdx];
                     src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * amp_copy;
 
                     // For box region debug only
