@@ -12,7 +12,7 @@ ERF::read_waves (int lev)
 {
     for ( MFIter mfi(*Hwave_onegrid[lev],false); mfi.isValid(); ++mfi)
     {
-         
+
          const auto & bx = mfi.validbox();
 
          amrex::Print() <<  " HERE " << bx << std::endl;
@@ -33,7 +33,7 @@ ERF::read_waves (int lev)
          }
 
 
-         int nx=2147483647; 
+         int nx=2147483647;
          int ny=2147483647; // sanity check
 
          //JUST RECEIVED
@@ -69,7 +69,7 @@ ERF::read_waves (int lev)
                  }
              }
 
-         } 
+         }
     }
 
 
@@ -92,7 +92,7 @@ ERF::read_waves (int lev)
             }
         });
     }
-    
+
 }
 #endif
 
