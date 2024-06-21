@@ -272,7 +272,7 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                ParallelForRNG(ubx, [&, *this] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                     // Random number generation between 0 and 1
                     amrex::Real rand_double = amrex::Random(engine);
 
