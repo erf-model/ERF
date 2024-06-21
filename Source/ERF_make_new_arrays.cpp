@@ -245,6 +245,32 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 #endif
 
+
+#ifdef ERF_USE_WW3_COUPLING
+    // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
+    BoxArray ba_onegrid(geom[lev].Domain());
+    BoxList bl2d_onegrid = ba_onegrid.boxList();
+    for (auto& b : bl2d_onegrid) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
+    Vector<int> pmap;
+    pmap.resize(1);
+    pmap[0]=0;
+    DistributionMapping dm_onegrid(ba2d_onegrid);
+    dm_onegrid.define(pmap);
+
+    Hwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Lwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Hwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    Lwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    std::cout<<ba_onegrid<<std::endl;
+    std::cout<<ba2d_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+#endif
+
+
 #if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms

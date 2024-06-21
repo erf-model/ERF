@@ -238,6 +238,10 @@ public:
     // compute dt from CFL considerations
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
 
+#ifdef ERF_USE_WW3_COUPLING
+    void read_waves (int lev);
+#endif
+
     // Interface for advancing the data at one level by one "slow" timestep
     void advance_dycore (int level,
                          amrex::Vector<amrex::MultiFab>& state_old,
@@ -717,6 +721,9 @@ private:
     // Wave coupling data
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave_onegrid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave_onegrid;
+    bool finished_wave = false;
 
     // array of flux registers
     amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
