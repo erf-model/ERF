@@ -276,7 +276,13 @@ ERF::ERF ()
         Hwave[lev] = nullptr;
         Lwave[lev] = nullptr;
     }
-
+    Hwave_onegrid.resize(nlevs_max);
+    Lwave_onegrid.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave_onegrid[lev] = nullptr;
+        Lwave_onegrid[lev] = nullptr;
+    }
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -899,6 +905,11 @@ ERF::InitData ()
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
     }
+
+#ifdef ERF_USE_WW3_COUPLING
+    int lev = 0;
+    read_waves(lev);
+#endif
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine after calling FillPatch
