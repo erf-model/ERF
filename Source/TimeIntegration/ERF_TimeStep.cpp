@@ -63,6 +63,10 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
                        << " with dt = " << dt[lev] << std::endl;
     }
 
+#ifdef ERF_USE_WW3_COUPLING
+    read_waves(lev);
+#endif
+
     // Advance a single level for a single time step
     Advance(lev, time, dt[lev], istep[lev], nsubsteps[lev]);
 
