@@ -119,10 +119,4 @@ void ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
                                               const amrex::Array4<const amrex::Real>& rho_u,
                                               const amrex::Array4<const amrex::Real>& rho_v,
                                               const amrex::Vector<amrex::Real*> d_sponge_ptrs_at_lev);
-void CalcTurbPert (const int level,
-                   const amrex::Geometry geom,
-                   const amrex::Box& bx,
-                   const amrex::Array4<amrex::Real>& cell_rhs,
-                   const amrex::Array4<const amrex::Real>& cell_data,
-                   TurbulentPerturbation& turbPert);
 #endif
