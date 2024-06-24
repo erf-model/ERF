@@ -1217,6 +1217,15 @@ ERF::init_only (int lev, Real time)
         input_sponge(lev);
    }
 
+    // Initialize turbulent perturbation
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
+            turbPert_constants(lev);
+            turbPert_update(lev, 0.);
+            turbPert_amplitude(lev);
+        }
+    }
+
 }
 
 // read in some parameters from inputs file

@@ -304,6 +304,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 #endif
 
+    //*********************************************************
+    // Turbulent perturbation region initialization
+    //*********************************************************
+    // TODO: Test perturbation on multiple levels
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
+            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
+        }
+    }
+
     //
     // Define the land mask here and set it to all land
     // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
@@ -485,3 +495,6 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 }
+
+
+

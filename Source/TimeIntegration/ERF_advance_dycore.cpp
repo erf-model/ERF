@@ -66,6 +66,9 @@ void ERF::advance_dycore(int level,
     Real* dptr_rhoqt_src    = solverChoice.custom_moisture_forcing ? d_rhoqt_src[level].data()    : nullptr;
     Real* dptr_wbar_sub     = solverChoice.custom_w_subsidence     ? d_w_subsid[level].data()     : nullptr;
 
+    // Turbulent Perturbation Pointer
+    //Real* dptr_rhotheta_src = solverChoice.pert_type ? d_rhotheta_src[level].data() : nullptr;
+
     Vector<Real*> d_rayleigh_ptrs_at_lev;
     d_rayleigh_ptrs_at_lev.resize(Rayleigh::nvars);
     bool rayleigh_damp_any = (solverChoice.rayleigh_damp_U ||solverChoice.rayleigh_damp_V ||
