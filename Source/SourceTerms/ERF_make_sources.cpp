@@ -44,12 +44,13 @@ void make_sources (int level,
                    const Real* dptr_rhotheta_src,
                    const Real* dptr_rhoqt_src,
                    const Real* dptr_wbar_sub,
-                   const Vector<Real*> d_rayleigh_ptrs_at_lev)
+                   const Vector<Real*> d_rayleigh_ptrs_at_lev,
+                   TurbulentPerturbation& turbPert)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
     // *****************************************************************************
-    // Initialize source to zero since we re-compute it ever RK stage
+    // Initialize source to zero since we re-compute it every RK stage
     // *****************************************************************************
     source.setVal(0.0);
 
@@ -302,6 +303,16 @@ void make_sources (int level,
         // *************************************************************************************
         if(!(solverChoice.spongeChoice.sponge_type == "input_sponge")){
             ApplySpongeZoneBCsForCC(solverChoice.spongeChoice, geom, bx, cell_src, cell_data);
+        }
+
+        // *************************************************************************************
+        // Add perturbation
+        // *************************************************************************************
+        if (solverChoice.pert_type == PerturbationType::BPM) {
+            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
+
+            // Apply stored values onto cell_src
+            turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src);
         }
     } // mfi
     } // OMP
