@@ -1,0 +1,77 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+max_step = 1
+#start_time = 0.
+#stop_time = 35.0
+
+amrex.fpe_trap_invalid = 1
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY
+geometry.prob_extent =   5.   1.   1.
+amr.n_cell           = 128   32   32
+
+geometry.is_periodic = 0 1 0
+
+xlo.type = "Outflow"
+xhi.type = "Outflow"
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+
+xlo.velocity            =   1. 0.  0.
+xlo.density             =   1.
+xlo.theta               =   300.
+
+# TIME STEP CONTROL
+erf.fixed_dt         = 0.00005
+#erf.cfl = 0.1
+erf.dynamicViscosity = 0.0001 # H = 1, therefore utau = 0.2
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.v              = 1       # verbosity in ERF.cpp
+amr.v              = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0      # maximum level number allowed
+
+# PLOTFILES
+erf.plot_file_1     = plt    # prefix of plotfile name
+erf.plot_per_1      = 0.1
+erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
+
+# CHECKPOINT FILES
+erf.check_file      = chk    # root name of checkpoint file
+erf.check_per       = 5.0
+
+# Restart for data collection
+#erf.restart = "/home/tma/Desktop/TurbChannel/SpinUp/chk233334"
+#erf.data_log    = "surf.txt" "mean.txt" "flux.txt" "subgrid.txt"
+#erf.profile_int = 33334
+
+# SOLVER CHOICE
+erf.alpha_T = 0.0
+erf.alpha_C = 1.0
+erf.use_gravity = false
+
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.1
+
+erf.init_type = "uniform"
+
+erf.sponge_type = "input_sponge"
+erf.input_sponge_file = "input_ReTau2000_loglaw.txt"
+erf.sponge_strength = 1000.0
+erf.use_xlo_sponge_damping = true
+erf.xlo_sponge_end = 2.0
+
+erf.inlet_perturbation_type = "BoxPerturbation"
+
+# PROBLEM PARAMETERS
+prob.rho_0 = 1.0
+prob.A_0 = 1.0
+prob.U_0 = 1.0
+prob.V_0 = 0.0
+prob.W_0 = 0.0
+prob.T_0 = 300.0
