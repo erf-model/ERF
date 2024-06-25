@@ -43,7 +43,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
     public:
 
         /*! \brief Constructor */
-        SuperDropletsMoist() { }
+        SuperDropletsMoist()
+        {
+            m_qmoist_size = 7;
+            m_qstate_size = 2;
+            m_name = "super_droplets_moisture";
+        }
 
         /*! \brief Destructor */
         virtual ~SuperDropletsMoist() = default;
@@ -135,8 +140,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Compute phase changes (vapour <--> cloud water) */
         virtual void phaseChange (  const Real&,
                                     const Vector<MFPtr>&,
-                                    const bool,
-                                    const int a_max_particle_substeps = -1);
+                                    const bool );
 
     protected:
 
@@ -148,8 +152,6 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_init_phase_change;
         /*! time (in seconds) of initial relaxation */
         amrex::Real m_init_phase_change_time;
-        /*! number of steps for initial relaxation */
-        amrex::Real m_init_phase_change_steps;
 
         int m_diagnostics_iter; /*!< number of iterations between computing diagnostics */
 
@@ -157,7 +159,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         std::string m_init_type;
 
         /*! name of model and its particle container */
-        const std::string m_name = "super_droplets_moisture";
+        std::string m_name;
         /*! particle container for super-droplets */
         SuperDropletPC* m_super_droplets;
 
@@ -165,9 +167,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         amrex::Geometry m_geom;
 
         /*! number of microphysics variables */
-        const int m_qmoist_size = 7;
+        int m_qmoist_size;
         /*! number of state variables for this moisture model */
-        const int m_qstate_size = 2;
+        int m_qstate_size;
 
         Real m_dt; /*!< timestep */
         Vector<int> m_mic_var_map; /*!< moisture model variables map */

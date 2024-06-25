@@ -55,9 +55,6 @@ void SuperDropletsMoist::readInputs ()
     // time (in seconds) of initial relaxation
     m_init_phase_change_time = 10.0; //default
     pp.query("initial_phase_change_relaxation_time", m_init_phase_change_time);
-    // number of steps for initial relaxation
-    m_init_phase_change_steps = 1000; //default
-    pp.query("initial_phase_change_relaxation_steps", m_init_phase_change_steps);
 
     return;
 }
@@ -129,8 +126,8 @@ void SuperDropletsMoist::Init ( const MultiFab&   a_cons_vars,  /*!< Conserved v
                    << "    initial phase change relaxation: "
                    << (m_init_phase_change ? "true" : "false") << "\n";
     if (m_init_phase_change) {
-        amrex::Print() << "    initial phase change relaxation time: " << m_init_phase_change_time << "\n"
-                       << "    initial phase change relaxation steps: " << m_init_phase_change_steps << "\n";
+        amrex::Print()  << "    initial phase change relaxation time: "
+                        << m_init_phase_change_time << "\n";
     }
 
 }
@@ -164,7 +161,7 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         /* call the phase change function so that the super-droplets "relax" to their
          * physical size corresponding to the initial flow */
         if (m_flag_phase_change && m_init_phase_change) {
-            phaseChange(m_init_phase_change_time, a_z_phys_nd, true, m_init_phase_change_steps);
+            phaseChange(m_init_phase_change_time, a_z_phys_nd, true);
         }
     }
 
