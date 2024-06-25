@@ -38,7 +38,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     // TODO: Can test on multiple levels later
     // Only apply to level 0
     // DUSTIN MA
-    if (solverChoice.pert_type == PerturbationType::BPM) {
+    if (solverChoice.pert_type == PerturbationType::perturbSource) {
         if (lev == 0) {
             turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
             //turbPert.debug();

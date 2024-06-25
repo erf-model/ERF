@@ -14,12 +14,6 @@
 using namespace amrex;
 
 void
-ERF::turbPert_constants()
-{
-    prob->init_turbPert_const(turbPert);
-}
-
-void
 ERF::turbPert_update (const int lev, const Real local_dt)
 {
     // Grabing data from velocity field
