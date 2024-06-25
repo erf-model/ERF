@@ -276,10 +276,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
                     } else {
 
-                        for (int d = 0; d < AMREX_SPACEDIM; d++) { v_i[d] = v_j[d] = 0; }
-                        v_i[AMREX_SPACEDIM-1] = vterm_ptr[pi];
-                        v_j[AMREX_SPACEDIM-1] = vterm_ptr[pj];
-
                         if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
                             k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
                         } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
@@ -383,10 +379,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
                             k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
 
                         } else {
-
-                            for (int d = 0; d < AMREX_SPACEDIM; d++) { v_i[d] = v_j[d] = 0; }
-                            v_i[AMREX_SPACEDIM-1] = vterm_ptr[pi];
-                            v_j[AMREX_SPACEDIM-1] = vterm_ptr[pj];
 
                             if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
                                 k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
