@@ -167,10 +167,10 @@ void SuperDropletPC::readInputs ()
         if (m_aerosol_mat[i]->name() == MaterialNames::nacl) {
             m_mass_aerosol_min[i] = 1.0e-22;
             m_mass_aerosol_mean[i] = 1.0e-19;
-            // Derksen (2009); SCALE-SDM_BOMEX_Sato2018
-            // (https://github.com/Shima-Lab/SCALE-SDM_BOMEX_Sato2018)
-            m_radius_aerosol_min[i] = 1.0e-7;
-            m_radius_aerosol_max[i] = 5.0e-6;
+            // the following values for radius will result
+            // in mean salt mass of ~O(1e-19) kg
+            m_radius_aerosol_min[i] = 1.0e-9;
+            m_radius_aerosol_max[i] = 5.0e-8;
         }
 
         {
