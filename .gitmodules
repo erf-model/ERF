@@ -7,3 +7,6 @@
 [submodule "Submodules/RRTMGP"]
 	path = Submodules/RRTMGP
 	url = https://github.com/E3SM-Project/rte-rrtmgp
+[submodule "Submodules/NOAH-MP"]
+	path = Submodules/NOAH-MP
+	url = git@github.com:michaelbuehlmann/noahmp.git

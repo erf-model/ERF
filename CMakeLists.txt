@@ -34,6 +34,9 @@ option(ERF_ENABLE_CUDA "Enable CUDA" OFF)
 option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 
+#Options for NOAH-MP
+option(ERF_ENABLE_NOAH "Enable Noah-MP" OFF)
+
 #Options for C++
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -84,6 +87,18 @@ if(ERF_ENABLE_NETCDF)
   find_package (NetCDF REQUIRED)
   if(NETCDF_FOUND)
      message(STATUS "Found NetCDF, NETCDF_DIR = ${NETCDF_DIR}")
+  endif()
+endif()
+
+########################## NOAH-MP ##################################
+
+if(ERF_ENABLE_NOAH)
+  if(ERF_ENABLE_NETCDF)
+     set(NOAHMP_HOME ${CMAKE_SOURCE_DIR}/Submodules/NOAH-MP)
+     set(NOAHMP_BIN  ${CMAKE_BINARY_DIR}/Submodules/NOAH-MP)
+     add_subdirectory(${NOAHMP_HOME} ${NOAHMP_BIN})
+  else()
+     message(FATAL_ERROR "Noah-MP requires NetCDF be enabled")
   endif()
 endif()
 
