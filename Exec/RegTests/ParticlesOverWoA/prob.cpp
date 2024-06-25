@@ -126,7 +126,7 @@ void
 Problem::init_custom_terrain(
     const Geometry& geom,
     MultiFab& z_phys_nd,
-    const Real& /*time*/)
+    const Real& time)
 {
     // Check if a valid csv file exists for the terrain
     std::string fname;
