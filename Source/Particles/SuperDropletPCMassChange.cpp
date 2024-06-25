@@ -8,6 +8,7 @@
 #ifdef ERF_USE_PARTICLES
 
 using namespace amrex;
+using namespace SDMassChangeUtils;
 
 /*! Compute mass change of particles due to evaporation and condensation */
 void SuperDropletPC::MassChange ( int                                         a_lev,
@@ -15,13 +16,10 @@ void SuperDropletPC::MassChange ( int                                         a_
                                   const MultiFab&                             a_temperature,
                                   const MultiFab&                             a_sat_pressure,
                                   const MultiFab&                             a_sat_ratio,
-                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd,
-                                  int                                         a_max_substeps )
+                                  const Vector<std::unique_ptr<MultiFab>>&    a_z_phys_nd )
 {
     BL_PROFILE("SuperDropletPC::MassChange()");
     AMREX_ASSERT( a_lev == m_lev );
-
-    if (a_max_substeps < 0) { a_max_substeps = m_mass_change_max_substeps; }
 
     const Geometry& geom = m_gdb->Geom(a_lev);
     const auto plo = geom.ProbLoArray();
@@ -68,42 +66,26 @@ void SuperDropletPC::MassChange ( int                                         a_
         const auto& sat_ratio_arr = a_sat_ratio[grid].array();
         const auto& temperature_arr = a_temperature[grid].array();
 
-        SDMassChangeUtils::dRsqdt_RHSFunc<ParticleReal>
-            drsqdt_rhsfun{m_vapour_mat->coeffCurv(),
-                          m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
-                          m_vapour_mat->latHeatVap(),
-                          therco, /* ERF_Constants.H */
-                          m_vapour_mat->Rv(),
-                          mat_density,
-                          diffelq /* ERF_Constants.H */};
+        dRsqdt<ParticleReal> drsqdt{ m_vapour_mat->coeffCurv(),
+                                     m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
+                                     m_vapour_mat->latHeatVap(),
+                                     therco, /* ERF_Constants.H */
+                                     m_vapour_mat->Rv(),
+                                     mat_density,
+                                     diffelq /* ERF_Constants.H */};
 
-        SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>
-            drsqdt_rhsjac{m_vapour_mat->coeffCurv(),
-                          m_vapour_mat->coeffVPSolute(*m_aerosol_mat[0]),
-                          m_vapour_mat->latHeatVap(),
-                          therco, /* ERF_Constants.H */
-                          m_vapour_mat->Rv(),
-                          mat_density,
-                          diffelq /* ERF_Constants.H */ };
-
-        SDMassChangeUtils::NewtonSolver< SDMassChangeUtils::dRsqdt_RHSFunc<ParticleReal>,
-                                         SDMassChangeUtils::dRsqdt_RHSJac<ParticleReal>,
-                                         ParticleReal >
-            newton_solver { drsqdt_rhsfun, drsqdt_rhsjac,
-                            m_newton_rtol,
-                            m_newton_atol,
-                            m_newton_stol,
-                            m_newton_maxits };
+        NewtonSolver< dRsqdt<ParticleReal>, ParticleReal > newton_solver{ drsqdt,
+                                                                          m_newton_rtol,
+                                                                          m_newton_atol,
+                                                                          m_newton_stol,
+                                                                          m_newton_maxits,
+                                                                          false };
 
         Gpu::Buffer<Long> unconverged_particles({0});
-        Gpu::Buffer<Real> unconverged_max_absnorm({0});
-        Gpu::Buffer<Real> unconverged_max_relnorm({0});
         auto* unconverged_particles_ptr = unconverged_particles.data();
-        auto* unconverged_max_absnorm_ptr = unconverged_max_absnorm.data();
-        auto* unconverged_max_relnorm_ptr = unconverged_max_relnorm.data();
 
-        Gpu::Buffer<int> max_substeps_d({1});
-        int* max_substeps_actual_ptr = max_substeps_d.data();
+        auto cfl = m_mass_change_cfl;
+        auto ti_choice = m_mass_change_ti;
 
         ParallelFor(num_particles, [=] AMREX_GPU_DEVICE (int i)
         {
@@ -125,66 +107,51 @@ void SuperDropletPC::MassChange ( int                                         a_
             ParticleReal solute_mass = 0.0;
             for (int j = 0; j < num_aerosols; j++) { solute_mass += aerosol_mass_ptrs[j][i]; }
 
-            ParticleReal r_sq = radius_ptr[i]*radius_ptr[i];
-
-            bool converged = false;
-            ParticleReal abs_norm = DBL_MAX;
-            ParticleReal rel_norm = DBL_MAX;
-            int n_substeps = 1;
-            while (!converged) {
-                for (int step = 0; step < n_substeps; step++) {
-                    ParticleReal r_sq_0 = r_sq;
-                    newton_solver ( r_sq, r_sq_0,
-                                    (a_dt/static_cast<ParticleReal>(n_substeps)),
+            TI< dRsqdt<ParticleReal>,
+                NewtonSolver<dRsqdt<ParticleReal>, ParticleReal>,
+                ParticleReal > ti { drsqdt, newton_solver, a_dt,
                                     sat_ratio, temperature, e_sat, solute_mass,
-                                    abs_norm, rel_norm,
-                                    converged );
-                }
-                if (2*n_substeps > a_max_substeps) { break; }
-                n_substeps *= 2;
+                                    cfl, 1e-40, 1e-3, 1e-6, false, false };
+
+
+            auto r_sq = radius_ptr[i]*radius_ptr[i];
+            bool success = false;
+            if (ti_choice == SDMassChangeTIMethod::RK4) {
+                ti.rk4(r_sq, success);
+            } else if (ti_choice == SDMassChangeTIMethod::RK3BS) {
+                ti.rk3bs(r_sq, success);
+            } else if (ti_choice == SDMassChangeTIMethod::BE) {
+                ti.be(r_sq, success);
+            } else if (ti_choice == SDMassChangeTIMethod::CN) {
+                ti.cn(r_sq, success);
+            } else if (ti_choice == SDMassChangeTIMethod::DIRK2) {
+                ti.dirk212(r_sq, success);
+            } else {
+                printf("ERROR: invalid time integrator choice!\n");
+                return;
             }
 
-            if (n_substeps > 1) { Gpu::Atomic::Max(max_substeps_actual_ptr, n_substeps); }
-
-            if (!converged) {
-
-                if (log_unconverged && (rel_norm > 1.0)) {
-
+            if (!success) {
+                if (log_unconverged) {
 #ifndef AMREX_USE_CUDA
                     fprintf(file_handle,
-                            "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e, norms=%1.2e(abs),%1.2e(rel)\n",
-                            radius_ptr[i],
-                            sat_ratio,
-                            temperature,
-                            e_sat,
-                            solute_mass,
-                            abs_norm, rel_norm );
+                            "r=%1.16e, S=%1.16e, T=%1.16e, e=%1.16e, sol_mass=%1.16e\n",
+                            radius_ptr[i], sat_ratio, temperature, e_sat, solute_mass );
 #endif
                 }
-
                 Gpu::Atomic::Add(unconverged_particles_ptr, Long(1));
-                Gpu::Atomic::Max(unconverged_max_absnorm_ptr, abs_norm);
-                Gpu::Atomic::Max(unconverged_max_relnorm_ptr, rel_norm);
-
             } else {
-
                 // update particle radius
                 radius_ptr[i] = std::sqrt(r_sq);
-
                 // update mass of particle
                 mass_ptr[i] = (4.0/3.0)*PI*r_sq*radius_ptr[i]*mat_density;
-
                 // update superdroplet total mass
                 supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i];
             }
 
         });
         Gpu::synchronize();
-
         m_num_unconverged_particles += *(unconverged_particles.copyToHost());
-        m_abs_norm_unconverged = std::max(m_abs_norm_unconverged, *(unconverged_max_absnorm.copyToHost()));
-        m_rel_norm_unconverged = std::max(m_rel_norm_unconverged, *(unconverged_max_relnorm.copyToHost()));
-        m_max_substeps_actual = std::max(m_max_substeps_actual,*(max_substeps_d.copyToHost()));
     }
 
 }
