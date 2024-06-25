@@ -47,8 +47,11 @@ void SuperDropletPC::readInputs ()
     m_newton_rtol = 1.0e-6;
     m_newton_atol = 1.0e-99;
     m_newton_stol = 1.0e-12;
-    m_newton_maxits = 100;
-    m_mass_change_max_substeps = 1;
+    m_newton_maxits = 10;
+
+    /* phase change eqn time integration */
+    m_mass_change_cfl = 1000.0;
+    m_mass_change_ti = SDMassChangeTIMethod::BE; // backward Euler
 
     /* log file for unconverged particles */
     m_mass_change_logging = false;
@@ -84,10 +87,26 @@ void SuperDropletPC::readInputs ()
     pp.query("newton_solver_maxits", m_newton_maxits);
     pp.query("mass_change_unconverged_log", m_mass_change_logging);
     pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
-    pp.query("mass_change_max_particle_substeps", m_mass_change_max_substeps);
     pp.query("distribution_grid_size", m_distribution_grid_size);
     pp.query("coalescence_algorithm", m_coalescence_alg);
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
+
+    std::string ti_name = "backward_euler";
+    pp.query("mass_change_cfl", m_mass_change_cfl);
+    pp.query("mass_change_ti_method", ti_name);
+    if (ti_name == "rk3bs") {
+        m_mass_change_ti = SDMassChangeTIMethod::RK3BS;
+    } else if (ti_name == "rk4") {
+        m_mass_change_ti = SDMassChangeTIMethod::RK4;
+    } else if (ti_name == "backward_euler") {
+        m_mass_change_ti = SDMassChangeTIMethod::BE;
+    } else if (ti_name == "crank_nicolson") {
+        m_mass_change_ti = SDMassChangeTIMethod::CN;
+    } else if (ti_name == "dirk2") {
+        m_mass_change_ti = SDMassChangeTIMethod::DIRK2;
+    } else {
+        amrex::Abort("Error in SuperDropletPC::readInputs() - invalid choice for mass change time integrator!");
+    }
 
     pp.query("coalescence_kernel", coal_kernel_name);
     if (coal_kernel_name == "golovin") {
@@ -225,7 +244,6 @@ void SuperDropletPC::define (  const std::string&              a_vap_mat,
                                const std::vector<std::string>& a_aerosol_mat)
 {
     m_num_unconverged_particles = 0;
-    m_max_substeps_actual = 1;
 
     m_aerosol_mat.clear();
 
@@ -377,9 +395,7 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         }
     }
     Print() << "    Number of seed particles per cell: " << m_ppc_seed << "\n"
-            << "    Seed condensate mass: " << m_seed_mass << "\n"
-            << "    Max particle substeps (mass change): "
-            << m_mass_change_max_substeps << "\n";
+            << "    Seed condensate mass: " << m_seed_mass << "\n";
 
     iMultiFab num_superdroplets( ParticleBoxArray(m_lev),
                                  ParticleDistributionMap(m_lev),

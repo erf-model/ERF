@@ -254,32 +254,11 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     ParallelDescriptor::ReduceLongSum(  &num_unconverged_particles,
                                         1,
                                         ParallelDescriptor::IOProcessorNumber() );
-    Real max_absnorm_unconverged = m_abs_norm_unconverged;
-    m_abs_norm_unconverged = 0;
-    ParallelDescriptor::ReduceRealMax( &max_absnorm_unconverged,
-                                       1,
-                                       ParallelDescriptor::IOProcessorNumber() );
-    Real max_relnorm_unconverged = m_rel_norm_unconverged;
-    m_rel_norm_unconverged = 0;
-    ParallelDescriptor::ReduceRealMax( &max_relnorm_unconverged,
-                                       1,
-                                       ParallelDescriptor::IOProcessorNumber() );
-    int max_substeps_actual = m_max_substeps_actual;
-    m_max_substeps_actual = 1;
-    ParallelDescriptor::ReduceIntMax( &max_substeps_actual,
-                                      1,
-                                      ParallelDescriptor::IOProcessorNumber() );
 
-    if (max_substeps_actual > 1) {
-        Print() << "SuperDropletPC::MassChange(): max substeps = "
-                << max_substeps_actual << "\n";
-    }
     if (num_unconverged_particles > 0) {
         Print() << "SuperDropletPC::MassChange(): Warning - "
                 << num_unconverged_particles
-                << " particles did not converge;"
-                << " max norm (abs,rel): "
-                << max_absnorm_unconverged << "," << max_relnorm_unconverged << ".\n";
+                << " particles did not converge.";
     }
 
     if (a_flag) {

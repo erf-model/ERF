@@ -263,7 +263,7 @@ For Perlmutter at NERSC, look at the general instructions for building ERF using
    module load PrgEnv-gnu
    module load cudatoolkit
 
-Then build ERF as, for example (specify your own path to the AMReX submodule in `ERF/Submodules/AMReX`):
+Then build ERF as, for example (specify your own path to the AMReX submodule in ``ERF/Submodules/AMReX``):
 
 ::
 
@@ -308,5 +308,47 @@ Finally, you can prepare your SLURM job script, using the following as a guide:
                ./ERF3d.gnu.MPI.CUDA.ex inputs_wrf_baseline max_step=100 ${GPU_AWARE_MPI}" \
              > test.out
 
-To submit your job script, do `sbatch [your job script]` and you can check its status by doing `squeue -u [your username]`.
+To submit your job script, do ``sbatch [your job script]`` and you can check its status by doing ``squeue -u [your username]``.
 
+
+Kestrel (NREL)
+~~~~~~~~~~~~~~
+
+The `Kestrel <https://nrel.github.io/HPC/Documentation/Systems/Kestrel/>`_ cluster is an HPE Cray machine
+composed primarily of CPU compute nodes with 104 core
+Intel Xeon Sapphire Rapids nodes. It also contains a GPU partition with 4 Nvidia H100 GPUs per node.
+
+As with Perlmutter, the GNU Make build system is preferred. To compile and run on CPUs, the default modules
+loaded when logging into Kestrel can be used. If you are unsure about your environment, you can reset to
+the default modules: ::
+
+  module restore
+
+Then, build ERF using the cray compilers (if wishing to use other compilers, you can swap the ``PrgEnv-cray`` module
+for another module as appropriate, see Kestrel user documentation for more details): ::
+
+  make realclean; make -j COMP=cray
+
+For compiling and running on GPUs, the following commands can be used to set up your environment: ::
+
+  module restore; module load PrgEnv-gnu/8.5.0; module load cray-libsci/23.05.1.4; module load cmake; module load cuda/12.3; module load cray-mpich/8.1.28; module load craype/2.7.30;
+
+And then compile: ::
+
+  make realclean; make -j COMP=gnu USE_CUDA=TRUE
+
+When running on Kestrel, GPU node hours are charged allocation units (AUs) at 10 times the rate of CPU node hours.
+For ERF, the performance running on a Kestrel GPU node with 4 GPUs is typically 10-20x running on a CPU node
+with 96-104 MPI ranks per node, so the performance gain from on on GPUs is likely worth the higher charge
+rate for node hours, in addition to providing faster time to solution. However, for smaller problem sizes,
+or problems distributed across too many nodes (resulting in fewer than around 1 million cells/GPU),
+the compute capability of the GPUs may be unsaturated and the performance gain from running on GPUs
+may not justify the higher AU charge. The trade-off is problem dependent, so users may wish to assess
+performance for their particular case and objectives in terms of wall time, AUs used, etc to determine the
+optimal strategy if running large jobs.
+
+Another note about using Kestrel is that partial node allocations are possible, which means the full memory
+available on each node may not be assigned by default. In general, using the ``--exclusive`` flag when
+requesting nodes through the slurm scheduler, which will allocate entire nodes exlcusively for your request,
+is recommended. Otherwise, memory intensive operations such as CUDA compilation may fail. You can alternatively
+request a particular amount of memory with the ``--mem=XXX`` or ``--mem-per-cpu=XXX`` slurm inputs.

@@ -268,6 +268,15 @@ ERF::ERF ()
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
 
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -292,17 +301,10 @@ ERF::ERF ()
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 
     // We define m_factory even with no EB
@@ -910,7 +912,7 @@ ERF::InitData ()
         }
 
         m_most = std::make_unique<ABLMost>(geom, use_exp_most, vars_old, Theta_prim, Qv_prim, z_phys_nd,
-                                           sst_lev, lmask_lev, lsm_data, lsm_flux
+                                           sst_lev, lmask_lev, lsm_data, lsm_flux, Hwave, Lwave, eddyDiffs_lev
 #ifdef ERF_USE_NETCDF
                                            ,start_bdy_time, bdy_time_interval
 #endif
@@ -1907,6 +1909,15 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     base_state.resize(nlevs_max);
     base_state_new.resize(nlevs_max);
 
+    // Wave coupling data
+    Hwave.resize(nlevs_max);
+    Lwave.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave[lev] = nullptr;
+        Lwave[lev] = nullptr;
+    }
+
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -1917,17 +1928,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 }
 

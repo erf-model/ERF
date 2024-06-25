@@ -66,6 +66,11 @@ enum struct SDCoalescenceKernelType {
     Halls
 };
 
+/*! \brief Types of phase change ODE time integrator */
+enum struct SDMassChangeTIMethod {
+    RK3BS, RK4, BE, CN, DIRK2
+};
+
 using SDAerosolMassArr = amrex::GpuArray<amrex::ParticleReal*,SupDropInit::num_aerosols_max>;
 using MFPtr = std::unique_ptr<amrex::MultiFab>;
 
@@ -186,8 +191,7 @@ class SuperDropletPC : public ERFPC
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
                                     const amrex::MultiFab&,
-                                    const amrex::Vector<MFPtr>&,
-                                    const int a_max_substeps = -1);
+                                    const amrex::Vector<MFPtr>& );
 
         /*! \brief Coalescence of super-droplets */
         virtual void Coalescence (  int,
@@ -282,11 +286,9 @@ class SuperDropletPC : public ERFPC
         FILE* m_mass_change_log; /*!< File handle for log with unconverged info */
         std::string m_mass_change_log_fname; /*!< Name of unconverged info log file */
 
-        int m_mass_change_max_substeps; /*!< Max substeps for mass change update */
-        int m_max_substeps_actual; /*!< Actual max substeps taken by mass change function */
+        amrex::Real m_mass_change_cfl; /*!< CFL for phase change equation */
+        SDMassChangeTIMethod m_mass_change_ti; /*!< time integrator for mass change ODE */
         long m_num_unconverged_particles; /*!< total number of unconverged particles */
-        amrex::Real m_abs_norm_unconverged; /*!< max abs norm for unconverged particles */
-        amrex::Real m_rel_norm_unconverged; /*!< max rel norm for unconverged particles */
 
         amrex::IntVect m_coalescence_bin_size; /*!< bin size for coalescence */
 
