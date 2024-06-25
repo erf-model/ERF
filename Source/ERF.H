@@ -425,7 +425,7 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void turbPert_constants (const int lev);
+    void turbPert_constants ();
     void turbPert_update (const int lev, const amrex::Real dt);
     void turbPert_amplitude (const int lev);
 

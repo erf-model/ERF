@@ -14,7 +14,7 @@
 using namespace amrex;
 
 void
-ERF::turbPert_constants(const int lev)
+ERF::turbPert_constants()
 {
     prob->init_turbPert_const(turbPert);
 }

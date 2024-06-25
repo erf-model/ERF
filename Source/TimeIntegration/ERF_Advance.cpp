@@ -41,7 +41,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     if (solverChoice.pert_type == PerturbationType::BPM) {
         if (lev == 0) {
             turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
-            turbPert.debug();
+            //turbPert.debug();
         }
     }
     // configure ABLMost params if used MostWall boundary condition

@@ -16,8 +16,8 @@ struct TurbulentPerturbation {
         amrex::Print() << "~TurbulentPerturbation destructor\n";
     }
 
-//#define DIAGONAL_REF
-#define LENGTH_REF
+#define DIAGONAL_REF
+//#define LENGTH_REF
 
 /*    void init_tpi_const(const amrex::Real T_0)
     {
@@ -35,23 +35,27 @@ struct TurbulentPerturbation {
                    amrex::GpuArray<amrex::Real,3> const dx)
 
     {
-        // TODO: Use user Param to define this (Currently HARDCODED)
-        // Perturbation box region setup
+        // Default PB size will follow guidance of DeLeon et al. (2019)
+        // This is automatically calculate the height of the PB
+        // Current method uses number of cells
+        tpi_PB_z = nx[2]/8;    // Height of PB in cells
+        tpi_PB_x = 2*tpi_PB_z; // Length of PB in cells
+        tpi_PB_y = tpi_PB_x;   // Width  of PB in cells
+
         int pertBox_offset = 0;
         amrex::IntVect regionLo(0+pertBox_offset, 0, 0);
-        amrex::IntVect regionHi(7+pertBox_offset, nx[1], nx[2]);
-        amrex::IntVect boxSize(8,8,8);
-        //amrex::IntVect boxSize(4,4,4); // HACK
+        amrex::IntVect regionHi(3*(tpi_PB_x-1)+pertBox_offset, nx[1], nx[2]);
+        amrex::IntVect boxSize(tpi_PB_x,tpi_PB_y,tpi_PB_z);
+        //amrex::IntVect boxSize(8,8,8); // Hardcode
 
-        // TODO: This will need to be changed later on
-        tpi_Lpb = 8*dx[0];
-        tpi_Wpb = 8*dx[1];
-        tpi_Hpb = 8*dx[2];
+        tpi_Lpb = tpi_PB_x*dx[0];
+        tpi_Wpb = tpi_PB_y*dx[1];
+        tpi_Hpb = tpi_PB_z*dx[2];
 
         #ifdef DIAGONAL_REF
-        tpi_lref = sqrt(boxSize(0)*boxSize(0)*dx[0]*dx[0] + boxSize(1)*boxSize(1)*dx[1]*dx[1]);
+        tpi_lref = sqrt(tpi_Lpb*tpi_Lpb + tpi_Wpb*tpi_Wpb);
         #elif defined(LENGTH_REF)
-        tpi_lref = 8*dx[0];
+        tpi_lref = tpi_Lpb;
         #endif
 
         // Creating structure box array for conserved quantity
@@ -283,7 +287,7 @@ struct TurbulentPerturbation {
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 1.);
+                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
                     #endif
                 });
             }
@@ -304,6 +308,9 @@ struct TurbulentPerturbation {
     }
 
     // Public constant constants
+    int tpi_PB_x;
+    int tpi_PB_y;
+    int tpi_PB_z;
     amrex::Real tpi_Tinfty; // [K]
     amrex::Real tpi_nonDim;
 
