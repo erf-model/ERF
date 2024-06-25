@@ -248,7 +248,8 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (1.0e-12*m_t_final)) ) {
                         break;
                     }
 
@@ -349,7 +350,8 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (1.0e-12*m_t_final)) ) {
                         break;
                     }
 
@@ -445,7 +447,8 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (1.0e-12*m_t_final)) ) {
                         break;
                     }
 
@@ -523,7 +526,8 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (1.0e-12*m_t_final)) ) {
                         break;
                     }
                     RT mu = 1.0 / (0.5*dt);
@@ -607,7 +611,8 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
-                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                    if (    (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau)))
+                         && (dt < (1.0e-12*m_t_final)) ) {
                         break;
                     }
                     RT mu = 1.0 / dt;
