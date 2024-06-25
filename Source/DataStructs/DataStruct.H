@@ -40,6 +40,10 @@ enum struct WindFarmType {
     Fitch, EWP, None
 };
 
+enum struct WindFarmLocType{
+    lat_lon, x_y, None
+};
+
 enum struct LandSurfaceType {
     SLM, MM5, None
 };
@@ -306,8 +310,26 @@ struct SolverChoice {
             windfarm_type = WindFarmType::EWP;
         }
         else if (windfarm_type_string != "None") {
-            amrex::Abort("Dont know this windfarm_type. Currently only Fitch and EWP models are supported.");
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"
+                         " has to be Fitch or EWP or None.");
         }
+
+        static std::string windfarm_loc_type_string = "None";
+        windfarm_loc_type = WindFarmLocType::None;
+        pp.query("windfarm_loc_type", windfarm_loc_type_string);
+        if (windfarm_loc_type_string == "lat_lon") {
+            windfarm_loc_type = WindFarmLocType::lat_lon;
+        }
+        else if (windfarm_loc_type_string == "x_y") {
+            windfarm_loc_type = WindFarmLocType::x_y;
+        }
+        else if (windfarm_loc_type_string != "None") {
+            amrex::Abort("Are you using windfarms? Dont know this windfarm_loc_type."
+                         " windfarm_loc_type has to be specified as lat_lon or x_y.");
+        }
+
+        pp.query("windfarm_loc_table",  windfarm_loc_table);
+        pp.query("windfarm_spec_table", windfarm_spec_table);
 
         // Test if time averaged data is to be output
         pp.query("time_avg_vel",time_avg_vel);
@@ -473,6 +495,7 @@ struct SolverChoice {
     TerrainType  terrain_type;
     MoistureType moisture_type;
     WindFarmType windfarm_type;
+    WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
 
     ABLDriverType abl_driver_type;
@@ -485,6 +508,7 @@ struct SolverChoice {
     bool do_precip {true};
     bool use_moist_background {false};
 
-    amrex::Real latitude_lo, longitude_lo;
+    amrex::Real latitude_lo=-1e10, longitude_lo=-1e10;
+    std::string windfarm_loc_table, windfarm_spec_table;
 };
 #endif

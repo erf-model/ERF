@@ -21,6 +21,7 @@ read_from_wrfinput (int lev, const Box& domain, const std::string& fname,
                     FArrayBox& NC_MUB_fab ,
                     FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
                     FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
+                    FArrayBox& NC_LANDMSK_fab,
                     FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
                     FArrayBox& NC_RDNW_fab,
                     FArrayBox& NC_QVAPOR_fab,
@@ -131,6 +132,7 @@ ERF::init_from_wrfinput (int lev)
     Vector<FArrayBox> NC_MSFV_fab;   NC_MSFV_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_MSFM_fab;   NC_MSFM_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_SST_fab;    NC_SST_fab.resize(num_boxes_at_level[lev]);
+    Vector<FArrayBox> NC_LANDMSK_fab;NC_LANDMSK_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C1H_fab;    NC_C1H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_C2H_fab;    NC_C2H_fab.resize(num_boxes_at_level[lev]);
     Vector<FArrayBox> NC_RDNW_fab;   NC_RDNW_fab.resize(num_boxes_at_level[lev]);
@@ -155,7 +157,8 @@ ERF::init_from_wrfinput (int lev)
                            NC_xvel_fab[idx]  , NC_yvel_fab[idx]  , NC_zvel_fab[idx] , NC_rho_fab[idx],
                            NC_rhop_fab[idx]  , NC_rhoth_fab[idx] , NC_MUB_fab[idx]  ,
                            NC_MSFU_fab[idx]  , NC_MSFV_fab[idx]  , NC_MSFM_fab[idx] ,
-                           NC_SST_fab[idx]   , NC_C1H_fab[idx]   , NC_C2H_fab[idx]  , NC_RDNW_fab[idx],
+                           NC_SST_fab[idx]   , NC_LANDMSK_fab[idx], NC_C1H_fab[idx] ,
+                           NC_C2H_fab[idx]  , NC_RDNW_fab[idx],
                            NC_QVAPOR_fab[idx], NC_QCLOUD_fab[idx], NC_QRAIN_fab[idx],
                            NC_PH_fab[idx]    , NC_P_fab[idx]     , NC_PHB_fab[idx]  ,
                            NC_ALB_fab[idx]   , NC_PB_fab[idx]    ,
@@ -195,13 +198,12 @@ ERF::init_from_wrfinput (int lev)
     BoxArray ba2d(std::move(bl2d));
     int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
     int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+
     lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         Box gtbx = mfi.growntilebox();
-        FArrayBox& dst = (*(lat_m[lev]))[mfi];
-        FArrayBox& src = NC_LAT_fab[0];
-        const Array4<      Real>& dst_arr = dst.array();
-        const Array4<const Real>& src_arr = src.const_array();
+        const Array4<      Real>& dst_arr = (lat_m[lev])->array(mfi);
+        const Array4<const Real>& src_arr = NC_LAT_fab[0].const_array();
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -212,10 +214,8 @@ ERF::init_from_wrfinput (int lev)
     lon_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lon_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         Box gtbx = mfi.growntilebox();
-        FArrayBox& dst = (*(lon_m[lev]))[mfi];
-        FArrayBox& src = NC_LON_fab[0];
-        const Array4<      Real>& dst_arr = dst.array();
-        const Array4<const Real>& src_arr = src.const_array();
+        const Array4<      Real>& dst_arr = (lon_m[lev])->array(mfi);
+        const Array4<const Real>& src_arr = NC_LON_fab[0].const_array();
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
         {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
@@ -223,6 +223,19 @@ ERF::init_from_wrfinput (int lev)
             dst_arr(i,j,0) = src_arr(li,lj,0);
         });
     }
+
+    for ( MFIter mfi(*(lmask_lev[lev][0]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
+        Box gtbx = mfi.growntilebox();
+        const Array4<       int>& dst_arr = lmask_lev[lev][0]->array(mfi);
+        const Array4<const Real>& src_arr = NC_LANDMSK_fab[0].const_array();
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            dst_arr(i,j,0) = static_cast<int>(src_arr(li,lj,0));
+        });
+    }
+    (lmask_lev[lev])[0]->FillBoundary(geom[lev].periodicity());
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())

@@ -15,6 +15,7 @@ read_from_wrfinput (int lev,
                     FArrayBox& NC_MUB_fab ,
                     FArrayBox& NC_MSFU_fab, FArrayBox& NC_MSFV_fab,
                     FArrayBox& NC_MSFM_fab, FArrayBox& NC_SST_fab,
+                    FArrayBox& NC_LANDMSK_fab ,
                     FArrayBox& NC_C1H_fab , FArrayBox& NC_C2H_fab,
                     FArrayBox& NC_RDNW_fab,
                     FArrayBox& NC_QVAPOR_fab,
@@ -99,11 +100,13 @@ read_from_wrfinput (int lev,
     NC_fabs.push_back(&NC_MSFV_fab);      NC_names.push_back("MAPFAC_VY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 14
     NC_fabs.push_back(&NC_MSFM_fab);      NC_names.push_back("MAPFAC_MY"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 15
     NC_fabs.push_back(&NC_SST_fab);       NC_names.push_back("SST");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 16
-    NC_fabs.push_back(&NC_C1H_fab);       NC_names.push_back("C1H");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 17
-    NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 18
-    NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 19
-    NC_fabs.push_back(&NC_LAT_fab);       NC_names.push_back("XLAT_V");    NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 20
-    NC_fabs.push_back(&NC_LON_fab);       NC_names.push_back("XLONG_U");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 21
+    NC_fabs.push_back(&NC_LANDMSK_fab);   NC_names.push_back("LANDMASK");  NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 17
+    NC_fabs.push_back(&NC_C1H_fab);       NC_names.push_back("C1H");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 18
+    NC_fabs.push_back(&NC_C2H_fab);       NC_names.push_back("C2H");       NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 19
+    NC_fabs.push_back(&NC_RDNW_fab);      NC_names.push_back("RDNW");      NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT);       // 20
+    NC_fabs.push_back(&NC_LAT_fab);       NC_names.push_back("XLAT_V");    NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 21
+    NC_fabs.push_back(&NC_LON_fab);       NC_names.push_back("XLONG_U");   NC_dim_types.push_back(NC_Data_Dims_Type::Time_SN_WE);    // 22
+
 
     if (moisture_type != MoistureType::None) {
         NC_fabs.push_back(&NC_QVAPOR_fab);    NC_names.push_back("QVAPOR"); NC_dim_types.push_back(NC_Data_Dims_Type::Time_BT_SN_WE); // 22

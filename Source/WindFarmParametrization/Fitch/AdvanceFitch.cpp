@@ -1,18 +1,19 @@
+#include <ERF.H>
+#include <WindFarm.H>
 #include <Fitch.H>
 #include <IndexDefines.H>
+
 using namespace amrex;
 
-Real R = 30.0;
-Real z_c = 100.0;
-Real C_T = 0.8, C_TKE = 0.0;
+Real C_TKE = 0.0;
 
 Real compute_A(Real z)
 {
 
-    Real d  = std::min(std::fabs(z - z_c), R);
-    Real theta = std::acos(d/R);
-    Real A_s = R*R*theta - d*std::pow(R*R - d*d, 0.5);
-    Real A = M_PI*R*R/2.0 - A_s;
+    Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
+    Real theta = std::acos(d/rotor_rad);
+    Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(rotor_rad*rotor_rad - d*d, 0.5);
+    Real A = M_PI*rotor_rad*rotor_rad/2.0 - A_s;
 
     return A;
 }
@@ -23,7 +24,7 @@ Real compute_Aijk(Real z_k, Real z_kp1)
     Real A_k   = compute_A(z_k);
     Real A_kp1 = compute_A(z_kp1);
 
-    Real check = (z_k - z_c)*(z_kp1 - z_c);
+    Real check = (z_k - hub_height)*(z_kp1 - hub_height);
     Real A_ijk;
     if(check > 0){
         A_ijk = std::fabs(A_k -A_kp1);
@@ -137,18 +138,20 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
             // Compute Fitch source terms
 
-                 Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
-                                      v_vel(i,j,k)*v_vel(i,j,k) +
-                                      w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
+            Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
+                                 v_vel(i,j,k)*v_vel(i,j,k) +
+                                 w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-                 fitch_array(i,j,k,0) = Vabs;
-                 fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
-                 fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-                 fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-                 fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
+            Real C_T = interpolate_1d(wind_speed.dataPtr(), thrust_coeff.dataPtr(), z, wind_speed.size());
+
+            fitch_array(i,j,k,0) = Vabs;
+            fitch_array(i,j,k,1) =  -0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
+            fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
+            fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
+            fitch_array(i,j,k,4) = 0.5*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*std::pow(Vabs,3)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);
-          });
+        });
     }
         //std::cout << "Checking sum here...." <<"\n";
         //printf("%0.15g, %0.15g\n", *sum_area , M_PI*R*R);

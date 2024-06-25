@@ -109,21 +109,28 @@ public:
             }
         }
 
-        // Specify how to compute the flux
-        std::string rough_string{"constant"};
-        pp.query("most.roughness_type", rough_string);
-        if (rough_string == "constant") {
-            rough_type = RoughCalcType::CONSTANT;
-        } else if (rough_string == "charnock") {
-            rough_type = RoughCalcType::CHARNOCK;
-            pp.query("most.charnock_constant",cnk_a);
-        } else if (rough_string == "modified_charnock") {
-            rough_type = RoughCalcType::MODIFIED_CHARNOCK;
-            pp.query("most.modified_charnock_depth",depth);
-        } else if (rough_string == "wave_coupled") {
-            rough_type = RoughCalcType::WAVE_COUPLED;
+        // Specify how to compute the surface flux over land (if there is any)
+        std::string rough_land_string{"constant"};
+        pp.query("most.roughness_type_land", rough_land_string);
+        if (rough_land_string == "constant") {
+            rough_type_land = RoughCalcType::CONSTANT;
         } else {
-            amrex::Abort("Undefined MOST roughness type!");
+            amrex::Abort("Undefined MOST roughness type for land!");
+        }
+
+        // Specify how to compute the surface flux over sea (if there is any)
+        std::string rough_sea_string{"charnock"};
+        pp.query("most.roughness_type_sea", rough_sea_string);
+        if (rough_sea_string == "charnock") {
+            rough_type_sea = RoughCalcType::CHARNOCK;
+            pp.query("most.charnock_constant",cnk_a);
+        } else if (rough_sea_string == "modified_charnock") {
+            rough_type_sea = RoughCalcType::MODIFIED_CHARNOCK;
+            pp.query("most.modified_charnock_depth",depth);
+        } else if (rough_sea_string == "wave_coupled") {
+            rough_type_sea = RoughCalcType::WAVE_COUPLED;
+        } else {
+            amrex::Abort("Undefined MOST roughness type for sea!");
         }
 
         // Size the MOST params for all levels
@@ -138,15 +145,19 @@ public:
         // Get pointers to SST and LANDMASK data
         m_sst_lev.resize(nlevs);
         m_lmask_lev.resize(nlevs);
+
         for (int lev(0); lev<nlevs; ++lev) {
-            int nt_tot = sst_lev[lev].size();
-            m_sst_lev[lev].resize(nt_tot);
-            m_lmask_lev[lev].resize(nt_tot);
-            for (int nt(0); nt<nt_tot; ++nt) {
+            int nt_tot_sst = sst_lev[lev].size();
+            m_sst_lev[lev].resize(nt_tot_sst);
+            for (int nt(0); nt<nt_tot_sst; ++nt) {
                 m_sst_lev[lev][nt]   = sst_lev[lev][nt].get();
+            }
+            int nt_tot_lmask = lmask_lev[lev].size();
+            m_lmask_lev[lev].resize(nt_tot_lmask);
+            for (int nt(0); nt<nt_tot_lmask; ++nt) {
                 m_lmask_lev[lev][nt] = lmask_lev[lev][nt].get();
             }
-        }
+        } // lev
 
         // Get pointers to LSM data and Fluxes
         m_lsm_data_lev.resize(nlevs);
@@ -159,7 +170,7 @@ public:
                 m_lsm_data_lev[lev][n] = lsm_data[lev][n];
                 m_lsm_flux_lev[lev][n] = lsm_flux[lev][n];
             }
-        }
+        } // lev
 
         // Get pointers to wave data
         m_Hwave_lev.resize(nlevs);
@@ -232,7 +243,8 @@ public:
     void
     compute_fluxes (const int& lev,
                     const int& max_iters,
-                    const FluxIter& most_flux);
+                    const FluxIter& most_flux,
+                    bool is_land);
 
     void
     impose_most_bcs (const int& lev,
@@ -325,7 +337,8 @@ public:
 
     FluxCalcType   flux_type{FluxCalcType::MOENG};
     ThetaCalcType theta_type{ThetaCalcType::ADIABATIC};
-    RoughCalcType rough_type{RoughCalcType::CONSTANT};
+    RoughCalcType rough_type_land{RoughCalcType::CONSTANT};
+    RoughCalcType rough_type_sea{RoughCalcType::CHARNOCK};
 
 private:
     bool use_moisture;

@@ -22,7 +22,7 @@ erf.most.zref   = 20.0
 
 # NOTE: This should have a qv grad too (use hoextrapcc?!)
 zhi.type = "SlipWall"
-zhi.theta_grad = 0.00365
+#zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
 erf.fixed_dt       = 0.5 # fixed time step depending on grid resolution
@@ -51,8 +51,8 @@ erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 erf.use_gravity = true
 
-erf.dycore_horiz_adv_type    = Upwind_5th
-erf.dycore_vert_adv_type     = Upwind_5th
+erf.dycore_horiz_adv_type    = Upwind_3rd
+erf.dycore_vert_adv_type     = Upwind_3rd
 erf.dryscal_horiz_adv_type   = WENOZ5
 erf.dryscal_vert_adv_type    = WENOZ5
 erf.moistscal_horiz_adv_type = WENOZ5
@@ -61,8 +61,15 @@ erf.moistscal_vert_adv_type  = WENOZ5
 erf.moisture_model  = "Kessler"
 
 erf.molec_diff_type = "None"
+
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.17
+
+#erf.les_type = "Deardorff"
+#erf.Ck       = 0.1
+#erf.sigma_k  = 1.0
+#erf.Ce       = 0.1
+
 erf.Pr_t            = 0.333333
 erf.Sc_t            = 0.333333
 
