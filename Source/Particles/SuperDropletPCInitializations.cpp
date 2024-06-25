@@ -356,6 +356,20 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
         Print() << "Halls" << "\n";
     }
 
+    Print() << "    Mass change time integrator: ";
+    if (m_mass_change_ti == SDMassChangeTIMethod::RK3BS) {
+        Print() << "rk3bs";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::RK4) {
+        Print() << "rk4";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::BE) {
+        Print() << "backward_euler";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::CN) {
+        Print() << "crank_nicolson";
+    } else if (m_mass_change_ti == SDMassChangeTIMethod::DIRK2) {
+        Print() << "dirk2";
+    }
+    Print() << " (cfl = " << m_mass_change_cfl << ")\n";
+
     Print() << "    Terminal velocity model: ";
     if (m_term_vel_type == SDTerminalVelocityType::AtlasUlbrich) {
         Print() << "AtlasUlbrich" << "\n";
