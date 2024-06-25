@@ -212,7 +212,7 @@ namespace SDMassChangeUtils
         bool m_adapt_dt;  /*!< use error-based adaptive dt? */
         bool m_verbose;   /*!< verbosity */
 
-        /*! \brief 3rd-order, -3-stage Bogacki-Shampine explicit RK method
+        /*! \brief 3rd-order, 4-stage Bogacki-Shampine explicit RK method
          *  with 2nd order embedded method */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
         void rk3bs ( RT& a_u,  /*!< solution */
@@ -248,16 +248,36 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
+                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                        break;
+                    }
+
                     RT u1 = a_u;
+                    if (u1 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
 
                     RT u2 = a_u + 0.5*dt*f1;
+                    if (u2 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
 
                     RT u3 = a_u + 0.75*dt*f2;
+                    if (u3 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_M_s);
 
                     RT u4 = a_u + (1.0/9.0)*dt * (2.0*f1 + 3.0*f2 + 4.0*f3);
+                    if (u4 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_M_s);
 
                     u_new = u4;
@@ -270,14 +290,13 @@ namespace SDMassChangeUtils
                         dt_new = dt * std::exp((1.0/3)*std::log(1.0/E));
                     }
 
-                    if (std::isfinite(std::sqrt(u_new))) {
-                        step_success = true;
-                        break;
+                    if (std::isfinite(u_new)) {
+                        if (u_new > 0) {
+                            step_success = true;
+                            break;
+                        }
                     }
                     dt *= 0.5;
-                    if (dt < (1.0e-12*m_t_final)) {
-                        break;
-                    }
                 }
 
                 if (step_success) {
@@ -330,28 +349,47 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
+                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                        break;
+                    }
+
                     RT u1 = a_u;
+                    if (u1 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
 
                     RT u2 = a_u + 0.5*dt*f1;
+                    if (u2 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
 
                     RT u3 = a_u + 0.5*dt*f2;
+                    if (u3 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f3 = m_ode.rhs_func(u3, m_S, m_T, m_e_s, m_M_s);
 
                     RT u4 = a_u + 1.0*dt*f3;
+                    if (u4 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f4 = m_ode.rhs_func(u4, m_S, m_T, m_e_s, m_M_s);
 
                     u_new = a_u + dt*(f1+2.0*f2+2.0*f3+f4)/6.0;
 
-                    if (std::isfinite(std::sqrt(u_new))) {
-                        step_success = true;
-                        break;
+                    if (std::isfinite(u_new)) {
+                        if (u_new > 0) {
+                            step_success = true;
+                            break;
+                        }
                     }
                     dt *= 0.5;
-                    if (dt < (1.0e-12*m_t_final)) {
-                        break;
-                    }
                 }
 
                 if (step_success) {
@@ -407,6 +445,10 @@ namespace SDMassChangeUtils
                 bool step_success = false;
                 while (!step_success) {
 
+                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                        break;
+                    }
+
                     RT mu = 1.0 / dt;
                     RT rhs = mu * a_u;
                     u_new = a_u;
@@ -414,14 +456,15 @@ namespace SDMassChangeUtils
                               m_S, m_T, m_e_s, m_M_s,
                               res_norm_a, res_norm_r, converged );
 
-                    if (std::isfinite(std::sqrt(a_u)) && converged) {
-                        step_success = true;
-                        break;
+                    if (converged) {
+                        if (std::isfinite(u_new)) {
+                            if (u_new > 0) {
+                                step_success = true;
+                                break;
+                            }
+                        }
                     }
                     dt *= 0.5;
-                    if (dt < (1.0e-12*m_t_final)) {
-                        break;
-                    }
                 }
 
                 if (step_success) {
@@ -478,8 +521,11 @@ namespace SDMassChangeUtils
 
                 RT u_new = 0.0;
                 bool step_success = false;
-                while (1) {
+                while (!step_success) {
 
+                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                        break;
+                    }
                     RT mu = 1.0 / (0.5*dt);
 
                     RT u1 = a_u;
@@ -494,14 +540,15 @@ namespace SDMassChangeUtils
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
-                    if (std::isfinite(std::sqrt(u_new)) && converged) {
-                        step_success = true;
-                        break;
+                    if (converged) {
+                        if (std::isfinite(u_new)) {
+                            if (u_new > 0) {
+                                step_success = true;
+                                break;
+                            }
+                        }
                     }
                     dt *= 0.5;
-                    if (dt < (1.0e-12*m_t_final)) {
-                        break;
-                    }
                 }
 
                 if (step_success) {
@@ -558,8 +605,11 @@ namespace SDMassChangeUtils
 
                 RT u_new = 0.0;
                 bool step_success = false;
-                while (1) {
+                while (!step_success) {
 
+                    if (dt < (1.0e-12*m_cfl/std::sqrt(tau*tau))) {
+                        break;
+                    }
                     RT mu = 1.0 / dt;
 
                     converged = true;
@@ -598,14 +648,15 @@ namespace SDMassChangeUtils
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
 
-                    if (std::isfinite(std::sqrt(u_new)) && converged) {
-                        step_success = true;
-                        break;
+                    if (converged) {
+                        if (std::isfinite(u_new)) {
+                            if (u_new > 0) {
+                                step_success = true;
+                                break;
+                            }
+                        }
                     }
                     dt *= 0.5;
-                    if (dt < (1.0e-12*m_t_final)) {
-                        break;
-                    }
                 }
 
                 if (step_success) {

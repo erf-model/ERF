@@ -258,7 +258,7 @@ void SuperDropletPC::Diagnostics( const int& a_iter,
     if (num_unconverged_particles > 0) {
         Print() << "SuperDropletPC::MassChange(): Warning - "
                 << num_unconverged_particles
-                << " particles did not converge.";
+                << " particles did not converge.\n";
     }
 
     if (a_flag) {
