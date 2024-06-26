@@ -4,6 +4,8 @@
 #include <Utils.H>
 #include <mpi.h>
 #include <AMReX_MPMD.H>
+#include <AMReX_MultiFab.H>
+#include <AMReX_Geometry.H>
 
 using namespace amrex;
 
@@ -68,6 +70,8 @@ ERF::read_waves (int lev)
                      MPI_Recv(my_L_ptr, nsealm, MPI_DOUBLE, other_root, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                  }
              }
+             amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
+             amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
 
          }
     }
@@ -80,6 +84,7 @@ ERF::read_waves (int lev)
     Lwave[lev]->ParallelCopy(*Lwave_onegrid[lev]);
     Lwave[lev]->FillBoundary(geom[lev].periodicity());
     amrex::Print() << "HWAVE BOX " << (*Hwave[lev])[0].box() << std::endl;
+
     for (MFIter mfi(*Hwave[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
         const Array4<Real const>& Hwave_arr = Hwave[lev]->const_array(mfi);
@@ -92,6 +97,82 @@ ERF::read_waves (int lev)
             }
         });
     }
+
+}
+
+void
+ERF::send_waves (int lev)
+{
+    int ncomp = 1; // number components
+    auto& lev_new = vars_new[lev];
+
+    // Access xvel, yvel from ABL
+    MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    
+    // Make local copy of xvel, yvel
+    MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
+
+ 
+    MultiFab x_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       ncomp, lev_new[Vars::cons].nGrow());
+    MultiFab y_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       ncomp, lev_new[Vars::cons].nGrow());
+
+    MultiFab u_mag(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       ncomp, lev_new[Vars::cons].nGrow());
+
+    MultiFab u_dir(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       ncomp, lev_new[Vars::cons].nGrow());
+    x_avg.setVal(0.);
+    y_avg.setVal(0.);
+    u_mag.setVal(0.);
+    u_dir.setVal(0.);
+
+    for (MFIter mfi(x_avg,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        const Array4<Real>& u_vel = x_avg.array(mfi); 
+        const Array4<const Real>& velx_arr = xvel_data.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
+            u_vel(i,j,k)  = 0.5 *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
+
+            amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " [" <<velx_arr(i,j,k) << "| avg:  " << u_vel(i,j,k)<< " | " << velx_arr(i+1,j,k) << "]" <<std::endl;
+        });
+    }
+
+    for (MFIter mfi(y_avg,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        const Array4<Real>& v_vel = y_avg.array(mfi);
+        const Array4<const Real>& vely_arr = yvel_data.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
+
+            v_vel(i,j,k)  = 0.5 *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
+
+            amrex::AllPrintToFile("vvel.txt") << amrex::IntVect(i,j,k) << " ["<<vely_arr(i,j,k)<<"| avg: " << v_vel(i,j,k)<< " | " << vely_arr(i,j+1,k) << "]" <<std::endl;
+        });
+    }
+
+    for (MFIter mfi(u_mag, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+
+        Box bx = mfi.tilebox();
+        const Array4<Real>& magnitude = u_mag.array(mfi);
+        const Array4<const Real>& u = x_avg.array(mfi);        
+        const Array4<const Real>& v = y_avg.array(mfi); 
+        const Array4<Real>& theta = u_dir.array(mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
+
+            magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
+            theta(i,j,k) = atan ( v(i,j,k) / u(i,j,k) );
+
+            amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
+        });
+   }
 
 }
 #endif

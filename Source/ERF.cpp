@@ -909,6 +909,7 @@ ERF::InitData ()
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
     read_waves(lev);
+    send_waves(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
