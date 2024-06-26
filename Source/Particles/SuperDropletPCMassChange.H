@@ -540,6 +540,10 @@ namespace SDMassChangeUtils
                     m_newton( u2, rhs, mu,
                               m_S, m_T, m_e_s, m_M_s,
                               res_norm_a, res_norm_r, converged );
+                    if (u2 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
 
                     u_new = a_u + 0.5 * dt * (f1 + f2);
@@ -634,6 +638,10 @@ namespace SDMassChangeUtils
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
                     }
+                    if (u1 <= 0) {
+                        dt *= 0.5;
+                        continue;
+                    }
                     RT f1 = m_ode.rhs_func(u1, m_S, m_T, m_e_s, m_M_s);
 
                     RT u2 = u1;
@@ -648,6 +656,10 @@ namespace SDMassChangeUtils
                         converged = converged && converged_i;
                         res_norm_a = std::max(res_norm_a, res_norm_a_i);
                         res_norm_r = std::max(res_norm_r, res_norm_r_i);
+                    }
+                    if (u2 <= 0) {
+                        dt *= 0.5;
+                        continue;
                     }
                     RT f2 = m_ode.rhs_func(u2, m_S, m_T, m_e_s, m_M_s);
 
