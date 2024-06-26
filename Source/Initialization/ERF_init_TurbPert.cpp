@@ -4,8 +4,6 @@
 
 //DUSTIN MA: May 28th, 2024
 
-#define DEBUG_PERTBOX_MSG
-
 #include <ERF.H>
 #include <AMReX_MultiFabUtil.H>
 #include <TileNoZ.H>
@@ -14,26 +12,20 @@
 using namespace amrex;
 
 void
-ERF::turbPert_update (const int lev, const Real local_dt)
+ERF::turbPert_update (const int lev, const Real local_dt, PerturbationType& p_type)
 {
     // Grabing data from velocity field
     auto& lev_new = vars_new[lev];
 
     // Accessing local data
-    MultiFab cons_data(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
-    MultiFab::Copy (cons_data, lev_new[Vars::cons], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
     // Computing perturbation update time
-    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
-
-    #ifdef DEBUG_PERTBOX_MSG
+    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data);
     turbPert.debug();
-    #endif
 
     Print() << "Turbulent perturbation update time and amplitude initialized\n";
 }

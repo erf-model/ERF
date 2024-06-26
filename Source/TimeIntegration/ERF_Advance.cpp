@@ -36,14 +36,29 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
     MultiFab& W_new = vars_new[lev][Vars::zvel];
 
     // TODO: Can test on multiple levels later
-    // Only apply to level 0
-    // DUSTIN MA
-    if (solverChoice.pert_type == PerturbationType::perturbSource) {
-        if (lev == 0) {
-            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
-            //turbPert.debug();
+    // Update the inflow perturbation update time and amplitude
+    if (lev == 0) {
+        if (solverChoice.pert_type == PerturbationType::perturbSource ||
+            solverChoice.pert_type == PerturbationType::perturbDirect)
+        {
+            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old);
+        }
+        turbPert.debug();
+
+        // If perturbDirect is selected, directly add the computed perturbation
+        // on the conserved field
+        // XXX Currently gives "Erroneous arithmetic operation" error
+        if (solverChoice.pert_type == PerturbationType::perturbDirect)
+        {
+            auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
+                Box bx  = mfi.tilebox();
+                const Array4<Real> & cell_data  = S_old.array(mfi);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data);
+            }
         }
     }
+
     // configure ABLMost params if used MostWall boundary condition
     if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::MOST) {
         if (m_most) {
