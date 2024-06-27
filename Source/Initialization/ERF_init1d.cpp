@@ -207,6 +207,7 @@ ERF::initHSE (int lev)
     MultiFab p_hse (base_state[lev], make_alias, 1, 1); // p_0  is second component
     MultiFab pi_hse(base_state[lev], make_alias, 2, 1); // pi_0 is third  component
 
+#if 0
     if (lev > 0) {
 
         // Interp all three components: rho, p, pi
@@ -222,6 +223,7 @@ ERF::initHSE (int lev)
                               null_bc, 0, null_bc, 0, refRatio(lev-1),
                               mapper, domain_bcs_type, bccomp);
     }
+#endif
 
     // Initial r_hse may or may not be in HSE -- defined in prob.cpp
     if (solverChoice.use_moist_background){

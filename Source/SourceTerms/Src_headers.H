@@ -3,6 +3,7 @@
 
 #include <AMReX_MultiFab.H>
 #include "DataStruct.H"
+#include "TurbPertStruct.H"
 
 #ifdef ERF_USE_EB
 #include <AMReX_EBMultiFabUtil.H>
@@ -36,7 +37,8 @@ void make_sources (int level, int nrk,
                    const amrex::Real* dptr_rhotheta_src,
                    const amrex::Real* dptr_rhoqt_src,
                    const amrex::Real* dptr_wbar_sub,
-                   const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev);
+                   const amrex::Vector<amrex::Real*> d_rayleigh_ptrs_at_lev,
+                   TurbulentPerturbation& turbPert);
 
 void make_mom_sources (int level, int nrk,
                        amrex::Real dt,
