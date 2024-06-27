@@ -156,7 +156,8 @@ ERF::refinement_criteria_setup ()
                     int khi = static_cast<int>((box_hi[2] - plo[2])/dx[2]-1);
                     Box bx(IntVect(ilo,jlo,klo),IntVect(ihi,jhi,khi));
                     if ( (ilo%ref_ratio[lev_for_box-1][0] != 0) || ((ihi+1)%ref_ratio[lev_for_box-1][0] != 0) ||
-                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) )
+                         (jlo%ref_ratio[lev_for_box-1][1] != 0) || ((jhi+1)%ref_ratio[lev_for_box-1][1] != 0) ||
+                         (klo%ref_ratio[lev_for_box-1][2] != 0) || ((khi+1)%ref_ratio[lev_for_box-1][2] != 0) )
                          amrex::Error("Fine box is not legit with this ref_ratio");
                     boxes_at_level[lev_for_box].push_back(bx);
                     Print() << "Saving in 'boxes at level' as " << bx << std::endl;

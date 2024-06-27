@@ -29,6 +29,7 @@
 
 #include <IndexDefines.H>
 #include <DataStruct.H>
+#include <TurbPertStruct.H>
 #include <InputSoundingData.H>
 #include <InputSpongeData.H>
 #include <ABLMost.H>
@@ -161,6 +162,7 @@ public:
     void derive_diag_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
@@ -236,6 +238,10 @@ public:
 
     // compute dt from CFL considerations
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
+
+#ifdef ERF_USE_WW3_COUPLING
+    void read_waves (int lev);
+#endif
 
     // Interface for advancing the data at one level by one "slow" timestep
     void advance_dycore (int level,
@@ -318,7 +324,7 @@ public:
     // calls AmrCore constructor -> AmrMesh constructor
     ERF (const amrex::RealBox& rb, int max_level_in,
          const amrex::Vector<int>& n_cell_in, int coord,
-         const amrex::Vector<amrex::IntVect>& ref_ratios,
+         const amrex::Vector<amrex::IntVect>& ref_ratio,
          const amrex::Array<int,AMREX_SPACEDIM>& is_per,
          std::string prefix);
 
@@ -417,6 +423,11 @@ private:
     void init_stuff (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm,
                      amrex::Vector<amrex::MultiFab>& lev_new,
                      amrex::Vector<amrex::MultiFab>& lev_old);
+
+    // Initialize the Turbulent perturbation
+    void turbPert_constants (const int lev);
+    void turbPert_update (const int lev, const amrex::Real dt);
+    void turbPert_amplitude (const int lev);
 
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
@@ -715,6 +726,9 @@ private:
     // Wave coupling data
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave_onegrid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave_onegrid;
+    bool finished_wave = false;
 
     // array of flux registers
     amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
@@ -833,6 +847,9 @@ private:
 
     // algorithm choices
     static SolverChoice solverChoice;
+
+    // Turbulent perturbation structure
+    TurbulentPerturbation turbPert;
 
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species

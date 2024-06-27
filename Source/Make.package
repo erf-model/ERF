@@ -14,3 +14,7 @@ CEXE_sources += ERF_make_new_level.cpp
 CEXE_sources += ERF_make_new_arrays.cpp
 CEXE_sources += Derive.cpp
 CEXE_headers += Derive.H
+
+ifeq ($(USE_WW3_COUPLING),TRUE)
+CEXE_sources += ERF_read_waves.cpp
+endif
