@@ -1,29 +1,53 @@
-
 /**
- * \file ERF_init_custom.cpp
+ * \ERF_init_TurbPert.cpp
  */
 
+//DUSTIN MA: May 28th, 2024
+
+#define DEBUG_PERTBOX_MSG
+
 #include <ERF.H>
-#include <ERF_Constants.H>
+#include <AMReX_MultiFabUtil.H>
 #include <TileNoZ.H>
 #include <prob_common.H>
 
 using namespace amrex;
 
-/**
- * Wrapper for custom problem-specific initialization routines that can be
- * defined by the user as they set up a new problem in ERF. This wrapper
- * handles all the overhead of defining the perturbation as well as initializing
- * the random seed if needed.
- *
- * This wrapper calls a user function to customize initialization on a per-Fab
- * level inside an MFIter loop, so all the MultiFab operations are hidden from
- * the user.
- *
- * @param lev Integer specifying the current level
- */
 void
-ERF::init_custom (int lev)
+ERF::turbPert_constants(const int lev)
+{
+    prob->init_turbPert_const(turbPert);
+}
+
+void
+ERF::turbPert_update (const int lev, const Real local_dt)
+{
+    // Grabing data from velocity field
+    auto& lev_new = vars_new[lev];
+
+    // Accessing local data
+    MultiFab cons_data(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
+                       lev_new[Vars::cons].nComp()   , lev_new[Vars::cons].nGrow());
+    MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    MultiFab::Copy (cons_data, lev_new[Vars::cons], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
+    MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
+
+    // Computing perturbation update time
+    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
+
+    #ifdef DEBUG_PERTBOX_MSG
+    turbPert.debug();
+    #endif
+
+    Print() << "Turbulent perturbation update time and amplitude initialized\n";
+}
+
+// Calculate the perturbation region amplitude.
+// This function heavily emmulates the ERF::init_custom ()
+void
+ERF::turbPert_amplitude (int lev)
 {
     auto& lev_new = vars_new[lev];
 
@@ -36,7 +60,10 @@ ERF::init_custom (int lev)
     MultiFab yvel_pert(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
     MultiFab zvel_pert(lev_new[Vars::zvel].boxArray(), lev_new[Vars::zvel].DistributionMap(), 1, lev_new[Vars::zvel].nGrowVect());
 
-    // Default all perturbations to zero
+    // Only storing for conserved quantity for now
+    auto m_ixtype = cons_pert.boxArray().ixType();
+
+    // Default perturbations to zero
     cons_pert.setVal(0.);
     xvel_pert.setVal(0.);
     yvel_pert.setVal(0.);
@@ -54,13 +81,13 @@ ERF::init_custom (int lev)
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi)
-    {
-        const Box &bx  = mfi.tilebox();
+    for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
+        const Box &bx  = mfi.validbox();
         const Box &xbx = mfi.tilebox(IntVect(1,0,0));
         const Box &ybx = mfi.tilebox(IntVect(0,1,0));
         const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
+        // Perturbation on to different components
         const auto &cons_pert_arr = cons_pert.array(mfi);
         const auto &xvel_pert_arr = xvel_pert.array(mfi);
         const auto &yvel_pert_arr = yvel_pert.array(mfi);
@@ -70,48 +97,20 @@ ERF::init_custom (int lev)
         Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-        Array4<Real const> mf_m     = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_u     = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_v     = mapfac_m[lev]->array(mfi);
+        Array4<Real const> mf_m = mapfac_m[lev]->array(mfi);
+        Array4<Real const> mf_u = mapfac_m[lev]->array(mfi);
+        Array4<Real const> mf_v = mapfac_m[lev]->array(mfi);
 
         Array4<Real> r_hse_arr = r_hse.array(mfi);
         Array4<Real> p_hse_arr = p_hse.array(mfi);
 
+        turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cons_pert_arr); // Using boxArray
         prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
-    } //mfi
-
-    // Add problem-specific perturbation to background flow
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, Rho_comp,      Rho_comp,      1, cons_pert.nGrow());
+    } // mfi
+    // This initialization adds the initial perturbation direction on the RhoTheta field
     MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoScalar_comp,RhoScalar_comp,1, cons_pert.nGrow());
-
-    // RhoKE is only relevant if using Deardorff with LES
-    if (solverChoice.turbChoice[lev].les_type == LESType::Deardorff) {
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
-    }
-
-    // RhoQKE is only relevant if using MYNN2.5 or YSU
-    if (solverChoice.turbChoice[lev].pbl_type == PBLType::None) {
-        lev_new[Vars::cons].setVal(0.0,RhoQKE_comp,1);
-    } else {
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());
-    }
-
-    if (solverChoice.moisture_type != MoistureType::None) {
-        int qstate_size = micro->Get_Qstate_Size();
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ1_comp,    RhoQ1_comp,    1, cons_pert.nGrow());
-        MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQ2_comp,    RhoQ2_comp,    1, cons_pert.nGrow());
-        for (int q_offset(2); q_offset<qstate_size; ++q_offset) {
-            int q_idx = RhoQ1_comp+q_offset;
-            MultiFab::Add(lev_new[Vars::cons], cons_pert, q_idx, q_idx, 1, cons_pert.nGrow());
-        }
-    }
-
-    MultiFab::Add(lev_new[Vars::xvel], xvel_pert, 0,             0,             1, xvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::yvel], yvel_pert, 0,             0,             1, yvel_pert.nGrowVect());
-    MultiFab::Add(lev_new[Vars::zvel], zvel_pert, 0,             0,             1, zvel_pert.nGrowVect());
 }
