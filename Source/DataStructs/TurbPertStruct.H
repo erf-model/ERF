@@ -194,27 +194,6 @@ struct TurbulentPerturbation {
         }
     }
 
-    // Output debug message into a file
-    void debug ()
-    {
-        for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i 
-            << "] pb_Umag=" << pb_mag[i]
-            << " | pb_interval=" << pb_interval[i]
-            << " (" << pb_local_etime[i]
-            << ") | pb_amp=" << pb_amp[i] << "\n";
-        }
-        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
-    }
-
-    std::string pp_prefix {"erf"};
-
-    // Public data members
-    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
-    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
-
-  private:
-
 // TODO: Test the difference between these two
 //#define USE_SLAB_AVERAGE
 #define USE_VOLUME_AVERAGE
@@ -392,6 +371,27 @@ struct TurbulentPerturbation {
         // Computing the average magnitude within 1st z level slab
         m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
     }
+
+    // Output debug message into a file
+    void debug ()
+    {
+        for (int i = 0; i < pb_mag.size(); i++) {
+            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i 
+            << "] pb_Umag=" << pb_mag[i]
+            << " | pb_interval=" << pb_interval[i]
+            << " (" << pb_local_etime[i]
+            << ") | pb_amp=" << pb_amp[i] << "\n";
+        }
+        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
+    }
+
+    std::string pp_prefix {"erf"};
+
+    // Public data members
+    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
+    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
+
+  private:
 
     // Random number generation between range (used for interval calucation)
     amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
