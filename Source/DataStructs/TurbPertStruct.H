@@ -3,6 +3,7 @@
 
 #include <AMReX_MultiFabUtil.H>
 #include <TileNoZ.H>
+#include <time.h>
 
 /**
  * Container holding quantities related to turbulent perturbation parameters
@@ -12,9 +13,10 @@ struct TurbulentPerturbation {
 
   public:
 
-    ~TurbulentPerturbation () {
-        amrex::Print() << "~TurbulentPerturbation destructor\n";
-    }
+    ~TurbulentPerturbation () {}
+
+    // Quality of life function definitions
+    amrex::Real* get_pb_mag() { return pb_mag.data(); }
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
@@ -31,10 +33,12 @@ struct TurbulentPerturbation {
         pp.queryarr("perturbation_direction",tpi_direction);
         pp.query("perturbation_layers",tpi_layers);
         pp.query("perturbation_offset",tpi_offset);
+
         pp.query("perturbation_nondimensional",tpi_nonDim);
-        pp.query("perturbation_ambient_temp",tpi_T);
-        pp.query("perturbation_density",tpi_rho);
-        pp.query("perturbation_specific_heat",tpi_cp);
+        pp.query("perturbation_T_infinity",tpi_Tinf);
+        pp.query("perturbation_T_intensity",tpi_Ti);
+        pp.query("perturbation_rho_0",tpi_rho);
+        pp.query("perturbation_cp",tpi_cp);
 
         // Check variables message
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
@@ -43,7 +47,8 @@ struct TurbulentPerturbation {
             if (tpi_boxDim[i] == 0) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
         }
         if (tpi_nonDim < 0.) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = 0.042)"); }
-        if (tpi_T < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0)"); }
+        if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0)"); }
+        if (tpi_Ti <= 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
         if (tpi_rho < 0.) { amrex::Abort("Please provide a valid density (ie. rho_0)"); }
         if (tpi_cp < 0.) { amrex::Abort("Please provide a valid specific head capacity"); }
 
@@ -80,7 +85,7 @@ struct TurbulentPerturbation {
         pb_mag.resize(pb_ba[lev].size(), 0.);
 
         // Set size of vector and initialize
-        pb_freq.resize(pb_ba[lev].size(), -1.0);
+        pb_interval.resize(pb_ba[lev].size(), -1.0);
         pb_local_etime.resize(pb_ba[lev].size(), 0.0);
         pb_amp.resize(pb_ba[lev].size(), 0.0);
 
@@ -102,18 +107,20 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel)
     {
+        srand( (unsigned) time(NULL) ); // Setting random number generator
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            if ( pb_freq[boxIdx] <= pb_local_etime[boxIdx] ) {
+            if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
                 // Compute mean velocity magnitude within perturbation box
                 calc_tpi_meanMag_perBox(boxIdx, lev, mf_xvel, mf_yvel);
                 //calc_tpi_meanMag_firstCell(boxIdx, lev, mf_xvel, mf_yvel);
 
                 if (pb_mag[boxIdx] !=0.) {
-                    pb_freq[boxIdx] = tpi_lref / pb_mag[boxIdx];
+                    amrex::Real interval = tpi_lref / pb_mag[boxIdx];
+                    pb_interval[boxIdx] = RandomReal(0.9*interval,1.1*interval); // 10% variation
                 }
 
                 // Trigger amplitude calculation per perturbation box
-                calc_tpi_amp(boxIdx);
+                calc_tpi_amp(boxIdx, pb_interval[boxIdx]);
 
                 // Reset local elapsed time
                 pb_local_etime[boxIdx] = 0.;
@@ -123,6 +130,90 @@ struct TurbulentPerturbation {
             } // if
         } // for
     }
+
+//#define ECKERT_FORMULATION
+#define BULK_RICHARDSON_FORMULATION
+
+    // Perturbation amplitude calcluation
+    void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
+    {
+        amrex::Real Um = pb_mag[boxIdx];
+        pb_amp[boxIdx] = 0.; // Safty step
+
+        #ifdef ECKERT_FORMULATION
+        // Muñoz-Esparza et al. (2015) Eq. 9
+        pb_amp[boxIdx] = Um * Um / (tpi_rho * tpi_cp * tpi_nonDim); 
+        #endif
+
+        #ifdef BULK_RICHARDSON_FORMULATION
+        amrex::Real beta = 1./tpi_Tinf;
+
+        // Pseudo Random temperature the ignores scale when machanically tripping turbulence
+        //amrex::Real g = tpi_nonDim * Um * Um / (tpi_Ti * tpi_Hpb); // This returns too large of amplitude
+        amrex::Real g = CONST_GRAV;
+
+        // Ma and Senocak (2023) Eq. 8, solving for delta phi
+        pb_amp[boxIdx] = tpi_nonDim * Um * Um / (g * beta * tpi_Hpb);
+        #endif
+
+        // Ma & Senocak (2023) Eq. 7
+        pb_amp[boxIdx] /= interval;
+
+    }
+
+//#define INDEX_PERTURB
+
+    // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
+    // Random perturbation is applied as a white noise on the temperature source term
+    // it becomes colored through the filtering of temperature transport equation from
+    // the eddy diffusivity.
+    void apply_tpi (const int lev,
+                    const amrex::Box& vbx,                     // box union from upper level
+                    const int comp,                            // Component to modify
+                    const amrex::IndexType m_ixtype,           // IntVect type of src_arr
+                    const amrex::Array4<amrex::Real>& src_arr) // Array to apply perturbation
+    {
+        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+                amrex::Real amp_copy = pb_amp[boxIdx]; // This exposes a copy so the GPU can capture by value
+                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                    // Random number generation between 0 and 1
+                    amrex::Real rand_double = amrex::Random(engine);
+
+                    // Rescale between -1 and 1 and multiple with amplitude
+                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * amp_copy;
+
+                    // For box region debug only
+                    #ifdef INDEX_PERTURB
+                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
+                    #endif
+                });
+            }
+        }
+    }
+
+    // Output debug message into a file
+    void debug ()
+    {
+        for (int i = 0; i < pb_mag.size(); i++) {
+            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i 
+            << "] pb_Umag=" << pb_mag[i]
+            << " | pb_interval=" << pb_interval[i]
+            << " (" << pb_local_etime[i]
+            << ") | pb_amp=" << pb_amp[i] << "\n";
+        }
+        amrex::PrintToFile("BoxPerturbationOutput") << "\n";
+    }
+
+    std::string pp_prefix {"erf"};
+
+    // Public data members
+    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
+    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
+
+  private:
 
 // TODO: Test the difference between these two
 //#define USE_SLAB_AVERAGE
@@ -302,86 +393,12 @@ struct TurbulentPerturbation {
         m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
     }
 
-//#define ECKERT_FORMULATION
-#define BULK_RICHARDSON_FORMULATION
-
-    // Perturbation amplitude calcluation
-    void calc_tpi_amp (const int boxIdx)
+    // Random number generation between range (used for interval calucation)
+    amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
     {
-        // Reset the perturbation amplitude
-        pb_amp[boxIdx] = 0.;
-
-        #ifdef ECKERT_FORMULATION
-        amrex::Real Ug = pb_mag[boxIdx];
-
-        // Muñoz-Esparza et al. (2015) Eq. 9
-        pb_amp[boxIdx] = Ug * Ug / (tpi_rho * tpi_cp * tpi_nonDim); 
-        #endif
-
-        #ifdef BULK_RICHARDSON_FORMULATION
-        amrex::Real g = CONST_GRAV;
-        amrex::Real beta = 1./tpi_T;
-        amrex::Real Um = pb_mag[boxIdx];
-
-        // Ma and Senocak (2023) Eq. 17
-        pb_amp[boxIdx] = tpi_nonDim * Um * Um * Um / (g * beta * tpi_lref * tpi_Hpb);
-        #endif
-
+        amrex::Real r = (amrex::Real) rand() / (amrex::Real) RAND_MAX;
+        return min + r * (max - min);
     }
-
-//#define INDEX_PERTURB
-
-    // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
-    // Random perturbation is applied as a white noise on the temperature source term
-    // it becomes colored through the filtering of temperature transport equation from
-    // the eddy diffusivity.
-    void apply_tpi (const int lev,
-                    const amrex::Box& vbx,                     // box union from upper level
-                    const int comp,                            // Component to modify
-                    const amrex::IndexType m_ixtype,           // IntVect type of src_arr
-                    const amrex::Array4<amrex::Real>& src_arr) // Array to apply perturbation
-    {
-        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
-            amrex::Box ubx = pbx & vbx;
-            if (ubx.ok()) {
-                amrex::Real amp_copy = pb_amp[boxIdx]; // This exposes a copy so the GPU can capture by value
-                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                    // Random number generation between 0 and 1
-                    amrex::Real rand_double = amrex::Random(engine);
-
-                    // Rescale between -1 and 1 and multiple with amplitude
-                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * amp_copy;
-
-                    // For box region debug only
-                    #ifdef INDEX_PERTURB
-                    src_arr(i,j,k,comp) = (amrex::Real) (boxIdx + 5.);
-                    #endif
-                });
-            }
-        }
-    }
-
-
-    // Quality of life function definitions
-    amrex::Real* get_pb_mag() { return pb_mag.data(); }
-
-    void debug ()
-    {
-        for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::Print() << "[" << i<< "] pb_mag=" << pb_mag[i]
-                           << " |  pb_freq=" << pb_freq[i]
-                           << " |  pb_local_etime=" << pb_local_etime[i] <<"\n";
-        }
-    }
-
-    std::string pp_prefix {"erf"};
-
-    // Public data members
-    amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
-    amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
-
-  private:
 
     // Private data members
     int tpi_layers;                   // Number of layers of perturbation boxes
@@ -393,7 +410,8 @@ struct TurbulentPerturbation {
     amrex::Real tpi_nonDim;           // Nondimensional Value
 
     // Richardson Formulation
-    amrex::Real tpi_T;                // Reference temperature [K]
+    amrex::Real tpi_Ti;               // Temperature intensity value
+    amrex::Real tpi_Tinf;             // Reference temperature [K]
 
     // Eckert Formulation
     amrex::Real tpi_rho;              // Reference density
@@ -406,7 +424,7 @@ struct TurbulentPerturbation {
     amrex::Real tpi_lref;             // PB reference length [m]
 
     // Perturbation data arrays
-    amrex::Vector<amrex::Real> pb_freq;        // PB update time [s]
+    amrex::Vector<amrex::Real> pb_interval;        // PB update time [s]
     amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
     amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K] Ec:[K/s]
 

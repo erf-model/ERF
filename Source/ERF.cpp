@@ -1220,12 +1220,10 @@ ERF::init_only (int lev, Real time)
     if (solverChoice.pert_type == PerturbationType::perturbSource || 
         solverChoice.pert_type == PerturbationType::perturbDirect) {
         if (lev == 0) {
-            //turbPert_update(lev, 0.);
             turbPert_update(lev, 0., solverChoice.pert_type);
             turbPert_amplitude(lev);
         }
     }
-
 }
 
 // read in some parameters from inputs file

@@ -43,7 +43,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         {
             turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old);
         }
-        turbPert.debug();
+        if (verbose) turbPert.debug();
 
         // If perturbDirect is selected, directly add the computed perturbation
         // on the conserved field
