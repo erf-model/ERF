@@ -25,7 +25,6 @@ ERF::turbPert_update (const int lev, const Real local_dt, PerturbationType& p_ty
 
     // Computing perturbation update time
     turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data);
-    if (verbose) turbPert.debug();
 
     Print() << "Turbulent perturbation update time and amplitude initialized\n";
 }

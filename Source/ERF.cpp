@@ -46,6 +46,8 @@ int ERF::mg_verbose    = 0;
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
 
+int  ERF::pert_interval = -1;
+
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
@@ -483,6 +485,10 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_integrated_quantities(time);
     }
 
+    if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
+        turbPert.debug(time);
+    }
+
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
         if (cc_profiles) {
             // all variables cell-centered
@@ -814,6 +820,10 @@ ERF::InitData ()
             // some variables staggered
             write_1D_profiles_stag(t_new[0]);
         }
+    }
+
+    if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
+        turbPert.debug(t_new[0]);
     }
 
     // We only write the file at level 0 for now
@@ -1217,7 +1227,7 @@ ERF::init_only (int lev, Real time)
    }
 
     // Initialize turbulent perturbation
-    if (solverChoice.pert_type == PerturbationType::perturbSource || 
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
         solverChoice.pert_type == PerturbationType::perturbDirect) {
         if (lev == 0) {
             turbPert_update(lev, 0., solverChoice.pert_type);
@@ -1268,6 +1278,8 @@ ERF::ReadParameters ()
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
+
+        pp.query("pert_interval", pert_interval);
 
         // Time step controls
         pp.query("cfl", cfl);

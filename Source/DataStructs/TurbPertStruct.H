@@ -15,9 +15,6 @@ struct TurbulentPerturbation {
 
     ~TurbulentPerturbation () {}
 
-    // Quality of life function definitions
-    amrex::Real* get_pb_mag() { return pb_mag.data(); }
-
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
     // Note: Box will always be initialized at cell centered
@@ -96,7 +93,25 @@ struct TurbulentPerturbation {
         tpi_lref = sqrt(tpi_Lpb*tpi_Lpb + tpi_Wpb*tpi_Wpb);
 
         // Function check point message
-        amrex::Print() << "Turbulent perturbation region initialized with ba " << pb_ba[lev].size() << " boxes\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_box_dims: " << tpi_boxDim[0] << " "
+                                                                                << tpi_boxDim[1] << " "
+                                                                                << tpi_boxDim[2] << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_direction: " << tpi_direction[0] << " "
+                                                                                 << tpi_direction[1] << " "
+                                                                                 << tpi_direction[2] << "\n\n";
+
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_layers: " << tpi_layers << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_offset: " << tpi_offset << "\n\n";
+
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_nondimensional: " << tpi_nonDim << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_infinity: " << tpi_Tinf << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_T_intensity: " << tpi_Ti << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_rho_0: " << tpi_rho << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_cp: " << tpi_cp << "\n\n";
+
+        amrex::PrintToFile("BoxPerturbationOutput") << "Reference length per box = " << tpi_lref << "\n\n";
+
+        amrex::PrintToFile("BoxPerturbationOutput") << "Turbulent perturbation BoxArray:\n" << pb_ba[lev] << "\n";
     }
 
     // Perturbation update frequency check.
@@ -107,7 +122,7 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel)
     {
-        srand( (unsigned) time(NULL) ); // Setting random number generator
+        //srand( (unsigned) time(NULL) ); // Setting random number generator
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
                 // Compute mean velocity magnitude within perturbation box
@@ -142,7 +157,7 @@ struct TurbulentPerturbation {
 
         #ifdef ECKERT_FORMULATION
         // Muñoz-Esparza et al. (2015) Eq. 9
-        pb_amp[boxIdx] = Um * Um / (tpi_rho * tpi_cp * tpi_nonDim); 
+        pb_amp[boxIdx] = Um * Um / (tpi_rho * tpi_cp * tpi_nonDim);
         #endif
 
         #ifdef BULK_RICHARDSON_FORMULATION
@@ -372,15 +387,21 @@ struct TurbulentPerturbation {
         m_pb_mag[boxIdx] = sqrt(tmp[0]*tmp[0] + tmp[1]*tmp[1]);
     }
 
+    // Quality of life function definitions
+    amrex::Real* get_pb_mag() { return pb_mag.data(); }
+
     // Output debug message into a file
-    void debug ()
+    void debug (amrex::Real time)
     {
+        amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
+            << time << " ####################\n";
+
         for (int i = 0; i < pb_mag.size(); i++) {
-            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i 
-            << "] pb_Umag=" << pb_mag[i]
-            << " | pb_interval=" << pb_interval[i]
-            << " (" << pb_local_etime[i]
-            << ") | pb_amp=" << pb_amp[i] << "\n";
+            amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
+                << "] pb_Umag=" << pb_mag[i]
+                << " | pb_interval=" << pb_interval[i]
+                << " (" << pb_local_etime[i]
+                << ") | pb_amp=" << pb_amp[i] << "\n";
         }
         amrex::PrintToFile("BoxPerturbationOutput") << "\n";
     }
