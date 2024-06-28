@@ -247,13 +247,13 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
 
 Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
-.. _`DeLeon et al. (2018)`: https://arc.aiaa.org/doi/full/10.2514/1.J057245
+.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
 and ``direct``, adopted from `Muñoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
 
 The current implementation only supports West and South face perturbations, specified by ``erf.perturbation_direction``, where the 3 integer inputs represent the `x`, `y`, and `z` directions, respectively. The flow perturbation method requires the dimensions of an individual box input through ``erf.perturbation_box_dim``, with 3 integer inputs representing `nx_{pb}`, `ny_{pb}`, and `nz_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_,
 
-.. _`Ma and Senocak (2023)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
+.. _`Ma and Senocak (2023)`: https://doi.org/10.1007/s10546-023-00786-1
 
 the general rule of thumb is to use `H_{PB} = 1/8 \delta` as the height of the perturbation box, where `\delta` is the boundary layer height. The length of the box in the x-direction should be `L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as `W_{PB} = L_{PB} \tan{\theta_{inflow}}`. Note that the current implementation only accepts ``int`` entries. Therefore, considering the domain size and mesh resolution, the dimensions of a singular box can be determined.
 
@@ -345,4 +345,4 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
 
 From `Muñoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
 
-.. _`Muñoz-Esparza et al. (2015)`: https://pubs.aip.org/aip/pof/article/27/3/035102/259759/A-stochastic-perturbation-method-to-generate
+.. _`Muñoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572
