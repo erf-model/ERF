@@ -343,6 +343,4 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
           erf.perturbation_rho_0 = 1.0
           erf.perturbation_cp = 1250
 
-From `Muñoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
-
-.. _`Muñoz-Esparza et al. (2015)`: https://www.researchgate.net/publication/273257703_Erratum_A_stochastic_perturbation_method_to_generate_inflow_turbulence_in_large-eddy_simulation_models_Application_to_neutrally_stratified_atmospheric_boundary_layers_Phys_Fluids_27_035102_2015 
+From `Muñoz-Esparza et al. (2015)` the choice of the Eckert number is 0.16.
