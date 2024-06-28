@@ -130,6 +130,10 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
 
         amrex::IntVect lo = bx.smallEnd();
 
+        const Real* wind_speed_d     = d_wind_speed.dataPtr();
+        const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
+        const int n_spec_table = d_wind_speed.size();
+
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
@@ -151,7 +155,7 @@ void fitch_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-            Real C_T = interpolate_1d(d_wind_speed.dataPtr(), d_thrust_coeff.dataPtr(), z, d_wind_speed.size());
+            Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
             Real C_TKE = 0.0;
 
             fitch_array(i,j,k,0) = Vabs;
