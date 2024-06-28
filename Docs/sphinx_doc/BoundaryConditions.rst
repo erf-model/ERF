@@ -245,7 +245,7 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`_           |
    +-----------------------------------------------------+
 
-Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_ 
+Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
 .. _`DeLeon et al. (2018)`: https://arc.aiaa.org/doi/full/10.2514/1.J057245
 
@@ -273,32 +273,32 @@ The specification of the number of layers and the offset into the domain of the 
           erf.perturbation_T_intensity = 0.1
 
 Before delving into the details, it's important to note that the two methods are interchangeable. While we adhere to the guidelines from the referenced publications, the use of ``direct`` type forcing is not restricted to having unity cell height, nor is ``source`` type forcing limited to boxes. We have generalized the perturbation methods to allow for flexibility in mixing and matching different types of turbulence generation.
-   
+
 Source type forcing
 -------------------
 
 The perturbation update interval is determined by the equation,
 
 .. math::
-   
+
    \frac{t_p \langle U(z) \rangle_{PB}}{D_{PB}} = 1,
 
 The change in the perturbation is defined as,
 
 .. math::
-   
+
    {Ri}_{PB} = \frac{g \beta \Delta \overline{\phi} H_{PB}}{{\langle U(z) \rangle}^2_{PB}}.
 
 The magnitude of the perturbation, ignoring the advection and diffusion effects in the transport equation can be made through a proportionality ratio between the update time and change in the box temperature,
 
 .. math::
-   
+
    \Phi_{PB} \propto \frac{\Delta \overliner{\phi}}{t_p}
-   
+
 and the perturbation amplitude is determined by the equation,
 
 .. math::
-   
+
    \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^3_{PB}}{g \beta D_{PB} H_{PB}}.
 
 The ``source`` type forcing can adopt the box perturbation method by having the following inputs list.
@@ -321,12 +321,12 @@ Direct type forcing
 
 The perturbation update interval is determined by the equation,
 .. math::
-   
+
    \frac{t_p U_{1}}{d_{c}}
-   
+
 and the perturbation amplitude is determined by the equation,
 .. math::
-   
+
    Ec = \frac{{U_g}^2}{\rho c_p \theta_{pm}}.
 
 The ``direct`` type forcing can adopt the cell perturbation method by having the following inputs list.
@@ -338,7 +338,7 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
           erf.perturbation_box_dims = 8 8 1
           erf.perturbation_layers = 3
           erf.perturbation_offset = 1
-   
+
           erf.perturbation_nondimensional = 0.16 #Ec
           erf.perturbation_rho_0 = 1.0
           erf.perturbation_cp = 1250
