@@ -25,14 +25,15 @@ zhi.type = "SlipWall"
 #zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.5 # fixed time step depending on grid resolution
+erf.fixed_dt       = 0.075 # fixed time step depending on grid resolution
+erf.no_substepping = 1
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
 erf.data_log       = "surf" "mean" "flux" "subgrid"
-erf.profile_int    = 120 
+erf.profile_int    = 240 
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
@@ -43,7 +44,7 @@ erf.check_int       = 600        # number of timesteps between checkpoints
 
 # PLOTFILES
 erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 120        # number of timesteps between plotfiles
+erf.plot_int_1      = 240        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qi
 
 # SOLVER CHOICE
@@ -58,8 +59,8 @@ erf.dryscal_vert_adv_type    = WENOZ5
 erf.moistscal_horiz_adv_type = WENOZ5
 erf.moistscal_vert_adv_type  = WENOZ5
 
-erf.moisture_model  = "Kessler"
-
+erf.moisture_model  = "Kessler_NoRain"
+erf.buoyancy_type   = 1
 erf.molec_diff_type = "None"
 
 erf.les_type        = "Smagorinsky"
@@ -80,7 +81,7 @@ erf.add_custom_rhotheta_forcing        = true
 erf.add_custom_moisture_forcing        = true
 erf.add_custom_geostrophic_profile     = true
 erf.add_custom_w_subsidence            = true
-erf.custom_forcing_uses_primitive_vars = false
+erf.custom_forcing_uses_primitive_vars = true
 
 # Higher values of perturbations lead to instability
 # Instability seems to be coming from BC

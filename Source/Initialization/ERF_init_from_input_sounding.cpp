@@ -236,8 +236,8 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
 
         // Update hse quantities with values calculated from InputSoundingData.calc_rho_p()
         qv_k = (l_moist) ? interpolate_1d(z_inp_sound, qv_inp_sound, z, inp_sound_size) : 0.0;
-        r_hse_arr (i, j, k) = rho_k * (1.0 + qv_k);
-        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
+        r_hse_arr (i, j, k) = rho_k; // * (1.0 + qv_k);
+        p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, 0.0); //qv_k);
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
         // Boundary treatment
