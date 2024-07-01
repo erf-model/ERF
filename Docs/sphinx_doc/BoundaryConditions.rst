@@ -247,7 +247,7 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
 
 Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
-.. _`DeLeon et al. (2018)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
+.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245 
 
 and ``direct``, adopted from `Muñoz-Esparza et al. (2015)`_.
 
@@ -347,4 +347,4 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
           erf.perturbation_rho_0 = 1.0
           erf.perturbation_cp = 1250
 
-From `Muñoz-Esparza et al. (2015)` the choice of the Eckert number is 0.16.
+From `Muñoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
