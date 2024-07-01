@@ -247,7 +247,7 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
 
 Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
-.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245 
+.. _DeLeon et al. (2018): https://doi.org/10.2514/1.J057245 
 
 and ``direct``, adopted from `Muñoz-Esparza et al. (2015)`_.
 
