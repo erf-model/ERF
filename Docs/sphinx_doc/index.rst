@@ -79,6 +79,7 @@ In addition to this documentation, there is API documentation for ERF generated 
 
    CouplingToAMRWind.rst
 
+   CouplingToWW3.rst
 .. toctree::
    :caption: ERF vs WRF
    :maxdepth: 1

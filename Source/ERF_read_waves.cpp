@@ -105,16 +105,17 @@ ERF::send_waves (int lev)
 {
     int ncomp = 1; // number components
     auto& lev_new = vars_new[lev];
+    const double PI = 3.1415926535897932384626433832795028841971693993751058209;
 
     // Access xvel, yvel from ABL
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
-    
+
     // Make local copy of xvel, yvel
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
- 
+
     MultiFab x_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
                        ncomp, lev_new[Vars::cons].nGrow());
     MultiFab y_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
@@ -133,7 +134,7 @@ ERF::send_waves (int lev)
     for (MFIter mfi(x_avg,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         Box bx = mfi.tilebox();
-        const Array4<Real>& u_vel = x_avg.array(mfi); 
+        const Array4<Real>& u_vel = x_avg.array(mfi);
         const Array4<const Real>& velx_arr = xvel_data.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
@@ -161,19 +162,32 @@ ERF::send_waves (int lev)
 
         Box bx = mfi.tilebox();
         const Array4<Real>& magnitude = u_mag.array(mfi);
-        const Array4<const Real>& u = x_avg.array(mfi);        
-        const Array4<const Real>& v = y_avg.array(mfi); 
+        const Array4<const Real>& u = x_avg.array(mfi);
+        const Array4<const Real>& v = y_avg.array(mfi);
         const Array4<Real>& theta = u_dir.array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
             magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
-            theta(i,j,k) = atan ( v(i,j,k) / u(i,j,k) );
+
+            if ( u(i,j,k) < 0 && v(i,j,k) > 0 || u(i,j,k) < 0 && v(i,j,k) < 0 ) {
+
+                theta(i,j,k) = PI + ( atan( v(i,j,k) / u(i,j,k) ) );
+
+            } else {
+
+                theta(i,j,k) = atan ( v(i,j,k) / u(i,j,k) );
+            }
+
 
             amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
         });
-   }
 
+
+
+           //Real* magnitude = magnitude.dataPtr();
+           //Real* theta = theta.dataPtr();
+    }
 }
 #endif
 
