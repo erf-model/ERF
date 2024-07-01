@@ -247,7 +247,8 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
 
 Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
-.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
+..
+   _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
 and ``direct``, adopted from `Munoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
 
@@ -345,4 +346,5 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
 
 From `Munoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
 
-.. _`Munoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572
+.. 
+   _`Munoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572
