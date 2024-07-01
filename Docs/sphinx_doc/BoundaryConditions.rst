@@ -245,13 +245,13 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`
+Two different types of perturbation are currently avaliable, ``source``, adopted from `DeLeon et al. (2018)`_
 
 .. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
 and ``direct``, adopted from `Muñoz-Esparza et al. (2015)`_
 
-.. _`Muñoz-Esparza et al. (2015)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
+.. _`Muñoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572
 
 . The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
 
