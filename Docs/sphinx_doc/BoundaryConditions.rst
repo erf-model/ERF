@@ -251,7 +251,7 @@ Two different types of perturbation are currently avaliable, ``source``, adopted
 
 and ``direct``, adopted from `Muñoz-Esparza et al. (2015)`_
 
-.. _`Muñoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572
+.. _`Muñoz-Esparza et al. (2015)`: https://doi.org/10.2514/1.J057245
 
 . The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
 
