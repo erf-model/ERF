@@ -137,7 +137,7 @@ public:
         rhod_integ[0] = getRhogivenThetaPress(theta_ref_inp_sound,
                                               press_ref_inp_sound,
                                               R_d/Cp_d,
-                                              0.0); //qv_ref_inp_sound);
+                                              qv_ref_inp_sound);
 
         amrex::Print() << "ideal sounding init: surface density of moist air = "
                        << rhod_integ[0] << " kg/m^3" << std::endl;
@@ -164,7 +164,7 @@ public:
 #endif
         for (int k=1; k < size(); ++k)
         {
-            qv  = 0.0; //qv_inp_sound[k];
+            qv  = qv_inp_sound[k];
             dz  = z_inp_sound[k] - z_inp_sound[k-1];
             rhod_integ[k] = rhod_integ[k-1]; // guess
             for (int it=0; it < maxiter; ++it)
