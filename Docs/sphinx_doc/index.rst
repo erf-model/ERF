@@ -83,6 +83,12 @@ In addition to this documentation, there is API documentation for ERF generated 
    :caption: ERF vs WRF
    :maxdepth: 1
 
+   CouplingToWW3.rst
+
+.. toctree::
+   :caption: ERF vs WRF
+   :maxdepth: 1
+
    ERFvsWRF.rst
 
 .. toctree::
