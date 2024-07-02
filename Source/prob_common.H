@@ -323,6 +323,86 @@ public:
         });
     }
 
+    /**
+     * Function to perform custom initialization of terrain from an input file
+     *
+     * Note: Terrain functionality can also be used to provide grid stretching.
+     *
+     * @param[in] geom container for geometric information
+     * @param[out] z_phys_nd height coordinate at nodes
+     * @param[in] time current time
+    */
+    virtual void
+    read_custom_terrain (const std::string& fname,
+                         const amrex::Geometry& geom,
+                         amrex::MultiFab& z_phys_nd,
+                         const amrex::Real& /*time*/)
+    {
+        // Read terrain file on the host
+        amrex::Print()<<"Reading terrain file: "<< fname << std::endl;
+        std::ifstream file(fname);
+        amrex::Gpu::HostVector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+        amrex::Real value1,value2,value3;
+        while(file>>value1>>value2>>value3){
+            m_xterrain.push_back(value1);
+            m_yterrain.push_back(value2);
+            m_zterrain.push_back(value3);
+        }
+        file.close();
+
+        // Copy data to the GPU
+        int ncell = m_xterrain.size();
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(ncell),d_yterrain(ncell),d_zterrain(ncell);
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
+        amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
+        amrex::Real* d_xt = d_xterrain.data();
+        amrex::Real* d_yt = d_yterrain.data();
+        amrex::Real* d_zt = d_zterrain.data();
+
+        // Populate z_phys data
+        amrex::Real tol = 1.0e-4;
+        int ngrow = z_phys_nd.nGrow();
+        auto dx = geom.CellSizeArray();
+        auto ProbLoArr = geom.ProbLoArray();
+        int ilo = geom.Domain().smallEnd(0);
+        int jlo = geom.Domain().smallEnd(1);
+        int klo = geom.Domain().smallEnd(2);
+        int ihi = geom.Domain().bigEnd(0);
+        int jhi = geom.Domain().bigEnd(1);
+        for (amrex::MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+        {
+            // Grown box with no z range
+            amrex::Box xybx = mfi.growntilebox(ngrow);
+            xybx.setRange(2,0);
+
+            amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+            amrex::ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int /*k*/)
+            {
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,ilo),ihi);
+                int jj = amrex::min(amrex::max(j,jlo),jhi);
+
+                // Location of nodes
+                bool found = false;
+                amrex::Real x = ProbLoArr[0]  + ii  * dx[0];
+                amrex::Real y = ProbLoArr[1]  + jj  * dx[1];
+                amrex::Real zloc = 0.0;
+                for(int n=0; n<ncell; ++n)
+                {
+                    amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
+                    if(delta<tol){
+                        found=true;
+                        zloc=d_zt[n];
+                        continue;
+                    }
+                }
+                AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                z_arr(i,j,klo) = zloc;
+            });
+        }
+    }
+
 #ifdef ERF_USE_TERRAIN_VELOCITY
     virtual amrex::Real compute_terrain_velocity(const amrex::Real /*time*/)
     {
@@ -363,6 +443,16 @@ public:
             state(i, j, k, Rho_comp) = rho_0;
             state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
         });
+    }
+
+    /**
+     * Function to set constant values for turbulent pertubation calculation
+    */
+    void
+    init_turbPert_const(TurbulentPerturbation& turbPert)
+    {
+        turbPert.tpi_Tinfty = base_parms.T_0;
+        turbPert.tpi_nonDim = 0.042;
     }
 
 protected:

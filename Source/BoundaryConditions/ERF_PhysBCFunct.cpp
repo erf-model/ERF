@@ -193,9 +193,12 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real /*time*/,
-                                   const int bccomp_u, const int bccomp_v, const int bccomp_w)
+                                   const int bccomp_w)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
+
+    int bccomp_u = BCVars::xvel_bc;
+    int bccomp_v = BCVars::yvel_bc;
 
     if (m_geom.isAllPeriodic()) return;
 

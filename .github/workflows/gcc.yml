@@ -12,12 +12,23 @@ jobs:
     runs-on: ubuntu-20.04
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
     - name: Install Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: Install CCache
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
+
+    - name: Set Up Cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-git-
 
     - name: Configure Project and Generate Build System
       run: |
@@ -25,6 +36,7 @@ jobs:
           -B${{runner.workspace}}/ERF/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
           -DERF_ENABLE_TESTS:BOOL=ON \
@@ -34,9 +46,32 @@ jobs:
 
     - name: Compile and Link
       run: |
+        export CCACHE_COMPRESS=1
+        export CCACHE_COMPRESSLEVEL=10
+        export CCACHE_MAXSIZE=300M
+        ccache -z
+
         cmake --build ${{runner.workspace}}/ERF/build --parallel 2 --verbose
+
+        ccache -s
+        du -hs ~/.cache/ccache
 
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       run: |
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
+
+  save_pr_number:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR number
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          echo $PR_NUMBER > pr_number.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr_number
+          path: pr_number.txt
+          retention-days: 1

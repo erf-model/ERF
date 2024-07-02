@@ -276,7 +276,13 @@ ERF::ERF ()
         Hwave[lev] = nullptr;
         Lwave[lev] = nullptr;
     }
-
+    Hwave_onegrid.resize(nlevs_max);
+    Lwave_onegrid.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave_onegrid[lev] = nullptr;
+        Lwave_onegrid[lev] = nullptr;
+    }
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -301,17 +307,10 @@ ERF::ERF ()
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 
     // We define m_factory even with no EB
@@ -907,6 +906,12 @@ ERF::InitData ()
         }
     }
 
+#ifdef ERF_USE_WW3_COUPLING
+    int lev = 0;
+    read_waves(lev);
+    send_waves(lev);
+#endif
+
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1211,6 +1216,15 @@ ERF::init_only (int lev, Real time)
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){
         input_sponge(lev);
    }
+
+    // Initialize turbulent perturbation
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
+            turbPert_constants(lev);
+            turbPert_update(lev, 0.);
+            turbPert_amplitude(lev);
+        }
+    }
 
 }
 
@@ -1780,10 +1794,10 @@ ERF::Define_ERFFillPatchers (int lev)
 // constructor used when ERF is created by a multiblock driver
 ERF::ERF (const RealBox& rb, int max_level_in,
           const Vector<int>& n_cell_in, int coord,
-          const Vector<IntVect>& ref_ratios,
+          const Vector<IntVect>& ref_ratio,
           const Array<int,AMREX_SPACEDIM>& is_per,
           std::string prefix)
-    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratios, is_per)
+    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratio, is_per)
 {
     SetParmParsePrefix(prefix);
 
@@ -1932,17 +1946,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 }
 

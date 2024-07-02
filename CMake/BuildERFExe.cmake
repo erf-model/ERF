@@ -107,6 +107,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/ERF.cpp
        ${SRC_DIR}/ERF_make_new_arrays.cpp
        ${SRC_DIR}/ERF_make_new_level.cpp
+       ${SRC_DIR}/ERF_read_waves.cpp
        ${SRC_DIR}/ERF_Tagging.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForMom.cpp
        ${SRC_DIR}/Advection/AdvectionSrcForState.cpp
@@ -139,6 +140,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Initialization/ERF_init_from_metgrid.cpp
        ${SRC_DIR}/Initialization/ERF_init_uniform.cpp
        ${SRC_DIR}/Initialization/ERF_init1d.cpp
+       ${SRC_DIR}/Initialization/ERF_init_TurbPert.cpp
        ${SRC_DIR}/Initialization/ERF_input_sponge.cpp
        ${SRC_DIR}/IO/Checkpoint.cpp
        ${SRC_DIR}/IO/ERF_ReadBndryPlanes.cpp

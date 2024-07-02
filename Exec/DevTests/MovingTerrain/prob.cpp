@@ -155,47 +155,57 @@ Problem::init_custom_terrain (const Geometry& geom,
                               MultiFab& z_phys_nd,
                               const Real& time)
 {
-    // Domain cell size and real bounds
-    auto dx = geom.CellSizeArray();
+    // Check if a valid csv file exists for the terrain
+    std::string fname;
+    amrex::ParmParse pp("erf");
+    auto valid_fname = pp.query("terrain_file_name",fname);
+    if (valid_fname) {
+        this->read_custom_terrain(fname,geom,z_phys_nd,time);
+    } else {
 
-    // Domain valid box (z_nd is nodal)
-    const amrex::Box& domain = geom.Domain();
-    int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
-    int domlo_z = domain.smallEnd(2);
+        // Domain cell size and real bounds
+        auto dx = geom.CellSizeArray();
 
-    // Number of ghost cells
-    int ngrow = z_phys_nd.nGrow();
+        // Domain valid box (z_nd is nodal)
+        const amrex::Box& domain = geom.Domain();
+        int domlo_x = domain.smallEnd(0); int domhi_x = domain.bigEnd(0) + 1;
+        int domlo_z = domain.smallEnd(2);
 
-    // Populate bottom plane
-    int k0 = domlo_z;
+        // Number of ghost cells
+        int ngrow = z_phys_nd.nGrow();
 
-    Real Ampl        = parms.Ampl;
-    Real wavelength  = 100.;
-    Real kp          = 2.0 * PI / wavelength;
-    Real g           = CONST_GRAV;
-    Real omega       = std::sqrt(g * kp);
+        // Populate bottom plane
+        int k0 = domlo_z;
 
-    for (MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        // Grown box with no z range
-        amrex::Box xybx = mfi.growntilebox(ngrow);
-        xybx.setRange(2,0);
+        Real Ampl        = parms.Ampl;
+        Real wavelength  = 100.;
+        Real kp          = 2.0 * PI / wavelength;
+        Real g           = CONST_GRAV;
+        Real omega       = std::sqrt(g * kp);
 
-        amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
+        for (MFIter mfi(z_phys_nd,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            // Grown box with no z range
+            amrex::Box xybx = mfi.growntilebox(ngrow);
+            xybx.setRange(2,0);
 
-        ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+            amrex::Array4<Real> const& z_arr = z_phys_nd.array(mfi);
 
-            // Clip indices for ghost-cells
-            int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
+            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
 
-            // Location of nodes
-            Real x = ii  * dx[0];
+                // Clip indices for ghost-cells
+                int ii = amrex::min(amrex::max(i,domlo_x),domhi_x);
 
-            // Wave height
-            Real height = Ampl * std::sin(kp * x - omega * time);
+                // Location of nodes
+                Real x = ii  * dx[0];
 
-            // Populate terrain height
-            z_arr(i,j,k0) = height;
-        });
+                // Wave height
+                Real height = Ampl * std::sin(kp * x - omega * time);
+
+                // Populate terrain height
+                z_arr(i,j,k0) = height;
+            });
+        }
     }
 }

@@ -245,6 +245,32 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 #endif
 
+
+#ifdef ERF_USE_WW3_COUPLING
+    // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
+    BoxArray ba_onegrid(geom[lev].Domain());
+    BoxList bl2d_onegrid = ba_onegrid.boxList();
+    for (auto& b : bl2d_onegrid) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
+    Vector<int> pmap;
+    pmap.resize(1);
+    pmap[0]=0;
+    DistributionMapping dm_onegrid(ba2d_onegrid);
+    dm_onegrid.define(pmap);
+
+    Hwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Lwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Hwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    Lwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    std::cout<<ba_onegrid<<std::endl;
+    std::cout<<ba2d_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+#endif
+
+
 #if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
@@ -277,6 +303,33 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solar_zenith[lev]->setVal(0.);
     }
 #endif
+
+    //*********************************************************
+    // Turbulent perturbation region initialization
+    //*********************************************************
+    // TODO: Test perturbation on multiple levels
+    if (solverChoice.pert_type == PerturbationType::BPM) {
+        if (lev == 0) {
+            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
+        }
+    }
+
+    //
+    // Define the land mask here and set it to all land
+    // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
+    //
+    {
+    lmask_lev[lev].resize(1);
+    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    lmask_lev[lev][0]->setVal(1);
+    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+    }
 }
 
 void
@@ -433,3 +486,6 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 }
+
+
+
