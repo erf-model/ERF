@@ -485,8 +485,11 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_integrated_quantities(time);
     }
 
-    if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
-        turbPert.debug(time);
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect) {
+        if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
+            turbPert.debug(time);
+        }
     }
 
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
@@ -822,8 +825,11 @@ ERF::InitData ()
         }
     }
 
-    if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
-        turbPert.debug(t_new[0]);
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect) {
+        if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
+            turbPert.debug(t_new[0]);
+        }
     }
 
     // We only write the file at level 0 for now
