@@ -170,6 +170,13 @@ ERF::send_waves (int lev)
 
             magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
 
+            double u_val = u(i, j, k);
+
+            if ( u_val == 0 ) {
+                u_val = std::max( u_val, 1e-15 );  // Ensure u_val is non-zero
+            }
+
+
             if ( u(i,j,k) < 0 && v(i,j,k) > 0 || u(i,j,k) < 0 && v(i,j,k) < 0 ) {
 
                 theta(i,j,k) = PI + ( atan( v(i,j,k) / u(i,j,k) ) );
@@ -184,10 +191,43 @@ ERF::send_waves (int lev)
         });
 
 
+            // MPI_Send to WW3
+    // Calculate the number of elements in the current box
+    int n_elements = bx.numPts();
 
-           //Real* magnitude = magnitude.dataPtr();
-           //Real* theta = theta.dataPtr();
-    }
+    // Get the data pointers for the arrays
+    Real* magnitude_ptr = &magnitude(bx.smallEnd());
+    Real* theta_ptr = &theta(bx.smallEnd());
+
+    // Initialize other_root as needed
+    int other_root = 0; // Example initialization, replace with appropriate logic
+
+    // Send magnitude array
+//    MPI_Send(magnitude_ptr, n_elements, MPI_DOUBLE, other_root, 0, MPI_COMM_WORLD);
+    // Send theta array
+//    MPI_Send(theta_ptr, n_elements, MPI_DOUBLE, other_root, 1, MPI_COMM_WORLD);
+amrex::AllPrintToFile("debug_send.txt") << n_elements << std::endl;
+
+}
+/*
+            for (MFIter mfi(u_mag); mfi.isValid(); ++mfi) {
+
+                const Array4<Real>& magnitude = u_mag.array(mfi);
+                const Array4<Real>& theta = u_dir.array(mfi);
+
+                Real* magnitude_ptr = magnitude.dataPtr();
+                Real* theta_ptr = theta.dataPtr();
+
+                // Get number of elements in arrays
+                int n_elements = mfi.validbox().numPts();
+                int this_root = 0;
+                int other_root = 1;
+
+                // Send magnitude and theta
+                MPI_Send(magnitude_ptr. n_elements, MPI_DOUBLE, this_root, 0, MPI_COMM_WORLD)
+                MPI_Send(theta_ptr, n_elements, MPI_DOUBLE, other_root, 1, MPI_COMM_WORLD);
+            }
+*/
 }
 #endif
 
