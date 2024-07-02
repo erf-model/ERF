@@ -16,7 +16,7 @@ One-way coupling WW3 to ERF
 The values are used to compute the surface roughness :math:`\overline{z_{0}}` through a fixed-point iteration:
 
 .. math::
-  \overline{z_{0}} = 1200.0 Hwave (\frac{Hwave}{Lwave})^{4.5} + \frac{0.11 \mu}{u_*}
+  z_{0} = 1200.0 Hwave (\frac{Hwave}{Lwave})^{4.5} + \frac{0.11 \mu}{u_*}
 
 To run the coupled model:
 
@@ -35,14 +35,14 @@ Modifications to the problem size and geometry, as well as other parameters can 
 Two-way coupling:
 -----------------
 
-Disclaimer: Two-way coupling is currently a work in progress. Two-way coupling involves sending the wind velocity and direction to WW3. We convert the x and y velocities from ERF to a wind speed (:math:`\overline{U_{wind}}`) and wind direction (:math:`\theta`) from the reference height.
+Disclaimer: Two-way coupling is currently a work in progress. Two-way coupling involves sending the wind velocity and direction to WW3. We convert the x and y velocities from ERF to a wind speed (:math:`U_{wind}`) and wind direction (:math:`\theta`) from the reference height.
 
 .. math::
 
-  \overline{U_{wind}} = \sqrt{\overline{u^{2}} + \overline{v^2}}
+  U_{wind} = \sqrt{u^{2} + v^2}
 
 .. math::
 
-  \overline{\theta} = \mathrm{arctan}{\frac{v}{u}}
+  \theta = \mathrm{arctan}{\frac{v}{u}}
 
-Both :math:`\overline{U_{wind}}` and :math:`\theta` are then used in the wind source term :math:`S_{in}` in the ST6 subroutine in WW3
+Both :math:`U_{wind}` and :math:`\theta` are then used in the wind source term :math:`S_{in}` in the ST6 subroutine in WW3
