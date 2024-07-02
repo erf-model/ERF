@@ -8,7 +8,7 @@ Coupling To WW3
 ===============
 
 Coupling with WaveWatch III is currently a work in progress.
-Currently, we have a one-way coupling between ERF and WaveWatch III (WW3), where WW3 sends ERF Hwave (significant wave height) and Lwave (mean wavelength) over a grid. 
+Currently, we have a one-way coupling between ERF and WaveWatch III (WW3), where WW3 sends ERF Hwave (significant wave height) and Lwave (mean wavelength) over a grid.
 
 One-way coupling WW3 to ERF
 ---------------------------

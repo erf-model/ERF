@@ -171,19 +171,19 @@ ERF::send_waves (int lev)
             magnitude(i,j,k)  = std::sqrt( pow(u(i,j,k), 2) + pow(v(i,j,k), 2) );
 
             double u_val = u(i, j, k);
-
+            double v_val = v(i, j, k);
             if ( u_val == 0 ) {
                 u_val = std::max( u_val, 1e-15 );  // Ensure u_val is non-zero
             }
 
 
-            if ( u(i,j,k) < 0 && v(i,j,k) > 0 || u(i,j,k) < 0 && v(i,j,k) < 0 ) {
+            if ( u_val < 0 && v_val > 0 || u_val < 0 && v_val < 0 ) {
 
-                theta(i,j,k) = PI + ( atan( v(i,j,k) / u(i,j,k) ) );
+                theta(i,j,k) = PI + ( atan( v_val / u_val ) );
 
             } else {
 
-                theta(i,j,k) = atan ( v(i,j,k) / u(i,j,k) );
+                theta(i,j,k) = atan ( v_val / u_val );
             }
 
 
