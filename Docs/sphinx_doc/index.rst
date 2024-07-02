@@ -74,15 +74,10 @@ In addition to this documentation, there is API documentation for ERF generated 
    Visualization.rst
 
 .. toctree::
-   :caption: COUPLING TO AMR-WIND
+   :caption: EXTERNAL COUPLING
    :maxdepth: 1
 
    CouplingToAMRWind.rst
-
-.. toctree::
-   :caption: ERF vs WRF
-   :maxdepth: 1
-
    CouplingToWW3.rst
 
 .. toctree::
