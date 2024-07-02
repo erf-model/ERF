@@ -427,7 +427,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb"))
         {
-        std::cout << "Plotting num_turb" << "\n";
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
