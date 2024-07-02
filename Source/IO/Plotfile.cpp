@@ -1295,7 +1295,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
@@ -1399,7 +1399,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
 
 #ifdef ERF_USE_NETCDF
