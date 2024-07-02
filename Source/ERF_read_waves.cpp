@@ -70,8 +70,9 @@ ERF::read_waves (int lev)
                      MPI_Recv(my_L_ptr, nsealm, MPI_DOUBLE, other_root, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                  }
              }
-             amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
-             amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
+
+             // amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
+             // amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
 
          }
     }
@@ -84,6 +85,18 @@ ERF::read_waves (int lev)
     Lwave[lev]->ParallelCopy(*Lwave_onegrid[lev]);
     Lwave[lev]->FillBoundary(geom[lev].periodicity());
     amrex::Print() << "HWAVE BOX " << (*Hwave[lev])[0].box() << std::endl;
+    for (MFIter mfi(*Hwave[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        Box bx = mfi.tilebox();
+        const Array4<Real const>& Hwave_arr = Hwave[lev]->const_array(mfi);
+        const Array4<int>& Lmask_arr = lmask_lev[lev][0]->array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
+            if (Hwave_arr(i,j,k)<0) {
+                Lmask_arr(i,j,k) = 1;
+             } else {
+                Lmask_arr(i,j,k) = 0;
+            }
+        });
+    }
 
     for (MFIter mfi(*Hwave[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
@@ -140,7 +153,7 @@ ERF::send_waves (int lev)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
             u_vel(i,j,k)  = 0.5 *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
 
-            amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " [" <<velx_arr(i,j,k) << "| avg:  " << u_vel(i,j,k)<< " | " << velx_arr(i+1,j,k) << "]" <<std::endl;
+            // amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " [" <<velx_arr(i,j,k) << "| avg:  " << u_vel(i,j,k)<< " | " << velx_arr(i+1,j,k) << "]" <<std::endl;
         });
     }
 
@@ -154,7 +167,7 @@ ERF::send_waves (int lev)
 
             v_vel(i,j,k)  = 0.5 *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
 
-            amrex::AllPrintToFile("vvel.txt") << amrex::IntVect(i,j,k) << " ["<<vely_arr(i,j,k)<<"| avg: " << v_vel(i,j,k)<< " | " << vely_arr(i,j+1,k) << "]" <<std::endl;
+            // amrex::AllPrintToFile("vvel.txt") << amrex::IntVect(i,j,k) << " ["<<vely_arr(i,j,k)<<"| avg: " << v_vel(i,j,k)<< " | " << vely_arr(i,j+1,k) << "]" <<std::endl;
         });
     }
 
@@ -187,7 +200,7 @@ ERF::send_waves (int lev)
             }
 
 
-            amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
+            // amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
         });
 
 
@@ -206,7 +219,7 @@ ERF::send_waves (int lev)
 //    MPI_Send(magnitude_ptr, n_elements, MPI_DOUBLE, other_root, 0, MPI_COMM_WORLD);
     // Send theta array
 //    MPI_Send(theta_ptr, n_elements, MPI_DOUBLE, other_root, 1, MPI_COMM_WORLD);
-amrex::AllPrintToFile("debug_send.txt") << n_elements << std::endl;
+// amrex::AllPrintToFile("debug_send.txt") << n_elements << std::endl;
 
 }
 /*
