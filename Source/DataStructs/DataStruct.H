@@ -237,7 +237,7 @@ struct SolverChoice {
 
         // Which type of inflow turbulent generation
         static std::string turb_pert_type_string = "None";
-        pp.query("inlet_perturbation_type",turb_pert_type_string);
+        pp.query("perturbation_type",turb_pert_type_string);
         if (!turb_pert_type_string.compare("source")) {
             pert_type = PerturbationType::perturbSource;
             amrex::Print() << "Perturb temperature via source term\n";
@@ -248,7 +248,7 @@ struct SolverChoice {
             pert_type = PerturbationType::None;
             amrex::Print() << "No perturbation method selected\n";
         } else {
-            amrex::Abort("Dont know this inlet_perturbation_type");
+            amrex::Abort("Dont know this perturbation_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};

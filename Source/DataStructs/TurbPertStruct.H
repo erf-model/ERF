@@ -122,7 +122,9 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel)
     {
-        //srand( (unsigned) time(NULL) ); // Setting random number generator
+        // Setting random number generator for update interval
+        srand( (unsigned) time(NULL) );
+
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
                 // Compute mean velocity magnitude within perturbation box
@@ -192,13 +194,13 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                amrex::Real amp_copy = pb_amp[boxIdx]; // This exposes a copy so the GPU can capture by value
+                amrex::Real amp_copy = pb_amp[boxIdx];
                 ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                     // Random number generation between 0 and 1
                     amrex::Real rand_double = amrex::Random(engine);
 
                     // Rescale between -1 and 1 and multiple with amplitude
-                    src_arr(i,j,k,comp) = (rand_double*2.0 - 1.0) * amp_copy;
+                    src_arr(i,j,k,comp) += (rand_double*2.0 - 1.0) * amp_copy;
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB

@@ -1,5 +1,6 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 #max_step = 1
+#max_step = 1000
 start_time = 0.
 stop_time = 35.0
 
@@ -8,8 +9,11 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =   5.   1.   1.
-amr.n_cell           = 128   32   32
+#geometry.prob_extent =   5.    1.    1.
+#amr.n_cell           = 128    32    32
+
+geometry.prob_extent =  32.    4.    4.
+amr.n_cell           = 128    32    32
 
 geometry.is_periodic = 0 1 0
 
@@ -20,13 +24,13 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 #erf.fixed_dt         = 0.000025
-erf.cfl = 0.4
+erf.cfl = 0.6
 erf.no_substepping = 1
 
 erf.dynamicViscosity = 0.0001 # H = 1, therefore utau = 0.2
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 1000    # timesteps between computing mass
+erf.sum_interval   = 1       # timesteps between computing mass
 erf.pert_interval  = 1       # timesteps between perturbation output message
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 0       # verbosity in Amr.cpp
@@ -66,23 +70,20 @@ erf.use_xlo_sponge_damping = true
 erf.xlo_sponge_end = 1.0
 
 # Turbulent inflow generation
-erf.inlet_perturbation_type = "source"
+erf.perturbation_type = "source"
 erf.perturbation_direction = 1 0 0
-erf.perturbation_layers = 3
+erf.perturbation_layers = 2
 erf.perturbation_offset = 0
 
-erf.perturbation_box_dims = 8 8 4
+erf.perturbation_box_dims = 4 8 4
 erf.perturbation_nondimensional = 0.042 # Ri
-#erf.perturbation_nondimensional = 0.16 # Ec
 erf.perturbation_T_infinity = 300.0
 erf.perturbation_T_intensity = 0.1
-#erf.perturbation_rho_0 = 1.0
-#erf.perturbation_cp = 1250.
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
-prob.U_0 = 1.5
+prob.U_0 = 2.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
 prob.T_0 = 300.0

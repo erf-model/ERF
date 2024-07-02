@@ -346,5 +346,5 @@ The ``direct`` type forcing can adopt the cell perturbation method by having the
 
 From `Munoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
 
-.. 
+..
    _`Munoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572

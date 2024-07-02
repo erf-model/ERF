@@ -123,36 +123,6 @@ Problem::init_custom_pert(
             state_pert(i, j, k, RhoTheta_comp) *= r_hse(i,j,k);
         }
     }
-
-    // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-    state_pert(i, j, k, RhoScalar_comp) = parms.A_0 * exp(-10.*r*r);
-
-    // Set an initial value for SGS KE
-    if (state_pert.nComp() > RhoKE_comp) {
-        // Deardorff
-        state_pert(i, j, k, RhoKE_comp) = r_hse(i,j,k) * parms.KE_0;
-        if (parms.KE_decay_height > 0) {
-            // scale initial SGS kinetic energy with height
-            state_pert(i, j, k, RhoKE_comp) *= max(
-                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
-                1e-12);
-        }
-    }
-    if (state_pert.nComp() > RhoQKE_comp) {
-        // PBL
-        state_pert(i, j, k, RhoQKE_comp) = r_hse(i,j,k) * parms.QKE_0;
-        if (parms.KE_decay_height > 0) {
-            // scale initial SGS kinetic energy with height
-            state_pert(i, j, k, RhoQKE_comp) *= max(
-                std::pow(1 - min(z/parms.KE_decay_height,1.0), parms.KE_decay_order),
-                1e-12);
-        }
-    }
-
-    if (use_moisture) {
-        state_pert(i, j, k, RhoQ1_comp) = 0.0;
-        state_pert(i, j, k, RhoQ2_comp) = 0.0;
-    }
   });
 
   // Set the x-velocity
@@ -166,7 +136,7 @@ Problem::init_custom_pert(
 
     // Set the x-velocity
     x_vel_pert(i, j, k) = parms.U_0;
-    if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
+    /*if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
@@ -178,7 +148,7 @@ Problem::init_custom_pert(
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
         x_vel_pert(i, j, k) += parms.ufac * damp * z * std::cos(parms.aval * yl);
-    }
+    }*/
   });
 
   // Set the y-velocity
@@ -192,7 +162,7 @@ Problem::init_custom_pert(
 
     // Set the y-velocity
     y_vel_pert(i, j, k) = parms.V_0;
-    if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
+    /*if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
     {
         Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
         Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
@@ -204,9 +174,10 @@ Problem::init_custom_pert(
         const amrex::Real zl = z / parms.pert_ref_height;
         const amrex::Real damp = std::exp(-0.5 * zl * zl);
         y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
-    }
+    }*/
   });
 
+  /*
   // Set the z-velocity
   ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
     const int dom_lo_z = geomdata.Domain().smallEnd()[2];
@@ -224,4 +195,5 @@ Problem::init_custom_pert(
         z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
     }
   });
+  */
 }
