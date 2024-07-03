@@ -166,11 +166,13 @@ struct TurbulentPerturbation {
         amrex::Real beta = 1./tpi_Tinf;
 
         // Pseudo Random temperature the ignores scale when machanically tripping turbulence
-        //amrex::Real g = tpi_nonDim * Um * Um / (tpi_Ti * tpi_Hpb); // This returns too large of amplitude
-        amrex::Real g = CONST_GRAV;
+        amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
+        //amrex::Real g = CONST_GRAV;
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
-        pb_amp[boxIdx] = tpi_nonDim * Um * Um / (g * beta * tpi_Hpb);
+        if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
+        //amrex::Print()<<"tpi_nonDim: "<<tpi_nonDim<<" Um: "<<Um<<" g: "<<g<<" beta: "<<beta<<" tpi_Hpb: "<<tpi_Hpb<<" theta["<<boxIdx<<"]: "<<pb_amp[boxIdx]
+        //              <<" interval: "<<interval<<" amp: "<<pb_amp[boxIdx]/interval<< "\n";
         #endif
 
         // Ma & Senocak (2023) Eq. 7
