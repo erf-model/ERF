@@ -4,10 +4,12 @@
 #include <DataStruct.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_Gpu.H>
 
 extern amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
 extern amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 extern amrex::Vector<amrex::Real> xloc, yloc;
+extern amrex::Gpu::DeviceVector<amrex::Real> d_wind_speed, d_thrust_coeff, d_power;
 
 void read_in_table(std::string windfarm_spec_table);
 

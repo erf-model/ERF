@@ -241,6 +241,7 @@ public:
 
 #ifdef ERF_USE_WW3_COUPLING
     void read_waves (int lev);
+    void send_waves (int lev);
 #endif
 
     // Interface for advancing the data at one level by one "slow" timestep
