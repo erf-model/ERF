@@ -1,6 +1,7 @@
 #include <WindFarm.H>
 #include <Fitch.H>
 #include <EWP.H>
+#include <SimpleAD.H>
 using namespace amrex;
 
 amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
@@ -8,7 +9,6 @@ amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
 
 void read_in_table(std::string windfarm_spec_table)
 {
-
     //The first line is the number of pairs entries for the power curve and thrust coefficient.
     //The second line gives first the height in meters of the turbine hub, second, the diameter in
     //meters of the rotor, third the standing thrust coefficient, and fourth the nominal power of
@@ -63,7 +63,10 @@ void advance_windfarm (int lev,
         fitch_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
                        mf_vars_windfarm, mf_Nturb);
     } else if (solver_choice.windfarm_type == WindFarmType::EWP) {
-          ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
+        ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
+                      mf_vars_windfarm, mf_Nturb);
+    } else if (solver_choice.windfarm_type == WindFarmType::SimpleAD) {
+        simpleAD_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
                       mf_vars_windfarm, mf_Nturb);
     }
 }

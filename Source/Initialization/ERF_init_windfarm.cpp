@@ -13,17 +13,16 @@ using namespace amrex;
  *
  * @param lev Integer specifying the current level
  */
+Vector<Real> xloc, yloc;
 void
 ERF::init_windfarm (int lev)
 {
-    Vector<Real> xloc, yloc;
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
         init_windfarm_lat_lon(lev, solverChoice.windfarm_loc_table, xloc, yloc);
     }
     else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
         init_windfarm_x_y(lev, solverChoice.windfarm_loc_table, xloc, yloc);
     }
-
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
                      " entry erf.windfarm_loc_table which should not be None. \n");
@@ -58,8 +57,11 @@ ERF::init_windfarm (int lev)
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
 
             auto dx = geom[lev].CellSizeArray();
-            Real x1 = li*dx[0], x2 = (li+1)*dx[0];
-            Real y1 = lj*dx[1], y2 = (lj+1)*dx[1];
+            auto ProbLoArr = geom[lev].ProbLoArray();
+            Real x1 = ProbLoArr[0] + li*dx[0];
+            Real x2 = ProbLoArr[0] + (li+1)*dx[0];
+            Real y1 = ProbLoArr[1] + lj*dx[1];
+            Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
 
             for(int it=0; it<xloc.size(); it++){
                 if( xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2 and

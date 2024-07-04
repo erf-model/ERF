@@ -38,7 +38,7 @@ enum struct MoistureType {
 };
 
 enum struct WindFarmType {
-    Fitch, EWP, None
+    Fitch, EWP, SimpleAD, None
 };
 
 enum struct WindFarmLocType{
@@ -330,6 +330,9 @@ struct SolverChoice {
         }
         else if (windfarm_type_string == "EWP") {
             windfarm_type = WindFarmType::EWP;
+        }
+        else if (windfarm_type_string == "SimpleActuatorDisk") {
+            windfarm_type = WindFarmType::SimpleAD;
         }
         else if (windfarm_type_string != "None") {
             amrex::Abort("Are you using windfarms? Dont know this windfarm_type. windfarm_type"

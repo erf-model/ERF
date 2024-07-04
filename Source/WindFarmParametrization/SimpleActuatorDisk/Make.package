@@ -1,0 +1,2 @@
+CEXE_sources += Advance_SimpleAD.cpp
+CEXE_headers += SimpleAD.H

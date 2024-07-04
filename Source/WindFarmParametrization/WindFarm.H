@@ -7,6 +7,7 @@
 
 extern amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
 extern amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+extern amrex::Vector<amrex::Real> xloc, yloc;
 
 void read_in_table(std::string windfarm_spec_table);
 
