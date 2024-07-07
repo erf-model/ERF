@@ -1,14 +1,12 @@
 #include <WindFarm.H>
-#include <Fitch.H>
-#include <EWP.H>
-#include <SimpleAD.H>
 using namespace amrex;
 
-Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
-Vector<Real> wind_speed, thrust_coeff, power;
-Gpu::DeviceVector<Real> d_wind_speed, d_thrust_coeff, d_power;
+//Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
+//Vector<Real> wind_speed, thrust_coeff, power;
+//Gpu::DeviceVector<Real> d_wind_speed, d_thrust_coeff, d_power;
 
-void read_in_table(std::string windfarm_spec_table)
+void
+WindFarm::read_in_table(std::string windfarm_spec_table)
 {
     //The first line is the number of pairs entries for the power curve and thrust coefficient.
     //The second line gives first the height in meters of the turbine hub, second, the diameter in
@@ -57,25 +55,4 @@ void read_in_table(std::string windfarm_spec_table)
     Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
     Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
     Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
-}
-
-
-void advance_windfarm (int lev,
-                       const Geometry& geom,
-                       const Real& dt_advance,
-                       MultiFab& cons_in,
-                       MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                       MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb,
-                       SolverChoice& solver_choice)
-{
-    if (solver_choice.windfarm_type == WindFarmType::Fitch) {
-        fitch_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-                       mf_vars_windfarm, mf_Nturb);
-    } else if (solver_choice.windfarm_type == WindFarmType::EWP) {
-        ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-                      mf_vars_windfarm, mf_Nturb);
-    } else if (solver_choice.windfarm_type == WindFarmType::SimpleAD) {
-        simpleAD_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-                      mf_vars_windfarm, mf_Nturb);
-    }
 }

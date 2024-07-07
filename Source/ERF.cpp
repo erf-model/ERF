@@ -1210,7 +1210,7 @@ ERF::init_only (int lev, Real time)
     // Initialize wind farm
 
 #ifdef ERF_USE_WINDFARM
-    init_windfarm(lev);
+    init_windfarm<SimpleAD>(lev, simpleAD);
 #endif
 
    if(solverChoice.spongeChoice.sponge_type == "input_sponge"){

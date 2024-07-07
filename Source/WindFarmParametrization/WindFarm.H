@@ -6,19 +6,40 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_Gpu.H>
 
-extern amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
-extern amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
-extern amrex::Vector<amrex::Real> xloc, yloc;
-extern amrex::Gpu::DeviceVector<amrex::Real> d_wind_speed, d_thrust_coeff, d_power;
+class WindFarm {
 
-void read_in_table(std::string windfarm_spec_table);
+public:
 
-void advance_windfarm (int lev,
+    WindFarm(){}
+
+    void init_windfarm(int lev,
+                       std::string windfarm_loc_table,
+                       std::string windfarm_spec_table,
                        const amrex::Geometry& geom,
-                       const amrex::Real& dt_advance,
-                       amrex::MultiFab& cons_in,
-                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb,
-                       SolverChoice& solver_choice);
+                       amrex::Vector<amrex::MultiFab>& Nturb,
+                       bool x_y, bool lat_lon,
+                       const amrex::Real latitude_lo=0.0,
+                       const amrex::Real longitude_lo=0.0);
+
+    void init_windfarm_lat_lon(const int lev,
+                               const std::string windfarm_loc_table,
+                               const amrex::Real latitude_lo,
+                                  const amrex::Real longitude_lo);
+
+    void init_windfarm_x_y(const int lev,
+                           const std::string windfarm_loc_table);
+
+    void read_in_table(std::string windfarm_spec_table);
+
+protected:
+
+    amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+    amrex::Gpu::DeviceVector<amrex::Real> d_wind_speed, d_thrust_coeff, d_power;
+
+};
+
+
 #endif
 

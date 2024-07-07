@@ -1,2 +1,3 @@
 CEXE_sources += WindFarm.cpp
 CEXE_headers += WindFarm.H
+CEXE_sources += InitWindFarm.cpp
