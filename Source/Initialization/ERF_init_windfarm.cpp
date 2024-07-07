@@ -28,6 +28,12 @@ void ERF::init_windfarm (int lev, T& windfarm)
                                solverChoice.windfarm_spec_table, geom[lev],
                                Nturb, true, false);
     }
+
+    windfarm.write_turbine_locations_vtk();
+
+    if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        windfarm.write_actuator_disks_vtk();
+    }
 }
 
 void
