@@ -148,7 +148,7 @@ public:
         //         = rho_d(1 + q_v) R_d T_v
 
         // integrate from surface to domain top
-        amrex::Real qv, dz;
+        amrex::Real dz;
 #if 1   // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
