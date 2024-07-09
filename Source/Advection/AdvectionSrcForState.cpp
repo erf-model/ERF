@@ -8,7 +8,7 @@ using namespace amrex;
 /**
  * Function for computing the advective tendency for the update equations for rho and (rho theta)
  * This routine has explicit expressions for all cases (terrain or not) when
- * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * the horizontal and vertical spatial orders are <= 2, and calls more specialized
  * functions when either (or both) spatial order(s) is greater than 2.
  *
  * @param[in] bx box over which the scalars are updated
@@ -96,7 +96,7 @@ AdvectionSrcForRho (const Box& bx,
 /**
  * Function for computing the advective tendency for the update equations for all scalars other than rho and (rho theta)
  * This routine has explicit expressions for all cases (terrain or not) when
- * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * the horizontal and vertical spatial orders are <= 2, and calls more specialized
  * functions when either (or both) spatial order(s) is greater than 2.
  *
  * @param[in] bx box over which the scalars are updated if no external boundary conditions
@@ -105,7 +105,7 @@ AdvectionSrcForRho (const Box& bx,
  * @param[in] avg_xmom x-component of time-averaged momentum defined in this routine
  * @param[in] avg_ymom y-component of time-averaged momentum defined in this routine
  * @param[in] avg_zmom z-component of time-averaged momentum defined in this routine
- * @param[in] cell_prim primtive form of scalar variales, here only potential temperature theta
+ * @param[in] cell_prim primitive form of scalar variables, here only potential temperature theta
  * @param[out] advectionSrc tendency for the scalar update equation
  * @param[in] detJ Jacobian of the metric transformation (= 1 if use_terrain is false)
  * @param[in] cellSizeInv inverse of the mesh spacing

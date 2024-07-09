@@ -153,6 +153,8 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    amrex::Real cloud_fraction (amrex::Real time);
+
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
 
@@ -241,7 +243,6 @@ public:
 
 #ifdef ERF_USE_WW3_COUPLING
     void read_waves (int lev);
-    void send_waves (int lev);
 #endif
 
     // Interface for advancing the data at one level by one "slow" timestep

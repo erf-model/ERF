@@ -9,10 +9,10 @@ using namespace amrex;
  *
  * @param[in] fba    BoxArray of data to be filled at fine level
  * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry infomation at fine level
+ * @param[in] fgeom  container of geometry information at fine level
  * @param[in] cba    BoxArray of data to be filled at coarse level
  * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry infomation at coarse level
+ * @param[in] cgeom  container of geometry information at coarse level
  * @param[in] nghost number of ghost cells to be filled
  * @param[in] ncomp  number of components to be filled
  * @param[in] interp interpolation operator to be used
@@ -46,10 +46,10 @@ ERFFillPatcher::ERFFillPatcher (BoxArray const& fba, DistributionMapping const& 
  *
  * @param[in] fba    BoxArray of data to be filled at fine level
  * @param[in] fdm    DistributionMapping of data to be filled at fine level
- * @param[in] fgeom  container of geometry infomation at fine level
+ * @param[in] fgeom  container of geometry information at fine level
  * @param[in] cba    BoxArray of data to be filled at coarse level
  * @param[in] cdm    DistributionMapping of data to be filled at coarse level
- * @param[in] cgeom  container of geometry infomation at coarse level
+ * @param[in] cgeom  container of geometry information at coarse level
  * @param[in] nghost number of ghost cells to be filled
  * @param[in] ncomp  number of components to be filled
  * @param[in] interp interpolation operator to be used
@@ -65,7 +65,7 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     AMREX_ALWAYS_ASSERT(nghost_set <= 0);
     AMREX_ALWAYS_ASSERT(nghost <= nghost_set);
 
-    // Set data memebers
+    // Set data members
     m_fba = fba; m_cba = cba;
     m_fdm = fdm; m_cdm = cdm;
     m_fgeom  = fgeom;  m_cgeom = cgeom;

@@ -1,6 +1,6 @@
 /*
  * RTE-RRTMGP radiation model interface to ERF
- * The orginal code is developed by RobertPincus, and the code is open source available at:
+ * The orgiinal code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * For details of the radiation algorithm, please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621

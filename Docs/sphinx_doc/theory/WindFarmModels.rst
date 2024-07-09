@@ -157,7 +157,7 @@ The following are the inputs required for simulations with Fitch, EWP models.
     erf.windfarm_spec_table = "wind-turbine_1WT.tbl"
 
 1. ``erf.windfarm_type`` has to be one of the supported models - ``Fitch``, ``EWP``.
-2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y co-ordinates to specify the turbine locations, this input is ``x_y``.
+2. ``erf.windfarm_loc_type`` is a variable to specify how the wind turbine locations in the wind farm is specified. If using the latitude and longitude of the turbine location, this has to be ``lat_lon`` or if using x and y coordinates to specify the turbine locations, this input is ``x_y``.
 
    - If using ``lat_lon`` format, ``erf.latitude_lo`` and ``erf.longitude_lo`` specifies the latitude and longitude of the lower bottom corner of the domain box.  ie. if the domain box is specified as
 
@@ -185,7 +185,7 @@ The following are the inputs required for simulations with Fitch, EWP models.
         36.0171171171 -99.0168 1
         35.7828828829 -98.9705333333 1
 
-   - For the x-y format, an example is as below. Each line specifies the x and y co-ordinates of the wind turbine location in metres
+   - For the x-y format, an example is as below. Each line specifies the x and y coordinates of the wind turbine location in metres
 
      .. code-block:: cpp
 

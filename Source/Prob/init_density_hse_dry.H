@@ -2,7 +2,7 @@
  * Initialize hydrostatically balanced density
  *
  * Calls init_isentropic_hse_terrain() or init_isentropic_hse() for cases with
- * and without terrain. Hydrostatic equlibrium (HSE) is satisfied discretely.
+ * and without terrain. Hydrostatic equilibrium (HSE) is satisfied discretely.
  * Note that these routines presume that qv==0 when evaluating the EOS. Both
  * density and pressure in HSE are calculated but only the density is used at
  * this point.

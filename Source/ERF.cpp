@@ -807,13 +807,6 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-        if (cc_profiles) {
-            // all variables cell-centered
-            write_1D_profiles(t_new[0]);
-        } else {
-            // some variables staggered
-            write_1D_profiles_stag(t_new[0]);
-        }
     }
 
     // We only write the file at level 0 for now
@@ -1008,6 +1001,16 @@ ERF::InitData ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++)
             setRecordDataInfo(i,datalogname[i]);
+    }
+
+    if (restart_chkfile.empty() && profile_int > 0) {
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(t_new[0]);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(t_new[0]);
+        }
     }
 
     if (pp.contains("sample_point_log") && pp.contains("sample_point"))

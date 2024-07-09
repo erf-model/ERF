@@ -22,7 +22,7 @@ ERF::turbPert_constants(const int lev)
 void
 ERF::turbPert_update (const int lev, const Real local_dt)
 {
-    // Grabing data from velocity field
+    // Grabbing data from velocity field
     auto& lev_new = vars_new[lev];
 
     // Accessing local data
