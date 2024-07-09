@@ -42,7 +42,7 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
                  const Array4<const Real>& mf_u,
                  const Array4<const Real>& mf_v)
 {
-    // Conver domain to each index type to test if we are on dirichlet boundary
+    // Convert domain to each index type to test if we are on dirichlet boundary
     Box domain_xy = convert(domain, tbxxy.ixType());
     Box domain_xz = convert(domain, tbxxz.ixType());
     Box domain_yz = convert(domain, tbxyz.ixType());

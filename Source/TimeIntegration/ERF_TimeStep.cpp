@@ -87,6 +87,12 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
             timeStep(lev+1, strt_time_for_fine, i);
         }
     }
+
+    if (verbose && lev == 0) {
+        if (solverChoice.moisture_type != MoistureType::None) {
+            amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
+        }
+    }
 }
 
 /**

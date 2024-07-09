@@ -446,7 +446,7 @@ public:
     }
 
     /**
-     * Function to set constant values for turbulent pertubation calculation
+     * Function to set constant values for turbulent perturbation calculation
     */
     void
     init_turbPert_const(TurbulentPerturbation& turbPert)
