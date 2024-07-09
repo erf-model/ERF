@@ -16,14 +16,11 @@ ERF::write_1D_profiles (Real time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
-    if (verbose <= 0)
-      return;
-
     int datwidth = 14;
     int datprecision = 6;
     int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
-    if (verbose > 0 && NumDataLogs() > 1)
+    if (NumDataLogs() > 1)
     {
         // Define the 1d arrays we will need
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
@@ -152,9 +149,9 @@ ERF::write_1D_profiles (Real time)
                                 << std::endl;
                   } // loop over z
                 } // if good
-            } // NumDataLogs
+            } // if (NumDataLogs() > 3)
         } // if IOProcessor
-    } // if verbose
+    } // if (NumDataLogs() > 1)
 }
 
 /**
@@ -266,8 +263,16 @@ void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
             }
             fab_arr(i, j, k, 2) = ksgs;
             Real kturb = 0.0;
+#if 1
             if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
             fab_arr(i, j, k, 3) = kturb;
+#else
+            // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
+            Real upert = u_cc_arr(i,j,k) - h_avg_u[k];
+            Real vpert = v_cc_arr(i,j,k) - h_avg_v[k];
+            Real wpert = w_cc_arr(i,j,k) - h_avg_w[k];
+            fab_arr(i, j, k, 3) = 0.5 * (upert*upert + vpert*vpert + wpert*wpert);
+#endif
             fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // u*w
@@ -400,7 +405,18 @@ void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
         h_avg_wqv[k] /= area_z;  h_avg_wqc[k]  /= area_z;  h_avg_wqr[k] /= area_z;
         h_avg_qi[k]  /= area_z;  h_avg_qs[k]   /= area_z;  h_avg_qg[k]  /= area_z;
     }
+
+#if 0
+    // Here we print the integrated total kinetic energy as computed in the 1D profile above
+    Real sum = 0.;
+    Real dz = geom[0].ProbHi(2) / static_cast<Real>(h_avg_u_size);
+    for (int k = 0; k < h_avg_u_size; ++k) {
+        sum += h_avg_kturb[k] * h_avg_rho[k] * dz;
+    }
+    amrex::Print() << "ITKE " << time << " " << sum << " using " << h_avg_u_size << " " << dz << std::endl;
+#endif
 }
+
 void
 ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<Real>& h_avg_tau12,
                              Gpu::HostVector<Real>& h_avg_tau13, Gpu::HostVector<Real>& h_avg_tau22,

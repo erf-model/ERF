@@ -336,9 +336,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 {
                     int indx   = n;
                     int indx_v = indx + offset;
+
                     mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+
                     // NOTE: Theta_v has already been set for Deardorff
-                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    }
                 });
                 break;
           }
