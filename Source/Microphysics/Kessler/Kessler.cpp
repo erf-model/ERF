@@ -98,7 +98,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 qp_array(i,j,k) = std::max(0.0, qp_array(i,j,k));
 
                 //------- Autoconversion/accretion
-                Real qcc, autor, accrr;
+                Real qcc, auto_r, accrr;
                 Real dq_clwater_to_rain, dq_rain_to_vapor, dq_clwater_to_vapor, dq_vapor_to_clwater, qsat;
 
                 Real pressure = pres_array(i,j,k);
@@ -142,14 +142,14 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 if (qc_array(i,j,k) > 0.0) {
                     qcc = qc_array(i,j,k);
 
-                    autor = 0.0;
+                    auto_r = 0.0;
                     if (qcc > qcw0) {
-                        autor = alphaelq;
+                        auto_r = alphaelq;
                     }
 
                     accrr = 0.0;
                     accrr = 2.2 * std::pow(qp_array(i,j,k) , 0.875);
-                    dq_clwater_to_rain = dtn *(accrr*qcc + autor*(qcc - qcw0));
+                    dq_clwater_to_rain = dtn *(accrr*qcc + auto_r*(qcc - qcw0));
 
                     // If the amount of change is more than the amount of qc present, then dq = qc
                     dq_clwater_to_rain = std::min(dq_clwater_to_rain, qc_array(i,j,k));
