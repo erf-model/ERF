@@ -89,7 +89,9 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
     }
 
     if (verbose && lev == 0) {
-        amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
+        if (solverChoice.moisture_type != MoistureType::None) {
+            amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
+        }
     }
 }
 

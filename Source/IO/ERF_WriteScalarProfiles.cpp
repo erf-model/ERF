@@ -126,8 +126,8 @@ ERF::sum_integrated_quantities (Real time)
         // The first data log only holds scalars
         if (NumDataLogs() > 0)
         {
-            int nd = 0;
-            std::ostream& data_log1 = DataLog(nd);
+            int n_d = 0;
+            std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
                 if (time == 0.0) {
                     data_log1 << std::setw(datwidth) << "          time";

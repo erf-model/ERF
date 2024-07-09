@@ -26,7 +26,7 @@ class LinInterp
 
     // Initialize a variable of type(interp_type) with weights for linear interpolation.
     //       this variable can then be used in calls to lininterp1d and lininterp2d.
-    //   yin is a 1d array of length nin of locations to interpolate from - this array must
+    //   yin is a 1d array of length n_in of locations to interpolate from - this array must
     //       be monotonic but can be increasing or decreasing
     //   yout is a 1d array of length nout of locations to interpolate to, this array need
     //       not be ordered
@@ -38,7 +38,7 @@ class LinInterp
     //         cyclic mapping - these default to 0 and 360.
     YAKL_INLINE
     static void init (const real1d& yin,
-                      const int& nin,
+                      const int& n_in,
                       const real1d& yout,
                       const int& nout,
                       const InterpMethod& extrap_method,
@@ -71,7 +71,7 @@ class LinInterp
         interp_wgts.wgts = real1d("wgts", nout);
         interp_wgts.wgtn = real1d("wgtn", nout);
 
-        parallel_for(SimpleBounds<1>(nin-1), YAKL_LAMBDA (int j)
+        parallel_for(SimpleBounds<1>(n_in-1), YAKL_LAMBDA (int j)
         {
             if(yin(j) > yin(j+1)) {
                 printf("init: inputs are not monotonic!\n");
@@ -103,9 +103,9 @@ class LinInterp
                         interp_wgts.wgts(j) = 0.;
                         interp_wgts.wgtn(j) = 0.;
                     }
-                    else if (yout(j) > yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
-                        interp_wgts.jjp(j) = nin;
+                    else if (yout(j) > yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
+                        interp_wgts.jjp(j) = n_in;
                         interp_wgts.wgts(j) = 0.;
                         interp_wgts.wgtn(j) = 0.;
                     }
@@ -120,9 +120,9 @@ class LinInterp
                         interp_wgts.wgts(j) = 0.;
                         interp_wgts.wgtn(j) = 0.;
                     }
-                    else if (yout(j) < yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
-                        interp_wgts.jjp(j) = nin;
+                    else if (yout(j) < yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
+                        interp_wgts.jjp(j) = n_in;
                         interp_wgts.wgts(j) = 0.;
                         interp_wgts.wgtn(j) = 0.;
                     }
@@ -143,9 +143,9 @@ class LinInterp
                         interp_wgts.wgts(j) = 1.;
                         interp_wgts.wgtn(j) = 0.;
                     }
-                    else if (yout(j) > yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
-                        interp_wgts.jjp(j) = nin;
+                    else if (yout(j) > yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
+                        interp_wgts.jjp(j) = n_in;
                         interp_wgts.wgts(j) = 1.;
                         interp_wgts.wgtn(j) = 0.;
                     }
@@ -160,9 +160,9 @@ class LinInterp
                         interp_wgts.wgts(j) = 1.;
                         interp_wgts.wgtn(j) = 0.;
                     }
-                    else if (yout(j) <= yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
-                        interp_wgts.jjp(j) = nin;
+                    else if (yout(j) <= yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
+                        interp_wgts.jjp(j) = n_in;
                         interp_wgts.wgts(j) = 1.;
                         interp_wgts.wgtn(j) = 0.;
                     }
@@ -174,28 +174,28 @@ class LinInterp
             // For values which extend beyond boundaries, set weights
             // for circular boundaries
             //
-            dyinwrap = yin(1) + (cmax-cmin) - yin(nin);
-            avgdyin = abs(yin(nin)-yin(1))/(nin-1.);
+            dyinwrap = yin(1) + (cmax-cmin) - yin(n_in);
+            avgdyin = abs(yin(n_in)-yin(1))/(n_in-1.);
             auto ratio = dyinwrap/avgdyin;
             if (ratio < 0.9 || ratio > 1.1) {
-                printf("ratio is too large, dyinwrap= %13.6e, avgdyin= %13.6e, yin(1) = %13.6e, yin(nin)= %13.6e\n",
-                       dyinwrap, avgdyin, yin(1), yin(nin));
+                printf("ratio is too large, dyinwrap= %13.6e, avgdyin= %13.6e, yin(1) = %13.6e, yin(n_in)= %13.6e\n",
+                       dyinwrap, avgdyin, yin(1), yin(n_in));
             }
 
             if(increasing) {
                 parallel_for(SimpleBounds<1>(nout), YAKL_LAMBDA (int j)
                 {
                     if (yout(j) <= yin(1)) {
-                        interp_wgts.jjm(j) = nin;
+                        interp_wgts.jjm(j) = n_in;
                         interp_wgts.jjp(j) = 1;
                         interp_wgts.wgts(j) = (yin(1)-yout(j))/dyinwrap;
-                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin) - yin(nin))/dyinwrap;
+                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin) - yin(n_in))/dyinwrap;
                     }
-                    else if (yout(j) > yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
+                    else if (yout(j) > yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
                         interp_wgts.jjp(j) = 1;
                         interp_wgts.wgts(j) = (yin(1)+(cmax-cmin)-yout(j))/dyinwrap;
-                        interp_wgts.wgtn(j) = (yout(j)-yin(nin))/dyinwrap;
+                        interp_wgts.wgtn(j) = (yout(j)-yin(n_in))/dyinwrap;
                     }
                 });
             }
@@ -203,16 +203,16 @@ class LinInterp
                 parallel_for(SimpleBounds<1>(nout), YAKL_LAMBDA (int j)
                 {
                     if (yout(j) > yin(1)) {
-                        interp_wgts.jjm(j) = nin;
+                        interp_wgts.jjm(j) = n_in;
                         interp_wgts.jjp(j) = 1;
                         interp_wgts.wgts(j) = (yin(1)-yout(j))/dyinwrap;
-                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin) - yin(nin))/dyinwrap;
+                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin) - yin(n_in))/dyinwrap;
                     }
-                    else if (yout(j) <= yin(nin)) {
-                        interp_wgts.jjm(j) = nin;
+                    else if (yout(j) <= yin(n_in)) {
+                        interp_wgts.jjm(j) = n_in;
                         interp_wgts.jjp(j) = 1;
                         interp_wgts.wgts(j) = (yin(1)+(cmax-cmin)-yout(j))/dyinwrap;
-                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin)-yin(nin))/dyinwrap;
+                        interp_wgts.wgtn(j) = (yout(j)+(cmax-cmin)-yin(n_in))/dyinwrap;
                     }
                 });
             }
@@ -222,7 +222,7 @@ class LinInterp
         // Loop though output indices finding input indices and weights
         //
         if(increasing) {
-            parallel_for(SimpleBounds<2>(nout, nin-1), YAKL_LAMBDA (int j, int jj)
+            parallel_for(SimpleBounds<2>(nout, n_in-1), YAKL_LAMBDA (int j, int jj)
             {
                 if (yout(j) > yin(jj) && yout(j) <= yin(jj+1)) {
                     interp_wgts.jjm(j) = jj;
@@ -234,7 +234,7 @@ class LinInterp
             });
         }
         else {
-            parallel_for(SimpleBounds<2>(nout, nin-1), YAKL_LAMBDA (int j, int jj)
+            parallel_for(SimpleBounds<2>(nout, n_in-1), YAKL_LAMBDA (int j, int jj)
             {
                 if (yout(j) <= yin(jj) && yout(j) > yin(jj+1)) {
                     interp_wgts.jjm(j) = jj;

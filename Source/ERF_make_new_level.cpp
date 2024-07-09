@@ -53,7 +53,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
-    //      terrain arrays and metrics,a nd base state.
+    //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old);
 
@@ -278,7 +278,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
-    //      terrain arrays and metrics,a nd base state.
+    //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev]);
 

@@ -207,7 +207,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         }
     }
 
-    // Extrapolate Kturb in x/y, fill remaining elements (relevent to lev==0)
+    // Extrapolate Kturb in x/y, fill remaining elements (relevant to lev==0)
     //***********************************************************************************
     int ngc(1);
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
