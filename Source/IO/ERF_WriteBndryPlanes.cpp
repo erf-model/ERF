@@ -143,6 +143,9 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
     Box target_box_shifted(IntVect(0,0,0),new_hi);
     BoxArray ba_shifted(target_box_shifted);
 
+    int n_moist_var = NMOIST_max - (S.nComp() - NVAR_max);
+    bool ismoist = (n_moist_var >= 1);
+
     for (int i = 0; i < m_var_names.size(); i++)
     {
         std::string var_name = m_var_names[i];
@@ -169,7 +172,11 @@ void WriteBndryPlanes::write_planes (const int t_step, const Real time,
             for (MFIter mfi(Temp, TilingIfNotGPU()); mfi.isValid(); ++mfi)
             {
                 const Box& bx = mfi.tilebox();
-                derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                if (ismoist) {
+                    derived::erf_dermoisttemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                } else {
+                    derived::erf_dertemp(bx, Temp[mfi], 0, 1, S[mfi], m_geom[bndry_lev], time, nullptr, bndry_lev);
+                }
             }
             bndry.copyFrom(Temp, nghost, 0, 0, ncomp, m_geom[bndry_lev].periodicity());
         } else if (var_name == "scalar") {
