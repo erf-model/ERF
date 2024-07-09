@@ -141,28 +141,6 @@ void make_sources (int level,
             {
                 dptr_qv_plane(k-offset) = dptr_qv[k];
             });
-
-            /*
-            // Cloud water
-            PlaneAverage qc_ave(&S_prim, geom, solverChoice.ave_plane, true);
-            qc_ave.compute_averages(ZDir(), qc_ave.field());
-
-            Gpu::HostVector<  Real> qc_plane_h(ncell);
-            Gpu::DeviceVector<Real> qc_plane_d(ncell);
-
-            qc_ave.line_average(PrimQ2_comp, qc_plane_h);
-            Gpu::copyAsync(Gpu::hostToDevice, qc_plane_h.begin(), qc_plane_h.end(), qc_plane_d.begin());
-
-            Real* dptr_qc = qc_plane_d.data();
-
-            qc_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
-
-            dptr_qc_plane = qc_plane_tab.table();
-            ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
-            {
-                dptr_qc_plane(k-offset) = dptr_qc[k];
-            });
-            */
         }
     }
 
@@ -269,7 +247,8 @@ void make_sources (int level,
                 {
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc *
                                             0.5 * (T_hi - T_lo) * dxInv[2];
                 });
             } else {
@@ -277,7 +256,8 @@ void make_sources (int level,
                 {
                     Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
                     Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, n) -= dptr_wbar_sub[k] *
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, n) -= wbar_cc *
                                             0.5 * (T_hi - T_lo) * dxInv[2];
                 });
             }
@@ -295,35 +275,19 @@ void make_sources (int level,
                 {
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, nv) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, nv) -= cell_data(i,j,k,nr) * wbar_cc *
                                              0.5 * (Qv_hi - Qv_lo) * dxInv[2];
                 });
-                /*
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, nc) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
-                                             0.5 * (Qc_hi - Qc_lo) * dxInv[2];
-                });
-                */
             } else {
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
                     Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, nv) -= dptr_wbar_sub[k] *
+                    Real wbar_cc = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    cell_src(i, j, k, nv) -= wbar_cc *
                                              0.5 * (Qv_hi - Qv_lo) * dxInv[2];
                 });
-                /*
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    cell_src(i, j, k, nc) -= cell_data(i,j,k,nr) * dptr_wbar_sub[k] *
-                                             0.5 * (Qc_hi - Qc_lo) * dxInv[2];
-                });
-                */
             }
         }
 

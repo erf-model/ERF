@@ -325,7 +325,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
+    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
@@ -343,8 +343,8 @@ Problem::update_w_subsidence (const Real& /*time*/,
     Real z_0    = 0.0; // (z_phys_cc) ? zlevels[0] : prob_lo[2] + 0.5 * dx[2];
     Real slope1 =  parms.wbar_sub_max / (parms.wbar_cutoff_max - z_0);
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
-    // wbar[0]     = 0.0;
-    for (int k = 0; k <= khi; k++) {
+    wbar[0]     = 0.0;
+    for (int k = 1; k <= khi; k++) {
         const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
         if (z_cc <= parms.wbar_cutoff_max) {
             wbar[k] = slope1 * (z_cc - z_0);

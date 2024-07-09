@@ -774,7 +774,7 @@ ERF::InitData ()
         h_w_subsid.resize(max_level+1, Vector<Real>(0));
         d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
+            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],

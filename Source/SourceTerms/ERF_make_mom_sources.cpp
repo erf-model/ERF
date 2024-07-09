@@ -313,7 +313,8 @@ void make_mom_sources (int /*level*/,
                     Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    xmom_src_arr(i, j, k) -= rho_on_u_face * dptr_wbar_sub[k] *
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf *
                                              0.5 * (U_hi - U_lo) * dxInv[2];
                 });
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
@@ -321,7 +322,8 @@ void make_mom_sources (int /*level*/,
                     Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    ymom_src_arr(i, j, k) -= rho_on_v_face * dptr_wbar_sub[k] *
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf *
                                              0.5 * (V_hi - V_lo) * dxInv[2];
                 });
             } else {
@@ -329,14 +331,16 @@ void make_mom_sources (int /*level*/,
                 {
                     Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
                     Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= wbar_xf *
                                              0.5 * (U_hi - U_lo) * dxInv[2];
                 });
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
                     Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
                     Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= wbar_yf *
                                              0.5 * (V_hi - V_lo) * dxInv[2];
                 });
             }
