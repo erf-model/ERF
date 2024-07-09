@@ -345,7 +345,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     wbar[0]     = 0.0;
     for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
         if (z_cc <= parms.wbar_cutoff_max) {
             wbar[k] = slope1 * (z_cc - z_0);
         } else if (z_cc <= parms.wbar_cutoff_min) {
