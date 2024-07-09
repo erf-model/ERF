@@ -43,7 +43,7 @@ ERF::write_1D_profiles (Real time)
                                  h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
         }
 
-        if (NumDataLogs() > 3) {
+        if (NumDataLogs() > 3 && time > 0.) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                    h_avg_sgshfx,
@@ -130,7 +130,7 @@ ERF::write_1D_profiles (Real time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3) {
+            if (NumDataLogs() > 3 && time > 0.) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
