@@ -340,7 +340,7 @@ ERF::Evolve ()
     {
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -1972,7 +1972,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -2051,8 +2051,8 @@ ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int
 
         const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
 
-        int num_per_old = static_cast<int>(std::round((cur_time-eps-dt_lev) / plot_per));
-        int num_per_new = static_cast<int>(std::round((cur_time-eps       ) / plot_per));
+        int num_per_old = static_cast<int>(std::floor((cur_time-eps-dt_lev) / plot_per));
+        int num_per_new = static_cast<int>(std::floor((cur_time-eps       ) / plot_per));
 
         // Before using these, however, we must test for the case where we're
         // within machine epsilon of the next interval. In that case, increment
