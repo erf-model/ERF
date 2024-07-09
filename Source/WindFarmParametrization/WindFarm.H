@@ -12,24 +12,26 @@ public:
 
     WindFarm(){}
 
-    void init_windfarm(int lev,
-                       std::string windfarm_loc_table,
+    void read_tables (std::string windfarm_loc_table,
                        std::string windfarm_spec_table,
-                       const amrex::Geometry& geom,
-                       amrex::Vector<amrex::MultiFab>& Nturb,
                        bool x_y, bool lat_lon,
                        const amrex::Real latitude_lo=0.0,
                        const amrex::Real longitude_lo=0.0);
 
-    void init_windfarm_lat_lon(const int lev,
-                               const std::string windfarm_loc_table,
+    void init_windfarm_lat_lon(const std::string windfarm_loc_table,
                                const amrex::Real latitude_lo,
-                                  const amrex::Real longitude_lo);
+                               const amrex::Real longitude_lo);
 
-    void init_windfarm_x_y(const int lev,
-                           const std::string windfarm_loc_table);
+    void init_windfarm_x_y(const std::string windfarm_loc_table);
 
-    void read_in_windfarm_spec_table(std::string windfarm_spec_table);
+    void read_windfarm_locations_table(const std::string windfarm_loc_table,
+										  bool x_y, bool lat_lon,
+										  const amrex::Real latitude_lo=0.0,
+										  const amrex::Real longitude_lo=0.0);
+
+    void read_windfarm_spec_table(const std::string windfarm_spec_table);
+
+	void fill_Nturb_multifab(const amrex::Geometry& geom, amrex::MultiFab& mf_Nturb);
 
     void write_turbine_locations_vtk();
 

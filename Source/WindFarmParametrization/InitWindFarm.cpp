@@ -13,21 +13,31 @@ using namespace amrex;
  * @param lev Integer specifying the current level
  */
 void
-WindFarm::init_windfarm (int lev,
-                         std::string windfarm_loc_table,
+WindFarm::read_tables (std::string windfarm_loc_table,
                          std::string windfarm_spec_table,
-                         const Geometry& geom,
-                         Vector<MultiFab>& Nturb,
                          bool x_y, bool lat_lon,
                          const Real latitude_lo,
                          const Real longitude_lo)
 {
 
-    if(x_y) {
-        init_windfarm_x_y(lev, windfarm_loc_table);
+	read_windfarm_locations_table(windfarm_loc_table,
+							 	  x_y, lat_lon,
+								  latitude_lo,longitude_lo);
+
+    read_windfarm_spec_table(windfarm_spec_table);
+}
+
+void 
+WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
+										   bool x_y, bool lat_lon,
+										   const Real latitude_lo,
+										   const Real longitude_lo)
+{
+	if(x_y) {
+        init_windfarm_x_y(windfarm_loc_table);
     }
     else if(lat_lon) {
-        init_windfarm_lat_lon(lev, windfarm_loc_table, latitude_lo, longitude_lo);
+        init_windfarm_lat_lon(windfarm_loc_table, latitude_lo, longitude_lo);
     }
     else {
         amrex::Abort("Are you using windfarms? For windfarm simulations, the inputs need to have an"
@@ -38,47 +48,11 @@ WindFarm::init_windfarm (int lev,
     d_yloc.resize(yloc.size());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
-
-    Real* d_xloc_ptr     = d_xloc.data();
-    Real* d_yloc_ptr     = d_yloc.data();
-
-    Nturb[lev].setVal(0);
-
-    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
-    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
-    auto dx = geom.CellSizeArray();
-    int num_turb = xloc.size();
-
-     // Initialize wind farm
-    for ( MFIter mfi(Nturb[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const Box& bx     = mfi.tilebox();
-        auto  Nturb_array = Nturb[lev].array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            int li = amrex::min(amrex::max(i, i_lo), i_hi);
-            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-
-            auto dx = geom.CellSizeArray();
-            auto ProbLoArr = geom.ProbLoArray();
-            Real x1 = ProbLoArr[0] + li*dx[0];
-            Real x2 = ProbLoArr[0] + (li+1)*dx[0];
-            Real y1 = ProbLoArr[1] + lj*dx[1];
-            Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
-
-            for(int it=0; it<num_turb; it++){
-                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
-                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
-                       Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
-                }
-            }
-        });
-    }
-
-    read_in_windfarm_spec_table(windfarm_spec_table);
 }
 
+
 void
-WindFarm::init_windfarm_lat_lon (const int lev,
-                                 const std::string windfarm_loc_table,
+WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
                                  const Real latitude_lo, const Real longitude_lo)
 {
 
@@ -156,8 +130,7 @@ WindFarm::init_windfarm_lat_lon (const int lev,
 }
 
 void
-WindFarm::init_windfarm_x_y (const int lev,
-                            const std::string windfarm_loc_table)
+WindFarm::init_windfarm_x_y (const std::string windfarm_loc_table)
 {
     // Read turbine locations from windturbines.txt
     std::ifstream file(windfarm_loc_table);
@@ -175,62 +148,9 @@ WindFarm::init_windfarm_x_y (const int lev,
     file.close();
 }
 
-void
-WindFarm::write_turbine_locations_vtk()
-{
-    if (ParallelDescriptor::IOProcessor()){
-        FILE* file_turbloc_vtk;
-        file_turbloc_vtk = fopen("turbine_locations.vtk","w");
-        fprintf(file_turbloc_vtk, "%s\n","# vtk DataFile Version 3.0");
-        fprintf(file_turbloc_vtk, "%s\n","Wind turbine locations");
-        fprintf(file_turbloc_vtk, "%s\n","ASCII");
-        fprintf(file_turbloc_vtk, "%s\n","DATASET POLYDATA");
-        fprintf(file_turbloc_vtk, "%s %ld %s\n", "POINTS", xloc.size(), "float");
-        for(int it=0; it<xloc.size(); it++){
-            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 1e-12);
-        }
-        fclose(file_turbloc_vtk);
-    }
-}
-
 
 void
-WindFarm::write_actuator_disks_vtk()
-{
-    if (ParallelDescriptor::IOProcessor()){
-        FILE* file_actuator_disks;
-        file_actuator_disks = fopen("actuator_disks.vtk","w");
-        fprintf(file_actuator_disks, "%s\n","# vtk DataFile Version 3.0");
-        fprintf(file_actuator_disks, "%s\n","Actuator Disks");
-        fprintf(file_actuator_disks, "%s\n","ASCII");
-        fprintf(file_actuator_disks, "%s\n","DATASET POLYDATA");
-        int npts = 100;
-        fprintf(file_actuator_disks, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
-        for(int it=0; it<xloc.size(); it++){
-            for(int pt=0;pt<100;pt++){
-                Real x, y, z;
-                Real theta = 2.0*M_PI/npts*pt;
-                x = xloc[it]+1e-12;
-                y = yloc[it]+85.0*cos(theta);
-                z = 119.0+85.0*sin(theta);
-                fprintf(file_actuator_disks, "%0.15g %0.15g %0.15g\n", x, y, z);
-            }
-        }
-        fprintf(file_actuator_disks, "%s %ld %ld\n", "LINES", xloc.size()*(npts-1), static_cast<long int>(xloc.size()*(npts-1)*3));
-        for(int it=0; it<xloc.size(); it++){
-            for(int pt=0;pt<99;pt++){
-                fprintf(file_actuator_disks, "%ld %ld %ld\n",
-                                             static_cast<long int>(2),
-                                             static_cast<long int>(it*npts+pt),
-                                             static_cast<long int>(it*npts+pt+1));
-            }
-        }
-        fclose(file_actuator_disks);
-    }
-}
-
-void
-WindFarm::read_in_windfarm_spec_table(std::string windfarm_spec_table)
+WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
 {
     //The first line is the number of pairs entries for the power curve and thrust coefficient.
     //The second line gives first the height in meters of the turbine hub, second, the diameter in
@@ -280,4 +200,99 @@ WindFarm::read_in_windfarm_spec_table(std::string windfarm_spec_table)
     Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
     Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
 }
+
+void
+WindFarm::fill_Nturb_multifab(const Geometry& geom,
+							  MultiFab& mf_Nturb)
+{
+    Real* d_xloc_ptr     = d_xloc.data();
+    Real* d_yloc_ptr     = d_yloc.data();
+
+    mf_Nturb.setVal(0);
+
+    int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
+    int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
+    auto dx = geom.CellSizeArray();
+    int num_turb = xloc.size();
+
+     // Initialize wind farm
+    for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx     = mfi.tilebox();
+        auto  Nturb_array = mf_Nturb.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+
+            auto dx = geom.CellSizeArray();
+            auto ProbLoArr = geom.ProbLoArray();
+            Real x1 = ProbLoArr[0] + li*dx[0];
+            Real x2 = ProbLoArr[0] + (li+1)*dx[0];
+            Real y1 = ProbLoArr[1] + lj*dx[1];
+            Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
+
+            for(int it=0; it<num_turb; it++){
+                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
+                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
+                       Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
+                }
+            }
+        });
+    }
+}
+
+
+void
+WindFarm::write_turbine_locations_vtk()
+{
+    if (ParallelDescriptor::IOProcessor()){
+        FILE* file_turbloc_vtk;
+        file_turbloc_vtk = fopen("turbine_locations.vtk","w");
+        fprintf(file_turbloc_vtk, "%s\n","# vtk DataFile Version 3.0");
+        fprintf(file_turbloc_vtk, "%s\n","Wind turbine locations");
+        fprintf(file_turbloc_vtk, "%s\n","ASCII");
+        fprintf(file_turbloc_vtk, "%s\n","DATASET POLYDATA");
+        fprintf(file_turbloc_vtk, "%s %ld %s\n", "POINTS", xloc.size(), "float");
+        for(int it=0; it<xloc.size(); it++){
+            fprintf(file_turbloc_vtk, "%0.15g %0.15g %0.15g\n", xloc[it], yloc[it], 1e-12);
+        }
+        fclose(file_turbloc_vtk);
+    }
+}
+
+
+void
+WindFarm::write_actuator_disks_vtk()
+{
+    if (ParallelDescriptor::IOProcessor()){
+        FILE* file_actuator_disks;
+        file_actuator_disks = fopen("actuator_disks.vtk","w");
+        fprintf(file_actuator_disks, "%s\n","# vtk DataFile Version 3.0");
+        fprintf(file_actuator_disks, "%s\n","Actuator Disks");
+        fprintf(file_actuator_disks, "%s\n","ASCII");
+        fprintf(file_actuator_disks, "%s\n","DATASET POLYDATA");
+        int npts = 100;
+        fprintf(file_actuator_disks, "%s %ld %s\n", "POINTS", xloc.size()*npts, "float");
+        for(int it=0; it<xloc.size(); it++){
+            for(int pt=0;pt<100;pt++){
+                Real x, y, z;
+                Real theta = 2.0*M_PI/npts*pt;
+                x = xloc[it]+1e-12;
+                y = yloc[it]+rotor_rad*cos(theta);
+                z = hub_height+rotor_rad*sin(theta);
+                fprintf(file_actuator_disks, "%0.15g %0.15g %0.15g\n", x, y, z);
+            }
+        }
+        fprintf(file_actuator_disks, "%s %ld %ld\n", "LINES", xloc.size()*(npts-1), static_cast<long int>(xloc.size()*(npts-1)*3));
+        for(int it=0; it<xloc.size(); it++){
+            for(int pt=0;pt<99;pt++){
+                fprintf(file_actuator_disks, "%ld %ld %ld\n",
+                                             static_cast<long int>(2),
+                                             static_cast<long int>(it*npts+pt),
+                                             static_cast<long int>(it*npts+pt+1));
+            }
+        }
+        fclose(file_actuator_disks);
+    }
+}
+
 

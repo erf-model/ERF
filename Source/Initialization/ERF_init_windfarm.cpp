@@ -19,15 +19,17 @@ template<typename T>
 void ERF::init_windfarm (int lev, T& windfarm)
 {
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
-        windfarm.init_windfarm(lev, solverChoice.windfarm_loc_table,
-                               solverChoice.windfarm_spec_table, geom[lev], Nturb,
-                               false, true,
-                               solverChoice.latitude_lo, solverChoice.longitude_lo);
+        windfarm.read_tables(solverChoice.windfarm_loc_table,
+                             solverChoice.windfarm_spec_table,
+                             false, true,
+                             solverChoice.latitude_lo, solverChoice.longitude_lo);
     } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
-        windfarm.init_windfarm(lev, solverChoice.windfarm_loc_table,
-                               solverChoice.windfarm_spec_table, geom[lev],
-                               Nturb, true, false);
+        windfarm.read_tables(solverChoice.windfarm_loc_table,
+                             solverChoice.windfarm_spec_table, 
+							 true, false);
     }
+
+	windfarm.fill_Nturb_multifab(geom[lev], Nturb[lev]);
 
     windfarm.write_turbine_locations_vtk();
 
