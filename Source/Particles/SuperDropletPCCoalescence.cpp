@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include "SuperDropletPC.H"
 #include "SuperDropletPCCoalescence.H"
 
@@ -105,6 +106,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_temperature )
 {
+    struct timeval coal_start, coal_end;
+    gettimeofday(&coal_start, NULL);
+
     BL_PROFILE("SuperDropletPC::Coalescence()");
     AMREX_ASSERT( a_lev == m_lev );
 
@@ -346,8 +350,19 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                         1,
                                         ParallelDescriptor::IOProcessorNumber() );
 
+    gettimeofday(&coal_end,NULL);
+    long long coal_wtime;
+    coal_wtime = (    (coal_end.tv_sec   * 1000000 + coal_end.tv_usec  )
+                   -  (coal_start.tv_sec * 1000000 + coal_start.tv_usec) );
+    Real coal_wtime_sec = (double) coal_wtime / 1000000.0;
+    ParallelDescriptor::ReduceRealMax( &coal_wtime_sec,
+                                       1,
+                                       ParallelDescriptor::IOProcessorNumber() );
+
     Print() << "SuperDropletPC(" << m_name << "): "
-            << "number of collisions = " << num_collisions << "\n";
+            << "number of collisions = " << num_collisions
+            << " (wall time = " << coal_wtime_sec << " seconds)"
+            << "\n";
 }
 
 #endif
