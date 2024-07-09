@@ -13,6 +13,7 @@ using namespace amrex;
  *
  * @param lev Integer specifying the current level
  */
+
 void
 ERF::init_windfarm (int lev)
 {
@@ -44,10 +45,20 @@ ERF::init_windfarm (int lev)
         fclose(file_turbloc_vtk);
     }
 
+    amrex::Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    amrex::Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    Real* d_xloc_ptr     = d_xloc.data();
+    Real* d_yloc_ptr     = d_yloc.data();
+
     Nturb[lev].setVal(0);
 
     int i_lo = geom[lev].Domain().smallEnd(0); int i_hi = geom[lev].Domain().bigEnd(0);
     int j_lo = geom[lev].Domain().smallEnd(1); int j_hi = geom[lev].Domain().bigEnd(1);
+    auto dx = geom[lev].CellSizeArray();
+    int num_turb = xloc.size();
 
      // Initialize wind farm
     for ( MFIter mfi(Nturb[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -57,14 +68,13 @@ ERF::init_windfarm (int lev)
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
 
-            auto dx = geom[lev].CellSizeArray();
             Real x1 = li*dx[0], x2 = (li+1)*dx[0];
             Real y1 = lj*dx[1], y2 = (lj+1)*dx[1];
 
-            for(int it=0; it<xloc.size(); it++){
-                if( xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2 and
-                    yloc[it]+1e-12 > y1 and yloc[it]+1e-12 < y2){
-                    Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
+            for(int it=0; it<num_turb; it++){
+                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
+                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
+                       Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                 }
             }
         });

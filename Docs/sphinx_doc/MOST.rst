@@ -9,7 +9,7 @@ MOST Boundaries
 Monin-Obukhov similarity theory (MOST) is used to describe the atmospheric surface layer (ASL), the lowest part of the atmospheric boundary layer.  The implementation of MOST in ERF follows that in `AMR-Wind <https://github.com/Exawind/amr-wind/>`_, which is based on the surface layer profiles presented in
 `P. van der Laan, et al., Wind Energy, 2017 <https://onlinelibrary.wiley.com/doi/10.1002/we.2017>`_ and
 `D. Etling, "Modeling the vertical ABL structure", 1999 <https://www.worldscientific.com/doi/abs/10.1142/9789814447164_0003>`_.
-MOST theory assumes that the ASL is in a steady state and horizontally homogenous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
+MOST theory assumes that the ASL is in a steady state and horizontally homogeneous, and kinematic fluxes due to turbulent transport (:math:`\overline{u^{'}w^{'}}`, :math:`\overline{v^{'}w^{'}}`, and :math:`\overline{\theta^{'}w^{'}}`) are constant with height.
 :math:`\Phi_m` and :math:`\Phi_h` are the nondimensional wind shear and temperature gradient, respectively, which are assumed to follow universal similarity laws based on dimensional arguments.
 With these assumptions, the MOST theory can be written as:
 
@@ -120,7 +120,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
    of the velocity terms from the form of the
    equations presented in Moeng to match the form implemented in AMR-Wind.
 
-#. These local flux values are used to populate values in the ghost cells that will lead to appropiate fluxes, assuming the fluxes are computed from the turbulent transport coefficients (in the vertical direction, if applicable) :math:`K_{m,v}` and :math:`K_{\theta,v}` as follows:
+#. These local flux values are used to populate values in the ghost cells that will lead to appropriate fluxes, assuming the fluxes are computed from the turbulent transport coefficients (in the vertical direction, if applicable) :math:`K_{m,v}` and :math:`K_{\theta,v}` as follows:
 
    .. math::
 
@@ -144,7 +144,7 @@ In ERF, when the MOST boundary condition is applied, velocity and temperature in
 
       (\rho \theta)_{i,j,-n} = (\rho \theta)_{i,j,0} - (\rho \theta)_{z} n \Delta z .
 
-   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implentation with terrain will require local vector rotations. While the ERF dycore accounts for
+   Finally, it must be noted that complex terrain will modify the surface normal and tangent vectors. Consequently, the MOST implementation with terrain will require local vector rotations. While the ERF dycore accounts for
    terrain metrics when computing fluxes (e.g. for advection, diffusion, etc.), the impact of terrain metrics on MOST is still a work in progress. Therefore, running with terrain (``erf.use_terrain = true``) and with MOST
    (``zlo.type = "Most"``) should be cautioned.
 

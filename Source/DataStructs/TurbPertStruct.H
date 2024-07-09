@@ -83,7 +83,7 @@ struct TurbulentPerturbation {
 
     // Perturbation update frequency check.
     // This function will trigger calc_tpi_meanMag() and calc_tpi_amp(), when
-    // the local elasped time is greater than the perturbation frequency
+    // the local elapsed time is greater than the perturbation frequency
     void calc_tpi_update (const int lev,
                           const amrex::Real dt,
                           amrex::MultiFab& mf_xvel,
@@ -117,7 +117,7 @@ struct TurbulentPerturbation {
 #define USE_VOLUME_AVERAGE
 
     // Perturbation box mean velocity magnitude calculation
-    // This is pulled into the strucutre to also utilize during runtime
+    // This is pulled into the structure to also utilize during runtime
     void calc_tpi_meanMag (const int boxIdx,
                            const int lev,
                            amrex::MultiFab& mf_xvel,
@@ -240,7 +240,7 @@ struct TurbulentPerturbation {
 //#define ECKERT_FORMULATION
 #define BULK_RICHARDSON_FORMULATION
 
-    // Perturbation amplitude calcluation
+    // Perturbation amplitude calculation
     void calc_tpi_amp (const int boxIdx)
     {
         amrex::Real g = CONST_GRAV;

@@ -176,6 +176,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
+              
                 /*
                 // Account for moist BV frequency
                 Real E  = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
@@ -196,10 +197,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 Real E     = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
                 Real strat = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 Real length;
-                if (strat <= eps) {
+                if (stratification <= eps) {
                     length = DeltaMsf;
                 } else {
-                    length = 0.76 * std::sqrt(E / strat);
+                    length = 0.76 * std::sqrt(E / stratification);
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, DeltaMsf);
                     // following WRF, make sure the mixing length isn't too small
@@ -232,7 +233,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         }
     }
 
-    // Extrapolate Kturb in x/y, fill remaining elements (relevent to lev==0)
+    // Extrapolate Kturb in x/y, fill remaining elements (relevant to lev==0)
     //***********************************************************************************
     int ngc(1);
     Real inv_Pr_t    = turbChoice.Pr_t_inv;
@@ -361,9 +362,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 {
                     int indx   = n;
                     int indx_v = indx + offset;
+
                     mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+
                     // NOTE: Theta_v has already been set for Deardorff
-                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    }
                 });
                 break;
           }

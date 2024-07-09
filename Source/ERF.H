@@ -153,13 +153,16 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    amrex::Real cloud_fraction (amrex::Real time);
+
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
 
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
-    void derive_diag_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+    void derive_diag_profiles (amrex::Real time,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
@@ -492,7 +495,7 @@ private:
     void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
-    void ComputeDt ();
+    void ComputeDt (int step = -1);
 
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
