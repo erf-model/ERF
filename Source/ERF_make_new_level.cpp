@@ -44,7 +44,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba,
 #endif
 
     // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth betwen velocity and momentum on all faces
+    //     so that we can go back in forth between velocity and momentum on all faces
     // int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     // int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
 
