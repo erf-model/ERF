@@ -28,7 +28,7 @@ void make_fast_coeffs (int /*level*/,
                        MultiFab& fast_coeffs,
                        Vector<MultiFab>& S_stage_data,                 // S_bar = S^n, S^* or S^**
                        const MultiFab& S_stage_prim,
-                       const MultiFab& pi_stage,                       // Exner function evaluted at least stage
+                       const MultiFab& pi_stage,                       // Exner function evaluated at least stage
                        const amrex::Geometry geom,
                        bool l_use_moisture,
                        bool l_use_terrain,

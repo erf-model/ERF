@@ -153,6 +153,8 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    amrex::Real cloud_fraction (amrex::Real time);
+
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
 
@@ -492,7 +494,7 @@ private:
     void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
-    void ComputeDt ();
+    void ComputeDt (int step = -1);
 
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;

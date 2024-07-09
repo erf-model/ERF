@@ -232,7 +232,7 @@ These standards should be articulated at a sufficient level of detail to guide c
 Implementation Details for Specific Code Components
 ===================================================
 
-This section provides detailed information on core elements of the ERF code that enable its required functionality. Details of both the formulation of methods and their implementation and useability within the code will be added to the existing higher-level descriptions as the project progresses.
+This section provides detailed information on core elements of the ERF code that enable its required functionality. Details of both the formulation of methods and their implementation and usability within the code will be added to the existing higher-level descriptions as the project progresses.
 
 1. Governing Equation Set
 -------------------------

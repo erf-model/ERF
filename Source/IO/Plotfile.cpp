@@ -427,7 +427,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb"))
         {
-        std::cout << "Plotting num_turb" << "\n";
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -1295,7 +1294,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
@@ -1399,7 +1398,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
 
 #ifdef ERF_USE_NETCDF

@@ -121,7 +121,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     // ********************************************************************************************
     // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth betwen velocity and momentum on all faces
+    //     so that we can go back in forth between velocity and momentum on all faces
     // ********************************************************************************************
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
@@ -170,7 +170,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // NOTE: We are not completing a fillpach call on the time averaged data;
     //       which would copy on intersection and interpolate from coarse.
     //       Therefore, we are restarting the averaging when the ba changes,
-    //       this may give poor statistics for dynamic mesh refinment.
+    //       this may give poor statistics for dynamic mesh refinement.
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
@@ -486,6 +486,3 @@ ERF::initialize_bcs (int lev)
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
 }
-
-
-

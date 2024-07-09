@@ -12,7 +12,7 @@
 #include "Mam4_constituents.H"
 
 //
-// AerRadProps class convers the aerosol mass to bulk optical properties for short wave
+// AerRadProps class converts the aerosol mass to bulk optical properties for short wave
 // and long wave radiation computations
 //
 class AerRadProps {

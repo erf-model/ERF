@@ -1,5 +1,9 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 43200
+#stop_time = 21600   #  6 hours
+#stop_time = 3600    #  1 hour
+#stop_time = 7200    #  2 hours
+
+stop_time = 4800    #  80 minutes
 
 amrex.fpe_trap_invalid = 1
 
@@ -25,27 +29,27 @@ zhi.type = "SlipWall"
 #zhi.theta_grad = 0.00365
     
 # TIME STEP CONTROL
-erf.fixed_dt       = 0.075 # fixed time step depending on grid resolution
 erf.no_substepping = 1
+erf.fixed_dt       = 0.075 # fixed time step depending on grid resolution
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
-erf.v              = 1       # verbosity in ERF.cpp
+erf.v              = 0       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
-erf.data_log       = "surf" "mean" "flux" "subgrid"
-erf.profile_int    = 240 
+erf.data_log       = "surf" "mean" "flux" # "subgrid"
+erf.profile_int    = 800     # (every minute with dt = 0.075)
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
 # CHECKPOINT FILES
-erf.check_file      = chk        # root name of checkpoint file
-erf.check_int       = 600        # number of timesteps between checkpoints
+erf.check_file      = chk     # root name of checkpoint file
+erf.check_int       = 8000    # number of timesteps between checkpoints
 
 # PLOTFILES
-erf.plot_file_1     = plt       # prefix of plotfile name
-erf.plot_int_1      = 240        # number of timesteps between plotfiles
-erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qi
+erf.plot_file_1     = plt     # prefix of plotfile name
+erf.plot_int_1      = 8000    # number of timesteps between plotfiles
+erf.plot_vars_1     = density rhotheta x_velocity y_velocity z_velocity pressure temp theta qt qp qv qc qsat
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
@@ -61,6 +65,7 @@ erf.moistscal_vert_adv_type  = WENOZ5
 
 erf.moisture_model  = "Kessler_NoRain"
 erf.buoyancy_type   = 1
+
 erf.molec_diff_type = "None"
 
 erf.les_type        = "Smagorinsky"
@@ -71,8 +76,8 @@ erf.Cs              = 0.17
 #erf.sigma_k  = 1.0
 #erf.Ce       = 0.1
 
-erf.Pr_t            = 0.333333
-erf.Sc_t            = 0.333333
+erf.Pr_t      = 0.33333333333333
+erf.Sc_t      = 0.33333333333333
 
 erf.init_type = "input_sounding"
 erf.init_sounding_ideal = true

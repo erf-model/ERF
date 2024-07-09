@@ -114,7 +114,7 @@ ComputeQKESourceTerms (int i, int j, int k,
     // Production (We store mu_turb, which is 0.5*K_turb)
     source_term += 4.0*K_turb(i,j,k,EddyDiff::Mom_v) * (dudz*dudz + dvdz*dvdz);
 
-    // Bouyancy
+    // Buoyancy
     source_term -= 2.0*(CONST_GRAV/theta_mean)*K_turb(i,j,k,EddyDiff::Theta_v)*dthetadz;
 
     // Dissipation
