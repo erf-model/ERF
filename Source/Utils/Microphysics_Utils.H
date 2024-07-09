@@ -92,9 +92,9 @@ amrex::Real erf_esatw (amrex::Real t) {
 
     amrex::Real esatw;
     if (t<=273.15){
-        esatw = (a0  + Tc*(a1 +Tc*(a2 +Tc*(a3 +Tc*(a4 +Tc*(a5 +Tc*(a6 +Tc*(a7 +a8 *Tc))))))))*100.;
+        esatw = (a0  + Tc*(a1 +Tc*(a2 +Tc*(a3 +Tc*(a4 +Tc*(a5 +Tc*(a6 +Tc*(a7 +a8 *Tc))))))));
     }else{
-        esatw = (a0i + Tc*(a1i+Tc*(a2i+Tc*(a3i+Tc*(a4i+Tc*(a5i+Tc*(a6i+Tc*(a7i+a8i*Tc))))))))*100.;
+        esatw = (a0i + Tc*(a1i+Tc*(a2i+Tc*(a3i+Tc*(a4i+Tc*(a5i+Tc*(a6i+Tc*(a7i+a8i*Tc))))))));
     }
     return esatw;
 #endif
