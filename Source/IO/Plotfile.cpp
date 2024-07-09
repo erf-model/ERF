@@ -1001,7 +1001,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 {
                     Real       qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
                     Real       T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv);
+                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv) * Real(0.01);
                     erf_qsatw(T, pressure, derdat(i,j,k,mf_comp));
                 });
             }
