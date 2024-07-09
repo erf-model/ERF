@@ -203,7 +203,15 @@ ERF::cloud_fraction (Real time)
     AMREX_ASSERT(numpts < Long(std::numeric_limits<int>::max));
 
 #if 1
-    ParallelDescriptor::ReduceIntMax(p,static_cast<int>(numpts));
+    if (ParallelDescriptor::UseGpuAwareMpi()) {
+        ParallelDescriptor::ReduceIntMax(p,static_cast<int>(numpts));
+    } else {
+        Gpu::PinnedVector<int> hv(numpts);
+        Gpu::copyAsync(Gpu::deviceToHost, p, p+numpts, hv.data());
+        Gpu::streamSynchronize();
+        ParallelDescriptor::ReduceIntMax(hv.data(),static_cast<int>(numpts));
+        Gpu::copyAsync(Gpu::hostToDevice, hv.data(), hv.data()+numpts, p);
+    }
 
     // Sum over component 0
     Long num_cloudy = qc_2d.template sum<RunOn::Device>(0);
