@@ -88,7 +88,7 @@ amrex::Real erf_esatw (amrex::Real t) {
     amrex::Real a7i = -0.468258100e-12;
     amrex::Real a8i =  0.466533033e-15;
 
-    amrex::Real Tc = std::max(-80.0, t-273.16);
+    amrex::Real Tc = std::max(-80.0, t-273.15);
 
     amrex::Real esatw;
     if (t<=273.15){
