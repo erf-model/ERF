@@ -168,13 +168,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
-                Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-                Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                Real E              = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 Real length;
-                if (strat <= eps) {
+                if (stratification <= eps) {
                     length = DeltaMsf;
                 } else {
-                    length = 0.76 * std::sqrt(E / strat);
+                    length = 0.76 * std::sqrt(E / stratification);
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, DeltaMsf);
                     // following WRF, make sure the mixing length isn't too small
