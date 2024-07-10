@@ -1,9 +1,9 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 start_time = 0.
-#max_step = 1
-
 stop_time = 35.0
 #stop_time = 10.0
+
+#max_step = 1000
 
 amrex.fpe_trap_invalid = 1
 
@@ -14,7 +14,8 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 #amr.n_cell           = 128    32    32
 
 geometry.prob_extent =  10.    1.    1.
-amr.n_cell           = 128    16    16
+#amr.n_cell           = 128    16    16
+amr.n_cell           = 128     16    64
 
 geometry.is_periodic = 0 1 0
 
@@ -40,7 +41,8 @@ amr.max_level       = 0      # maximum level number allowed
 
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
-erf.plot_per_1      = 0.1
+#erf.plot_per_1      = 0.1
+erf.plot_int_1      = 10
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
@@ -70,25 +72,25 @@ erf.input_sounding_file = "input_ReTau2000DNS_sounding.txt"
 # Inflow boundary condition
 erf.sponge_type = "input_sponge"
 erf.input_sponge_file = "input_ReTau2000DNS_sponge.txt"
-erf.sponge_strength = 1000.0
+erf.sponge_strength = 100000.0
 erf.use_xlo_sponge_damping = true
-erf.xlo_sponge_end = 0.25
+erf.xlo_sponge_end = 1.0
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
 erf.perturbation_direction = 1 0 0
 erf.perturbation_layers = 3
-erf.perturbation_offset = 3
+erf.perturbation_offset = 0
 
-erf.perturbation_box_dims = 4 8 4
+erf.perturbation_box_dims = 4 4 8 # 0.25 0.25 0.125
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
-erf.perturbation_T_intensity = 0.05
+erf.perturbation_T_intensity = 0.1
 
 # PROBLEM PARAMETERS
 prob.rho_0 = 1.0
 prob.A_0 = 1.0
-prob.U_0 = 0.5
+prob.U_0 = 0.0
 prob.V_0 = 0.0
 prob.W_0 = 0.0
 prob.T_0 = 300.0
