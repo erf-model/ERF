@@ -2,6 +2,6 @@ This problem setup is for simulation of the Atmospheric Boundary Layer (ABL)
 using one of two turbulence schemes (Smagorinsky or Deardorff) and the bottom
 boundary condition possibly specified by Monin Obukhov Similarity Theory (MOST).
 
-This verion of the ABL problem initializes the data from an input sounding file,
+This version of the ABL problem initializes the data from an input sounding file,
 and initializes turbulence at the inflow. The target is to transition turbulence
 from coarse to fine grid interface.

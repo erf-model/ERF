@@ -86,7 +86,7 @@ struct TurbulentPerturbation {
         pb_local_etime.resize(pb_ba[lev].size(), 0.0);
         pb_amp.resize(pb_ba[lev].size(), 0.0);
 
-        // Comptuing perturbation reference length
+        // Computing perturbation reference length
         tpi_Lpb = tpi_boxDim[0]*dx[0];
         tpi_Wpb = tpi_boxDim[1]*dx[1];
         tpi_Hpb = tpi_boxDim[2]*dx[2];
@@ -151,11 +151,11 @@ struct TurbulentPerturbation {
 //#define ECKERT_FORMULATION
 #define BULK_RICHARDSON_FORMULATION
 
-    // Perturbation amplitude calcluation
+    // Perturbation amplitude calculation
     void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
     {
         amrex::Real Um = pb_mag[boxIdx];
-        pb_amp[boxIdx] = 0.; // Safty step
+        pb_amp[boxIdx] = 0.; // Safety step
 
         #ifdef ECKERT_FORMULATION
         // Muñoz-Esparza et al. (2015) Eq. 9
@@ -165,7 +165,7 @@ struct TurbulentPerturbation {
         #ifdef BULK_RICHARDSON_FORMULATION
         amrex::Real beta = 1./tpi_Tinf;
 
-        // Pseudo Random temperature the ignores scale when machanically tripping turbulence
+        // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
         amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
         //amrex::Real g = CONST_GRAV;
 
@@ -218,7 +218,7 @@ struct TurbulentPerturbation {
 #define USE_VOLUME_AVERAGE
 
     // Perturbation box mean velocity magnitude calculation
-    // This is pulled into the strucutre to also utilize during runtime
+    // This is pulled into the structure to also utilize during runtime
     void calc_tpi_meanMag_perBox (const int boxIdx,
                                   const int lev,
                                   amrex::MultiFab& mf_xvel,
@@ -418,7 +418,7 @@ struct TurbulentPerturbation {
 
   private:
 
-    // Random number generation between range (used for interval calucation)
+    // Random number generation between range (used for interval calculation)
     amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
     {
         amrex::Real r = (amrex::Real) rand() / (amrex::Real) RAND_MAX;
