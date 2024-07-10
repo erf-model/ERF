@@ -20,9 +20,7 @@ struct CollisionKernel
     /*! \brief Golovin kernel */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     RT golovin ( const RT a_r1, /*!< radius of droplet 1 */
-                 const RT a_r2, /*!< radius of droplet 2 */
-                 const RT* const /*a_v1*/,
-                 const RT* const /*a_v2*/ ) const noexcept
+                 const RT a_r2  /*!< radius of droplet 2 */ ) const noexcept
     {
         RT b = 1.5e03;
         auto X_1 = (4.0*PI/3.0) * a_r1*a_r1*a_r1;

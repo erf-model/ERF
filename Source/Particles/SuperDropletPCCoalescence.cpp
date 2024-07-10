@@ -197,18 +197,21 @@ void SuperDropletPC::Coalescence( int   a_lev,
         Gpu::Buffer<amrex::Long> particle_collisions({0});
         Long* particle_collisions_ptr = particle_collisions.data();
 
-        Gpu::DeviceVector<int> coal_partner_idx, flag_prey;
+        Gpu::DeviceVector<int> coal_partner_idx, flag_prey, num_particles_bin;
         Gpu::DeviceVector<Real> coal_rate, coal_rmndr;
+        num_particles_bin.resize(np);
         coal_partner_idx.resize(np);
         flag_prey.resize(np);
         coal_rate.resize(np);
         coal_rmndr.resize(np);
+        auto np_bin_ptr = num_particles_bin.data();
         auto partner_idx_ptr = coal_partner_idx.data();
         auto flag_prey_ptr = flag_prey.data();
         auto coal_rate_ptr = coal_rate.data();
         auto coal_rmndr_ptr = coal_rmndr.data();
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i) noexcept
         {
+            np_bin_ptr[i] = 0;
             partner_idx_ptr[i] = -1;
             flag_prey_ptr[i] = -1;
             coal_rate_ptr[i] = 0.0;
@@ -223,102 +226,117 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto bin_start = offsets[i_bin];
             auto bin_stop = offsets[i_bin+1];
             auto np_bin = bin_stop - bin_start;
+            if (np_bin <= 1) { return; }
 
-            if (np_bin > 1) {
+            random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+            for (unsigned int p = 0; p < np_bin/2; p++) {
+                auto pi = inds[bin_start+p];
+                auto pj = inds[bin_stop-1-p];
 
-                random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
+                if (pi == pj) { continue; }
+                if (mult_ptr[pi] == 0) { continue; }
+                if (mult_ptr[pj] == 0) { continue; }
 
-                for (unsigned int p = 0; p < np_bin/2; p++) {
-                    auto pi = inds[bin_start+p];
-                    auto pj = inds[bin_stop-1-p];
+                np_bin_ptr[pi] = np_bin_ptr[pj] = np_bin;
+                partner_idx_ptr[pi] = pj;
+                partner_idx_ptr[pj] = pi;
 
-                    if (pi == pj) { continue; }
-                    if (mult_ptr[pi] == 0) { return; }
-                    if (mult_ptr[pj] == 0) { return; }
+                int i = -1, j = -1;
+                if (mult_ptr[pi] >= mult_ptr[pj]) { i = pi; j = pj; }
+                else                              { i = pj; j = pi; }
+                flag_prey_ptr[i] = 1;
+                flag_prey_ptr[j] = 0;
+            }
+        } );
+        Gpu::synchronize();
 
-                    ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
-                    for (int d = 0; d < AMREX_SPACEDIM; d++) {
-                        v_i[d] = v_ptr[d][pi];
-                        v_j[d] = v_ptr[d][pj];
-                    }
+        ParallelForRNG( np,
+                        [=] AMREX_GPU_DEVICE (int i,
+                                              RandomEngine const& rnd_eng) noexcept
+        {
+            if (partner_idx_ptr[i] < 0) { return; }
+            if (!flag_prey_ptr[i]) { return; }
 
-                    ParticleReal k_val = 0.0;
-                    if (kernel_choice == SDCoalescenceKernelType::golovin) {
+            int pi = i;
+            int pj = partner_idx_ptr[i];
+            AMREX_ALWAYS_ASSERT(mult_ptr[pi] >= mult_ptr[pj]);
 
-                        k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+            ParticleReal k_val = 0.0;
+            if (kernel_choice == SDCoalescenceKernelType::golovin) {
 
-                    } else {
+                k_val = ckernel.golovin(radius_ptr[pi],radius_ptr[pj]);
 
-                        if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
-                            k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
-                            k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
-                            k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
-                        }
-                    }
+            } else {
 
-                    if (include_brownian_coalescence) {
+                ParticleReal v_i[AMREX_SPACEDIM], v_j[AMREX_SPACEDIM];
+                for (int d = 0; d < AMREX_SPACEDIM; d++) {
+                    v_i[d] = v_ptr[d][pi];
+                    v_j[d] = v_ptr[d][pj];
+                }
 
-                        ParticleReal pressure = 0.0, temperature = 0.0;
-                        {
-                            ParticleType& par_1 = pstruct_ptr[pi];
-                            auto iv = getParticleCell(par_1, plo, dxi, domain);
-                            pressure = pressure_arr(iv[0],iv[1],iv[2],0);
-                            temperature = temperature_arr(iv[0],iv[1],iv[2],0);
-                        }
+                if (kernel_choice == SDCoalescenceKernelType::sedimentation) {
+                    k_val = ckernel.sedimentation(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                } else if (kernel_choice == SDCoalescenceKernelType::Longs) {
+                    k_val = ckernel.Longs(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                } else if (kernel_choice == SDCoalescenceKernelType::Halls) {
+                    k_val = ckernel.Halls(radius_ptr[pi],radius_ptr[pj],v_i,v_j);
+                }
+            }
 
-                        ParticleReal aero_mass_1 = 0.0,
-                                     aero_mass_2 = 0.0,
-                                     aero_vol_1 = 0.0,
-                                     aero_vol_2 = 0.0;
-                        {
-                            for (int ia = 0; ia < num_aerosols; ia++) {
-                                aero_mass_1 += aerosol_mass_ptrs[ia][pi];
-                                aero_mass_2 += aerosol_mass_ptrs[ia][pj];
-                                aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
-                                aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
-                            }
-                        }
+            if (include_brownian_coalescence) {
 
-                        k_val += ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
-                                                                  radius_ptr[pj],
-                                                                  aero_mass_1,
-                                                                  aero_mass_2,
-                                                                  aero_vol_1,
-                                                                  aero_vol_2,
-                                                                  condensate_density,
-                                                                  pressure,
-                                                                  temperature );
-                    }
+                ParticleReal pressure = 0.0, temperature = 0.0;
+                {
+                    ParticleType& par_1 = pstruct_ptr[pi];
+                    auto iv = getParticleCell(par_1, plo, dxi, domain);
+                    pressure = pressure_arr(iv[0],iv[1],iv[2],0);
+                    temperature = temperature_arr(iv[0],iv[1],iv[2],0);
+                }
 
-                    auto prob_ij = k_val*inv_bin_volume;
-                    auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
-
-                    auto ns = static_cast<ParticleReal>(np_bin);
-                    auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
-                    auto scaled_prob = prob_sd_ij * scaling_factor;
-
-                    auto t_coalescence = 1.0/scaled_prob;
-                    t_coal_ptr[pi] = t_coal_ptr[pj] = t_coalescence;
-
-                    auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
-                    if (gamma > 0) {
-                        partner_idx_ptr[pi] = pj;
-                        partner_idx_ptr[pj] = pi;
-                        amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(gamma));
-
-                        int i = -1, j = -1;
-                        if (mult_ptr[pi] >= mult_ptr[pj]) { i = pi; j = pj; }
-                        else                               { i = pj; j = pi; }
-                        coal_rate_ptr[i] =std::min(gamma,std::floor(mult_ptr[i]/mult_ptr[j]));
-                        coal_rate_ptr[j] = coal_rate_ptr[i];
-                        coal_rmndr_ptr[i] = mult_ptr[i] - coal_rate_ptr[i]*mult_ptr[j];
-                        coal_rmndr_ptr[j] = coal_rmndr_ptr[i];
-                        flag_prey_ptr[i] = 1;
-                        flag_prey_ptr[j] = 0;
+                ParticleReal aero_mass_1 = 0.0,
+                             aero_mass_2 = 0.0,
+                             aero_vol_1 = 0.0,
+                             aero_vol_2 = 0.0;
+                {
+                    for (int ia = 0; ia < num_aerosols; ia++) {
+                        aero_mass_1 += aerosol_mass_ptrs[ia][pi];
+                        aero_mass_2 += aerosol_mass_ptrs[ia][pj];
+                        aero_vol_1 += aerosol_mass_ptrs[ia][pi]/aero_density[ia];
+                        aero_vol_2 += aerosol_mass_ptrs[ia][pj]/aero_density[ia];
                     }
                 }
+
+                k_val += ckernel.Brownian_SeinfeldPandis( radius_ptr[pi],
+                                                          radius_ptr[pj],
+                                                          aero_mass_1,
+                                                          aero_mass_2,
+                                                          aero_vol_1,
+                                                          aero_vol_2,
+                                                          condensate_density,
+                                                          pressure,
+                                                          temperature );
+            }
+
+            auto prob_ij = k_val*inv_bin_volume;
+            auto prob_sd_ij = std::max(mult_ptr[pi],mult_ptr[pj])*prob_ij;
+
+            auto ns = static_cast<ParticleReal>(np_bin_ptr[i]);
+            auto scaling_factor = 0.5*ns*(ns-1)/std::floor(0.5*ns);
+            auto scaled_prob = prob_sd_ij * scaling_factor;
+
+            auto t_coalescence = 1.0/scaled_prob;
+            t_coal_ptr[i] = t_coalescence;
+
+            auto gamma = coalescence_rate ( rnd_eng, (scaled_prob*a_dt) );
+            if (gamma > 0) {
+                amrex::Gpu::Atomic::Add(particle_collisions_ptr, amrex::Long(gamma));
+                coal_rate_ptr[pi] = std::min(gamma,std::floor(mult_ptr[pi]/mult_ptr[pj]));
+                coal_rate_ptr[pj] = coal_rate_ptr[pi];
+                coal_rmndr_ptr[pi] = mult_ptr[pi] - coal_rate_ptr[pi]*mult_ptr[pj];
+                coal_rmndr_ptr[pj] = coal_rmndr_ptr[pi];
+            } else {
+                partner_idx_ptr[pi] = -1;
+                partner_idx_ptr[pj] = -1;
             }
 
         } );
