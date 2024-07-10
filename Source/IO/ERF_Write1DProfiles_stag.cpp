@@ -391,7 +391,10 @@ ERF::derive_diag_profiles_stag (Real time,
             fab_arr(i, j, k, 9) = theta * theta;                       // th*th
 
             Real wcc = 0.5 * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
-            Real uiui = fab_arr(i,j,k,3) + fab_arr(i,j,k,5) + wcc*wcc;
+
+            // if the number of fields is changed above, then be sure to update
+            // the following def!
+            Real uiui = fab_arr(i,j,k,4) + fab_arr(i,j,k,6) + wcc*wcc;
             fab_arr(i, j, k,10) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
             fab_arr(i, j, k,11) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
 

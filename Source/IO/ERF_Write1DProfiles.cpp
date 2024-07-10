@@ -287,7 +287,10 @@ ERF::derive_diag_profiles(Real time,
             fab_arr(i, j, k,11) = v_cc_arr(i,j,k) * theta; // v*th
             fab_arr(i, j, k,12) = w_cc_arr(i,j,k) * theta; // w*th
             fab_arr(i, j, k,13) = theta * theta;           // th*th
-            Real uiui = fab_arr(i,j,k,3) + fab_arr(i,j,k,6) + fab_arr(i,j,k,8);
+
+            // if the number of fields is changed above, then be sure to update
+            // the following def!
+            Real uiui = fab_arr(i,j,k,4) + fab_arr(i,j,k,7) + fab_arr(i,j,k,9);
             fab_arr(i, j, k,14) = uiui * u_cc_arr(i,j,k);   // (ui*ui)*u
             fab_arr(i, j, k,15) = uiui * v_cc_arr(i,j,k);   // (ui*ui)*v
             fab_arr(i, j, k,16) = uiui * w_cc_arr(i,j,k);   // (ui*ui)*w
