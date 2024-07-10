@@ -295,10 +295,10 @@ ERF::derive_diag_profiles(Real time,
             if (!use_moisture) {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,17) = p;                       // p'
-                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'*v
-                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'*w
+                fab_arr(i, j, k,17) = p;                       // p
+                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p*w
                 fab_arr(i, j, k,21) = 0.;  // qv
                 fab_arr(i, j, k,22) = 0.;  // qc
                 fab_arr(i, j, k,23) = 0.;  // qr
@@ -338,10 +338,10 @@ ERF::derive_diag_profiles(Real time,
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
 
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,17) = p;                       // p'
-                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p'*v
-                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p'*w
+                fab_arr(i, j, k,17) = p;                       // p
+                fab_arr(i, j, k,18) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,19) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,20) = p * w_cc_arr(i,j,k);     // p*w
                 fab_arr(i, j, k,21) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
                 fab_arr(i, j, k,22) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
                 fab_arr(i, j, k,23) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr

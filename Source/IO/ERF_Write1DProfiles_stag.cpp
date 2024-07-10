@@ -320,15 +320,18 @@ ERF::derive_diag_profiles_stag (Real time,
     bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
     bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
 
-    // This will hold rho, theta, ksgs, uu, uv, vv, uth, vth, thth, uiuiu, uiuiv, p, pu, pv
-    //         index:   0      1     2   3   4   5    6    7     8      9     10  11 12  13
-    MultiFab mf_out(grids[lev], dmap[lev], 14, 0);
+    // Note: "uiui" == u_i*u_i = u*u + v*v + w*w
+    // This will hold rho, theta, ksgs, kturb, uu, uv, vv, uth, vth,
+    //       indices:   0      1     2      3   4   5   6    7    8
+    //                thth, uiuiu, uiuiv, p, pu, pv, qv, qc, qr, qi, qs, qg
+    //                   9     10     11 12  13  14  15  16  17  18  19  20
+    MultiFab mf_out(grids[lev], dmap[lev], 21, 0);
 
-    // This will hold uw, vw, ww, wth, uiuiw, pw (note: uiui == u_i*u_i = u*u + v*v + w*w)
-    //         index:  0   1   2    3      4   5
-    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 6, 0);
+    // This will hold uw, vw, ww, wth, uiuiw, pw, wqv, wqc, wqr
+    //       indices:  0   1   2    3      4   5    6    7    8
+    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 9, 0);
 
-    // This is only used to average u and v
+    // This is only used to average u and v; w is not averaged to cell centers
     MultiFab mf_vels(grids[lev], dmap[lev], 2, 0);
 
     MultiFab  u_cc(mf_vels, make_alias, 0, 1); // u at cell centers
@@ -359,6 +362,8 @@ ERF::derive_diag_profiles_stag (Real time,
         const Array4<Real>& w_fc_arr =  w_fc.array(mfi);
         const Array4<Real>& cons_arr = mf_cons.array(mfi);
         const Array4<Real>&   p0_arr = p_hse.array(mfi);
+        const Array4<const Real>& eta_arr = (l_use_Turb) ? eddyDiffs_lev[lev]->const_array(mfi) :
+                                                           Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -375,24 +380,33 @@ ERF::derive_diag_profiles_stag (Real time,
                 ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
             }
             fab_arr(i, j, k, 2) = ksgs;
-            fab_arr(i, j, k, 3) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
-            fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
-            fab_arr(i, j, k, 5) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // v*v
-            fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * theta;             // u*th
-            fab_arr(i, j, k, 7) = v_cc_arr(i,j,k) * theta;             // v*th
-            fab_arr(i, j, k, 8) = theta * theta;                       // th*th
+            Real kturb = 0.0;
+            if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
+            fab_arr(i, j, k, 3) = kturb;
+            fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
+            fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
+            fab_arr(i, j, k, 6) = v_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // v*v
+            fab_arr(i, j, k, 7) = u_cc_arr(i,j,k) * theta;             // u*th
+            fab_arr(i, j, k, 8) = v_cc_arr(i,j,k) * theta;             // v*th
+            fab_arr(i, j, k, 9) = theta * theta;                       // th*th
 
             Real wcc = 0.5 * (w_fc_arr(i,j,k) + w_fc_arr(i,j,k+1));
             Real uiui = fab_arr(i,j,k,3) + fab_arr(i,j,k,5) + wcc*wcc;
-            fab_arr(i, j, k,9 ) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
-            fab_arr(i, j, k,10) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
+            fab_arr(i, j, k,10) = uiui * u_cc_arr(i,j,k);           // (ui*ui)*u
+            fab_arr(i, j, k,11) = uiui * v_cc_arr(i,j,k);           // (ui*ui)*v
 
             if (!use_moisture) {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp));
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,11) = p;                       // p'
-                fab_arr(i, j, k,12) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,13) = p * v_cc_arr(i,j,k);     // p'*v
+                fab_arr(i, j, k,12) = p;                       // p
+                fab_arr(i, j, k,13) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,14) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,15) = 0.;  // qv
+                fab_arr(i, j, k,16) = 0.;  // qc
+                fab_arr(i, j, k,17) = 0.;  // qr
+                fab_arr(i, j, k,18) = 0.;  // qi
+                fab_arr(i, j, k,19) = 0.;  // qs
+                fab_arr(i, j, k,20) = 0.;  // qg
             }
         });
 
@@ -417,7 +431,10 @@ ERF::derive_diag_profiles_stag (Real time,
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp)) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp)) - p0_arr(i,j,k-1);
                 Real pface = 0.5 * (p0 + p1);
-                fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k);       // p'*w
+                fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k);       // p*w
+                fab_arr_stag(i,j,k,6) = 0.;  // w*qv
+                fab_arr_stag(i,j,k,7) = 0.;  // w*qc
+                fab_arr_stag(i,j,k,8) = 0.;  // w*qr
             }
         });
 
@@ -425,6 +442,14 @@ ERF::derive_diag_profiles_stag (Real time,
 
     if (use_moisture)
     {
+        int RhoQr_comp;
+        int n_qstate = micro->Get_Qstate_Size();
+        if (n_qstate > 3) {
+            RhoQr_comp = RhoQ4_comp;
+        } else {
+            RhoQr_comp = RhoQ3_comp;
+        }
+
         for ( MFIter mfi(mf_cons,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
             const Box& bx = mfi.tilebox();
@@ -442,9 +467,21 @@ ERF::derive_diag_profiles_stag (Real time,
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
 
                 p -= p0_arr(i,j,k);
-                fab_arr(i, j, k,11) = p;                       // p'
-                fab_arr(i, j, k,12) = p * u_cc_arr(i,j,k);     // p'*u
-                fab_arr(i, j, k,13) = p * v_cc_arr(i,j,k);     // p'*v
+                fab_arr(i, j, k,12) = p;                       // p
+                fab_arr(i, j, k,13) = p * u_cc_arr(i,j,k);     // p*u
+                fab_arr(i, j, k,14) = p * v_cc_arr(i,j,k);     // p*v
+                fab_arr(i, j, k,15) = cons_arr(i,j,k,RhoQ1_comp) / cons_arr(i,j,k,Rho_comp);  // qv
+                fab_arr(i, j, k,16) = cons_arr(i,j,k,RhoQ2_comp) / cons_arr(i,j,k,Rho_comp);  // qc
+                fab_arr(i, j, k,17) = cons_arr(i,j,k,RhoQr_comp) / cons_arr(i,j,k,Rho_comp);  // qr
+                if (n_qstate > 3) {
+                    fab_arr(i, j, k,18) = cons_arr(i,j,k,RhoQ3_comp) / cons_arr(i,j,k,Rho_comp);  // qi
+                    fab_arr(i, j, k,19) = cons_arr(i,j,k,RhoQ5_comp) / cons_arr(i,j,k,Rho_comp);  // qs
+                    fab_arr(i, j, k,20) = cons_arr(i,j,k,RhoQ6_comp) / cons_arr(i,j,k,Rho_comp);  // qg
+                } else {
+                    fab_arr(i, j, k,18) = 0.0;  // qi
+                    fab_arr(i, j, k,19) = 0.0;  // qs
+                    fab_arr(i, j, k,20) = 0.0;  // qg
+                }
             });
 
             const Box& zbx = mfi.tilebox(IntVect(0,0,1));
@@ -453,37 +490,61 @@ ERF::derive_diag_profiles_stag (Real time,
                 Real p0 = getPgivenRTh(cons_arr(i, j, k  , RhoTheta_comp), qv_arr(i,j,k  )) - p0_arr(i,j,k  );
                 Real p1 = getPgivenRTh(cons_arr(i, j, k-1, RhoTheta_comp), qv_arr(i,j,k-1)) - p0_arr(i,j,k-1);
                 Real pface = 0.5 * (p0 + p1);
-                fab_arr_stag(i,j,k,5) = pface * w_fc_arr(i,j,k); // p'*w
+
+                Real qv0 = cons_arr(i,j,k  ,RhoQ1_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qv1 = cons_arr(i,j,k-1,RhoQ1_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qc0 = cons_arr(i,j,k  ,RhoQ2_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qc1 = cons_arr(i,j,k-1,RhoQ2_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qr0 = cons_arr(i,j,k  ,RhoQ3_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real qr1 = cons_arr(i,j,k-1,RhoQ3_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real qvface = 0.5 * (qv0 + qv1);
+                Real qcface = 0.5 * (qc0 + qc1);
+                Real qrface = 0.5 * (qr0 + qr1);
+
+                fab_arr_stag(i,j,k,5) = pface  * w_fc_arr(i,j,k); // p*w
+                fab_arr_stag(i,j,k,6) = qvface * w_fc_arr(i,j,k); // w*qv
+                fab_arr_stag(i,j,k,7) = qcface * w_fc_arr(i,j,k); // w*qc
+                fab_arr_stag(i,j,k,8) = qrface * w_fc_arr(i,j,k); // w*qr
             });
         } // mfi
     } // use_moisture
 
     // Sum in the horizontal plane
-    h_avg_u  = sumToLine(u_cc,0,1,     domain,zdir);
-    h_avg_v  = sumToLine(v_cc,0,1,     domain,zdir);
-    h_avg_w  = sumToLine(w_fc,0,1,stag_domain,zdir);
+    h_avg_u = sumToLine(u_cc,0,1,     domain,zdir);
+    h_avg_v = sumToLine(v_cc,0,1,     domain,zdir);
+    h_avg_w = sumToLine(w_fc,0,1,stag_domain,zdir);
 
-    h_avg_rho  = sumToLine(mf_out, 0,1,domain,zdir);
-    h_avg_th   = sumToLine(mf_out, 1,1,domain,zdir);
-    h_avg_ksgs = sumToLine(mf_out, 2,1,domain,zdir);
-    h_avg_uu   = sumToLine(mf_out, 3,1,domain,zdir);
-    h_avg_uv   = sumToLine(mf_out, 4,1,domain,zdir);
-    h_avg_vv   = sumToLine(mf_out, 5,1,domain,zdir);
-    h_avg_uth  = sumToLine(mf_out, 6,1,domain,zdir);
-    h_avg_vth  = sumToLine(mf_out, 7,1,domain,zdir);
-    h_avg_thth = sumToLine(mf_out, 8,1,domain,zdir);
-    h_avg_uiuiu= sumToLine(mf_out, 9,1,stag_domain,zdir);
-    h_avg_uiuiv= sumToLine(mf_out,10,1,stag_domain,zdir);
-    h_avg_p    = sumToLine(mf_out,11,1,domain,zdir);
-    h_avg_pu   = sumToLine(mf_out,12,1,domain,zdir);
-    h_avg_pv   = sumToLine(mf_out,13,1,domain,zdir);
+    h_avg_rho   = sumToLine(mf_out, 0,1,domain,zdir);
+    h_avg_th    = sumToLine(mf_out, 1,1,domain,zdir);
+    h_avg_ksgs  = sumToLine(mf_out, 2,1,domain,zdir);
+    h_avg_kturb = sumToLine(mf_out, 3,1,domain,zdir);
+    h_avg_uu    = sumToLine(mf_out, 4,1,domain,zdir);
+    h_avg_uv    = sumToLine(mf_out, 5,1,domain,zdir);
+    h_avg_vv    = sumToLine(mf_out, 6,1,domain,zdir);
+    h_avg_uth   = sumToLine(mf_out, 7,1,domain,zdir);
+    h_avg_vth   = sumToLine(mf_out, 8,1,domain,zdir);
+    h_avg_thth  = sumToLine(mf_out, 9,1,domain,zdir);
+    h_avg_uiuiu = sumToLine(mf_out,10,1,domain,zdir);
+    h_avg_uiuiv = sumToLine(mf_out,11,1,domain,zdir);
+    h_avg_p     = sumToLine(mf_out,12,1,domain,zdir);
+    h_avg_pu    = sumToLine(mf_out,13,1,domain,zdir);
+    h_avg_pv    = sumToLine(mf_out,14,1,domain,zdir);
+    h_avg_qv    = sumToLine(mf_out,15,1,domain,zdir);
+    h_avg_qc    = sumToLine(mf_out,16,1,domain,zdir);
+    h_avg_qr    = sumToLine(mf_out,17,1,domain,zdir);
+    h_avg_qi    = sumToLine(mf_out,18,1,domain,zdir);
+    h_avg_qs    = sumToLine(mf_out,19,1,domain,zdir);
+    h_avg_qg    = sumToLine(mf_out,20,1,domain,zdir);
 
-    h_avg_uw   = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
-    h_avg_vw   = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
-    h_avg_ww   = sumToLine(mf_out_stag,2,1,stag_domain,zdir);
-    h_avg_wth  = sumToLine(mf_out_stag,3,1,stag_domain,zdir);
-    h_avg_uiuiw= sumToLine(mf_out_stag,4,1,stag_domain,zdir);
-    h_avg_pw   = sumToLine(mf_out_stag,5,1,stag_domain,zdir);
+    h_avg_uw    = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
+    h_avg_vw    = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
+    h_avg_ww    = sumToLine(mf_out_stag,2,1,stag_domain,zdir);
+    h_avg_wth   = sumToLine(mf_out_stag,3,1,stag_domain,zdir);
+    h_avg_uiuiw = sumToLine(mf_out_stag,4,1,stag_domain,zdir);
+    h_avg_pw    = sumToLine(mf_out_stag,5,1,stag_domain,zdir);
+    h_avg_wqv   = sumToLine(mf_out_stag,6,1,stag_domain,zdir);
+    h_avg_wqc   = sumToLine(mf_out_stag,7,1,stag_domain,zdir);
+    h_avg_wqr   = sumToLine(mf_out_stag,8,1,stag_domain,zdir);
 
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
@@ -493,6 +554,7 @@ ERF::derive_diag_profiles_stag (Real time,
         h_avg_v[k]     /= area_z;
         h_avg_rho[k]   /= area_z;
         h_avg_ksgs[k]  /= area_z;
+        h_avg_kturb[k] /= area_z;
         h_avg_th[k]    /= area_z;
         h_avg_thth[k]  /= area_z;
         h_avg_uu[k]    /= area_z;
@@ -505,6 +567,12 @@ ERF::derive_diag_profiles_stag (Real time,
         h_avg_p[k]     /= area_z;
         h_avg_pu[k]    /= area_z;
         h_avg_pv[k]    /= area_z;
+        h_avg_qv[k]    /= area_z;
+        h_avg_qc[k]    /= area_z;
+        h_avg_qr[k]    /= area_z;
+        h_avg_qi[k]    /= area_z;
+        h_avg_qs[k]    /= area_z;
+        h_avg_qg[k]    /= area_z;
     }
 
     for (int k = 0; k < unstag_size+1; ++k) { // staggered heights
@@ -515,6 +583,9 @@ ERF::derive_diag_profiles_stag (Real time,
         h_avg_wth[k]   /= area_z;
         h_avg_uiuiw[k] /= area_z;
         h_avg_pw[k]    /= area_z;
+        h_avg_wqv[k]   /= area_z;
+        h_avg_wqc[k]   /= area_z;
+        h_avg_wqr[k]   /= area_z;
     }
 }
 
