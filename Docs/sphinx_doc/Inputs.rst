@@ -676,6 +676,8 @@ The requested output files have the following columns:
 
   #. *Z-direction flux of rain water*, :math:`\langle q_r^\prime w^\prime \rangle` (m/s) -- *staggered*
 
+  #. *Z-direction virtual temperature flux*, :math:`\langle w^\prime \theta_v^\prime \rangle` (K m/s) -- *staggered*
+
 * Modeled subgrid-scale (SGS) profiles
 
   #. SGS stress tensor component, :math:`\tau_{11}` (m2/s2)

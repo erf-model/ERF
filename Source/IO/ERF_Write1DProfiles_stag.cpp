@@ -34,6 +34,7 @@ ERF::write_1D_profiles_stag (Real time)
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
         Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb;
         Gpu::HostVector<Real> h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg;
+        Gpu::HostVector<Real> h_avg_wthv;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
@@ -51,7 +52,8 @@ ERF::write_1D_profiles_stag (Real time)
                                       h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                       h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                       h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
-                                      h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
+                                      h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw,
+                                      h_avg_wthv);
         }
 
         if (NumDataLogs() > 3 && time > 0.) {
@@ -134,7 +136,8 @@ ERF::write_1D_profiles_stag (Real time)
                             << 0                                       << " " // p'w'
                             << 0                                       << " " // qv'w'
                             << 0                                       << " " // qc'w'
-                            << 0                                              // qr'w'
+                            << 0                                       << " " // qr'w'
+                            << 0                                              // thv'w'
                             << std::endl;
 
                   // For internal values, interpolate scalar quantities to faces
@@ -153,13 +156,12 @@ ERF::write_1D_profiles_stag (Real time)
                       Real qcface = 0.5*(h_avg_qc[k] + h_avg_qc[k-1]);
                       Real qrface = 0.5*(h_avg_qr[k] + h_avg_qr[k-1]);
                       Real uuface = 0.5*(h_avg_uu[k] + h_avg_uu[k-1]);
-                      Real uvface = 0.5*(h_avg_uv[k] + h_avg_uv[k-1]);
                       Real vvface = 0.5*(h_avg_vv[k] + h_avg_vv[k-1]);
+                      Real thvface = thface * (1 + 0.61*qvface - qcface - qrface);
                       w_cc   = 0.5*(h_avg_w[k-1]  + h_avg_w[k]);
                       uw_cc  = 0.5*(h_avg_uw[k-1] + h_avg_uw[k]);
                       vw_cc  = 0.5*(h_avg_vw[k-1] + h_avg_vw[k]);
                       ww_cc  = 0.5*(h_avg_ww[k-1] + h_avg_ww[k]);
-                      amrex::ignore_unused(uvface);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
@@ -196,7 +198,8 @@ ERF::write_1D_profiles_stag (Real time)
                                 << h_avg_pw[k]   -      pface*h_avg_w[k]   << " " // face-centered p'w'
                                 << h_avg_wqv[k]  -     qvface*h_avg_w[k]   << " "
                                 << h_avg_wqc[k]  -     qcface*h_avg_w[k]   << " "
-                                << h_avg_wqr[k]  -     qrface*h_avg_w[k]
+                                << h_avg_wqr[k]  -     qrface*h_avg_w[k]   << " "
+                                << h_avg_wthv[k] -    thvface*h_avg_w[k]
                                 << std::endl;
                   } // loop over z
 
@@ -210,9 +213,8 @@ ERF::write_1D_profiles_stag (Real time)
                   Real qcface = 1.5*h_avg_qc[k-1] - 0.5*h_avg_qc[k-2];
                   Real qrface = 1.5*h_avg_qr[k-1] - 0.5*h_avg_qr[k-2];
                   Real uuface = 1.5*h_avg_uu[k-1] - 0.5*h_avg_uu[k-2];
-                  Real uvface = 1.5*h_avg_uv[k-1] - 0.5*h_avg_uv[k-2];
                   Real vvface = 1.5*h_avg_vv[k-1] - 0.5*h_avg_vv[k-2];
-                  amrex::ignore_unused(uvface);
+                  Real thvface = thface * (1 + 0.61*qvface - qcface - qrface);
                   data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << k * dx[2] << " "
                             << 0                                     << " " // u'u'
@@ -237,7 +239,8 @@ ERF::write_1D_profiles_stag (Real time)
                             << h_avg_pw[k]   -      pface*h_avg_w[k] << " " // pw'
                             << h_avg_wqv[k]  -     qvface*h_avg_w[k] << " "
                             << h_avg_wqc[k]  -     qcface*h_avg_w[k] << " "
-                            << h_avg_wqr[k]  -     qrface*h_avg_w[k]
+                            << h_avg_wqr[k]  -     qrface*h_avg_w[k] << " "
+                            << h_avg_wthv[k] -    thvface*h_avg_w[k]
                             << std::endl;
                 } // if good
             } // NumDataLogs
@@ -311,7 +314,8 @@ ERF::derive_diag_profiles_stag (Real time,
                                 Gpu::HostVector<Real>& h_avg_thth,
                                 Gpu::HostVector<Real>& h_avg_uiuiu, Gpu::HostVector<Real>& h_avg_uiuiv, Gpu::HostVector<Real>& h_avg_uiuiw,
                                 Gpu::HostVector<Real>& h_avg_p,
-                                Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
+                                Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw,
+                                Gpu::HostVector<Real>& h_avg_wthv)
 {
     // We assume that this is always called at level 0
     int lev = 0;
@@ -327,9 +331,9 @@ ERF::derive_diag_profiles_stag (Real time,
     //                   9     10     11 12  13  14  15  16  17  18  19  20
     MultiFab mf_out(grids[lev], dmap[lev], 21, 0);
 
-    // This will hold uw, vw, ww, wth, uiuiw, pw, wqv, wqc, wqr
-    //       indices:  0   1   2    3      4   5    6    7    8
-    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 9, 0);
+    // This will hold uw, vw, ww, wth, uiuiw, pw, wqv, wqc, wqr, wthv
+    //       indices:  0   1   2    3      4   5    6    7    8     9
+    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 10, 0);
 
     // This is only used to average u and v; w is not averaged to cell centers
     MultiFab mf_vels(grids[lev], dmap[lev], 2, 0);
@@ -438,6 +442,7 @@ ERF::derive_diag_profiles_stag (Real time,
                 fab_arr_stag(i,j,k,6) = 0.;  // w*qv
                 fab_arr_stag(i,j,k,7) = 0.;  // w*qc
                 fab_arr_stag(i,j,k,8) = 0.;  // w*qr
+                fab_arr_stag(i,j,k,9) = 0.;  // w*thv
             }
         });
 
@@ -504,10 +509,17 @@ ERF::derive_diag_profiles_stag (Real time,
                 Real qcface = 0.5 * (qc0 + qc1);
                 Real qrface = 0.5 * (qr0 + qr1);
 
+                Real theta0 = cons_arr(i,j,k  ,RhoTheta_comp) / cons_arr(i,j,k  ,Rho_comp);
+                Real theta1 = cons_arr(i,j,k-1,RhoTheta_comp) / cons_arr(i,j,k-1,Rho_comp);
+                Real thface = 0.5*(theta0 + theta1);
+                Real ql = qcface + qrface;
+                Real thv = thface * (1 + 0.61*qvface - ql);
+
                 fab_arr_stag(i,j,k,5) = pface  * w_fc_arr(i,j,k); // p*w
                 fab_arr_stag(i,j,k,6) = qvface * w_fc_arr(i,j,k); // w*qv
                 fab_arr_stag(i,j,k,7) = qcface * w_fc_arr(i,j,k); // w*qc
                 fab_arr_stag(i,j,k,8) = qrface * w_fc_arr(i,j,k); // w*qr
+                fab_arr_stag(i,j,k,9) = thv    * w_fc_arr(i,j,k); // w*thv
             });
         } // mfi
     } // use_moisture
@@ -548,6 +560,7 @@ ERF::derive_diag_profiles_stag (Real time,
     h_avg_wqv   = sumToLine(mf_out_stag,6,1,stag_domain,zdir);
     h_avg_wqc   = sumToLine(mf_out_stag,7,1,stag_domain,zdir);
     h_avg_wqr   = sumToLine(mf_out_stag,8,1,stag_domain,zdir);
+    h_avg_wthv  = sumToLine(mf_out_stag,9,1,stag_domain,zdir);
 
     // Divide by the total number of cells we are averaging over
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
@@ -589,6 +602,7 @@ ERF::derive_diag_profiles_stag (Real time,
         h_avg_wqv[k]   /= area_z;
         h_avg_wqc[k]   /= area_z;
         h_avg_wqr[k]   /= area_z;
+        h_avg_wthv[k]  /= area_z;
     }
 }
 
