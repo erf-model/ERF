@@ -334,11 +334,9 @@ void make_sources (int level,
         // *************************************************************************************
         // Add perturbation
         // *************************************************************************************
-        if (solverChoice.pert_type == PerturbationType::BPM) {
-            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType();
-
-            // Apply stored values onto cell_src
-            turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src);
+        if (solverChoice.pert_type == PerturbationType::perturbSource) {
+            auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
+            turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src); // Applied as source term
         }
     } // mfi
     } // OMP
