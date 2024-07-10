@@ -428,7 +428,6 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void turbPert_constants (const int lev);
     void turbPert_update (const int lev, const amrex::Real dt);
     void turbPert_amplitude (const int lev);
 
@@ -883,6 +882,7 @@ private:
 
     // Diagnostic output interval
     static int sum_interval;
+    static int pert_interval;
     static amrex::Real sum_per;
 
     // Native or NetCDF
