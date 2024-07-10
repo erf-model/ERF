@@ -78,15 +78,21 @@ ERF::write_1D_profiles_stag (Real time)
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_u[k]  << " " << h_avg_v[k] << " " << h_avg_w[k] << " "
-                                << h_avg_rho[k] << " " << h_avg_th[k] << " " << h_avg_ksgs[k]
+                                << h_avg_u[k]     << " " << h_avg_v[k] << " " << h_avg_w[k]     << " "
+                                << h_avg_rho[k]   << " " << h_avg_th[k] << " " << h_avg_ksgs[k] << " "
+                                << h_avg_kturb[k] << " " << h_avg_qv[k] << " " << h_avg_qc[k]   << " "
+                                << h_avg_qr[k]    << " " << h_avg_qi[k] << " " << h_avg_qs[k]   << " "
+                                << h_avg_qg[k]
                                 << std::endl;
                   } // loop over z
                   // Write top face values
                   data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
-                            << 0  << " " << 0 << " " << h_avg_w[unstag_size+1] << " "
+                            << 0 << " " << 0 << " " << h_avg_w[unstag_size+1] << " "
                             << 0 << " " << 0 << " " << 0
+                            << 0 << " " << 0 << " " << 0
+                            << 0 << " " << 0 << " " << 0
+                            << 0
                             << std::endl;
                 } // if good
             } // NumDataLogs
@@ -123,9 +129,12 @@ ERF::write_1D_profiles_stag (Real time)
                              + 2*(h_avg_u[0]*h_avg_u[0] + h_avg_v[0]*h_avg_v[0] + w_cc*w_cc)*h_avg_v[0]
                                << " " // (u'_i u'_i)v'
                             << 0 << " " // (u'_i u'_i)w'
-                            << h_avg_pu[0]   - h_avg_p[0]*h_avg_u[0]   << " " // pu'
-                            << h_avg_pv[0]   - h_avg_p[0]*h_avg_v[0]   << " " // pv'
-                            << 0                                              // pw'
+                            << h_avg_pu[0]   - h_avg_p[0]*h_avg_u[0]   << " " // p'u'
+                            << h_avg_pv[0]   - h_avg_p[0]*h_avg_v[0]   << " " // p'v'
+                            << 0                                       << " " // p'w'
+                            << 0                                       << " " // qv'w'
+                            << 0                                       << " " // qc'w'
+                            << 0                                              // qr'w'
                             << std::endl;
 
                   // For internal values, interpolate scalar quantities to faces
@@ -140,6 +149,9 @@ ERF::write_1D_profiles_stag (Real time)
                       Real vface  = 0.5*(h_avg_v[k]  + h_avg_v[k-1]);
                       Real thface = 0.5*(h_avg_th[k] + h_avg_th[k-1]);
                       Real pface  = 0.5*(h_avg_p[k]  + h_avg_p[k-1]);
+                      Real qvface = 0.5*(h_avg_qv[k] + h_avg_qv[k-1]);
+                      Real qcface = 0.5*(h_avg_qc[k] + h_avg_qc[k-1]);
+                      Real qrface = 0.5*(h_avg_qr[k] + h_avg_qr[k-1]);
                       Real uuface = 0.5*(h_avg_uu[k] + h_avg_uu[k-1]);
                       Real uvface = 0.5*(h_avg_uv[k] + h_avg_uv[k-1]);
                       Real vvface = 0.5*(h_avg_vv[k] + h_avg_vv[k-1]);
@@ -179,9 +191,12 @@ ERF::write_1D_profiles_stag (Real time)
                                  - 2*(uface*h_avg_uw[k] + vface*h_avg_vw[k] + h_avg_w[k]*h_avg_ww[k])
                                  + 2*(uface*uface + vface*vface + h_avg_w[k]*h_avg_w[k])*h_avg_w[k]
                                    << " " // face-centered (u'_i u'_i)w'
-                                << h_avg_pu[k]   - h_avg_p[k]*h_avg_u[k]   << " " // pu'
-                                << h_avg_pv[k]   - h_avg_p[k]*h_avg_v[k]   << " " // pv'
-                                << h_avg_pw[k]   -      pface*h_avg_w[k]          // pw'
+                                << h_avg_pu[k]   - h_avg_p[k]*h_avg_u[k]   << " " // cell-centered p'u'
+                                << h_avg_pv[k]   - h_avg_p[k]*h_avg_v[k]   << " " // cell-centered p'v'
+                                << h_avg_pw[k]   -      pface*h_avg_w[k]   << " " // face-centered p'w'
+                                << h_avg_wqv[k]  -     qvface*h_avg_w[k]   << " "
+                                << h_avg_wqc[k]  -     qcface*h_avg_w[k]   << " "
+                                << h_avg_wqr[k]  -     qrface*h_avg_w[k]
                                 << std::endl;
                   } // loop over z
 
@@ -191,6 +206,9 @@ ERF::write_1D_profiles_stag (Real time)
                   Real vface  = 1.5*h_avg_v[k-1]  - 0.5*h_avg_v[k-2];
                   Real thface = 1.5*h_avg_th[k-1] - 0.5*h_avg_th[k-2];
                   Real pface  = 1.5*h_avg_p[k-1]  - 0.5*h_avg_p[k-2];
+                  Real qvface = 1.5*h_avg_qv[k-1] - 0.5*h_avg_qv[k-2];
+                  Real qcface = 1.5*h_avg_qc[k-1] - 0.5*h_avg_qc[k-2];
+                  Real qrface = 1.5*h_avg_qr[k-1] - 0.5*h_avg_qr[k-2];
                   Real uuface = 1.5*h_avg_uu[k-1] - 0.5*h_avg_uu[k-2];
                   Real uvface = 1.5*h_avg_uv[k-1] - 0.5*h_avg_uv[k-2];
                   Real vvface = 1.5*h_avg_vv[k-1] - 0.5*h_avg_vv[k-2];
@@ -216,7 +234,10 @@ ERF::write_1D_profiles_stag (Real time)
                                << " " // (u'_i u'_i)w'
                             << 0                                     << " " // pu'
                             << 0                                     << " " // pv'
-                            << h_avg_pw[k]   -      pface*h_avg_w[k]        // pw'
+                            << h_avg_pw[k]   -      pface*h_avg_w[k] << " " // pw'
+                            << h_avg_wqv[k]  -     qvface*h_avg_w[k] << " "
+                            << h_avg_wqc[k]  -     qcface*h_avg_w[k] << " "
+                            << h_avg_wqr[k]  -     qrface*h_avg_w[k]
                             << std::endl;
                 } // if good
             } // NumDataLogs
