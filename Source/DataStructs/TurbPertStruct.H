@@ -116,7 +116,7 @@ struct TurbulentPerturbation {
 
     // Perturbation update frequency check.
     // This function will trigger calc_tpi_meanMag() and calc_tpi_amp(), when
-    // the local elasped time is greater than the perturbation frequency
+    // the local elapsed time is greater than the perturbation frequency
     void calc_tpi_update (const int lev,
                           const amrex::Real dt,
                           amrex::MultiFab& mf_xvel,

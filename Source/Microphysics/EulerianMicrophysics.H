@@ -1,5 +1,5 @@
 /*! @file EulerianMicrophysics.H
- *  \brief Containes the Eulerian microphysics class
+ *  \brief Contains the Eulerian microphysics class
  */
 
 #ifndef EULERIANMICROPHYSICS_H

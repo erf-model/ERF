@@ -66,7 +66,7 @@ Problem::init_custom_pert (
     const Box& xbx,
     const Box& ybx,
     const Box& zbx,
-    Array4<Real const> const& /*state*/,
+    Array4<Real const> const& state,
     Array4<Real      > const& state_pert,
     Array4<Real      > const& x_vel_pert,
     Array4<Real      > const& y_vel_pert,
@@ -82,6 +82,8 @@ Problem::init_custom_pert (
     const SolverChoice& sc)
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
+
+    const Real rdOcp   = sc.rdOcp;
 
     ParallelForRNG(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const RandomEngine& engine) noexcept
     {
@@ -99,11 +101,32 @@ Problem::init_custom_pert (
         const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
-
-        // Add temperature perturbations
+        //
+        // Add temperature perturbations -- we want to keep pressure constant
+        //     so these effectively end up as density perturbations
+        //
         if ((z <= parms.pert_ref_height) && (parms.T_0_Pert_Mag != 0.0)) {
+
+            Real rhotheta  = state(i,j,k,RhoTheta_comp);
+            Real rho       = state(i,j,k,Rho_comp);
+            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
+            Real P         = getPgivenRTh(rhotheta,qv);
+
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag; //*state_pert(i, j, k, Rho_comp);
+            Real Tpert    = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
+            Real Tnew     = Told + Tpert;
+
+            Real theta_new = getThgivenPandT(Tnew,P,rdOcp);
+            Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
+            state_pert(i, j, k, Rho_comp) = rhonew - rho;
+
+            // Note we do not perturb this
+            state_pert(i, j, k, RhoTheta_comp) = 0.0;
+
+            //  Instead of perturbing (rho theta) we perturb T and hold (rho theta) fixed,
+            //  which ends up being stored as a perturbation in rho
+            // state_pert(i, j, k, RhoTheta_comp) = (rand_double*2.0 - 1.0)*parms.T_0_Pert_Mag;
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
@@ -119,9 +142,17 @@ Problem::init_custom_pert (
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = 0.0;
             state_pert(i, j, k, RhoQ2_comp) = 0.0;
-            if ((z <= parms.pert_ref_height) && (parms.qv_0_Pert_Mag != 0.0)) {
+            if ((z <= parms.pert_ref_height) && (parms.qv_0_Pert_Mag != 0.0))
+            {
+                Real rhoold = state(i,j,k,Rho_comp);
+                Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
+
+                Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
+
                 Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-                state_pert(i, j, k, RhoQ1_comp) = (rand_double*2.0 - 1.0)*parms.qv_0_Pert_Mag; //*state_pert(i, j, k, Rho_comp);
+                Real qvnew = qvold + (rand_double*2.0 - 1.0)*parms.qv_0_Pert_Mag;
+
+                state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
             }
         }
     });
@@ -294,7 +325,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
 {
     if (wbar.empty()) return;
 
-    const int khi       = geom.Domain().bigEnd()[2];
+    const int khi       = geom.Domain().bigEnd()[2] + 1; // lives on z-faces
     const Real* prob_lo = geom.ProbLo();
     const auto dx       = geom.CellSize();
 
@@ -314,7 +345,7 @@ Problem::update_w_subsidence (const Real& /*time*/,
     Real slope2 = -parms.wbar_sub_max / (parms.wbar_cutoff_min - parms.wbar_cutoff_max);
     wbar[0]     = 0.0;
     for (int k = 1; k <= khi; k++) {
-        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + (k+0.5)* dx[2];
+        const Real z_cc = (z_phys_cc) ? zlevels[k] : prob_lo[2] + k*dx[2];
         if (z_cc <= parms.wbar_cutoff_max) {
             wbar[k] = slope1 * (z_cc - z_0);
         } else if (z_cc <= parms.wbar_cutoff_min) {

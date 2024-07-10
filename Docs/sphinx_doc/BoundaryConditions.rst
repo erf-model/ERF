@@ -81,7 +81,7 @@ As an example,
     xlo.theta               =   300.
     xlo.scalar              =   2.
 
-sets the boundary condtion type at the low x face to be an inflow with xlo.type = “Inflow”.
+sets the boundary condition type at the low x face to be an inflow with xlo.type = “Inflow”.
 
 xlo.velocity = 1. 0. 0. sets all three componentns the inflow velocity,
 xlo.density       = 1. sets the inflow density,
@@ -133,7 +133,7 @@ Couette regression test example, in which we specify
 We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
-The keywork "MOST" is an ERF-specific boundary type; see :ref:`sec:MOST` for more information.
+The keyword "MOST" is an ERF-specific boundary type; see :ref:`sec:MOST` for more information.
 
 It is important to note that external Dirichlet boundary data should be specified
 as the value on the face of the cell bounding the domain, even for cell-centered
@@ -192,7 +192,7 @@ and :math:`n` is the minimum number of grid points from a lateral boundary.
 Sponge zone domain BCs
 ----------------------
 
-ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specifed by the user in the inputs file.
+ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specified by the user in the inputs file.
 
 .. math::
 

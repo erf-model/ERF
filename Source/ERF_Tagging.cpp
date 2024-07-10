@@ -164,7 +164,7 @@ ERF::refinement_criteria_setup ()
                 } // lev
                 if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
-                        amrex::Error("Number of boxes doesnt match number of input files");
+                        amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
                 }
@@ -202,7 +202,7 @@ ERF::refinement_criteria_setup ()
                 } // lev
                 if (init_type == "real" || init_type == "metgrid") {
                     if (num_boxes_at_level[lev_for_box] != num_files_at_level[lev_for_box]) {
-                        amrex::Error("Number of boxes doesnt match number of input files");
+                        amrex::Error("Number of boxes doesn't match number of input files");
 
                     }
                 }
@@ -256,4 +256,3 @@ ERF::refinement_criteria_setup ()
         } // loop over criteria
     } // if max_level > 0
 }
-

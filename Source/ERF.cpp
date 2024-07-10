@@ -342,7 +342,7 @@ ERF::Evolve ()
     {
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -783,7 +783,7 @@ ERF::InitData ()
         h_w_subsid.resize(max_level+1, Vector<Real>(0));
         d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
+            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
@@ -816,13 +816,6 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-        if (cc_profiles) {
-            // all variables cell-centered
-            write_1D_profiles(t_new[0]);
-        } else {
-            // some variables staggered
-            write_1D_profiles_stag(t_new[0]);
-        }
     }
 
     if (solverChoice.pert_type == PerturbationType::perturbSource ||
@@ -1024,6 +1017,16 @@ ERF::InitData ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++)
             setRecordDataInfo(i,datalogname[i]);
+    }
+
+    if (restart_chkfile.empty() && profile_int > 0) {
+        if (cc_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(t_new[0]);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(t_new[0]);
+        }
     }
 
     if (pp.contains("sample_point_log") && pp.contains("sample_point"))
@@ -1986,7 +1989,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -2065,8 +2068,8 @@ ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int
 
         const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
 
-        int num_per_old = static_cast<int>(std::round((cur_time-eps-dt_lev) / plot_per));
-        int num_per_new = static_cast<int>(std::round((cur_time-eps       ) / plot_per));
+        int num_per_old = static_cast<int>(std::floor((cur_time-eps-dt_lev) / plot_per));
+        int num_per_new = static_cast<int>(std::floor((cur_time-eps       ) / plot_per));
 
         // Before using these, however, we must test for the case where we're
         // within machine epsilon of the next interval. In that case, increment
