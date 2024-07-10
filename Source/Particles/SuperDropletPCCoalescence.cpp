@@ -6,35 +6,6 @@
 
 using namespace amrex;
 
-/*! \brief Swap two numbers; NOTE: a and b can't be the same memory location */
-template <typename dtype>
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void swap ( dtype& a, /*!< first number */
-                   dtype& b  /*!< second number */ )
-{
-    a = a + b;
-    b = a - b;
-    a = a - b;
-}
-
-/*! \brief Random shuffle of an array */
-template <typename dtype>
-AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void random_shuffle ( dtype* const a_d_ptr, /*!< Pointer to data array */
-                             const int  a_n, /*!< size of data array */
-                             const RandomEngine& a_rnd_eng /*!< random engine */ )
-{
-    int num_passes = Random_int(100, a_rnd_eng);
-    for (int ipass = 0; ipass < num_passes; ipass++) {
-        for (int i = 0; i < a_n; i++) {
-            int j = Random_int(a_n, a_rnd_eng);
-            int k = Random_int(a_n, a_rnd_eng);
-            if (j == k) { continue; }
-            swap<dtype>( a_d_ptr[j], a_d_ptr[k] );
-        }
-    }
-}
-
 /*! \brief Compute coalescence rate between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< random engine */
@@ -106,8 +77,8 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_temperature )
 {
-    struct timeval coal_start, coal_end;
-    gettimeofday(&coal_start, NULL);
+    struct timeval total_start, total_end;
+    gettimeofday(&total_start, NULL);
 
     BL_PROFILE("SuperDropletPC::Coalescence()");
     AMREX_ASSERT( a_lev == m_lev );
@@ -130,6 +101,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
 
     auto kernel_choice = m_coalescence_kernel;
     auto include_brownian_coalescence = m_include_brownian_coalescence;
+
+    Real mcpairing_wtime_sec = 0.0;
+    Real coalescence_wtime_sec = 0.0;
 
 // Do NOT add OpenMP here; building DenseBins is not thread-safe.
     for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
@@ -172,6 +146,30 @@ void SuperDropletPC::Coalescence( int   a_lev,
         AMREX_ALWAYS_ASSERT(bins.numBins() >= 0);
         auto inds = bins.permutationPtr();
         auto offsets = bins.offsetsPtr();
+
+#ifdef AMREX_USE_CUDA
+        {
+            std::vector<unsigned int> inds_h(np), offsets_h(bins.numBins());
+            Gpu::copy(Gpu::deviceToHost, inds, inds+np, inds_h.begin());
+            Gpu::copy(Gpu::deviceToHost, offsets, offsets+bins.numBins(), offsets_h.begin());
+            for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
+                std::random_device rd;
+                std::mt19937 g(rd());
+                std::shuffle(   inds_h.data() + offsets_h[i_bin],
+                                inds_h.data() + offsets_h[i_bin+1],
+                                g );
+            }
+            Gpu::copy(Gpu::hostToDevice, inds_h.begin(), inds_h.end(), inds);
+        }
+#else
+        for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
+            std::random_device rd;
+            std::mt19937 g(rd());
+            std::shuffle(   inds + offsets[i_bin],
+                            inds + offsets[i_bin+1],
+                            g );
+        }
+#endif
 
         const auto& pressure_arr = a_pressure[grid].const_array();
         const auto& temperature_arr = a_temperature[grid].const_array();
@@ -219,6 +217,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
         });
         Gpu::synchronize();
 
+        struct timeval mcpairing_start, mcpairing_end;
+        gettimeofday(&mcpairing_start, NULL);
+
         ParallelForRNG( bins.numBins(),
                         [=] AMREX_GPU_DEVICE (int i_bin,
                                               RandomEngine const& rnd_eng) noexcept
@@ -228,7 +229,6 @@ void SuperDropletPC::Coalescence( int   a_lev,
             auto np_bin = bin_stop - bin_start;
             if (np_bin <= 1) { return; }
 
-            random_shuffle<unsigned int>(inds+bin_start, np_bin, rnd_eng);
             for (unsigned int p = 0; p < np_bin/2; p++) {
                 auto pi = inds[bin_start+p];
                 auto pj = inds[bin_stop-1-p];
@@ -249,6 +249,15 @@ void SuperDropletPC::Coalescence( int   a_lev,
             }
         } );
         Gpu::synchronize();
+
+        gettimeofday(&mcpairing_end,NULL);
+        long long mcpairing_wtime;
+        mcpairing_wtime = (   (mcpairing_end.tv_sec   * 1000000 + mcpairing_end.tv_usec  )
+                            - (mcpairing_start.tv_sec * 1000000 + mcpairing_start.tv_usec) );
+        mcpairing_wtime_sec += (double) mcpairing_wtime / 1000000.0;
+
+        struct timeval coalescence_start, coalescence_end;
+        gettimeofday(&coalescence_start, NULL);
 
         ParallelForRNG( np,
                         [=] AMREX_GPU_DEVICE (int i,
@@ -359,6 +368,12 @@ void SuperDropletPC::Coalescence( int   a_lev,
         } );
         Gpu::synchronize();
 
+        gettimeofday(&coalescence_end,NULL);
+        long long coalescence_wtime;
+        coalescence_wtime = (  (coalescence_end.tv_sec   * 1000000 + coalescence_end.tv_usec  )
+                             - (coalescence_start.tv_sec * 1000000 + coalescence_start.tv_usec) );
+        coalescence_wtime_sec += (double) coalescence_wtime / 1000000.0;
+
         ParallelFor( np, [=] AMREX_GPU_DEVICE (int i)
                      { supdrop_mass_ptr[i] = mass_ptr[i] * mult_ptr[i]; } );
 
@@ -368,18 +383,28 @@ void SuperDropletPC::Coalescence( int   a_lev,
                                         1,
                                         ParallelDescriptor::IOProcessorNumber() );
 
-    gettimeofday(&coal_end,NULL);
-    long long coal_wtime;
-    coal_wtime = (    (coal_end.tv_sec   * 1000000 + coal_end.tv_usec  )
-                   -  (coal_start.tv_sec * 1000000 + coal_start.tv_usec) );
-    Real coal_wtime_sec = (double) coal_wtime / 1000000.0;
-    ParallelDescriptor::ReduceRealMax( &coal_wtime_sec,
+    gettimeofday(&total_end,NULL);
+    long long total_wtime;
+    total_wtime = (   (total_end.tv_sec   * 1000000 + total_end.tv_usec  )
+                   -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
+    Real total_wtime_sec = (double) total_wtime / 1000000.0;
+
+    ParallelDescriptor::ReduceRealMax( &mcpairing_wtime_sec,
+                                       1,
+                                       ParallelDescriptor::IOProcessorNumber() );
+    ParallelDescriptor::ReduceRealMax( &coalescence_wtime_sec,
+                                       1,
+                                       ParallelDescriptor::IOProcessorNumber() );
+    ParallelDescriptor::ReduceRealMax( &total_wtime_sec,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
 
     Print() << "SuperDropletPC(" << m_name << "): "
-            << "number of collisions = " << num_collisions
-            << " (wall time = " << coal_wtime_sec << " seconds)"
+            << "number of collisions = " << num_collisions << "\n"
+            << "    "
+            << "wall time (seconds) = " << total_wtime_sec << " (total), "
+            << mcpairing_wtime_sec << " (MC pairing), "
+            << coalescence_wtime_sec << " (coalescence)"
             << "\n";
 }
 
