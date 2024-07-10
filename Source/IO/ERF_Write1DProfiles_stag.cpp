@@ -7,13 +7,15 @@ using namespace amrex;
 
 /**
  * Writes 1-dimensional averaged quantities as profiles to output log files
- * at the given time. Quantities are output at their native grid locations,
- * therefore W and associated quantities <(*)'w'>, tau13, and tau23 (where *
- * includes u, v, p, theta, and k) will be output at staggered heights (i.e., z
- * faces) rather than cell-center heights to avoid performing additional
- * averaging. The unstaggered quantities are associated with the left cell face,
- * i.e., they share the same k index. These quantities will have a zero value at
- * the max height of Nz+1.
+ * at the given time.
+ *
+ * Quantities are output at their native grid locations. Therefore, w and
+ * associated flux quantities <(•)'w'>, tau13, and tau23 (where '•' includes
+ * u, v, p, theta, ...) will be output at staggered heights (i.e., coincident
+ * with z faces) rather than cell-center heights to avoid performing additional
+ * averaging. Unstaggered (i.e., cell-centered) quantities are output alongside
+ * staggered quantities at the lower cell faces in the log file; these
+ * quantities will have a zero value at the big end, corresponding to k=Nz+1.
  *
  * @param time Current time
  */
@@ -22,14 +24,11 @@ ERF::write_1D_profiles_stag (Real time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
-    if (verbose <= 0)
-      return;
-
     int datwidth = 14;
     int datprecision = 6;
     int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
-    if (verbose > 0 && NumDataLogs() > 1)
+    if (NumDataLogs() > 1)
     {
         // Define the 1d arrays we will need
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
@@ -42,7 +41,8 @@ ERF::write_1D_profiles_stag (Real time)
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
         if (NumDataLogs() > 1) {
-            derive_diag_profiles_stag(h_avg_u, h_avg_v, h_avg_w,
+            derive_diag_profiles_stag(time,
+                                      h_avg_u, h_avg_v, h_avg_w,
                                       h_avg_rho, h_avg_th, h_avg_ksgs,
                                       h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                       h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
@@ -50,7 +50,7 @@ ERF::write_1D_profiles_stag (Real time)
                                       h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
         }
 
-        if (NumDataLogs() > 3) {
+        if (NumDataLogs() > 3 && time > 0.) {
             derive_stress_profiles_stag(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                         h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                         h_avg_sgshfx,
@@ -217,7 +217,7 @@ ERF::write_1D_profiles_stag (Real time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3) {
+            if (NumDataLogs() > 3 && time > 0.) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
@@ -243,9 +243,9 @@ ERF::write_1D_profiles_stag (Real time)
                             << 0 << " " << 0
                             << std::endl;
                 } // if good
-            } // NumDataLogs
+            } // if (NumDataLogs() > 3)
         } // if IOProcessor
-    } // if verbose
+    } // if (NumDataLogs() > 1)
 }
 
 /**
@@ -273,7 +273,8 @@ ERF::write_1D_profiles_stag (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles_stag (Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
+ERF::derive_diag_profiles_stag (Real time,
+                                Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                                 Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                                 Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
                                 Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
@@ -302,7 +303,7 @@ ERF::derive_diag_profiles_stag (Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVect
 
     MultiFab  u_cc(mf_vels, make_alias, 0, 1); // u at cell centers
     MultiFab  v_cc(mf_vels, make_alias, 1, 1); // v at cell centers
-    MultiFab  w_fc(vars_new[lev][Vars::zvel], make_alias, 0, 1); // w at face centers
+    MultiFab  w_fc(vars_new[lev][Vars::zvel], make_alias, 0, 1); // w at face centers (staggered)
 
     int zdir = 2;
     auto domain = geom[0].Domain();
@@ -338,10 +339,11 @@ ERF::derive_diag_profiles_stag (Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVect
             fab_arr(i, j, k, 0) = cons_arr(i,j,k,Rho_comp);
             fab_arr(i, j, k, 1) = theta;
             Real ksgs = 0.0;
-            if (l_use_KE)
+            if (l_use_KE) {
                 ksgs = cons_arr(i,j,k,RhoKE_comp) / cons_arr(i,j,k,Rho_comp);
-            else if (l_use_QKE)
+            } else if (l_use_QKE) {
                 ksgs = cons_arr(i,j,k,RhoQKE_comp) / cons_arr(i,j,k,Rho_comp);
+            }
             fab_arr(i, j, k, 2) = ksgs;
             fab_arr(i, j, k, 3) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
@@ -408,6 +410,7 @@ ERF::derive_diag_profiles_stag (Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVect
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 Real p = getPgivenRTh(cons_arr(i, j, k, RhoTheta_comp), qv_arr(i,j,k));
+
                 p -= p0_arr(i,j,k);
                 fab_arr(i, j, k,11) = p;                       // p'
                 fab_arr(i, j, k,12) = p * u_cc_arr(i,j,k);     // p'*u
