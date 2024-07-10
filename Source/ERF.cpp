@@ -484,7 +484,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
-        if (cc_profiles) {
+        if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(time);
         } else {
@@ -1004,7 +1004,7 @@ ERF::InitData ()
     }
 
     if (restart_chkfile.empty() && profile_int > 0) {
-        if (cc_profiles) {
+        if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(t_new[0]);
         } else {
@@ -1406,7 +1406,7 @@ ERF::ReadParameters ()
         }
 
         pp.query("profile_int", profile_int);
-        pp.query("interp_profiles_to_cc", cc_profiles);
+        pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
 

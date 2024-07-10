@@ -36,7 +36,7 @@ amr.v               = 1       # verbosity in Amr.cpp
 # planar averaging (with erf.v = 1)
 erf.data_log    = surf_hist.dat mean_profiles.dat covar_profiles.dat sfs_profiles.dat
 erf.profile_int = 20
-erf.interp_profiles_to_cc = false
+erf.destag_profiles = false
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed

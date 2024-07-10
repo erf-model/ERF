@@ -816,7 +816,7 @@ private:
 
     // other sampling output control
     int profile_int = -1;
-    bool cc_profiles = true;
+    bool destag_profiles = true;
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
