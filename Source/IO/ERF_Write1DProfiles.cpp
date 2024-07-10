@@ -37,7 +37,9 @@ ERF::write_1D_profiles (Real time)
             derive_diag_profiles(time,
                                  h_avg_u, h_avg_v, h_avg_w,
                                  h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb,
-                                 h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg,
+                                 h_avg_qv, h_avg_qc, h_avg_qr,
+                                 h_avg_wqv, h_avg_wqc, h_avg_wqr,
+                                 h_avg_qi, h_avg_qs, h_avg_qg,
                                  h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                  h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                  h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
@@ -179,23 +181,21 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pv Profile for pressure perturbation * y-velocity on Host
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
-
-void ERF::derive_diag_profiles(Real time,
-                               Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
-                               Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
-                               Gpu::HostVector<Real>& h_avg_kturb, Gpu::HostVector<Real>& h_avg_qv,
-                               Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
-                               Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
-                               Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
-                               Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
-                               Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
-                               Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
-                               Gpu::HostVector<Real>& h_avg_thth,
-                               Gpu::HostVector<Real>& h_avg_uiuiu  , Gpu::HostVector<Real>& h_avg_uiuiv,
-                               Gpu::HostVector<Real>& h_avg_uiuiw,
-                               Gpu::HostVector<Real>& h_avg_p,
-                               Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
-
+void
+ERF::derive_diag_profiles(Real time,
+                          Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
+                          Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
+                          Gpu::HostVector<Real>& h_avg_kturb,
+                          Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
+                          Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
+                          Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
+                          Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
+                          Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
+                          Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
+                          Gpu::HostVector<Real>& h_avg_thth,
+                          Gpu::HostVector<Real>& h_avg_uiuiu, Gpu::HostVector<Real>& h_avg_uiuiv, Gpu::HostVector<Real>& h_avg_uiuiw,
+                          Gpu::HostVector<Real>& h_avg_p,
+                          Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
 {
     // We assume that this is always called at level 0
     int lev = 0;

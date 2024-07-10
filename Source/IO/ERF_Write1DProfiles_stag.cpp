@@ -32,7 +32,8 @@ ERF::write_1D_profiles_stag (Real time)
     {
         // Define the 1d arrays we will need
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
-        Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs;
+        Gpu::HostVector<Real> h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb;
+        Gpu::HostVector<Real> h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg;
         Gpu::HostVector<Real> h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth;
         Gpu::HostVector<Real> h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww;
         Gpu::HostVector<Real> h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw;
@@ -43,7 +44,10 @@ ERF::write_1D_profiles_stag (Real time)
         if (NumDataLogs() > 1) {
             derive_diag_profiles_stag(time,
                                       h_avg_u, h_avg_v, h_avg_w,
-                                      h_avg_rho, h_avg_th, h_avg_ksgs,
+                                      h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb,
+                                      h_avg_qv, h_avg_qc, h_avg_qr,
+                                      h_avg_wqv, h_avg_wqc, h_avg_wqr,
+                                      h_avg_qi, h_avg_qs, h_avg_qg,
                                       h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
                                       h_avg_uth, h_avg_vth, h_avg_wth, h_avg_thth,
                                       h_avg_uiuiu, h_avg_uiuiv, h_avg_uiuiw,
@@ -276,19 +280,24 @@ void
 ERF::derive_diag_profiles_stag (Real time,
                                 Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                                 Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
+                                Gpu::HostVector<Real>& h_avg_kturb,
+                                Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
+                                Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
+                                Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
                                 Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
                                 Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
                                 Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
                                 Gpu::HostVector<Real>& h_avg_thth,
-                                Gpu::HostVector<Real>& h_avg_uiuiu  , Gpu::HostVector<Real>& h_avg_uiuiv , Gpu::HostVector<Real>& h_avg_uiuiw,
+                                Gpu::HostVector<Real>& h_avg_uiuiu, Gpu::HostVector<Real>& h_avg_uiuiv, Gpu::HostVector<Real>& h_avg_uiuiw,
                                 Gpu::HostVector<Real>& h_avg_p,
                                 Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
 {
     // We assume that this is always called at level 0
     int lev = 0;
 
-    bool l_use_KE  = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
-    bool l_use_QKE = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
+    bool l_use_Turb = (solverChoice.turbChoice[lev].les_type != LESType::None);
+    bool l_use_KE   = (solverChoice.turbChoice[lev].les_type == LESType::Deardorff);
+    bool l_use_QKE  = solverChoice.turbChoice[lev].use_QKE && solverChoice.turbChoice[lev].advect_QKE;
 
     // This will hold rho, theta, ksgs, uu, uv, vv, uth, vth, thth, uiuiu, uiuiv, p, pu, pv
     //         index:   0      1     2   3   4   5    6    7     8      9     10  11 12  13
