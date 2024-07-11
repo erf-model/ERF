@@ -111,7 +111,7 @@ namespace SDMassChangeUtils
     template<typename NE /*!< Nonlinear equation */, typename RT /*!< real-type */>
     struct NewtonSolver
     {
-        const NE&  m_ne;      /*!< nonlinear equation */
+        const NE  m_ne;      /*!< nonlinear equation */
 
         RT  m_rtol;     /*!< relative tolerance */
         RT  m_atol;     /*!< absolute tolerance */
@@ -195,8 +195,8 @@ namespace SDMassChangeUtils
                 typename RT /*!< real-type */ >
     struct TI
     {
-        const ODE& m_ode; /*!< ODE */
-        const NewtonSolver& m_newton; /*!< Newton solver */
+        const ODE m_ode; /*!< ODE */
+        const NewtonSolver m_newton; /*!< Newton solver */
 
         RT m_t_final;   /*!< final time */
         RT m_S;         /*!< saturation ratio */

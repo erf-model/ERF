@@ -211,7 +211,7 @@ int main (int argc, char* argv[])
         // Initialize data
         mbc.InitializeBlocks();
 
-        // Advane blocks a timestep
+        // Advance blocks a timestep
         mbc.AdvanceBlocks();
     }
 #else

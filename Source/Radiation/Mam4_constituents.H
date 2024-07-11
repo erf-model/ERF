@@ -207,7 +207,7 @@ class MamConstituents {
         aerosollist.resize(N_DIAG);
         ma_list.resize(N_DIAG);
 
-        // Set the list_id fields which distinquish the climate and diagnostic lists
+        // Set the list_id fields which distinguish the climate and diagnostic lists
         for(auto i = 0; i < N_DIAG; ++i) {
             aerosollist[i].list_id = "";
             gaslist[i].list_id     = "";

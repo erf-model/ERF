@@ -245,14 +245,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
         const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
 
-        {
-        BL_PROFILE("rhs_post_7");
+        // **************************************************************************
+        // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
+        // **************************************************************************
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
             cur_cons(i,j,k,n) = new_cons(i,j,k,n);
         });
-        } // end profile
 
         // We have projected the velocities stored in S_data but we will use
         //    the velocities stored in S_scratch to update the scalars, so
@@ -354,7 +354,7 @@ void erf_slow_rhs_post (int level, int finest_level,
 
                     if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, start_comp, num_comp, exp_most, u, v,
-                                               cur_cons, cur_prim, cell_rhs,
+                                               new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
@@ -362,7 +362,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
-                                               cur_cons, cur_prim, cell_rhs,
+                                               new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
                                                hfx_z, diss,

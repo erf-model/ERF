@@ -63,7 +63,7 @@ coefficients are then computed:
    K_{m,v} = l q S_m, K_{q,v} = 3 l q S_m, K_{\theta, v} = l q S_\theta
 
 where :math:`S_m` and :math:`S_\theta` are stability parameters thaat
-account for bouyancy effects. These
+account for buoyancy effects. These
 coefficients are then applied in evaluating the vertical component of turbulent
 fluxes in a similar manner as is described for the
 :ref:`Smagorinsky LES model<SmagorinskyModel>`. Computation of the stability parameters
@@ -172,12 +172,12 @@ where
 - :math:`U = \sqrt{u^2 + v^2}` is the horizontal wind speed,
 - :math:`\theta_s = \theta_{ma} + \theta_T` is the virtual temperature near the surface,
 - :math:`\theta_T = a\frac{\overline{\left(w'\theta_m' \right)_0}}{w_{s0}}` is the excess virtual temperature near the surface,
-- :math:`a` is a constant taken to be 6.8 per HND06 (matching the :math:`b` constant that appears elsehwere in the YSU model)
+- :math:`a` is a constant taken to be 6.8 per HND06 (matching the :math:`b` constant that appears elsewhere in the YSU model)
 - :math:`\overline{\left(w'\theta_m' \right)_0}` is the surface virtual heat flux (determined from the MOST surface layer model),
 - :math:`w_{s}(z) = \left(u_*^3 + 8 k w_{*b}^3z/h \right)^{1/3}` is a representative velocity scale in the mixed layer, with :math:`w_{s0} = w_s(h/2)` (note this equation matches the WRF implementation and description in H10, but differs from HND06, where :math:`\phi_m` appears in place of the constant 8),
 - :math:`u_*` is the surface frictional velocity scale determined from the MOST surface layer model,
 - :math:`k = 0.4` is the von Karman constant
-- :math:`w_{*b} = \left[ g/\theta_{ma} \overline{\left(w'\theta_m' \right)_0} h \right]^{1/3}` for :math:`\overline{\left(w'\theta_m' \right)_0} > 0`, :math:`w_{*b} = 0` otherwise, is a convective velcoity scale for moist air
+- :math:`w_{*b} = \left[ g/\theta_{ma} \overline{\left(w'\theta_m' \right)_0} h \right]^{1/3}` for :math:`\overline{\left(w'\theta_m' \right)_0} > 0`, :math:`w_{*b} = 0` otherwise, is a convective velocity scale for moist air
 
 In practice, an approximate value of :math:`h` is determined through a two-step process. First, :math:`\theta_T` is set to be zero
 and a provisional value of :math:`h` is estimated. Then this provisional value of :math:`h` is used to compute :math:`\theta_T`,
@@ -228,7 +228,7 @@ The following references have informed the implementation of the YSU model in ER
 
 - [NCHR03] `Noh, Cheon, Hong, and Raasch, Boundary-Layer Meteorology, 2003 <https://doi.org/10.1023/A:1022146015946>`_: Entrainment effects added to TM86
 
-- [HP96] `Hong and Pan, Monthly Weather Review, 1996 <HP96_>`_: Largely an implementation and evluation of TM86
+- [HP96] `Hong and Pan, Monthly Weather Review, 1996 <HP96_>`_: Largely an implementation and evaluation of TM86
 
 - [TM86] `Troen and Mahrt, Boundary-Layer Meteorology, 1986 <https://doi.org/10.1007/BF00122760>`_: Initial incorporation of nonlocal counter-graident term in vertical diffusion model
 

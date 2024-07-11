@@ -8,7 +8,7 @@ using namespace amrex;
  *
  */
 void
-ERF::ComputeDt ()
+ERF::ComputeDt (int step)
 {
     Vector<Real> dt_tmp(finest_level+1);
 
@@ -25,6 +25,10 @@ ERF::ComputeDt ()
         dt_tmp[lev] = amrex::min(dt_tmp[lev], change_max*dt[lev]);
         n_factor *= nsubsteps[lev];
         dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
+        if (step == 0){
+            dt_0 *= init_shrink;
+            Print() << "Timestep 0: shrink initial dt by " << init_shrink << std::endl;
+        }
     }
 
     // Limit dt's by the value of stop_time.

@@ -457,7 +457,7 @@ Notes
      * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
      * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
          is not an even positive integer
-     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsitent
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
 
    * | Once the slow timestep is set and the inputs are allowed per the above criteria,
        the fast timestep is computed in one of several ways:
@@ -568,7 +568,7 @@ List of Parameters
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
-|                               | ouputs           |                |                |
+|                               | outputs          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.interp_profiles_to_cc** | Interpolate all  | Boolean        | true           |
 |                               | outputs to cell  |                |                |

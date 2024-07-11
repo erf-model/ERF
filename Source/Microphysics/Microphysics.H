@@ -1,5 +1,5 @@
 /*! @file Microphysics.H
- *  \brief Containes the base class for microphysics
+ *  \brief Contains the base class for microphysics
  */
 
 #ifndef MICROPHYSICS_H

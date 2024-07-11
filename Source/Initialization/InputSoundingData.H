@@ -148,7 +148,7 @@ public:
         //         = rho_d(1 + q_v) R_d T_v
 
         // integrate from surface to domain top
-        amrex::Real qv, dz;
+        amrex::Real dz;
 #if 1   // Printing
         // In this absence of moisture, this moist profile will match the
         // following dry profile
@@ -164,17 +164,18 @@ public:
 #endif
         for (int k=1; k < size(); ++k)
         {
-            qv  = qv_inp_sound[k];
-            dz  = z_inp_sound[k] - z_inp_sound[k-1];
+            dz = z_inp_sound[k] - z_inp_sound[k-1];
             rhod_integ[k] = rhod_integ[k-1]; // guess
             for (int it=0; it < maxiter; ++it)
             {
-                pm_integ[k] = pm_integ[k-1] - 0.5*dz*(rhod_integ[k] + rhod_integ[k-1])*(1.0+qv)*CONST_GRAV;
+                amrex::Real rho_tot_hi = rhod_integ[k  ] * (1. + qv_inp_sound[k  ]);
+                amrex::Real rho_tot_lo = rhod_integ[k-1] * (1. + qv_inp_sound[k-1]);
+                pm_integ[k] = pm_integ[k-1] - 0.5*dz*(rho_tot_hi + rho_tot_lo)*CONST_GRAV;
                 AMREX_ALWAYS_ASSERT(pm_integ[k] > 0);
                 rhod_integ[k] = getRhogivenThetaPress(theta_inp_sound[k],
                                                       pm_integ[k],
                                                       R_d/Cp_d,
-                                                      qv);
+                                                      qv_inp_sound[k]);
             }
 #if 1       // Printing
             amrex::Print() << z_inp_sound[k]

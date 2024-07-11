@@ -146,7 +146,9 @@ calc_rho_p (const int& kmax,
         Thetam_vec[k] = Thetad_vec[k]*qvf;
           Rhom_vec[k] = Rhom_vec[k-1]; // an initial guess.
         for (int it=0; it<maxiter; it++) {
-            Pm_vec[k] = Pm_vec[k-1]-0.5*dz*(Rhom_vec[k]+Rhom_vec[k-1])*(1.0+Q_vec[k])*CONST_GRAV;
+            amrex::Real Rho_tot_hi = Rhom_vec[k  ] * (1.0+Q_vec[k  ]);
+            amrex::Real Rho_tot_lo = Rhom_vec[k-1] * (1.0+Q_vec[k-1]);
+            Pm_vec[k] = Pm_vec[k-1]-0.5*dz*(Rho_tot_hi + Rho_tot_lo)*CONST_GRAV;
             if (Pm_vec[k] < 0.0) Pm_vec[k] = 0.0;
             Rhom_vec[k] = (p_0/(R_d*Thetam_vec[k]))*std::pow(Pm_vec[k]/p_0, iGamma);
         } // it
