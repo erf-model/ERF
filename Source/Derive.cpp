@@ -109,6 +109,29 @@ erf_dertemp (const Box& bx,
         tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta);
     });
 }
+void
+erf_dermoisttemp (const Box& bx,
+             FArrayBox& derfab,
+             int /*dcomp*/,
+             int /*ncomp*/,
+             const FArrayBox& datfab,
+             const Geometry& /*geomdata*/,
+             Real /*time*/,
+             const int* /*bcrec*/,
+             const int /*level*/)
+{
+    auto const dat = datfab.array();
+    auto tfab      = derfab.array();
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const Real rho = dat(i, j, k, Rho_comp);
+        const Real rhotheta = dat(i, j, k, RhoTheta_comp);
+        AMREX_ALWAYS_ASSERT(rhotheta > 0.);
+        const Real qv = dat(i, j, k, RhoQ1_comp) / rho;
+        tfab(i,j,k) = getTgivenRandRTh(rho,rhotheta,qv);
+    });
+}
 
 /**
  * Function to define the potential temperature by calling an EOS routine

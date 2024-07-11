@@ -64,33 +64,37 @@ amrex::Real erf_esatw (amrex::Real t) {
     }
     return esatw;
 #else
-    amrex::Real a0 = 6.11239921;
-    amrex::Real a1 = 0.443987641;
-    amrex::Real a2 = 0.142986287e-1;
-    amrex::Real a3 = 0.264847430e-3;
-    amrex::Real a4 = 0.302950461e-5;
-    amrex::Real a5 = 0.206739458e-7;
-    amrex::Real a6 = 0.640689451e-10;
+    // From Flatau (1992) "Polynomial Fits to SVP"
+
+    // For T in the range of -85 to 70 [C]
+    amrex::Real a0 =  6.11239921;
+    amrex::Real a1 =  0.443987641;
+    amrex::Real a2 =  0.142986287e-1;
+    amrex::Real a3 =  0.264847430e-3;
+    amrex::Real a4 =  0.302950461e-5;
+    amrex::Real a5 =  0.206739458e-7;
+    amrex::Real a6 =  0.640689451e-10;
     amrex::Real a7 = -0.952447341e-13;
     amrex::Real a8 = -0.976195544e-15;
 
-    amrex::Real a0i = 6.11147274;
-    amrex::Real a1i = 0.503160820;
-    amrex::Real a2i = 0.188439774e-1;
-    amrex::Real a3i = 0.420895665e-3;
-    amrex::Real a4i = 0.615021634e-5;
-    amrex::Real a5i = 0.602588177e-7;
-    amrex::Real a6i = 0.385852041e-9;
-    amrex::Real a7i = 0.146898966e-11;
-    amrex::Real a8i = 0.252751365e-14;
+    // For T in the range of 0 to 100 [C]
+    amrex::Real a0i =  6.11220713;
+    amrex::Real a1i =  0.443944344;
+    amrex::Real a2i =  0.143195336e-1;
+    amrex::Real a3i =  0.263350515e-3;
+    amrex::Real a4i =  0.310636053e-5;
+    amrex::Real a5i =  0.185218710e-7;
+    amrex::Real a6i =  0.103440324e-9;
+    amrex::Real a7i = -0.468258100e-12;
+    amrex::Real a8i =  0.466533033e-15;
 
-    amrex::Real Tc = std::max(-80.0, t-273.16);
+    amrex::Real Tc = std::max(-80.0, t-273.15);
 
     amrex::Real esatw;
     if (t<=273.15){
-        esatw = (a0  + Tc*(a1 +Tc*(a2 +Tc*(a3 +Tc*(a4 +Tc*(a5 +Tc*(a6 +Tc*(a7 +a8 *Tc))))))))*100.;
+        esatw = (a0  + Tc*(a1 +Tc*(a2 +Tc*(a3 +Tc*(a4 +Tc*(a5 +Tc*(a6 +Tc*(a7 +a8 *Tc))))))));
     }else{
-        esatw = (a0i + Tc*(a1i+Tc*(a2i+Tc*(a3i+Tc*(a4i+Tc*(a5i+Tc*(a6i+Tc*(a7i+a8i*Tc))))))))*100.;
+        esatw = (a0i + Tc*(a1i+Tc*(a2i+Tc*(a3i+Tc*(a4i+Tc*(a5i+Tc*(a6i+Tc*(a7i+a8i*Tc))))))));
     }
     return esatw;
 #endif
@@ -154,11 +158,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
     amrex::Real esatw;
     esatw = erf_esatw(t);
-#if 1
     qsatw = Rd_on_Rv*esatw/std::max(esatw,p-esatw);
-#else
-    qsatw = esatw/(R_v*t);
-#endif
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
