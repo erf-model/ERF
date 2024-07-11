@@ -7,7 +7,7 @@ using a number of different codes can be found in the Straka 1993 paper.
 See:
 > Straka, J.M., Wilhelmson, R.B., Wicker, L.J., Anderson, J.R. and Droegemeier,
 K.K. (1993), Numerical solutions of a non-linear density current: A benchmark
-solution and comparisons. Int. J. Numer. Meth. Fluids, 17: 1-22.
+solution and comparisons. Int. J. Numerical Methods Fluids, 17: 1-22.
 https://doi.org/10.1002/fld.1650170103
 
 Compare with `WRF/test/em_grav2d_x`

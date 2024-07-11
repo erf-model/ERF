@@ -16,14 +16,11 @@ ERF::write_1D_profiles (Real time)
 {
     BL_PROFILE("ERF::write_1D_profiles()");
 
-    if (verbose <= 0)
-      return;
-
     int datwidth = 14;
     int datprecision = 6;
     int timeprecision = 13; // e.g., 1-yr LES: 31,536,000 s with dt ~ 0.01 ==> min prec = 10
 
-    if (verbose > 0 && NumDataLogs() > 1)
+    if (NumDataLogs() > 1)
     {
         // Define the 1d arrays we will need
         Gpu::HostVector<Real> h_avg_u, h_avg_v, h_avg_w;
@@ -37,7 +34,8 @@ ERF::write_1D_profiles (Real time)
         Gpu::HostVector<Real> h_avg_sgshfx, h_avg_sgsdiss; // only output tau_{theta,w} and epsilon for now
 
         if (NumDataLogs() > 1) {
-            derive_diag_profiles(h_avg_u, h_avg_v, h_avg_w,
+            derive_diag_profiles(time,
+                                 h_avg_u, h_avg_v, h_avg_w,
                                  h_avg_rho, h_avg_th, h_avg_ksgs, h_avg_kturb,
                                  h_avg_qv, h_avg_qc, h_avg_qr, h_avg_wqv, h_avg_wqc, h_avg_wqr, h_avg_qi, h_avg_qs, h_avg_qg,
                                  h_avg_uu, h_avg_uv, h_avg_uw, h_avg_vv, h_avg_vw, h_avg_ww,
@@ -46,7 +44,7 @@ ERF::write_1D_profiles (Real time)
                                  h_avg_p, h_avg_pu, h_avg_pv, h_avg_pw);
         }
 
-        if (NumDataLogs() > 3) {
+        if (NumDataLogs() > 3 && time > 0.) {
             derive_stress_profiles(h_avg_tau11, h_avg_tau12, h_avg_tau13,
                                    h_avg_tau22, h_avg_tau23, h_avg_tau33,
                                    h_avg_sgshfx,
@@ -133,7 +131,7 @@ ERF::write_1D_profiles (Real time)
                 } // if good
             } // NumDataLogs
 
-            if (NumDataLogs() > 3) {
+            if (NumDataLogs() > 3 && time > 0.) {
                 std::ostream& data_log3 = DataLog(3);
                 if (data_log3.good()) {
                   // Write the average stresses
@@ -152,9 +150,9 @@ ERF::write_1D_profiles (Real time)
                                 << std::endl;
                   } // loop over z
                 } // if good
-            } // NumDataLogs
+            } // if (NumDataLogs() > 3)
         } // if IOProcessor
-    } // if verbose
+    } // if (NumDataLogs() > 1)
 }
 
 /**
@@ -182,18 +180,21 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 
-void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
-                          Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
-                          Gpu::HostVector<Real>& h_avg_kturb, Gpu::HostVector<Real>& h_avg_qv  , Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
-                          Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
-                          Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
-                          Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
-                          Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
-                          Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
-                          Gpu::HostVector<Real>& h_avg_thth,
-                          Gpu::HostVector<Real>& h_avg_uiuiu  , Gpu::HostVector<Real>& h_avg_uiuiv , Gpu::HostVector<Real>& h_avg_uiuiw,
-                          Gpu::HostVector<Real>& h_avg_p,
-                          Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
+void ERF::derive_diag_profiles(Real time,
+                               Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
+                               Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
+                               Gpu::HostVector<Real>& h_avg_kturb, Gpu::HostVector<Real>& h_avg_qv,
+                               Gpu::HostVector<Real>& h_avg_qc , Gpu::HostVector<Real>& h_avg_qr,
+                               Gpu::HostVector<Real>& h_avg_wqv , Gpu::HostVector<Real>& h_avg_wqc, Gpu::HostVector<Real>& h_avg_wqr,
+                               Gpu::HostVector<Real>& h_avg_qi  , Gpu::HostVector<Real>& h_avg_qs , Gpu::HostVector<Real>& h_avg_qg,
+                               Gpu::HostVector<Real>& h_avg_uu  , Gpu::HostVector<Real>& h_avg_uv , Gpu::HostVector<Real>& h_avg_uw,
+                               Gpu::HostVector<Real>& h_avg_vv  , Gpu::HostVector<Real>& h_avg_vw , Gpu::HostVector<Real>& h_avg_ww,
+                               Gpu::HostVector<Real>& h_avg_uth , Gpu::HostVector<Real>& h_avg_vth, Gpu::HostVector<Real>& h_avg_wth,
+                               Gpu::HostVector<Real>& h_avg_thth,
+                               Gpu::HostVector<Real>& h_avg_uiuiu  , Gpu::HostVector<Real>& h_avg_uiuiv,
+                               Gpu::HostVector<Real>& h_avg_uiuiw,
+                               Gpu::HostVector<Real>& h_avg_p,
+                               Gpu::HostVector<Real>& h_avg_pu  , Gpu::HostVector<Real>& h_avg_pv , Gpu::HostVector<Real>& h_avg_pw)
 
 {
     // We assume that this is always called at level 0
@@ -266,8 +267,16 @@ void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
             }
             fab_arr(i, j, k, 2) = ksgs;
             Real kturb = 0.0;
+#if 1
             if (l_use_Turb) kturb = eta_arr(i,j,k,EddyDiff::Mom_h);
             fab_arr(i, j, k, 3) = kturb;
+#else
+            // Here we hijack the "Kturb" variable name to print out the resolved kinetic energy
+            Real upert = u_cc_arr(i,j,k) - h_avg_u[k];
+            Real vpert = v_cc_arr(i,j,k) - h_avg_v[k];
+            Real wpert = w_cc_arr(i,j,k) - h_avg_w[k];
+            fab_arr(i, j, k, 3) = 0.5 * (upert*upert + vpert*vpert + wpert*wpert);
+#endif
             fab_arr(i, j, k, 4) = u_cc_arr(i,j,k) * u_cc_arr(i,j,k);   // u*u
             fab_arr(i, j, k, 5) = u_cc_arr(i,j,k) * v_cc_arr(i,j,k);   // u*v
             fab_arr(i, j, k, 6) = u_cc_arr(i,j,k) * w_cc_arr(i,j,k);   // u*w
@@ -400,7 +409,18 @@ void ERF::derive_diag_profiles(Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVecto
         h_avg_wqv[k] /= area_z;  h_avg_wqc[k]  /= area_z;  h_avg_wqr[k] /= area_z;
         h_avg_qi[k]  /= area_z;  h_avg_qs[k]   /= area_z;  h_avg_qg[k]  /= area_z;
     }
+
+#if 0
+    // Here we print the integrated total kinetic energy as computed in the 1D profile above
+    Real sum = 0.;
+    Real dz = geom[0].ProbHi(2) / static_cast<Real>(h_avg_u_size);
+    for (int k = 0; k < h_avg_u_size; ++k) {
+        sum += h_avg_kturb[k] * h_avg_rho[k] * dz;
+    }
+    amrex::Print() << "ITKE " << time << " " << sum << " using " << h_avg_u_size << " " << dz << std::endl;
+#endif
 }
+
 void
 ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector<Real>& h_avg_tau12,
                              Gpu::HostVector<Real>& h_avg_tau13, Gpu::HostVector<Real>& h_avg_tau22,

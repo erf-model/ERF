@@ -110,12 +110,38 @@ void make_mom_sources (int /*level*/,
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
-    Table1D<Real> dptr_u_plane, dptr_v_plane;
-    TableData<Real, 1> u_plane_tab, v_plane_tab;
+    Table1D<Real>     dptr_r_plane, dptr_u_plane, dptr_v_plane;
+    TableData<Real, 1> r_plane_tab,  u_plane_tab,  v_plane_tab;
 
     if (dptr_wbar_sub) {
-        PlaneAverage u_ave(&xvel  , geom, solverChoice.ave_plane, true);
-        PlaneAverage v_ave(&yvel  , geom, solverChoice.ave_plane, true);
+        // Rho
+        PlaneAverage r_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane, true);
+        r_ave.compute_averages(ZDir(), r_ave.field());
+
+        int ncell = r_ave.ncell_line();
+        Gpu::HostVector<    Real> r_plane_h(ncell);
+        Gpu::DeviceVector<  Real> r_plane_d(ncell);
+
+        r_ave.line_average(Rho_comp, r_plane_h);
+
+        Gpu::copyAsync(Gpu::hostToDevice, r_plane_h.begin(), r_plane_h.end(), r_plane_d.begin());
+
+        Real* dptr_r = r_plane_d.data();
+
+        IntVect ng_c = S_data[IntVars::cons].nGrowVect();
+        Box tdomain  = domain; tdomain.grow(2,ng_c[2]);
+        r_plane_tab.resize({tdomain.smallEnd(2)}, {tdomain.bigEnd(2)});
+
+        int offset = ng_c[2];
+        dptr_r_plane = r_plane_tab.table();
+        ParallelFor(ncell, [=] AMREX_GPU_DEVICE (int k) noexcept
+        {
+            dptr_r_plane(k-offset) = dptr_r[k];
+        });
+
+        // U and V momentum
+        PlaneAverage u_ave(&(S_data[IntVars::xmom]), geom, solverChoice.ave_plane, true);
+        PlaneAverage v_ave(&(S_data[IntVars::ymom]), geom, solverChoice.ave_plane, true);
 
         u_ave.compute_averages(ZDir(), u_ave.field());
         v_ave.compute_averages(ZDir(), v_ave.field());
@@ -125,8 +151,8 @@ void make_mom_sources (int /*level*/,
         Gpu::HostVector<    Real> u_plane_h(u_ncell), v_plane_h(v_ncell);
         Gpu::DeviceVector<  Real> u_plane_d(u_ncell), v_plane_d(v_ncell);
 
-        u_ave.line_average(0             , u_plane_h);
-        v_ave.line_average(0             , v_plane_h);
+        u_ave.line_average(0 , u_plane_h);
+        v_ave.line_average(0 , v_plane_h);
 
         Gpu::copyAsync(Gpu::hostToDevice, u_plane_h.begin(), u_plane_h.end(), u_plane_d.begin());
         Gpu::copyAsync(Gpu::hostToDevice, v_plane_h.begin(), v_plane_h.end(), v_plane_d.begin());
@@ -134,8 +160,8 @@ void make_mom_sources (int /*level*/,
         Real* dptr_u = u_plane_d.data();
         Real* dptr_v = v_plane_d.data();
 
-        IntVect ng_u = xvel.nGrowVect();
-        IntVect ng_v = yvel.nGrowVect();
+        IntVect ng_u = S_data[IntVars::xmom].nGrowVect();
+        IntVect ng_v = S_data[IntVars::ymom].nGrowVect();
         Box udomain = domain; udomain.grow(2,ng_u[2]);
         Box vdomain = domain; vdomain.grow(2,ng_v[2]);
         u_plane_tab.resize({udomain.smallEnd(2)}, {udomain.bigEnd(2)});
@@ -280,16 +306,44 @@ void make_mom_sources (int /*level*/,
         // Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence) {
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                xmom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_u_plane(k+1) - dptr_u_plane(k-1)) * dxInv[2];
-            });
-            ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                ymom_src_arr(i, j, k) -= dptr_wbar_sub[k] *
-                    0.5 * (dptr_v_plane(k+1) - dptr_v_plane(k-1)) * dxInv[2];
-            });
+            if (solverChoice.custom_forcing_prim_vars) {
+                const int nr = Rho_comp;
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_u_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
+                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
+                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf *
+                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real rho_on_v_face = 0.5 * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
+                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
+                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf *
+                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                });
+            } else {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
+                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_xf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    xmom_src_arr(i, j, k) -= wbar_xf *
+                                             0.5 * (U_hi - U_lo) * dxInv[2];
+                });
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
+                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
+                    Real wbar_yf = 0.5 * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                    ymom_src_arr(i, j, k) -= wbar_yf *
+                                             0.5 * (V_hi - V_lo) * dxInv[2];
+                });
+            }
         }
 
         // *****************************************************************************

@@ -78,7 +78,7 @@ namespace WRFBdyVars {
         T  = 3,
         QV    , // water vapor
         MU    , // bdy perturbation dry air mass in column (we will get mub from the initial data)
-        PC    , // p_s - p_top = dry hydrostatic pressure diference between the surface and the model top
+        PC    , // p_s - p_top = dry hydrostatic pressure difference between the surface and the model top
         NumTypes
     };
 }

@@ -42,6 +42,7 @@ amrex::Real erf_esati (amrex::Real t) {
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real erf_esatw (amrex::Real t) {
+#if 1
     amrex::Real const a0 = 6.105851;
     amrex::Real const a1 = 0.4440316;
     amrex::Real const a2 = 0.1430341e-1;
@@ -62,6 +63,37 @@ amrex::Real erf_esatw (amrex::Real t) {
         esatw = 2.0*0.01*std::exp(9.550426 - 5723.265/t + 3.53068*std::log(t) - 0.00728332*t);
     }
     return esatw;
+#else
+    amrex::Real a0 = 6.11239921;
+    amrex::Real a1 = 0.443987641;
+    amrex::Real a2 = 0.142986287e-1;
+    amrex::Real a3 = 0.264847430e-3;
+    amrex::Real a4 = 0.302950461e-5;
+    amrex::Real a5 = 0.206739458e-7;
+    amrex::Real a6 = 0.640689451e-10;
+    amrex::Real a7 = -0.952447341e-13;
+    amrex::Real a8 = -0.976195544e-15;
+
+    amrex::Real a0i = 6.11147274;
+    amrex::Real a1i = 0.503160820;
+    amrex::Real a2i = 0.188439774e-1;
+    amrex::Real a3i = 0.420895665e-3;
+    amrex::Real a4i = 0.615021634e-5;
+    amrex::Real a5i = 0.602588177e-7;
+    amrex::Real a6i = 0.385852041e-9;
+    amrex::Real a7i = 0.146898966e-11;
+    amrex::Real a8i = 0.252751365e-14;
+
+    amrex::Real Tc = std::max(-80.0, t-273.16);
+
+    amrex::Real esatw;
+    if (t<=273.15){
+        esatw = (a0  + Tc*(a1 +Tc*(a2 +Tc*(a3 +Tc*(a4 +Tc*(a5 +Tc*(a6 +Tc*(a7 +a8 *Tc))))))))*100.;
+    }else{
+        esatw = (a0i + Tc*(a1i+Tc*(a2i+Tc*(a3i+Tc*(a4i+Tc*(a5i+Tc*(a6i+Tc*(a7i+a8i*Tc))))))))*100.;
+    }
+    return esatw;
+#endif
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -122,7 +154,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void erf_qsatw (amrex::Real t, amrex::Real p, amrex::Real &qsatw) {
     amrex::Real esatw;
     esatw = erf_esatw(t);
+#if 1
     qsatw = Rd_on_Rv*esatw/std::max(esatw,p-esatw);
+#else
+    qsatw = esatw/(R_v*t);
+#endif
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE

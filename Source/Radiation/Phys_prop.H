@@ -74,7 +74,7 @@ class PhysProp {
         real dgnum;       // geometric dry mean diameter of the number distribution for aerosol mode
         real dgnumlo;     // lower limit of dgnum
         real dgnumhi;     // upper limit of dgnum
-        real rhcrystal;   // crystalization relative humidity for mode
+        real rhcrystal;   // crystallization relative humidity for mode
         real rhdeliques;  // deliquescence relative humidity for mode
     };
 

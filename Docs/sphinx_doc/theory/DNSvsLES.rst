@@ -73,7 +73,7 @@ respectively (Martin et al., Theoret. Comput. Fluid Dynamics (2000)).
       compressible turbulence and scalar transport", PoF (1991); Martin et al., Subgrid-scale models for compressible
       large-eddy simulations", Theoret. Comput. Fluid Dynamics (2000).
 
-When substituted back into the filtered equtions, the gradient transport LES models take exactly the same form as the
+When substituted back into the filtered equations, the gradient transport LES models take exactly the same form as the
 molecular transport terms, but with the
 constant molecular transport coefficients replaced by turbulent equivalents (e.g. :math:`\mu` becomes the turbulent viscosity,
 :math:`\mu_{t}`). Therefore, when the code is run in LES mode, the :ref:`equation set<DryEquations>` remains the same,

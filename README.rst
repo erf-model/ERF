@@ -23,7 +23,7 @@ Getting Started
 ~~~~~~~~~~~~~~~
 
 See `Getting Started <https://erf.readthedocs.io/en/latest/GettingStarted.html>`_ for instructions as to how to clone the ERF
-and AMReX codes, and for how to build and run an ERF example.  Mimimum requirements for system software are also given there.
+and AMReX codes, and for how to build and run an ERF example.  Minimum requirements for system software are also given there.
 
 Documentation
 ~~~~~~~~~~~~~~~~~
@@ -72,4 +72,3 @@ distribute copies to the public, prepare derivative works, and perform
 publicly and display publicly, and to permit other to do so.
 
 The license for ERF can be found in the LICENSE.md file.
-

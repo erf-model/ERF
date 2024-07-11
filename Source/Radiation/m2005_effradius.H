@@ -68,7 +68,7 @@ void m2005_effradius (const real2d& ql, const real2d& nl, const real2d& qi,
             res = 500.;
         }
 
-        // from Hugh Morrision: rhos/917 accouts for assumptions about
+        // from Hugh Morrision: rhos/917 accounts for assumptions about
         // ice density in the Mitchell optics.
         des(i,j) = res*rhos/917.*2.;
 
