@@ -208,7 +208,7 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
-              
+
                 /*
                 // Account for moist BV frequency
                 Real E  = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
@@ -226,9 +226,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 }
                 */
                 // Only valid for dry BV frequency
-                Real E     = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-                Real strat = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 Real length;
+                Real E = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 if (stratification <= eps) {
                     length = DeltaMsf;
                 } else {
