@@ -90,7 +90,7 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                     dqc_arr(i,j,k) = - (q_v_arr(i,j,k) - old_qv) / dt_s;
 
                     auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
-                    theta_arr(i,j,k) += theta_over_T * fac_cond * dqc_arr(i,j,k);
+                    theta_arr(i,j,k) += theta_over_T * fac_cond * (old_qv-q_v_arr(i,j,k));
                 });
 
             }
