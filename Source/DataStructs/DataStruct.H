@@ -429,6 +429,8 @@ struct SolverChoice {
         sinphi = std::sin(latitude);
         cosphi = std::cos(latitude);
 
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
+
         if (abl_driver_type == ABLDriverType::GeostrophicWind)
         {
             // Read in the geostrophic wind -- we only use this to construct
