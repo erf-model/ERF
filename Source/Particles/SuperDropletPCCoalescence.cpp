@@ -102,6 +102,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
     auto kernel_choice = m_coalescence_kernel;
     auto include_brownian_coalescence = m_include_brownian_coalescence;
 
+    Real mcshuffle_wtime_sec = 0.0;
     Real mcpairing_wtime_sec = 0.0;
     Real coalescence_wtime_sec = 0.0;
 
@@ -147,17 +148,22 @@ void SuperDropletPC::Coalescence( int   a_lev,
         auto inds = bins.permutationPtr();
         auto offsets = bins.offsetsPtr();
 
+        struct timeval mcshuffle_start, mcshuffle_end;
+        gettimeofday(&mcshuffle_start, NULL);
+
 #ifdef AMREX_USE_CUDA
         {
-            std::vector<unsigned int> inds_h(np), offsets_h(bins.numBins());
+            Vector<unsigned int> inds_h, offsets_h;
+            inds_h.resize(np);
+            offsets_h.resize(bins.numBins()+1);
             Gpu::copy(Gpu::deviceToHost, inds, inds+np, inds_h.begin());
-            Gpu::copy(Gpu::deviceToHost, offsets, offsets+bins.numBins(), offsets_h.begin());
+            Gpu::copy(Gpu::deviceToHost, offsets, offsets+bins.numBins()+1, offsets_h.begin());
             for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
                 std::random_device rd;
                 std::mt19937 g(rd());
-                std::shuffle(   inds_h.data() + offsets_h[i_bin],
-                                inds_h.data() + offsets_h[i_bin+1],
-                                g );
+                std::shuffle( inds_h.begin() + offsets_h[i_bin],
+                              inds_h.begin() + offsets_h[i_bin+1],
+                              g );
             }
             Gpu::copy(Gpu::hostToDevice, inds_h.begin(), inds_h.end(), inds);
         }
@@ -165,11 +171,17 @@ void SuperDropletPC::Coalescence( int   a_lev,
         for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
             std::random_device rd;
             std::mt19937 g(rd());
-            std::shuffle(   inds + offsets[i_bin],
-                            inds + offsets[i_bin+1],
-                            g );
+            std::shuffle( inds + offsets[i_bin],
+                          inds + offsets[i_bin+1],
+                          g );
         }
 #endif
+
+        gettimeofday(&mcshuffle_end,NULL);
+        long long mcshuffle_wtime;
+        mcshuffle_wtime = (   (mcshuffle_end.tv_sec   * 1000000 + mcshuffle_end.tv_usec  )
+                            - (mcshuffle_start.tv_sec * 1000000 + mcshuffle_start.tv_usec) );
+        mcshuffle_wtime_sec += (double) mcshuffle_wtime / 1000000.0;
 
         const auto& pressure_arr = a_pressure[grid].const_array();
         const auto& temperature_arr = a_temperature[grid].const_array();
@@ -389,6 +401,9 @@ void SuperDropletPC::Coalescence( int   a_lev,
                    -  (total_start.tv_sec * 1000000 + total_start.tv_usec) );
     Real total_wtime_sec = (double) total_wtime / 1000000.0;
 
+    ParallelDescriptor::ReduceRealMax( &mcshuffle_wtime_sec,
+                                       1,
+                                       ParallelDescriptor::IOProcessorNumber() );
     ParallelDescriptor::ReduceRealMax( &mcpairing_wtime_sec,
                                        1,
                                        ParallelDescriptor::IOProcessorNumber() );
@@ -403,6 +418,7 @@ void SuperDropletPC::Coalescence( int   a_lev,
             << "number of collisions = " << num_collisions << "\n"
             << "    "
             << "wall time (seconds) = " << total_wtime_sec << " (total), "
+            << mcshuffle_wtime_sec << " (MC shuffle), "
             << mcpairing_wtime_sec << " (MC pairing), "
             << coalescence_wtime_sec << " (coalescence)"
             << "\n";
