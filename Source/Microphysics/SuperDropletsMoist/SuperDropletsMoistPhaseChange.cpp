@@ -74,7 +74,10 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                 auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
                 auto dqc_arr = m_mic_fab_vars[MicVar_SD::dqcdt]->array(mfi);
                 auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->array(mfi);
+                auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
+                auto T_arr = m_mic_fab_vars[MicVar_SD::temperature]->array(mfi);
 
+                auto fac_cond = m_fac_cond;
                 ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     auto old_qv = q_v_arr(i,j,k);
@@ -85,6 +88,9 @@ void SuperDropletsMoist::phaseChange ( const Real& a_dt, /*!< Timestep */
                         q_v_arr(i,j,k) = q_t_arr(i,j,k) - q_c_arr(i,j,k);
                     }
                     dqc_arr(i,j,k) = - (q_v_arr(i,j,k) - old_qv) / dt_s;
+
+                    auto theta_over_T = theta_arr(i,j,k)/T_arr(i,j,k);
+                    theta_arr(i,j,k) += theta_over_T * fac_cond * dqc_arr(i,j,k);
                 });
 
             }

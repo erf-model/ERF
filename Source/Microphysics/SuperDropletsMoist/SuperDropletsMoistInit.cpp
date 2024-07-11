@@ -4,8 +4,9 @@
 #ifdef ERF_USE_PARTICLES
 
 /*! Define the super-droplet moisture model parameters from provided inputs */
-void SuperDropletsMoist::Define (SolverChoice& /* a_sc */)
+void SuperDropletsMoist::Define (SolverChoice& a_sc /*!< Solver choices */)
 {
+    m_fac_cond = lcond / a_sc.c_p;
     readInputs();
 }
 

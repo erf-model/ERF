@@ -12,6 +12,7 @@
 namespace MicVar_SD {
     enum {
         rho = 0,     /*!< Density */
+        theta,       /*!< Potential temperature */
         temperature, /*!< Temperature */
         pressure,    /*!< Pressure */
         q_t,         /*!< Total (vapour + cloud) */
@@ -147,6 +148,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         bool m_flag_phase_change;   /*!< Enable/disable phase change */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
+
+        amrex::Real m_fac_cond; /*!< latent heat factor */
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;

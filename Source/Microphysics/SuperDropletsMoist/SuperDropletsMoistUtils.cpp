@@ -21,10 +21,12 @@ void SuperDropletsMoist::Copy_State_to_Micro (  const MultiFab& a_cons_vars /*!<
         auto q_t_arr = m_mic_fab_vars[MicVar_SD::q_t]->array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             rho_arr(i,j,k) = states_arr(i,j,k,Rho_comp);
+            theta_arr(i,j,k) = states_arr(i,j,k,RhoTheta_comp)/states_arr(i,j,k,Rho_comp);
             q_v_arr(i,j,k) = states_arr(i,j,k,RhoQ1_comp) / states_arr(i,j,k,Rho_comp);
             q_t_arr(i,j,k) = q_v_arr(i,j,k) + q_c_arr(i,j,k);
         });
@@ -70,9 +72,11 @@ void SuperDropletsMoist::Copy_Micro_to_State (  MultiFab& a_cons_vars /*!< Conse
         auto states_arr = a_cons_vars.array(mfi);
         auto q_v_arr = m_mic_fab_vars[MicVar_SD::q_v]->const_array(mfi);
         auto q_c_arr = m_mic_fab_vars[MicVar_SD::q_c]->const_array(mfi);
+        auto theta_arr = m_mic_fab_vars[MicVar_SD::theta]->const_array(mfi);
 
         ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
+            states_arr(i,j,k,RhoTheta_comp) = states_arr(i,j,k,Rho_comp)*theta_arr(i,j,k);
             states_arr(i,j,k,RhoQ1_comp) = states_arr(i,j,k,Rho_comp)*q_v_arr(i,j,k);
             states_arr(i,j,k,RhoQ2_comp) = states_arr(i,j,k,Rho_comp)*q_c_arr(i,j,k);
         });
