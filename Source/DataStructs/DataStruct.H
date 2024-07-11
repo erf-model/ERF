@@ -62,8 +62,7 @@ enum Sponge {
 };
 
 enum struct PerturbationType {
-    BPM, CPM, None
-    // Box perturbation method, Cell perturbation method, None
+    perturbSource, perturbDirect, None
 };
 
 /**
@@ -178,10 +177,13 @@ struct SolverChoice {
         pp.query("project_initial_velocity", project_initial_velocity);
 
         int nvals_inc = pp.countval("incompressible");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
         amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.getarr("incompressible",inc_in);
-        if (nvals_inc == 1) {
+        pp.queryarr("incompressible",inc_in);
+        if (nvals_inc == 0) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+        } else if (nvals_inc == 1) {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
         } else {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
@@ -238,18 +240,18 @@ struct SolverChoice {
 
         // Which type of inflow turbulent generation
         static std::string turb_pert_type_string = "None";
-        pp.query("inlet_perturbation_type",turb_pert_type_string);
-        if (!turb_pert_type_string.compare("BoxPerturbation")) {
-            pert_type = PerturbationType::BPM;
-            amrex::Print() << "Box perturbation method selected\n";
-        } else if (!turb_pert_type_string.compare("CellPerturbation")) {
-            pert_type = PerturbationType::CPM;
-            amrex::Print() << "Cell perturbation method selected\n";
+        pp.query("perturbation_type",turb_pert_type_string);
+        if (!turb_pert_type_string.compare("source")) {
+            pert_type = PerturbationType::perturbSource;
+            amrex::Print() << "Perturb temperature via source term\n";
+        } else if (!turb_pert_type_string.compare("direct")) {
+            pert_type = PerturbationType::perturbDirect;
+            amrex::Print() << "Perturb temperature via direct field add\n";
         } else if (!turb_pert_type_string.compare("None")) {
             pert_type = PerturbationType::None;
             amrex::Print() << "No perturbation method selected\n";
         } else {
-            amrex::Abort("Dont know this inlet_perturbation_type");
+            amrex::Abort("Dont know this perturbation_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
@@ -426,6 +428,8 @@ struct SolverChoice {
         latitude *= (PI/180.);
         sinphi = std::sin(latitude);
         cosphi = std::cos(latitude);
+
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
 
         if (abl_driver_type == ABLDriverType::GeostrophicWind)
         {

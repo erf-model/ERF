@@ -182,10 +182,18 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
-    void derive_diag_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
+    void derive_diag_profiles_stag (amrex::Real time,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
@@ -196,7 +204,7 @@ public:
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
 
     void derive_stress_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
@@ -428,7 +436,6 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
     // Initialize the Turbulent perturbation
-    void turbPert_constants (const int lev);
     void turbPert_update (const int lev, const amrex::Real dt);
     void turbPert_amplitude (const int lev);
 
@@ -809,7 +816,7 @@ private:
 
     // other sampling output control
     int profile_int = -1;
-    bool cc_profiles = true;
+    bool destag_profiles = true;
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
@@ -884,6 +891,7 @@ private:
 
     // Diagnostic output interval
     static int sum_interval;
+    static int pert_interval;
     static amrex::Real sum_per;
 
     // Native or NetCDF
