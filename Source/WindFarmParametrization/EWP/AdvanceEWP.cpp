@@ -5,8 +5,6 @@
 
 using namespace amrex;
 
-Real C_TKE_ewp = 0.0;
-Real K_turb = 1.0;
 
 void ewp_advance (int lev,
                   const Geometry& geom,
@@ -64,6 +62,9 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
   auto ProbLoArr = geom.ProbLoArray();
   Real sigma_0 = 1.7*rotor_rad;
 
+  Real d_rotor_rad = rotor_rad;
+  Real d_hub_height = hub_height;
+
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
   int domlo_x = domain.smallEnd(0);
@@ -89,6 +90,10 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
 
         amrex::IntVect lo = bx.smallEnd();
 
+        const Real* wind_speed_d     = d_wind_speed.dataPtr();
+        const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
+        const int n_spec_table = d_wind_speed.size();
+
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
@@ -105,13 +110,19 @@ void ewp_source_terms_cellcentered (const Geometry& geom,
                                  v_vel(i,j,k)*v_vel(i,j,k) +
                                  w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
 
-            Real C_T_ewp = interpolate_1d(wind_speed.dataPtr(), thrust_coeff.dataPtr(), z, wind_speed.size());
+            Real C_T = interpolate_1d(wind_speed_d, thrust_coeff_d, Vabs, n_spec_table);
+
+            Real C_TKE = 0.0;
+            Real K_turb = 1.0;
 
             Real L_wake = std::pow(dx[0]*dx[1],0.5)/2.0;
-            Real sigma_e = Vabs/(3.0*K_turb*L_wake)*(std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
+            Real sigma_e = Vabs/(3.0*K_turb*L_wake)*
+                           (std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(M_PI/8.0,0.5)*C_T_ewp*std::pow(rotor_rad,2)*std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*std::exp(-0.5*std::pow((z - hub_height)/sigma_e,2));
+            Real fac = -std::pow(M_PI/8.0,0.5)*C_T*std::pow(d_rotor_rad,2)*
+                        std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*
+                        std::exp(-0.5*std::pow((z - d_hub_height)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,2) = 0.0;

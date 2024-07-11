@@ -1,10 +1,10 @@
 /*
  * RTE-RRTMGP radiation model interface to ERF
- * The orginal code is developed by RobertPincus, and the code is open source available at:
+ * The original code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * Please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
- * NOTE: we use the C++ version of RTE-RRTMGP, which is the implemention of the original Fortran
+ * NOTE: we use the C++ version of RTE-RRTMGP, which is the implementation of the original Fortran
  * code using C++ YAKL for CUDA, HiP and SYCL application by E3SM ECP team, the C++ version
  * of the rte-rrtmgp code is located at:
  *                       https://github.com/E3SM-Project/rte-rrtmgp
@@ -143,7 +143,7 @@ class Radiation {
     // rrtmgp
     Rrtmgp radiation;
 
-    // optics radation properties
+    // optics radiation properties
     Optics optics;
 
     // aerosol optics properties
@@ -185,7 +185,7 @@ class Radiation {
     // Disabled when value is less than 0.
     real fixed_total_solar_irradiance = -1.;
 
-    // The RRTMGP warnings are printed when the state variables need to be limted,
+    // The RRTMGP warnings are printed when the state variables need to be limited,
     // such as when the temperature drops too low. This is not normally an issue,
     // but in aquaplanet and RCE configurations these situations occur much more
     // frequently, so this flag was added to be able to disable those messages.

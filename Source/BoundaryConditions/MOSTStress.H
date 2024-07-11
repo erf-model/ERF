@@ -1004,7 +1004,7 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_xz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx-umean);
@@ -1076,7 +1076,7 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_yz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely-vmean);

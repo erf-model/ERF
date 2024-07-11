@@ -1,6 +1,6 @@
 /*
  * RTE-RRTMGP radiation model interface to ERF
- * The orginal code is developed by RobertPincus, and the code is open source available at:
+ * The original code is developed by RobertPincus, and the code is open source available at:
  *                        https://github.com/earth-system-radiation/rte-rrtmgp
  * Please reference to the following paper,
  *                        https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019MS001621
@@ -256,8 +256,8 @@ void Radiation::initialize (const MultiFab& cons_in,
                       ncol, nlev, nrh, top_lev, aero_names, zi,
                       pmid, pint, tmid, qt, geom_radius);
 
-    amrex::Print() << "LW coefficents file: " << rrtmgp_coefficients_file_lw
-                   << "\nSW coefficents file: " << rrtmgp_coefficients_file_sw
+    amrex::Print() << "LW coefficients file: " << rrtmgp_coefficients_file_lw
+                   << "\nSW coefficients file: " << rrtmgp_coefficients_file_sw
                    << "\nFrequency (timesteps) of Shortwave Radiation calc: " << dt
                    << "\nFrequency (timesteps) of Longwave Radiation calc:  " << dt
                    << "\nDo aerosol radiative calculations: " << do_aerosol_rad << std::endl;
@@ -310,7 +310,7 @@ void Radiation::run ()
 
     // Needed for shortwave aerosol;
     //int nday, nnight;     // Number of daylight columns
-    int1d day_indices("day_indices", ncol), night_indices("night_indices", ncol);   // Indicies of daylight coumns
+    int1d day_indices("day_indices", ncol), night_indices("night_indices", ncol);   // Indices of daylight coumns
 
     // Flag to carry (QRS,QRL)*dp across time steps.
     // TODO: what does this mean?
@@ -576,9 +576,9 @@ void Radiation::radiation_driver_sw (int ncol, const real3d& gas_vmr,
     // and earth-sun distance
     real2d solar_irradiance_by_gpt("solar_irradiance_by_gpt",ncol,nswgpts);
 
-    // Gathered indicies of day and night columns
+    // Gathered indices of day and night columns
     // chunk_column_index = day_indices(daylight_column_index)
-    int1d day_indices("day_indices",ncol), night_indices("night_indices", ncol);   // Indicies of daylight coumns
+    int1d day_indices("day_indices",ncol), night_indices("night_indices", ncol);   // Indices of daylight coumns
 
     real1d coszrs_day("coszrs_day", ncol);
     real2d albedo_dir_day("albedo_dir_day", nswbands, ncol), albedo_dif_day("albedo_dif_day", nswbands, ncol);
@@ -791,7 +791,7 @@ void Radiation::set_daynight_indices (const real1d& coszrs, const int1d& day_ind
 {
     // Loop over columns and identify daytime columns as those where the cosine
     // solar zenith angle exceeds zero. Note that we wrap the setting of
-    // day_indices in an if-then to make sure we are not accesing day_indices out
+    // day_indices in an if-then to make sure we are not accessing day_indices out
     // of bounds, and stopping with an informative error message if we do for some reason.
     int1d iday("iday", 1);
     int1d inight("inight",1);

@@ -26,7 +26,7 @@ zhi.type = "Outflow"
 # SPONGE ZONE BCS
 
 erf.sponge_type = "input_sponge"
-erf.input_sponge_file = "input_sponge_file.txt"
+erf.input_sponge_file = "input_ReTau2000_loglaw.txt"
 erf.sponge_strength = 1000.0
 erf.use_xlo_sponge_damping = true
 erf.xlo_sponge_end = 4.0

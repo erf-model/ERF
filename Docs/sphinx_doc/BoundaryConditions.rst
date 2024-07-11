@@ -81,7 +81,7 @@ As an example,
     xlo.theta               =   300.
     xlo.scalar              =   2.
 
-sets the boundary condtion type at the low x face to be an inflow with xlo.type = “Inflow”.
+sets the boundary condition type at the low x face to be an inflow with xlo.type = “Inflow”.
 
 xlo.velocity = 1. 0. 0. sets all three componentns the inflow velocity,
 xlo.density       = 1. sets the inflow density,
@@ -133,7 +133,7 @@ Couette regression test example, in which we specify
 We also note that in the case of a "slipwall" boundary condition in a simulation with non-zero
 viscosity specified, the "foextrap" boundary condition enforces zero strain at the wall.
 
-The keywork "MOST" is an ERF-specific boundary type; see :ref:`sec:MOST` for more information.
+The keyword "MOST" is an ERF-specific boundary type; see :ref:`sec:MOST` for more information.
 
 It is important to note that external Dirichlet boundary data should be specified
 as the value on the face of the cell bounding the domain, even for cell-centered
@@ -192,7 +192,7 @@ and :math:`n` is the minimum number of grid points from a lateral boundary.
 Sponge zone domain BCs
 ----------------------
 
-ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specifed by the user in the inputs file.
+ERF provides the capability to apply sponge zones at the boundaries to prevent spurious reflections that otherwise occur at the domain boundaries if standard extrapolation boundary condition is used. The sponge zone is implemented as a source term in the governing equations, which are active in a volumteric region at the boundaries that is specified by the user in the inputs file. Currently the target condition to which the sponge zones should be forced towards is to be specified by the user in the inputs file.
 
 .. math::
 
@@ -226,3 +226,125 @@ The sponge data is input as a text file with 3 columns containing :math:`z, u, v
           erf.sponge_strength = 1000.0
           erf.use_xlo_sponge_damping = true
           erf.xlo_sponge_end = 4.0
+
+Inflow turbulence generation
+---------------------------
+
+ERF provides the capability to apply a perturbation zone at the inflow domain boundary to mechanically trip turbulence into the domain.
+
+.. |PBinflw| image:: figures/PBIllustration.png
+           :width: 600
+
+.. _fig:pb_fig:
+
+.. table:: Box perturbation method
+
+   +-----------------------------------------------------+
+   |                     |PBinflw|                       |
+   +-----------------------------------------------------+
+   |  Image taken from `DeLeon et al. (2018)`            |
+   +-----------------------------------------------------+
+
+Two different types of perturbation are currently available, ``source``, adopted from `DeLeon et al. (2018)`_
+
+..
+   _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
+
+and ``direct``, adopted from `Munoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
+
+The current implementation only supports West and South face perturbations, specified by ``erf.perturbation_direction``, where the 3 integer inputs represent the `x`, `y`, and `z` directions, respectively. The flow perturbation method requires the dimensions of an individual box input through ``erf.perturbation_box_dim``, with 3 integer inputs representing `nx_{pb}`, `ny_{pb}`, and `nz_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_,
+
+.. _`Ma and Senocak (2023)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
+
+the general rule of thumb is to use `H_{PB} = 1/8 \delta` as the height of the perturbation box, where `\delta` is the boundary layer height. The length of the box in the x-direction should be `L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as `W_{PB} = L_{PB} \tan{\theta_{inflow}}`. Note that the current implementation only accepts ``int`` entries. Therefore, considering the domain size and mesh resolution, the dimensions of a singular box can be determined.
+
+The specification of the number of layers and the offset into the domain of the perturbation boxes can be made through ``erf.perturbation_layers`` and ``erf.perturbation_offset``, respectively.
+
+::
+
+          erf.inlet_perturbation_type = "source"
+
+          erf.perturbation_direction = 1 0 0
+          erf.perturbation_box_dims = 8 8 4
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 1
+
+          erf.perturbation_nondimensional = 0.042
+          erf.perturbation_T_infinity = 300.0
+          erf.perturbation_T_intensity = 0.1
+
+Before delving into the details, it's important to note that the two methods are interchangeable. While we adhere to the guidelines from the referenced publications, the use of ``direct`` type forcing is not restricted to having unity cell height, nor is ``source`` type forcing limited to boxes. We have generalized the perturbation methods to allow for flexibility in mixing and matching different types of turbulence generation.
+
+Source type forcing
+-------------------
+
+The perturbation update interval is determined by the equation,
+
+.. math::
+
+   \frac{t_p \langle U(z) \rangle_{PB}}{D_{PB}} = 1,
+
+The change in the perturbation is defined as,
+
+.. math::
+
+   {Ri}_{PB} = \frac{g \beta \Delta \overline{\phi} H_{PB}}{{\langle U(z) \rangle}^2_{PB}}.
+
+The magnitude of the perturbation, ignoring the advection and diffusion effects in the transport equation can be made through a proportionality ratio between the update time and change in the box temperature,
+
+.. math::
+
+   \Phi_{PB} \propto \frac{\Delta \overliner{\phi}}{t_p}
+
+and the perturbation amplitude is determined by the equation,
+
+.. math::
+
+   \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^3_{PB}}{g \beta D_{PB} H_{PB}}.
+
+The ``source`` type forcing can adopt the box perturbation method by having the following inputs list.
+
+::
+
+          erf.inlet_perturbation_type = "source"
+
+          erf.perturbation_direction = 1 0 0
+          erf.perturbation_box_dims = 8 8 4
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 1
+
+          erf.perturbation_nondimensional = 0.042 # Ri
+          erf.perturbation_T_infinity = 300.0
+          erf.perturbation_T_intensity = 0.1
+
+Direct type forcing
+-------------------
+
+The perturbation update interval is determined by the equation,
+.. math::
+
+   \frac{t_p U_{1}}{d_{c}}
+
+and the perturbation amplitude is determined by the equation,
+.. math::
+
+   Ec = \frac{{U_g}^2}{\rho c_p \theta_{pm}}.
+
+The ``direct`` type forcing can adopt the cell perturbation method by having the following inputs list.
+::
+
+          erf.inlet_perturbation_type = "direct"
+
+          erf.perturbation_direction = 1 0 0
+          erf.perturbation_box_dims = 8 8 1
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 1
+
+          erf.perturbation_nondimensional = 0.16 #Ec
+          erf.perturbation_rho_0 = 1.0
+          erf.perturbation_cp = 1250
+
+From `Munoz-Esparza et al. (2015)`_ the choice of the Eckert number is 0.16.
+
+..
+   _`Munoz-Esparza et al. (2015)`: https://doi.org/10.1063/1.4913572

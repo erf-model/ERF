@@ -574,16 +574,16 @@ init_terrain_from_metgrid (FArrayBox& z_phys_nd_fab,
  * @param y_vel_fab FArrayBox holding the y-velocity data to initialize
  * @param z_vel_fab FArrayBox holding the z-velocity data to initialize
  * @param z_phys_nd_fab FArrayBox holding nodal z coordinate data for terrain
- * @param NC_hgt_fab Vector of FArrayBox obects holding metgrid data for terrain height
- * @param NC_ght_fab Vector of FArrayBox objects holding metgrid data for height of cell centers
- * @param NC_xvel_fab Vector of FArrayBox obects holding metgrid data for x-velocity
- * @param NC_yvel_fab Vector of FArrayBox obects holding metgrid data for y-velocity
- * @param NC_zvel_fab Vector of FArrayBox obects holding metgrid data for z-velocity
- * @param NC_temp_fab Vector of FArrayBox obects holding metgrid data for temperature
- * @param NC_rhum_fab Vector of FArrayBox obects holding metgrid data for relative humidity
- * @param NC_pres_fab Vector of FArrayBox obects holding metgrid data for pressure
- * @param theta_fab Vector of FArrayBox obects holding potential temperature calculated from temperature and pressure
- * @param mxrat_fab Vector of FArrayBox obects holding vapor mixing ratio calculated from relative humidity
+ * @param NC_hgt_fab  Vector of FArrayBox objects holding metgrid data for terrain height
+ * @param NC_ght_fab  Vector of FArrayBox objects holding metgrid data for height of cell centers
+ * @param NC_xvel_fab Vector of FArrayBox objects holding metgrid data for x-velocity
+ * @param NC_yvel_fab Vector of FArrayBox objects holding metgrid data for y-velocity
+ * @param NC_zvel_fab Vector of FArrayBox objects holding metgrid data for z-velocity
+ * @param NC_temp_fab Vector of FArrayBox objects holding metgrid data for temperature
+ * @param NC_rhum_fab Vector of FArrayBox objects holding metgrid data for relative humidity
+ * @param NC_pres_fab Vector of FArrayBox objects holding metgrid data for pressure
+ * @param theta_fab Vector of FArrayBox objects holding potential temperature calculated from temperature and pressure
+ * @param mxrat_fab Vector of FArrayBox objects holding vapor mixing ratio calculated from relative humidity
  * @param fabs_for_bcs Vector of Vector of FArrayBox objects holding MetGridBdyVars at each met_em time.
  */
 void

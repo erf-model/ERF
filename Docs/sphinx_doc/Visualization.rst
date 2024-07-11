@@ -30,11 +30,11 @@ To open a plotfile
 
 #. If you have run the ERF executable with terrain, then the mapped grid information will
    be stored as nodal data.  Choose the "point data" called "nu", then click on "Warp by Vector"
-   which can be found via Filters-->Alphabetical.  This wil then plot data onto the mapped grid
+   which can be found via Filters-->Alphabetical.  This will then plot data onto the mapped grid
    locations.
 
 #. Under the "Cell Arrays" field, select a variable (e.g., "x_velocity") and click
-   "Apply". Note that the default number of refinement levels loaded and vizualized is 1.
+   "Apply". Note that the default number of refinement levels loaded and visualized is 1.
    Change to the required number of AMR level before clicking "Apply".
 
 #. For "Representation" select "Surface".

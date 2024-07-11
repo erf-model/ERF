@@ -88,7 +88,7 @@ class ModalAeroWateruptake {
         qaerwat     = qaerwat_m;
         wetdens     = wetdens_m;
 
-        // retreive aerosol properties
+        // retrieve aerosol properties
         for (auto m = 1; m <= nmodes; ++m) {
             yakl::memset(dryvolmr, 0.);
 
@@ -261,7 +261,7 @@ class ModalAeroWateruptake {
         } // modes
     }
 
-    // calculates equlibrium radius r of haze droplets as function of
+    // calculates equilibrium radius r of haze droplets as function of
     // dry particle mass and relative humidity s using kohler solution
     // given in pruppacher and klett (eqn 6-35)
 

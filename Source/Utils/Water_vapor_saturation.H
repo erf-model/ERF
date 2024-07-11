@@ -75,8 +75,8 @@ public:
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void no_ip_hltalt (const amrex::Real& t,
                               amrex::Real hltalt) {
-        hltalt = latvap;
-        // Account for change of latvap with t above freezing where
+        hltalt = lat_vap;
+        // Account for change of lat_vap with t above freezing where
         // constant slope is given by -2369 j/(kg c) = cpv - cw
         if (t >= tmelt) hltalt = hltalt - 2369.0*(t-tmelt);
     }
@@ -110,7 +110,7 @@ public:
                 weight = 1.0;
             }
 
-            hltalt = hltalt + weight*latice;
+            hltalt = hltalt + weight*lat_ice;
         }
     }
 
@@ -220,7 +220,7 @@ public:
         SatMethods::wv_sat_qsat_ice(t, p, es, qs);
 
         // For pure ice, just add latent heats.
-        hltalt = latvap + latice;
+        hltalt = lat_vap + lat_ice;
 
         enthalpy = tq_enthalpy(t, qs, hltalt);
 

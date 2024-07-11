@@ -163,7 +163,7 @@ protected:
     //--------------------------------------------
     const amrex::Vector<amrex::Geometry> m_geom;                     // Geometry at each level
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> m_fields;         // Ptr to fields to be averaged
-    amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain heigh coords
+    amrex::Vector<amrex::MultiFab*> m_z_phys_nd;                     // Ptr to terrain height coords
 
     // General vars for multiple or all policies
     //--------------------------------------------

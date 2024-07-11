@@ -104,8 +104,8 @@ struct TurbChoice {
             pp.query("Sc_t", Sc_t);
 
             // Compute relevant forms of diffusion parameters
-            Pr_t_inv = 1.0 / Pr_t;
-            Sc_t_inv = 1.0 / Sc_t;
+            Pr_t_inv = amrex::Real(1.0) / Pr_t;
+            Sc_t_inv = amrex::Real(1.0) / Sc_t;
 
             pp.query("Ce" , Ce);
             pp.query("Ce_wall" , Ce_wall);
@@ -189,8 +189,8 @@ struct TurbChoice {
             pp.query("Sc_t",Sc_t, lev);
 
             // Compute relevant forms of diffusion parameters
-            Pr_t_inv = 1.0 / Pr_t;
-            Sc_t_inv = 1.0 / Sc_t;
+            Pr_t_inv = amrex::Real(1.0) / Pr_t;
+            Sc_t_inv = amrex::Real(1.0) / Sc_t;
 
             pp.query("Ce"      , Ce, lev);
             pp.query("Ce_wall" , Ce_wall, lev);
@@ -259,8 +259,8 @@ struct TurbChoice {
     // Smagorinsky CI coefficient
     amrex::Real CI = 0.0;
     // Smagorinsky Turbulent Prandtl Number
-    amrex::Real Pr_t = 1. / 3.;
-    amrex::Real Pr_t_inv = 3.0;
+    amrex::Real Pr_t = amrex::Real(1.0) / amrex::Real(3.0);
+    amrex::Real Pr_t_inv = amrex::Real(3.0);
     // Smagorinsky Turbulent Schmidt Number
     amrex::Real Sc_t = 1.0;
     amrex::Real Sc_t_inv = 1.0;

@@ -43,13 +43,13 @@ class Mam4_aer {
     real1d crefwlwr; // complex refractive index for water infrared
     real1d crefwlwi;
 
-    // These are defined as module level variables to aviod allocation-deallocation in a loop
+    // These are defined as module level variables to avoid allocation-deallocation in a loop
     real3d dgnumdry_m;  // number mode dry diameter for all modes
     real3d dgnumwet_m;  // number mode wet diameter for all modes
     real3d qaerwat_m;   // aerosol water (g/g) for all modes
     real3d wetdens_m;
 
-    // aerosol constitutents
+    // aerosol constituents
     MamConstituents mam_consti;
   public:
     // initialization
@@ -108,7 +108,7 @@ class Mam4_aer {
         int nsw_bands = water_ref_file.getDimSize( "sw_band" );
 
         if (nswbands != nsw_bands || nlwbands != nlw_bands)
-            amrex::Print() << "ERROR - file and bandwith values do not match: "
+            amrex::Print() << "ERROR - file and bandwidth values do not match: "
                            << "\n nswbands: " << nswbands << "; nsw_bands: " << nsw_bands
                            << "\n nlwbands: " << nlwbands << "; nlw_bands: " << nlw_bands << "\n";
 
@@ -553,7 +553,7 @@ class Mam4_aer {
     } // modal_aero_sw
 
     //
-    // calcualtes aerosol lw radiative properties
+    // calculates aerosol lw radiative properties
     //
     void  modal_aero_lw (int list_idx, real dt,
                          const real2d& pdeldry, const real2d& pmid, const real2d& temperature, const real2d& qt,

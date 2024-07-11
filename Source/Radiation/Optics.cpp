@@ -152,7 +152,7 @@ void Optics::get_cloud_optics_sw (int ncol, int nlev, int nbnd,
     }
 
     // Copy to output arrays, converting to optical depth, single scattering
-    // albedo, and assymmetry parameter from the products that the CAM routines
+    // albedo, and asymmetry parameter from the products that the CAM routines
     // return. Make sure we do not try to divide by zero...
     parallel_for(SimpleBounds<3>(nbnd, ncol, nlev), YAKL_LAMBDA (int iband, int icol, int ilev)
     {
@@ -401,7 +401,7 @@ void Optics::set_aerosol_optics_sw (int icall, int ncol, int nlev, int nswbands,
             ssa_out(icol,ilev,iband) = 1.;
         }
 
-        // Extract assymmetry parameter from the product-defined fields
+        // Extract asymmetry parameter from the product-defined fields
         if (tau_w(icol,ilev,iband) > 0) {
             asm_out(icol,ilev,iband) = tau_w_g(icol,ilev,iband) / tau_w(icol,ilev,iband);
         } else {

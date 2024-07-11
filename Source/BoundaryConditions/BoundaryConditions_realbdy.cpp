@@ -63,7 +63,7 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
         const auto& dom_lo = lbound(domain);
         const auto& dom_hi = ubound(domain);
 
-        // Offset only applys to cons (we may fill a subset of these vars)
+        // Offset only applies to cons (we may fill a subset of these vars)
         int offset = (var_idx == Vars::cons) ? icomp_cons : 0;
 
         // Loop over each component
