@@ -151,21 +151,65 @@ void SuperDropletPC::Coalescence( int   a_lev,
         struct timeval mcshuffle_start, mcshuffle_end;
         gettimeofday(&mcshuffle_start, NULL);
 
-#ifdef AMREX_USE_CUDA
+#ifdef AMREX_USE_CUDA /* TODO: should this be AMREX_USE_GPU? */
         {
-            Vector<unsigned int> inds_h, offsets_h;
-            inds_h.resize(np);
-            offsets_h.resize(bins.numBins()+1);
-            Gpu::copy(Gpu::deviceToHost, inds, inds+np, inds_h.begin());
-            Gpu::copy(Gpu::deviceToHost, offsets, offsets+bins.numBins()+1, offsets_h.begin());
-            for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
+            // get the max bin size
+            Gpu::Buffer<unsigned int> max_np_bin_d({0});
+            auto max_np_bin_ptr = max_np_bin_d.data();
+            ParallelForRNG( bins.numBins(),
+                            [=] AMREX_GPU_DEVICE (int i_bin,
+                                                  RandomEngine const& rnd_eng) noexcept
+            {
+                auto bin_start = offsets[i_bin];
+                auto bin_stop = offsets[i_bin+1];
+                auto np_bin = bin_stop - bin_start;
+                Gpu::Atomic::Max(max_np_bin_ptr, np_bin);
+            });
+            Gpu::synchronize();
+            auto max_np_bin = *(max_np_bin_d.copyToHost());
+            // create a stencil vector with integers [0, max_np_bin-1]
+            Vector<unsigned int> stencil_vec(max_np_bin);
+            for (unsigned int i = 0; i < max_np_bin; i++) { stencil_vec[i] = i; }
+            // now shuffle it
+            {
                 std::random_device rd;
                 std::mt19937 g(rd());
-                std::shuffle( inds_h.begin() + offsets_h[i_bin],
-                              inds_h.begin() + offsets_h[i_bin+1],
-                              g );
+                std::shuffle ( stencil_vec.begin(),stencil_vec.end(), g );
             }
-            Gpu::copy(Gpu::hostToDevice, inds_h.begin(), inds_h.end(), inds);
+            // Copy to device
+            Gpu::DeviceVector<unsigned int> stencil_vec_d;
+            stencil_vec_d.resize(max_np_bin);
+            Gpu::copy(  Gpu::hostToDevice,
+                        stencil_vec.begin(),
+                        stencil_vec.end(),
+                        stencil_vec_d.begin() );
+            Gpu::synchronize();
+            // use this stencil to shuffle each bin
+            Gpu::DeviceVector<unsigned int> inds_tmp;
+            inds_tmp.resize(np);
+            auto stencil_vec_ptr = stencil_vec_d.data();
+            auto inds_tmp_ptr = inds_tmp.data();
+            ParallelFor( bins.numBins(), [=] AMREX_GPU_DEVICE (int i_bin) noexcept
+            {
+                auto bin_start = offsets[i_bin];
+                auto bin_stop = offsets[i_bin+1];
+                auto np_bin = bin_stop - bin_start;
+                if (np_bin <= 1) { return; }
+                AMREX_ALWAYS_ASSERT(np_bin <= max_np_bin);
+
+                unsigned int j = 0;
+                for (unsigned int i = 0; i < max_np_bin; i++) {
+                    if (stencil_vec_ptr[i] < np_bin) {
+                        inds_tmp_ptr[bin_start+j] = inds[bin_start+stencil_vec_ptr[i]];
+                        j++;
+                    }
+                }
+                AMREX_ALWAYS_ASSERT(j == np_bin);
+                for (unsigned int i = 0; i < np_bin; i++) {
+                    inds[bin_start + i] = inds_tmp_ptr[bin_start + i];
+                }
+            });
+            Gpu::synchronize();
         }
 #else
         for (int i_bin = 0; i_bin < bins.numBins(); i_bin++) {
