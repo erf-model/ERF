@@ -36,7 +36,6 @@ void SuperDropletPC::readInputs ()
     m_max_multiplicity = 1000000;
     m_numdens_init = -1;
     m_numdens_sd_init = m_numdens_init / m_max_multiplicity;
-    m_coalescence_alg = SupDropInit::alg_coalescence_dsmc;
     m_advect_w_flow = true;
     m_advect_w_gravity = true;
     m_distribution_grid_size = 100;
@@ -88,7 +87,6 @@ void SuperDropletPC::readInputs ()
     pp.query("mass_change_unconverged_log", m_mass_change_logging);
     pp.query("mass_change_unconverged_log_filename", m_mass_change_log_fname);
     pp.query("distribution_grid_size", m_distribution_grid_size);
-    pp.query("coalescence_algorithm", m_coalescence_alg);
     pp.query("include_brownian_coalescence", m_include_brownian_coalescence);
 
     std::string ti_name = "backward_euler";
@@ -341,7 +339,6 @@ void SuperDropletPC::initializeParticlesUniformDistribution (const std::unique_p
             << "    Number of super droplets per cell: " << num_sd_per_cell << "\n"
             << "    Initial particle box: " << a_particle_init_domain << "\n"
             << "    Coalescence bin size: " << m_coalescence_bin_size << "\n"
-            << "    Coalescence algorthm: " << m_coalescence_alg << "\n"
             << "    Include Brownian coaslescence: "
             << (m_include_brownian_coalescence ? "true" : "false") << "\n";
 

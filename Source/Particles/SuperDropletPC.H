@@ -47,9 +47,6 @@ namespace SupDropInit
     const std::string attrib_init_const = "mass_constant";
     const std::string attrib_init_exp = "mass_exponential";
     const std::string attrib_init_lnr = "radius_log_normal";
-
-    const std::string alg_coalescence_dsmc = "DSMC";
-    const std::string alg_coalescence_cudsmc = "cuDSMC";
 }
 
 /*! \brief Types of terminal velocity models */
@@ -247,7 +244,6 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_radius_condensate_min; /*!< Initial minimum condensate radius */
         amrex::Real m_radius_condensate_max; /*!< Initial maximum condensate radius */
 
-        std::string m_coalescence_alg; /*!< Choice of algorithm for coalescence */
         SDCoalescenceKernelType m_coalescence_kernel; /*!< Coalescence kernel */
         bool m_include_brownian_coalescence; /*!< Include Brownian coalescence? */
 
