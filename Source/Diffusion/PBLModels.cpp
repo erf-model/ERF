@@ -270,14 +270,12 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
 
             // Get some data in arrays
             const auto& cell_data = cons_in.const_array(mfi);
-            //const auto& K_turb = eddyViscosity.array(mfi);
             const auto& uvel = xvel.const_array(mfi);
             const auto& vvel = yvel.const_array(mfi);
 
             const auto& z0_arr = most->get_z0(level)->const_array();
             const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
-            //const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
             //const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
             //const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
@@ -303,9 +301,11 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const GeometryData gdata = geom.data();
             const Box xybx = PerpendicularBox<ZDir>(bx, IntVect{0,0,0});
             FArrayBox pbl_height(xybx,1);
+            IArrayBox pbl_index(xybx,1);
             const auto& pblh_arr = pbl_height.array();
+            const auto& pbli_arr = pbl_index.array();
 
-            // -- Diagnose PBL height - starting out assuming non-moist
+            // -- Diagnose PBL height - starting out assuming non-moist --
             // loop is only over i,j in order to find height at each x,y
             const Real f0 = turbChoice.pbl_ysu_coriolis_freq;
             const bool over_land = turbChoice.pbl_ysu_over_land; // TODO: make this local and consistent
@@ -368,21 +368,103 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 if (pblh_arr(i,j,0) < 0.5*(zval_up+zval_dn) ) {
                     kpbl = 0;
                 }
+                pbli_arr(i,j,0) = kpbl;
 
                 // FIXME: DEBUG
                 std::cout << i << " " << j << " " << pblh_arr(i,j,0) << std::endl;
             });
 
-            // -- Compute nonlocal/countergradient mixing parameters
+            // -- Compute nonlocal/countergradient mixing parameters --
+            // Not included for stable so nothing to do until unstable treatment is added
 
-            // -- Compute entrainment parameters
+            // -- Compute entrainment parameters --
+            // 0 for stable so nothing to do?
 
-            // -- Compute diffusion coefficients within PBL
+            // -- Compute diffusion coefficients --
 
-            // -- Compute coefficients in free stream above PBL
+            const auto& u_star_arr = most->get_u_star(level)->const_array(mfi);
+            const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
+            const Array4<Real      > &K_turb = eddyViscosity.array(mfi);
+
+            // Dirichlet flags to switch derivative stencil
+            bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
+            bool c_ext_dir_on_zhi = ( (bc_ptr[BCVars::cons_bc].lo(5) == ERFBCType::ext_dir) );
+            bool u_ext_dir_on_zlo = ( (bc_ptr[BCVars::xvel_bc].lo(2) == ERFBCType::ext_dir) );
+            bool u_ext_dir_on_zhi = ( (bc_ptr[BCVars::xvel_bc].lo(5) == ERFBCType::ext_dir) );
+            bool v_ext_dir_on_zlo = ( (bc_ptr[BCVars::yvel_bc].lo(2) == ERFBCType::ext_dir) );
+            bool v_ext_dir_on_zhi = ( (bc_ptr[BCVars::yvel_bc].lo(5) == ERFBCType::ext_dir) );
+
+            const auto& dxInv = geom.InvCellSizeArray();
+            const Real dz_inv = geom.InvCellSize(2);
+            const int izmin = geom.Domain().smallEnd(2);
+            const int izmax = geom.Domain().bigEnd(2);
+
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const Real zval = use_terrain ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) : gdata.ProbLo(2) + (k + 0.5)*gdata.CellSize(2);
+                const Real rho = cell_data(i,j,k,Rho_comp);
+                const Real met_h_zeta = use_terrain ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : 1.0;
+                const Real dz_terrain = met_h_zeta/dz_inv;
+                if (k < pbli_arr(i,j,0)) {
+                    // -- Compute diffusion coefficients within PBL
+                    constexpr Real zfacmin = 1e-8; // value from WRF
+                    constexpr Real phifac = 8.0; // value from H10 and WRF
+                    constexpr Real wstar3 = 0.0; // only nonzero for unstable
+                    constexpr Real pfac = 2.0; // profile exponent
+                    const Real zfac = std::min(std::max(1 - zval / pblh_arr(i,j,0), zfacmin ), 1.0);
+                    // Not including YSU top down PBL term (not in H10, added to WRF later)
+                    const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
+                    Real wscalek = ust3 + phifac * KAPPA * wstar3 * (1.0 - zfac);
+                    wscalek = std::pow(wscalek, 1.0/3.0);
+                    // stable only
+                    const Real phi_term = 1 + 5 * zval / l_obuk_arr(i,j,0); // phi_term appears in WRF but not papers
+                    wscalek = std::max(u_star_arr(i,j,0) / phi_term, 0.001); // 0.001 limit appears in WRF but not papers
+                    K_turb(i,j,k,EddyDiff::Mom_v) = rho * wscalek * KAPPA * zval * std::pow(zfac, pfac);
+                    K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,k,EddyDiff::Mom_v);
+                } else {
+                    // -- Compute coefficients in free stream above PBL
+                    constexpr Real lam0 = 30.0;
+                    constexpr Real min_richardson = -100.0;
+                    constexpr Real prandtl_max = 4.0;
+                    Real dthetadz, dudz, dvdz;
+                    ComputeVerticalDerivativesPBL(i, j, k,
+                                                  uvel, vvel, cell_data, izmin, izmax, 1.0/dz_terrain,
+                                                  c_ext_dir_on_zlo, c_ext_dir_on_zhi,
+                                                  u_ext_dir_on_zlo, u_ext_dir_on_zhi,
+                                                  v_ext_dir_on_zlo, v_ext_dir_on_zhi,
+                                                  dthetadz, dudz, dvdz);
+                    const Real shear_squared = dudz*dudz + dvdz*dvdz + 1.0e-9; // 1.0e-9 from WRF to avoid divide by zero
+                    const Real theta = cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+                    Real richardson = CONST_GRAV / theta * dthetadz / shear_squared;
+                    const Real lambdadz = std::min(std::max(0.1*dz_terrain , lam0), 300.0); // in WRF, H10 paper just says use lam0
+                    const Real lengthscale = lambdadz * KAPPA * zval / (lambdadz + KAPPA * zval);
+                    const Real turbfact = lengthscale * lengthscale * std::sqrt(shear_squared);
+
+                    if (richardson < 0) {
+                        richardson = max(richardson, min_richardson);
+                        Real sqrt_richardson = std::sqrt(-richardson);
+                        K_turb(i,j,k,EddyDiff::Mom_v) = rho * turbfact * (1.0 - 8.0 * richardson / (1.0 + 1.746 * sqrt_richardson));
+                        K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact * (1.0 - 8.0 * richardson / (1.0 + 1.286 * sqrt_richardson));
+                    } else {
+                        const Real oneplus5ri = 1.0 + 5.0 * richardson;
+                        K_turb(i,j,k,EddyDiff::Theta_v) = rho * turbfact / (oneplus5ri * oneplus5ri);
+                        const Real prandtl = std::min(1.0+2.1*richardson, prandtl_max); // limit from WRF
+                        K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,k,EddyDiff::Theta_v) * prandtl;
+                    }
+                }
+
+                // limit both diffusion coefficients - from WRF, not documented in papers
+                constexpr Real ckz = 0.001;
+                constexpr Real Kmax = 1000.0;
+                const Real rhoKmin = ckz * dz_terrain * rho;
+                const Real rhoKmax = rho * Kmax;
+                K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Mom_v) ,rhoKmax), rhoKmin);
+                K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
+                K_turb(i,j,k,EddyDiff::PBL_lengthscale) = pblh_arr(i,j,0);
+            });
 
             // FIXME: DEBUG
-            Error("YSU Model not implemented yet");
+            // Error("YSU Model not implemented yet");
         }
 
     }
