@@ -245,16 +245,13 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             });
         }
     } else if (turbChoice.pbl_type == PBLType::YSU) {
-        // FIXME
-        // Error("YSU Model not implemented yet");
-
         /*
           YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
 
           Further Modifications from S.-Y. Hong, Q. J. R. Meteorol. Soc., 2010 [H10]
 
           Implementation follows WRF as of early 2024 with some simplifications
-         */
+        */
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -276,9 +273,7 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
             const auto& z0_arr = most->get_z0(level)->const_array();
             const auto& ws10av_arr = most->get_mac_avg(level,4)->const_array(mfi);
             const auto& t10av_arr  = most->get_mac_avg(level,2)->const_array(mfi);
-            //const auto& t_star_arr = most->get_t_star(level)->const_array(mfi);
             const auto& t_surf_arr = most->get_t_surf(level)->const_array(mfi);
-            //const auto& l_obuk_arr = most->get_olen(level)->const_array(mfi);
             const bool use_terrain = (z_phys_nd != nullptr);
             const Array4<Real const> z_nd_arr = use_terrain ? z_phys_nd->array(mfi) : Array4<Real>{};
             const Real most_zref = most->get_zref();
@@ -459,10 +454,6 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
                 K_turb(i,j,k,EddyDiff::PBL_lengthscale) = pblh_arr(i,j,0);
             });
-
-            // FIXME: DEBUG
-            // Error("YSU Model not implemented yet");
         }
-
     }
 }
