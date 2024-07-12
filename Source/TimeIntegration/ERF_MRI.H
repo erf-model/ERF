@@ -12,7 +12,7 @@
 #include <functional>
 
 template<class T>
-class MRISplitIntegrator : public amrex::IntegratorBase<T>
+class MRISplitIntegrator
 {
 private:
    /**
@@ -90,12 +90,12 @@ public:
         initialize_data(S_data);
     }
 
-    void initialize (const T& S_data) override
+    void initialize (const T& S_data)
     {
         initialize_data(S_data);
     }
 
-    ~MRISplitIntegrator () override = default;
+    ~MRISplitIntegrator () = default;
 
     // Declare a default move constructor so we ensure the destructor is
     // not called when we return an object of this class by value
@@ -184,7 +184,7 @@ public:
         return rhs;
     }
 
-    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step) override
+    amrex::Real advance (T& S_old, T& S_new, amrex::Real time, const amrex::Real time_step)
     {
     BL_PROFILE_REGION("MRI_advance");
         using namespace amrex;
@@ -348,9 +348,7 @@ public:
         return timestep;
     }
 
-    void time_interpolate (const T& /* S_new */, const T& /*S_old*/, amrex::Real /*timestep_fraction*/, T& /*data*/) override {}
-
-    void map_data (std::function<void(T&)> Map) override
+    void map_data (std::function<void(T&)> Map)
     {
         for (auto& F : T_store) {
             Map(*F);

@@ -29,6 +29,7 @@
 
 #include <IndexDefines.H>
 #include <DataStruct.H>
+#include <TurbPertStruct.H>
 #include <InputSoundingData.H>
 #include <InputSpongeData.H>
 #include <ABLMost.H>
@@ -152,15 +153,19 @@ public:
     void write_1D_profiles (amrex::Real time);
     void write_1D_profiles_stag (amrex::Real time);
 
+    amrex::Real cloud_fraction (amrex::Real time);
+
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::Vector<amrex::MultiFab>& mf_cc_vel);
 
     void sample_points (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
     void sample_lines (int lev, amrex::Real time, amrex::IntVect cell, amrex::MultiFab& mf);
 
-    void derive_diag_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+    void derive_diag_profiles (amrex::Real time,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
@@ -177,10 +182,18 @@ public:
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
-                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
-    void derive_diag_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
+                               amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
+    void derive_diag_profiles_stag (amrex::Real time,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v  ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_w   , amrex::Gpu::HostVector<amrex::Real>& h_avg_rho,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_th  , amrex::Gpu::HostVector<amrex::Real>& h_avg_ksgs,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_kturb,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qr  ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqv , amrex::Gpu::HostVector<amrex::Real>& h_avg_wqc ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_wqr ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qi  , amrex::Gpu::HostVector<amrex::Real>& h_avg_qs ,
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_qg  ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uu  , amrex::Gpu::HostVector<amrex::Real>& h_avg_uv ,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_uw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_vv  , amrex::Gpu::HostVector<amrex::Real>& h_avg_vw ,
@@ -191,7 +204,7 @@ public:
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_kw,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_p,
                                     amrex::Gpu::HostVector<amrex::Real>& h_avg_pu, amrex::Gpu::HostVector<amrex::Real>& h_avg_pv,
-                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_pw);
+                                    amrex::Gpu::HostVector<amrex::Real>& h_avg_pw, amrex::Gpu::HostVector<amrex::Real>& h_avg_wthv);
 
     void derive_stress_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
@@ -236,6 +249,12 @@ public:
 
     // compute dt from CFL considerations
     amrex::Real estTimeStep (int lev, long& dt_fast_ratio) const;
+
+#ifdef ERF_USE_WW3_COUPLING
+    void read_waves (int lev);
+
+    void send_to_ww3 (int lev);
+#endif
 
     // Interface for advancing the data at one level by one "slow" timestep
     void advance_dycore (int level,
@@ -318,7 +337,7 @@ public:
     // calls AmrCore constructor -> AmrMesh constructor
     ERF (const amrex::RealBox& rb, int max_level_in,
          const amrex::Vector<int>& n_cell_in, int coord,
-         const amrex::Vector<amrex::IntVect>& ref_ratios,
+         const amrex::Vector<amrex::IntVect>& ref_ratio,
          const amrex::Array<int,AMREX_SPACEDIM>& is_per,
          std::string prefix);
 
@@ -418,6 +437,10 @@ private:
                      amrex::Vector<amrex::MultiFab>& lev_new,
                      amrex::Vector<amrex::MultiFab>& lev_old);
 
+    // Initialize the Turbulent perturbation
+    void turbPert_update (const int lev, const amrex::Real dt);
+    void turbPert_amplitude (const int lev);
+
     // Initialize the integrator object
     void initialize_integrator (int lev, amrex::MultiFab& cons_mf, amrex::MultiFab& vel_mf);
 
@@ -481,7 +504,7 @@ private:
     void setSpongeRefFromSounding (bool restarting);
 
     // a wrapper for estTimeStep()
-    void ComputeDt ();
+    void ComputeDt (int step = -1);
 
     // get plotfile name
     [[nodiscard]] std::string PlotFileName (int lev) const;
@@ -715,6 +738,9 @@ private:
     // Wave coupling data
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Hwave_onegrid;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> Lwave_onegrid;
+    bool finished_wave = false;
 
     // array of flux registers
     amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
@@ -791,7 +817,7 @@ private:
 
     // other sampling output control
     int profile_int = -1;
-    bool cc_profiles = true;
+    bool destag_profiles = true;
 
     // Checkpoint type, prefix and frequency
     std::string check_file {"chk"};
@@ -834,6 +860,9 @@ private:
     // algorithm choices
     static SolverChoice solverChoice;
 
+    // Turbulent perturbation structure
+    TurbulentPerturbation turbPert;
+
 #ifdef ERF_USE_PARTICLES
     // Particle container with all particle species
     ParticleData particleData;
@@ -863,6 +892,7 @@ private:
 
     // Diagnostic output interval
     static int sum_interval;
+    static int pert_interval;
     static amrex::Real sum_per;
 
     // Native or NetCDF

@@ -300,9 +300,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         };
 
+        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
+
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
-        calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        if (ismoist) {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
+        } else {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        }
         calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
         calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
         calculate_derived("QKE",         vars_new[lev][Vars::cons], derived::erf_derQKE);
@@ -427,7 +433,6 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 #ifdef ERF_USE_WINDFARM
         if (containerHasElement(plot_var_names, "num_turb"))
         {
-        std::cout << "Plotting num_turb" << "\n";
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -1002,7 +1007,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 {
                     Real       qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
                     Real       T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv);
+                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv) * Real(0.01);
                     erf_qsatw(T, pressure, derdat(i,j,k,mf_comp));
                 });
             }
@@ -1295,7 +1300,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
 #ifdef ERF_USE_HDF5
         } else if (plotfile_type == "hdf5" || plotfile_type == "HDF5") {
@@ -1318,72 +1323,90 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
 
     } else { // multilevel
 
-        Vector<IntVect>   r2(finest_level);
-        Vector<Geometry>  g2(finest_level+1);
-        Vector<MultiFab> mf2(finest_level+1);
-
-        mf2[0].define(grids[0], dmap[0], ncomp_mf, 0);
-
-        // Copy level 0 as is
-        MultiFab::Copy(mf2[0],mf[0],0,0,mf[0].nComp(),0);
-
-        // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
-        Array<int,AMREX_SPACEDIM> periodicity =
-                     {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
-        g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
-
         if (plotfile_type == "amrex") {
-            r2[0] = IntVect(1,1,ref_ratio[0][0]);
-            for (int lev = 1; lev <= finest_level; ++lev) {
-                if (lev > 1) {
-                    r2[lev-1][0] = 1;
-                    r2[lev-1][1] = 1;
-                    r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
+
+            if (ref_ratio[0][2] == 1) {
+
+                Vector<IntVect>   r2(finest_level);
+                Vector<Geometry>  g2(finest_level+1);
+                Vector<MultiFab> mf2(finest_level+1);
+
+                mf2[0].define(grids[0], dmap[0], ncomp_mf, 0);
+
+                // Copy level 0 as is
+                MultiFab::Copy(mf2[0],mf[0],0,0,mf[0].nComp(),0);
+
+                // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
+                Array<int,AMREX_SPACEDIM> periodicity =
+                             {Geom()[0].isPeriodic(0),Geom()[0].isPeriodic(1),Geom()[0].isPeriodic(2)};
+                g2[0].define(Geom()[0].Domain(),&(Geom()[0].ProbDomain()),0,periodicity.data());
+
+                r2[0] = IntVect(1,1,ref_ratio[0][0]);
+                for (int lev = 1; lev <= finest_level; ++lev) {
+                    if (lev > 1) {
+                        r2[lev-1][0] = 1;
+                        r2[lev-1][1] = 1;
+                        r2[lev-1][2] = r2[lev-2][2] * ref_ratio[lev-1][0];
+                    }
+
+                    mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
+
+                    // Set the new problem domain
+                    Box d2(Geom()[lev].Domain());
+                    d2.refine(r2[lev-1]);
+
+                    g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
                 }
 
-                mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
+                // Do piecewise interpolation of mf into mf2
+                for (int lev = 1; lev <= finest_level; ++lev) {
+                    Interpolater* mapper_c = &pc_interp;
+                    InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
+                                          0, 0, ncomp_mf,
+                                          geom[lev], g2[lev],
+                                          null_bc_for_fill, 0, null_bc_for_fill, 0,
+                                          r2[lev-1], mapper_c, domain_bcs_type, 0);
+                }
 
-                // Set the new problem domain
-                Box d2(Geom()[lev].Domain());
-                d2.refine(r2[lev-1]);
+                // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
+                Vector<IntVect> rr(finest_level);
+                for (int lev = 0; lev < finest_level; ++lev) {
+                    rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
+                }
 
-                g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
-            }
+               Print() << "Writing plotfile " << plotfilename << "\n";
+               if (solverChoice.use_terrain) {
+                   WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                      GetVecOfConstPtrs(mf),
+                                                      GetVecOfConstPtrs(mf_nd),
+                                                      varnames,
+                                                      t_new[0], istep);
+               } else {
+                   WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                           GetVecOfConstPtrs(mf2), varnames,
+                                           g2, t_new[0], istep, rr);
+               }
 
-            // Do piecewise interpolation of mf into mf2
-            for (int lev = 1; lev <= finest_level; ++lev) {
-                Interpolater* mapper_c = &pc_interp;
-                InterpFromCoarseLevel(mf2[lev], t_new[lev], mf[lev],
-                                      0, 0, ncomp_mf,
-                                      geom[lev], g2[lev],
-                                      null_bc_for_fill, 0, null_bc_for_fill, 0,
-                                      r2[lev-1], mapper_c, domain_bcs_type, 0);
-            }
-
-            // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
-            Vector<IntVect> rr(finest_level);
-            for (int lev = 0; lev < finest_level; ++lev) {
-                rr[lev] = IntVect(ref_ratio[lev][0],ref_ratio[lev][1],ref_ratio[lev][0]);
-            }
-
-            Print() << "Writing plotfile " << plotfilename << "\n";
-            if (solverChoice.use_terrain) {
-                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                                   GetVecOfConstPtrs(mf),
-                                                   GetVecOfConstPtrs(mf_nd),
-                                                   varnames,
-                                                   t_new[0], istep);
-            } else {
-                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                        GetVecOfConstPtrs(mf2), varnames,
-                                        g2, t_new[0], istep, rr);
-            }
+            } else if (ref_ratio[0][2] != 1) {
+                if (solverChoice.use_terrain) {
+                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                       GetVecOfConstPtrs(mf),
+                                                       GetVecOfConstPtrs(mf_nd),
+                                                       varnames,
+                                                       t_new[0], istep);
+                } else {
+                    WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                            GetVecOfConstPtrs(mf), varnames,
+                                            geom, t_new[0], istep, ref_ratio);
+                }
+            } // ref_ratio test
 
             writeJobInfo(plotfilename);
 
 #ifdef ERF_USE_PARTICLES
-            particleData.Checkpoint(plotfilename);
+            particleData.writePlotFile(plotfilename);
 #endif
+
 #ifdef ERF_USE_NETCDF
         } else if (plotfile_type == "netcdf" || plotfile_type == "NetCDF") {
              for (int lev = 0; lev <= finest_level; ++lev) {

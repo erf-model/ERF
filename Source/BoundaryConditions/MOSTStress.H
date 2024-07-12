@@ -256,8 +256,8 @@ struct adiabatic_wave_coupled
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
-                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -271,6 +271,9 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
 };
 
 
@@ -513,8 +516,8 @@ struct surface_flux_wave_coupled
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
-                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
                    (mdata.kappa * mdata.gravity * mdata.surf_temp_flux);
             zeta  = mdata.zref / Olen;
@@ -535,6 +538,9 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
 };
 
 
@@ -784,8 +790,8 @@ struct surface_temp_wave_coupled
         u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,k) / std::log(mdata.zref / z0_arr(i,j,k));
         do {
             ustar = u_star_arr(i,j,k);
-            z0    = 1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/Lwave_arr(i,j,k), 4.5 )
-                  + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar;
+            z0    = std::min( std::max(1200.0 * Hwave_arr(i,j,k) * std::pow( Hwave_arr(i,j,k)/(Lwave_arr(i,j,k)+eps), 4.5 )
+                                      + 0.11 * eta_arr(ie,je,k,EddyDiff::Mom_v) / ustar, z0_eps), z0_max );
             tflux = -(tm_arr(i,j,k) - t_surf_arr(i,j,k)) * ustar * mdata.kappa /
                      (std::log(mdata.zref / z0) - psi_h);
             Olen = -ustar * ustar * ustar * tm_arr(i,j,k) /
@@ -807,6 +813,9 @@ private:
     most_data mdata;
     similarity_funs sfuns;
     const amrex::Real tol = 1.0e-5;
+    const amrex::Real eps = 1e-15;
+    const amrex::Real z0_eps = 1.0e-6;
+    const amrex::Real z0_max = 0.1;
 };
 
 
@@ -995,7 +1004,7 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_xz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of umean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * umean;
         amrex::Real num2    = wsp_mean * (velx-umean);
@@ -1067,7 +1076,7 @@ struct moeng_flux
         // Note: The surface mean shear stress is decomposed into tau_yz by
         //       multiplying the modeled shear stress (rho*ustar^2) with
         //       a factor of vmean/wsp_mean for directionality; this factor
-        //       modifies the demoninator from what is in Moeng 1984.
+        //       modifies the denominator from what is in Moeng 1984.
         amrex::Real wsp     = sqrt(velx*velx+vely*vely);
         amrex::Real num1    = wsp * vmean;
         amrex::Real num2    = wsp_mean * (vely-vmean);

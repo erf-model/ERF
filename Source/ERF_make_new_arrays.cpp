@@ -121,7 +121,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
 
     // ********************************************************************************************
     // The number of ghost cells for density must be 1 greater than that for velocity
-    //     so that we can go back in forth betwen velocity and momentum on all faces
+    //     so that we can go back in forth between velocity and momentum on all faces
     // ********************************************************************************************
     int ngrow_state = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff) + 1;
     int ngrow_vels  = ComputeGhostCells(solverChoice.advChoice, solverChoice.use_NumDiff);
@@ -170,7 +170,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // NOTE: We are not completing a fillpach call on the time averaged data;
     //       which would copy on intersection and interpolate from coarse.
     //       Therefore, we are restarting the averaging when the ba changes,
-    //       this may give poor statistics for dynamic mesh refinment.
+    //       this may give poor statistics for dynamic mesh refinement.
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
@@ -245,6 +245,32 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     }
 #endif
 
+
+#ifdef ERF_USE_WW3_COUPLING
+    // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
+    BoxArray ba_onegrid(geom[lev].Domain());
+    BoxList bl2d_onegrid = ba_onegrid.boxList();
+    for (auto& b : bl2d_onegrid) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
+    Vector<int> pmap;
+    pmap.resize(1);
+    pmap[0]=0;
+    DistributionMapping dm_onegrid(ba2d_onegrid);
+    dm_onegrid.define(pmap);
+
+    Hwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Lwave_onegrid[lev] = std::make_unique<MultiFab>(ba2d_onegrid,dm_onegrid,1,IntVect(1,1,0));
+    Hwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    Lwave[lev] = std::make_unique<MultiFab>(ba2d,dm,1,IntVect(3,3,0));
+    std::cout<<ba_onegrid<<std::endl;
+    std::cout<<ba2d_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+    std::cout<<dm_onegrid<<std::endl;
+#endif
+
+
 #if defined(ERF_USE_RRTMGP)
     //*********************************************************
     // Radiation heating source terms
@@ -277,6 +303,35 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solar_zenith[lev]->setVal(0.);
     }
 #endif
+
+    //*********************************************************
+    // Turbulent perturbation region initialization
+    //*********************************************************
+    // TODO: Test perturbation on multiple levels
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect)
+    {
+        if (lev == 0) {
+            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
+        }
+    }
+
+    //
+    // Define the land mask here and set it to all land
+    // NOTE: the logic below will BREAK if we have any grids not touching the bottom boundary
+    //
+    {
+    lmask_lev[lev].resize(1);
+    auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    lmask_lev[lev][0]->setVal(1);
+    lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+    }
 }
 
 void

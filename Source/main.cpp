@@ -11,6 +11,11 @@
 #include <MultiBlockContainer.H>
 #endif
 
+#ifdef ERF_USE_WW3_COUPLING
+#include <mpi.h>
+#include <AMReX_MPMD.H>
+#endif
+
 std::string inputs_name;
 
 using namespace amrex;
@@ -55,6 +60,7 @@ void add_par () {
 */
 int main (int argc, char* argv[])
 {
+
 #ifdef AMREX_USE_MPI
     MPI_Init(&argc, &argv);
 #endif
@@ -96,7 +102,12 @@ int main (int argc, char* argv[])
             }
         }
     }
+#ifdef ERF_USE_WW3_COUPLING
+    MPI_Comm comm = amrex::MPMD::Initialize(argc, argv);
+    amrex::Initialize(argc,argv,true,comm,add_par);
+#else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
+#endif
 
     // Save the inputs file name for later.
     if (!strchr(argv[1], '=')) {
@@ -200,7 +211,7 @@ int main (int argc, char* argv[])
         // Initialize data
         mbc.InitializeBlocks();
 
-        // Advane blocks a timestep
+        // Advance blocks a timestep
         mbc.AdvanceBlocks();
     }
 #else
@@ -228,9 +239,15 @@ int main (int argc, char* argv[])
 
     // destroy timer for profiling
     BL_PROFILE_VAR_STOP(pmain);
-
+#ifdef ERF_USE_WW3_COUPLING
+    MPI_Barrier(MPI_COMM_WORLD);
+#endif
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
+#ifdef ERF_USE_WW3_COUPLING
+    amrex::MPMD::Finalize();
+#else
     MPI_Finalize();
+#endif
 #endif
 }

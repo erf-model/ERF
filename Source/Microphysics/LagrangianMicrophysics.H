@@ -1,5 +1,5 @@
 /*! @file LagrangianMicrophysics.H
- *  \brief Containes the Lagrangian microphysics class
+ *  \brief Contains the Lagrangian microphysics class
  */
 
 #ifndef LAGRANGIANMICROPHYSICS_H

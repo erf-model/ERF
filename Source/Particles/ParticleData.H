@@ -32,6 +32,11 @@ class ParticleData
         ParticleData ()
         {
             BL_PROFILE("ParticleData::ParticleData()");
+
+            amrex::ParmParse pp("particles");
+            m_disable_particle_op = false;
+            pp.query("disable_plt", m_disable_particle_op);
+
             m_particle_species.clear();
             m_namelist.clear();
             m_namelist_unalloc.clear();
@@ -48,6 +53,19 @@ class ParticleData
             m_particle_species.clear();
             m_namelist.clear();
             m_namelist_unalloc.clear();
+        }
+
+        /*! Write particle info to plot files */
+        void writePlotFile ( const std::string& a_fname ) const
+        {
+            BL_PROFILE("ParticleData::writePlotFile");
+            if (!m_disable_particle_op) {
+                for (ParticlesNamesVector::size_type i = 0; i < m_namelist.size(); i++) {
+                    auto name( m_namelist[i] );
+                    auto particles( m_particle_species.at(name) );
+                    particles->Checkpoint( a_fname, name, true, particles->varNames() );
+                }
+            }
         }
 
         /*! Write checkpoint files */
@@ -210,7 +228,7 @@ class ParticleData
             return m_namelist_unalloc;
         }
 
-        /*! queries if containe has species of a certain name */
+        /*! queries if container has species of a certain name */
         inline bool contains ( const std::string& a_name ) const
         {
             BL_PROFILE("ParticleData::contains()");
@@ -234,8 +252,10 @@ class ParticleData
         ParticlesNamesVector m_namelist;
         /*! List with names of unallocated species */
         ParticlesNamesList m_namelist_unalloc;
+
+        /*! Disable particle output in plotfile? (because expensive) */
+        bool m_disable_particle_op;
 };
 
 #endif
 #endif
-

@@ -232,11 +232,15 @@ void make_buoyancy (Vector<MultiFab>& S_data,
                     // TODO: ice has not been dealt with (q1=qv, q2=qv, q3=qp)
                     ParallelFor(tbz, [=, buoyancy_type=solverChoice.buoyancy_type] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
-                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
+                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ], qv_d_ptr[k  ]);
+                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1], qv_d_ptr[k-1]);
 
-                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
+                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp),
+                                                         cell_data(i,j,k  ,RhoTheta_comp),
+                                                         cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp));
+                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
+                                                         cell_data(i,j,k-1,RhoTheta_comp),
+                                                         cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
 
                         Real qplus, qminus;
 
@@ -300,11 +304,15 @@ void make_buoyancy (Vector<MultiFab>& S_data,
 
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ]);
-                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1]);
+                        Real tempp1d = getTgivenRandRTh(rho_d_ptr[k  ], rho_d_ptr[k  ]*theta_d_ptr[k  ], qv_d_ptr[k  ]);
+                        Real tempm1d = getTgivenRandRTh(rho_d_ptr[k-1], rho_d_ptr[k-1]*theta_d_ptr[k-1], qv_d_ptr[k-1]);
 
-                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp), cell_data(i,j,k  ,RhoTheta_comp));
-                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp), cell_data(i,j,k-1,RhoTheta_comp));
+                        Real tempp3d  = getTgivenRandRTh(cell_data(i,j,k  ,Rho_comp),
+                                                         cell_data(i,j,k  ,RhoTheta_comp),
+                                                         cell_data(i,j,k  ,RhoQ1_comp)/cell_data(i,j,k  ,Rho_comp));
+                        Real tempm3d  = getTgivenRandRTh(cell_data(i,j,k-1,Rho_comp),
+                                                         cell_data(i,j,k-1,RhoTheta_comp),
+                                                         cell_data(i,j,k-1,RhoQ1_comp)/cell_data(i,j,k-1,Rho_comp));
 
                         Real qv_plus  = (n_moist_var >= 1) ? cell_prim(i,j,k  ,PrimQ1_comp) : 0.0;
                         Real qv_minus = (n_moist_var >= 1) ? cell_prim(i,j,k-1,PrimQ1_comp) : 0.0;

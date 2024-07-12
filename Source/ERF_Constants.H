@@ -15,9 +15,9 @@ constexpr amrex::Real Cp_l         = 4200.0;
 
 constexpr amrex::Real L_v          = 2.5e6;    // latent heat of vaporization (J / kg)
 
-constexpr amrex::Real p_0          = 1.0e5;                 // reference surface pressure [Pa]
-constexpr amrex::Real Gamma        = 1.4;             // c_p / c_v [-]
-constexpr amrex::Real KAPPA        = 0.41;  // von Karman constant
+constexpr amrex::Real p_0          = 1.0e5;    // reference surface pressure [Pa]
+constexpr amrex::Real Gamma        = 1.4;      // c_p / c_v [-]
+constexpr amrex::Real KAPPA        = 0.41;     // von Karman constant
 constexpr amrex::Real CONST_GRAV   = 9.81;
 
 // Derived Constants
@@ -82,8 +82,8 @@ constexpr amrex::Real crain = b_rain / 4.0;
 constexpr amrex::Real csnow = b_snow / 4.0;
 constexpr amrex::Real cgrau = b_grau / 4.0;
 
-constexpr amrex::Real latvap   = 2.5e6;     // Latent heat of vaporization (J/kg)
-constexpr amrex::Real latice   = 3.337e5;   // latent heat of fusion (J/kg)
+constexpr amrex::Real lat_vap  = 2.5e6;     // Latent heat of vaporization (J/kg)
+constexpr amrex::Real lat_ice  = 3.337e5;   // latent heat of fusion (J/kg)
 constexpr amrex::Real Rd_on_Rv = R_d/R_v;
 constexpr amrex::Real tmelt    = 273.15;  // melting temp.
 constexpr amrex::Real h2otrip  = 273.15;  // Triple point temperature of water (K)

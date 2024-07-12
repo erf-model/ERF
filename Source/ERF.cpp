@@ -46,6 +46,8 @@ int ERF::mg_verbose    = 0;
 int  ERF::sum_interval  = -1;
 Real ERF::sum_per       = -1.0;
 
+int  ERF::pert_interval = -1;
+
 // Native AMReX vs NetCDF
 std::string ERF::plotfile_type    = "amrex";
 
@@ -276,7 +278,13 @@ ERF::ERF ()
         Hwave[lev] = nullptr;
         Lwave[lev] = nullptr;
     }
-
+    Hwave_onegrid.resize(nlevs_max);
+    Lwave_onegrid.resize(nlevs_max);
+    for (int lev = 0; lev < max_level; ++lev)
+    {
+        Hwave_onegrid[lev] = nullptr;
+        Lwave_onegrid[lev] = nullptr;
+    }
     // Theta prim for MOST
     Theta_prim.resize(nlevs_max);
 
@@ -301,17 +309,10 @@ ERF::ERF ()
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 
     // We define m_factory even with no EB
@@ -341,7 +342,7 @@ ERF::Evolve ()
     {
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -484,8 +485,15 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
         sum_integrated_quantities(time);
     }
 
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect) {
+        if (is_it_time_for_action(nstep, time, dt_lev0, pert_interval, -1.)) {
+            turbPert.debug(time);
+        }
+    }
+
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
-        if (cc_profiles) {
+        if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(time);
         } else {
@@ -775,7 +783,7 @@ ERF::InitData ()
         h_w_subsid.resize(max_level+1, Vector<Real>(0));
         d_w_subsid.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         for (int lev = 0; lev <= finest_level; lev++) {
-            const int domlen = geom[lev].Domain().length(2);
+            const int domlen = geom[lev].Domain().length(2) + 1; // lives on z-faces
             h_w_subsid[lev].resize(domlen, 0.0_rt);
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
@@ -808,12 +816,12 @@ ERF::InitData ()
 
     if (is_it_time_for_action(istep[0], t_new[0], dt[0], sum_interval, sum_per)) {
         sum_integrated_quantities(t_new[0]);
-        if (cc_profiles) {
-            // all variables cell-centered
-            write_1D_profiles(t_new[0]);
-        } else {
-            // some variables staggered
-            write_1D_profiles_stag(t_new[0]);
+    }
+
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect) {
+        if (is_it_time_for_action(istep[0], t_new[0], dt[0], pert_interval, -1.)) {
+            turbPert.debug(t_new[0]);
         }
     }
 
@@ -906,6 +914,12 @@ ERF::InitData ()
             base_state_new[lev].FillBoundary(geom[lev].periodicity());
         }
     }
+
+#ifdef ERF_USE_WW3_COUPLING
+    int lev = 0;
+    read_waves(lev);
+    send_to_ww3(lev);
+#endif
 
     // Configure ABLMost params if used MostWall boundary condition
     // NOTE: we must set up the MOST routine after calling FillPatch
@@ -1003,6 +1017,16 @@ ERF::InitData ()
         pp.queryarr("data_log",datalogname,0,num_datalogs);
         for (int i = 0; i < num_datalogs; i++)
             setRecordDataInfo(i,datalogname[i]);
+    }
+
+    if (restart_chkfile.empty() && profile_int > 0) {
+        if (destag_profiles) {
+            // all variables cell-centered
+            write_1D_profiles(t_new[0]);
+        } else {
+            // some variables staggered
+            write_1D_profiles_stag(t_new[0]);
+        }
     }
 
     if (pp.contains("sample_point_log") && pp.contains("sample_point"))
@@ -1212,6 +1236,14 @@ ERF::init_only (int lev, Real time)
         input_sponge(lev);
    }
 
+    // Initialize turbulent perturbation
+    if (solverChoice.pert_type == PerturbationType::perturbSource ||
+        solverChoice.pert_type == PerturbationType::perturbDirect) {
+        if (lev == 0) {
+            turbPert_update(lev, 0.);
+            turbPert_amplitude(lev);
+        }
+    }
 }
 
 // read in some parameters from inputs file
@@ -1256,6 +1288,8 @@ ERF::ReadParameters ()
         // Frequency of diagnostic output
         pp.query("sum_interval", sum_interval);
         pp.query("sum_period"  , sum_per);
+
+        pp.query("pert_interval", pert_interval);
 
         // Time step controls
         pp.query("cfl", cfl);
@@ -1389,7 +1423,7 @@ ERF::ReadParameters ()
         }
 
         pp.query("profile_int", profile_int);
-        pp.query("interp_profiles_to_cc", cc_profiles);
+        pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
 
@@ -1780,10 +1814,10 @@ ERF::Define_ERFFillPatchers (int lev)
 // constructor used when ERF is created by a multiblock driver
 ERF::ERF (const RealBox& rb, int max_level_in,
           const Vector<int>& n_cell_in, int coord,
-          const Vector<IntVect>& ref_ratios,
+          const Vector<IntVect>& ref_ratio,
           const Array<int,AMREX_SPACEDIM>& is_per,
           std::string prefix)
-    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratios, is_per)
+    : AmrCore(rb, max_level_in, n_cell_in, coord, ref_ratio, is_per)
 {
     SetParmParsePrefix(prefix);
 
@@ -1932,17 +1966,10 @@ ERF::ERF (const RealBox& rb, int max_level_in,
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 
-    // We have already read in the ref_Ratio (via amr.ref_ratio =) but we need to enforce
-    //     that there is no refinement in the vertical so we test on that here.
     for (int lev = 0; lev < max_level; ++lev)
     {
        Print() << "Refinement ratio at level " << lev+1 << " set to be " <<
           ref_ratio[lev][0]  << " " << ref_ratio[lev][1]  <<  " " << ref_ratio[lev][2] << std::endl;
-
-       if (ref_ratio[lev][2] != 1)
-       {
-           Error("We don't allow refinement in the vertical -- make sure to set ref_ratio = 1 in z");
-       }
     }
 }
 
@@ -1962,7 +1989,7 @@ ERF::Evolve_MB (int MBstep, int max_block_step)
 
         Print() << "\nCoarse STEP " << step+1 << " starts ..." << std::endl;
 
-        ComputeDt();
+        ComputeDt(step);
 
         // Make sure we have read enough of the boundary plane data to make it through this timestep
         if (input_bndry_planes)
@@ -2041,8 +2068,8 @@ ERF::writeNow(const Real cur_time, const Real dt_lev, const int nstep, const int
 
         const Real eps = std::numeric_limits<Real>::epsilon() * Real(10.0) * std::abs(cur_time);
 
-        int num_per_old = static_cast<int>(std::round((cur_time-eps-dt_lev) / plot_per));
-        int num_per_new = static_cast<int>(std::round((cur_time-eps       ) / plot_per));
+        int num_per_old = static_cast<int>(std::floor((cur_time-eps-dt_lev) / plot_per));
+        int num_per_new = static_cast<int>(std::floor((cur_time-eps       ) / plot_per));
 
         // Before using these, however, we must test for the case where we're
         // within machine epsilon of the next interval. In that case, increment

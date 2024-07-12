@@ -15,6 +15,7 @@
 #include <DiffStruct.H>
 #include <SpongeStruct.H>
 #include <TurbStruct.H>
+#include <TurbPertStruct.H>
 
 enum struct ABLDriverType {
     None, PressureGradient, GeostrophicWind
@@ -58,6 +59,10 @@ enum Rayleigh {
 
 enum Sponge {
        ubar_sponge, vbar_sponge, nvars_sponge
+};
+
+enum struct PerturbationType {
+    perturbSource, perturbDirect, None
 };
 
 /**
@@ -172,10 +177,13 @@ struct SolverChoice {
         pp.query("project_initial_velocity", project_initial_velocity);
 
         int nvals_inc = pp.countval("incompressible");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
         amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.getarr("incompressible",inc_in);
-        if (nvals_inc == 1) {
+        pp.queryarr("incompressible",inc_in);
+        if (nvals_inc == 0) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+        } else if (nvals_inc == 1) {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
         } else {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
@@ -224,10 +232,26 @@ struct SolverChoice {
             abl_driver_type = ABLDriverType::PressureGradient;
         } else if (!abl_driver_type_string.compare("GeostrophicWind")) {
             abl_driver_type = ABLDriverType::GeostrophicWind;
-        } else if (!abl_driver_type_string.compare("None")){
+        } else if (!abl_driver_type_string.compare("None")) {
             abl_driver_type = ABLDriverType::None; // No ABL driver for simulating classical fluid dynamics problems
         } else {
             amrex::Error("Don't know this abl_driver_type");
+        }
+
+        // Which type of inflow turbulent generation
+        static std::string turb_pert_type_string = "None";
+        pp.query("perturbation_type",turb_pert_type_string);
+        if (!turb_pert_type_string.compare("source")) {
+            pert_type = PerturbationType::perturbSource;
+            amrex::Print() << "Perturb temperature via source term\n";
+        } else if (!turb_pert_type_string.compare("direct")) {
+            pert_type = PerturbationType::perturbDirect;
+            amrex::Print() << "Perturb temperature via direct field add\n";
+        } else if (!turb_pert_type_string.compare("None")) {
+            pert_type = PerturbationType::None;
+            amrex::Print() << "No perturbation method selected\n";
+        } else {
+            amrex::Abort("Dont know this perturbation_type");
         }
 
         amrex::Vector<amrex::Real> abl_pressure_grad_in = {0.0, 0.0, 0.0};
@@ -405,6 +429,8 @@ struct SolverChoice {
         sinphi = std::sin(latitude);
         cosphi = std::cos(latitude);
 
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
+
         if (abl_driver_type == ABLDriverType::GeostrophicWind)
         {
             // Read in the geostrophic wind -- we only use this to construct
@@ -486,6 +512,9 @@ struct SolverChoice {
 
     // User wishes to output time averaged velocity fields
     bool time_avg_vel = false;
+
+    // Type of perturbation
+    PerturbationType pert_type;
 
     // Numerical diffusion
     bool use_NumDiff{false};
