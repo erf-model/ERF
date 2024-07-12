@@ -369,9 +369,6 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                     kpbl = 0;
                 }
                 pbli_arr(i,j,0) = kpbl;
-
-                // FIXME: DEBUG
-                std::cout << i << " " << j << " " << pblh_arr(i,j,0) << std::endl;
             });
 
             // -- Compute nonlocal/countergradient mixing parameters --
