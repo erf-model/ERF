@@ -2,6 +2,7 @@
 start_time = 0.
 stop_time = 0.5
 #stop_time = 35.0
+
 #stop_time = 10.0
 
 #max_step = 1000
@@ -13,7 +14,6 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-
 geometry.prob_extent =  20.    1.    1.
 amr.n_cell           = 512    32    64
 
@@ -31,6 +31,7 @@ erf.cfl = 0.5
 erf.dynamicViscosity = 0.0001 # H = 1, therefore utau = 0.2
 
 # DIAGNOSTICS & VERBOSITY
+<<<<<<< HEAD
 erf.sum_interval   = 100     # timesteps between computing mass
 erf.pert_interval  = 100     # timesteps between perturbation output message
 erf.v              = 0       # verbosity in ERF.cpp
@@ -42,7 +43,11 @@ amr.max_level       = 0      # maximum level number allowed
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
 #erf.plot_per_1      = 0.1
+<<<<<<< HEAD
 erf.plot_int_1      = 100
+=======
+erf.plot_int_1      = 10
+>>>>>>> development
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES

@@ -493,7 +493,7 @@ ERF::post_timestep (int nstep, Real time, Real dt_lev0)
     }
 
     if (profile_int > 0 && (nstep+1) % profile_int == 0) {
-        if (cc_profiles) {
+        if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(time);
         } else {
@@ -918,7 +918,7 @@ ERF::InitData ()
 #ifdef ERF_USE_WW3_COUPLING
     int lev = 0;
     read_waves(lev);
-    send_waves(lev);
+    send_to_ww3(lev);
 #endif
 
     // Configure ABLMost params if used MostWall boundary condition
@@ -1020,7 +1020,7 @@ ERF::InitData ()
     }
 
     if (restart_chkfile.empty() && profile_int > 0) {
-        if (cc_profiles) {
+        if (destag_profiles) {
             // all variables cell-centered
             write_1D_profiles(t_new[0]);
         } else {
@@ -1423,7 +1423,7 @@ ERF::ReadParameters ()
         }
 
         pp.query("profile_int", profile_int);
-        pp.query("interp_profiles_to_cc", cc_profiles);
+        pp.query("destag_profiles", destag_profiles);
 
         pp.query("plot_lsm", plot_lsm);
 

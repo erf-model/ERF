@@ -177,10 +177,13 @@ struct SolverChoice {
         pp.query("project_initial_velocity", project_initial_velocity);
 
         int nvals_inc = pp.countval("incompressible");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+        AMREX_ALWAYS_ASSERT(nvals_inc == 0 || nvals_inc == 1 || nvals_inc >= max_level+1);
         amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.getarr("incompressible",inc_in);
-        if (nvals_inc == 1) {
+        pp.queryarr("incompressible",inc_in);
+        if (nvals_inc == 0) {
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
+            amrex::Warning("NOTE: ERF was built with the Poisson solver but the incompressible flag was not set");
+        } else if (nvals_inc == 1) {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
         } else {
             for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
@@ -425,6 +428,8 @@ struct SolverChoice {
         latitude *= (PI/180.);
         sinphi = std::sin(latitude);
         cosphi = std::cos(latitude);
+
+        amrex::Print() << "Coriolis frequency, f = " << coriolis_factor * sinphi << " 1/s" << std::endl;
 
         if (abl_driver_type == ABLDriverType::GeostrophicWind)
         {

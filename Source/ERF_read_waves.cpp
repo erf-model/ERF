@@ -6,8 +6,11 @@
 #include <AMReX_MPMD.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_Box.H>
+#include <cmath>
 
 using namespace amrex;
+
 
 void
 ERF::read_waves (int lev)
@@ -70,9 +73,8 @@ ERF::read_waves (int lev)
                      MPI_Recv(my_L_ptr, nsealm, MPI_DOUBLE, other_root, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                  }
              }
-
-             // amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
-             // amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
+             amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
+             amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
 
          }
     }
@@ -85,18 +87,6 @@ ERF::read_waves (int lev)
     Lwave[lev]->ParallelCopy(*Lwave_onegrid[lev]);
     Lwave[lev]->FillBoundary(geom[lev].periodicity());
     amrex::Print() << "HWAVE BOX " << (*Hwave[lev])[0].box() << std::endl;
-    for (MFIter mfi(*Hwave[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        Box bx = mfi.tilebox();
-        const Array4<Real const>& Hwave_arr = Hwave[lev]->const_array(mfi);
-        const Array4<int>& Lmask_arr = lmask_lev[lev][0]->array(mfi);
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
-            if (Hwave_arr(i,j,k)<0) {
-                Lmask_arr(i,j,k) = 1;
-             } else {
-                Lmask_arr(i,j,k) = 0;
-            }
-        });
-    }
 
     for (MFIter mfi(*Hwave[lev],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         Box bx = mfi.tilebox();
@@ -114,31 +104,63 @@ ERF::read_waves (int lev)
 }
 
 void
-ERF::send_waves (int lev)
+ERF::send_to_ww3 (int lev)
 {
     int ncomp = 1; // number components
     auto& lev_new = vars_new[lev];
     const double PI = 3.1415926535897932384626433832795028841971693993751058209;
 
+    int k_ref = 0;
+    int nlevs_max = max_level + 1;
+    const auto dz  = geom[lev].CellSize(2); //For 10m
+    if (dz < 10){
+        k_ref = std::floor( (10 / dz) - 0.5 );
+    }
+
     // Access xvel, yvel from ABL
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
+
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+
+/*
+    BoxArray ba_onegrid(geom[lev].Domain());
+    BoxList bl2d = ba.boxList();
+    Real* theta_ptr = &theta(domlo);
+    for (auto& b : bl2d) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d(std::move(bl2d));
+
+    // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
+    BoxArray ba_onegrid(lev_new[Vars::cons].boxArray());
+    BoxList bl2d_onegrid = ba_onegrid.boxList();
+    for (auto& b : bl2d_onegrid) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
+    Vector<int> pmap;
+    pmap.resize(1);
+    pmap[0]=0;
+    DistributionMapping dm_onegrid(ba2d_onegrid);
+    dm_onegrid.define(pmap);
+*/
 
     // Make local copy of xvel, yvel
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
 
-    MultiFab x_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       ncomp, lev_new[Vars::cons].nGrow());
-    MultiFab y_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       ncomp, lev_new[Vars::cons].nGrow());
+    // Initialize Multifabs to store x_avg, y_avg, u_mag, u_dir at cell centers
+    MultiFab x_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrowVect());
 
-    MultiFab u_mag(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       ncomp, lev_new[Vars::cons].nGrow());
+    MultiFab y_avg(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrowVect());
 
-    MultiFab u_dir(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(),
-                       ncomp, lev_new[Vars::cons].nGrow());
+    MultiFab u_mag(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrowVect());
+
+
+    MultiFab u_dir(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrowVect());
+
+
     x_avg.setVal(0.);
     y_avg.setVal(0.);
     u_mag.setVal(0.);
@@ -153,7 +175,7 @@ ERF::send_waves (int lev)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
             u_vel(i,j,k)  = 0.5 *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
 
-            // amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " [" <<velx_arr(i,j,k) << "| avg:  " << u_vel(i,j,k)<< " | " << velx_arr(i+1,j,k) << "]" <<std::endl;
+            amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " [" <<velx_arr(i,j,k) << "| avg:  " << u_vel(i,j,k)<< " | " << velx_arr(i+1,j,k) << "]" <<std::endl;
         });
     }
 
@@ -167,9 +189,10 @@ ERF::send_waves (int lev)
 
             v_vel(i,j,k)  = 0.5 *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
 
-            // amrex::AllPrintToFile("vvel.txt") << amrex::IntVect(i,j,k) << " ["<<vely_arr(i,j,k)<<"| avg: " << v_vel(i,j,k)<< " | " << vely_arr(i,j+1,k) << "]" <<std::endl;
+            amrex::AllPrintToFile("vvel.txt") << "%ld" << amrex::IntVect(i,j,k) << " ["<<vely_arr(i,j,k)<<"| avg: " << v_vel(i,j,k)<< " | " << vely_arr(i,j+1,k) << "]" <<std::endl;
         });
     }
+
 
     for (MFIter mfi(u_mag, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -178,6 +201,23 @@ ERF::send_waves (int lev)
         const Array4<const Real>& u = x_avg.array(mfi);
         const Array4<const Real>& v = y_avg.array(mfi);
         const Array4<Real>& theta = u_dir.array(mfi);
+
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> magnitude_onegrid;
+        amrex::Vector<std::unique_ptr<amrex::MultiFab>> theta_onegrid;
+
+
+ // create a new BoxArray and DistributionMapping for a MultiFab with 1 box
+    BoxArray ba_onegrid(geom[lev].Domain());
+    BoxList bl2d_onegrid = ba_onegrid.boxList();
+    for (auto& b : bl2d_onegrid) {
+        b.setRange(2,0);
+    }
+    BoxArray ba2d_onegrid(std::move(bl2d_onegrid));
+    Vector<int> pmap;
+    pmap.resize(1);
+    pmap[0]=0;
+    DistributionMapping dm_onegrid(ba2d_onegrid);
+    dm_onegrid.define(pmap);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
@@ -200,47 +240,77 @@ ERF::send_waves (int lev)
             }
 
 
-            // amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
-        });
+            amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: " << magnitude(i,j,k) << " Theta: " << theta(i,j,k) <<std::endl;
+  });
 
 
-            // MPI_Send to WW3
+    // Send the 2D slice at k_ref
+        // Box slice_box = bx;
+        amrex::IntVect boxSmall = bx.smallEnd();
+        amrex::IntVect boxBig = bx.bigEnd();
+        Box slice_box_ref = makeSlab(bx, 2, k_ref);
+
     // Calculate the number of elements in the current box
-    int n_elements = bx.numPts();
+    int n_elements = slice_box_ref.numPts();
 
-    // Get the data pointers for the arrays
-    Real* magnitude_ptr = &magnitude(bx.smallEnd());
-    Real* theta_ptr = &theta(bx.smallEnd());
+    // Initialize vectors to send to WW3
+    std::vector<Real> magnitude_values(n_elements);
+    std::vector<Real> theta_values(n_elements);
+    std::vector<amrex::IntVect> indices(n_elements);
+    // Copy values
+    int counter = 0;
+    for (BoxIterator bi(slice_box_ref); bi.ok(); ++bi) {
+    IntVect iv = bi();
+    magnitude_values[counter] = magnitude(iv);
+    theta_values[counter] = theta(iv);
+    indices[counter] = iv;
+    ++counter;
+    }
 
-    // Initialize other_root as needed
-    int other_root = 0; // Example initialization, replace with appropriate logic
 
-    // Send magnitude array
-//    MPI_Send(magnitude_ptr, n_elements, MPI_DOUBLE, other_root, 0, MPI_COMM_WORLD);
-    // Send theta array
-//    MPI_Send(theta_ptr, n_elements, MPI_DOUBLE, other_root, 1, MPI_COMM_WORLD);
-// amrex::AllPrintToFile("debug_send.txt") << n_elements << std::endl;
+// Print magnitude values and corresponding IntVect indices
+for (int j = 0; j < n_elements; ++j) {
+    amrex::AllPrintToFile("debug_send.txt")
+        << "dz, k_ref " << dz << ", " << k_ref << " "
+        << "Index: " << j
+        << ", IntVect: (" << indices[j][0] << ", " << indices[j][1] << ", " << indices[j][2] << ")"
+        << ", Magnitude: " << magnitude_values[j]
+        << ", Theta: " << theta_values[j]
+        << std::endl;
+}
+
+         int rank_offset = amrex::MPMD::MyProc() - amrex::ParallelDescriptor::MyProc();
+         int this_root, other_root;
+         if (rank_offset == 0) { // First program
+             this_root = 0;
+             other_root = amrex::ParallelDescriptor::NProcs();
+         } else {
+             this_root = rank_offset;
+             other_root = 0;
+         }
+
+         amrex::Print()<< "We are sending " << n_elements << std::endl;
+
+         if (amrex::MPMD::MyProc() == this_root) {
+             if (rank_offset == 0) // First program
+             {
+             MPI_Send(&n_elements, 1, MPI_INT, other_root, 11, MPI_COMM_WORLD);
+MPI_Send(magnitude_values.data(), n_elements, MPI_DOUBLE, other_root, 13, MPI_COMM_WORLD);
+MPI_Send(theta_values.data(), n_elements, MPI_DOUBLE, other_root, 15, MPI_COMM_WORLD);
+             }
+             else // Second program
+             {
+                 MPI_Send(&n_elements, 1, MPI_INT, other_root, 10, MPI_COMM_WORLD);
+MPI_Send(magnitude_values.data(), n_elements, MPI_DOUBLE, other_root, 12, MPI_COMM_WORLD);
+MPI_Send(theta_values.data(), n_elements, MPI_DOUBLE, other_root, 14, MPI_COMM_WORLD);
+                 //MPI_Recv(&nx, 1, MPI_INT, other_root, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                 //MPI_Recv(&ny, 1, MPI_INT, other_root, 6, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+             }
+         }
+
 
 }
-/*
-            for (MFIter mfi(u_mag); mfi.isValid(); ++mfi) {
 
-                const Array4<Real>& magnitude = u_mag.array(mfi);
-                const Array4<Real>& theta = u_dir.array(mfi);
-
-                Real* magnitude_ptr = magnitude.dataPtr();
-                Real* theta_ptr = theta.dataPtr();
-
-                // Get number of elements in arrays
-                int n_elements = mfi.validbox().numPts();
-                int this_root = 0;
-                int other_root = 1;
-
-                // Send magnitude and theta
-                MPI_Send(magnitude_ptr. n_elements, MPI_DOUBLE, this_root, 0, MPI_COMM_WORLD)
-                MPI_Send(theta_ptr, n_elements, MPI_DOUBLE, other_root, 1, MPI_COMM_WORLD);
-            }
-*/
 }
 #endif
 
