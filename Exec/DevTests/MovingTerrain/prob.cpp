@@ -46,7 +46,6 @@ Problem::init_custom_pert(
   const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
   const Real T_sfc    = parms.T_0;
-  const Real rho_sfc  = p_0 / (R_d*T_sfc);
   //const Real thetabar = T_sfc;
 
   Real H           = geomdata.ProbHi()[2];

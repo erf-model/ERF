@@ -387,7 +387,7 @@ Problem::update_geostrophic_profile (const Real& /*time*/,
         reduce_to_max_per_level(zlevels, z_phys_cc);
     }
 
-    const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
+    // const Real coriolis = 2.0 * 2.0 * PI / 86400.0; // 0.376E-4;
 
     // Only apply temperature source below nominal inversion height
     for (int k = 0; k <= khi; k++) {
