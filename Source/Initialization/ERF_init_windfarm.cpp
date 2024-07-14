@@ -13,28 +13,27 @@ using namespace amrex;
  */
 
 // Explicit instantiation
-template void ERF::init_windfarm<SimpleAD>(int lev, SimpleAD& simpleAD);
 
-template<typename T>
-void ERF::init_windfarm (int lev, T& windfarm)
+void 
+ERF::init_windfarm (int lev)
 {
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
-        windfarm.read_tables(solverChoice.windfarm_loc_table,
+        windfarm->read_tables(solverChoice.windfarm_loc_table,
                              solverChoice.windfarm_spec_table,
                              false, true,
                              solverChoice.latitude_lo, solverChoice.longitude_lo);
     } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
-        windfarm.read_tables(solverChoice.windfarm_loc_table,
+        windfarm->read_tables(solverChoice.windfarm_loc_table,
                              solverChoice.windfarm_spec_table, 
 							 true, false);
     }
 
-	windfarm.fill_Nturb_multifab(geom[lev], Nturb[lev]);
+	windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
 
-    windfarm.write_turbine_locations_vtk();
+    windfarm->write_turbine_locations_vtk();
 
     if(solverChoice.windfarm_type == WindFarmType::SimpleAD) {
-        windfarm.write_actuator_disks_vtk();
+        windfarm->write_actuator_disks_vtk();
     }
 }
 
@@ -47,15 +46,6 @@ ERF::advance_windfarm (int lev,
                        MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb,
                        SolverChoice& solver_choice)
 {
-
-    if (solver_choice.windfarm_type == WindFarmType::Fitch) {
-        //fitch_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-          //             mf_vars_windfarm, mf_Nturb);
-    } else if (solver_choice.windfarm_type == WindFarmType::EWP) {
-        //ewp_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-          //            mf_vars_windfarm, mf_Nturb);
-    } else if (solver_choice.windfarm_type == WindFarmType::SimpleAD) {
-        simpleAD.simpleAD_advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
+	windfarm->advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
                       mf_vars_windfarm, mf_Nturb);
-    }
 }

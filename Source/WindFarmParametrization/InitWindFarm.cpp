@@ -19,7 +19,7 @@ WindFarm::read_tables (std::string windfarm_loc_table,
                          const Real latitude_lo,
                          const Real longitude_lo)
 {
-
+	std::cout << "Reading tables " << "\n";
 	read_windfarm_locations_table(windfarm_loc_table,
 							 	  x_y, lat_lon,
 								  latitude_lo,longitude_lo);

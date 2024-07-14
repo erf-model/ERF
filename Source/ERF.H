@@ -49,7 +49,7 @@
 #include "LandSurface.H"
 
 #ifdef ERF_USE_WINDFARM
-#include "SimpleAD.H"
+#include "WindFarm.H"
 #endif
 
 #ifdef ERF_USE_RRTMGP
@@ -376,9 +376,7 @@ public:
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
-    SimpleAD simpleAD;
-    template<typename T>
-    void init_windfarm(int lev, T& windfarm);
+    void init_windfarm(int lev);
     void advance_windfarm (int lev,
                        const amrex::Geometry& geom,
                        const amrex::Real& dt_advance,
@@ -451,6 +449,9 @@ private:
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
+
+	// Initialize the windfarm object
+    void initializeWindFarm (const int&);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -665,6 +666,7 @@ private:
 
     // Variables for wind farm parametrization models
 
+    std::unique_ptr<WindFarm> windfarm;
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt

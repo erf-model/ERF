@@ -76,6 +76,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
         if (qmoist[lev].size() > 0) FillPatchMoistVars(lev, *(qmoist[lev][0]));
     }
 
+	
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(lev, Geom(lev), dt_lev, S_old,

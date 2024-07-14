@@ -3,18 +3,23 @@
 
 using namespace amrex;
 
-void SimpleAD::simpleAD_advance (int lev,
+void SimpleAD::advance (int lev,
                   const Geometry& geom,
                   const Real& dt_advance,
                   MultiFab& cons_in,
                   MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
                   MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
 {
-    simpleAD_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_simpleAD, mf_Nturb);
-    simpleAD_update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
+
+	std::cout << "Values of " << this->rotor_rad << " " << this->hub_height << "\n";
+
+	exit(0);
+
+    source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_simpleAD, mf_Nturb);
+    update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
 
-void SimpleAD::simpleAD_update (const Real& dt_advance,
+void SimpleAD::update (const Real& dt_advance,
                   MultiFab& cons_in,
                   MultiFab& U_old, MultiFab& V_old,
                   const MultiFab& mf_vars_simpleAD)
@@ -43,10 +48,10 @@ void SimpleAD::simpleAD_update (const Real& dt_advance,
     }
 }
 
-void SimpleAD::simpleAD_source_terms_cellcentered (const Geometry& geom,
-                                      const MultiFab& cons_in,
-                                      const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                      MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
+void SimpleAD::source_terms_cellcentered (const Geometry& geom,
+                                          const MultiFab& cons_in,
+                                          const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
+                                          MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
 {
 
   auto dx = geom.CellSizeArray();
