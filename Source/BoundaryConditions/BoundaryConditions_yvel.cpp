@@ -174,6 +174,13 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
+    Box per_grown_domain(domain);
+    int growx = (m_geom.isPeriodic(0)) ? 1 : 0;
+    int growy = (m_geom.isPeriodic(1)) ? 1 : 0;
+    per_grown_domain.grow(IntVect(growx,growy,0));
+    const auto& perdom_lo = lbound(per_grown_domain);
+    const auto& perdom_hi = ubound(per_grown_domain);
+
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
@@ -260,8 +267,8 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
                 ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // Clip indices for ghost-cells
-                    int ii = amrex::min(amrex::max(i,dom_lo.x),dom_hi.x);
-                    int jj = amrex::min(amrex::max(j,dom_lo.y),dom_hi.y);
+                    int ii = amrex::min(amrex::max(i,perdom_lo.x),perdom_hi.x);
+                    int jj = amrex::min(amrex::max(j,perdom_lo.y),perdom_hi.y);
 
                     // Get metrics
                     Real met_h_xi   = Compute_h_xi_AtJface  (ii, jj, k0, dxInv, z_phys_nd);
