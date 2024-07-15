@@ -134,7 +134,7 @@ ERF::init_from_metgrid (int lev)
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-        init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
+        init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab,phys_bc_type);
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.

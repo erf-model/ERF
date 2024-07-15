@@ -44,7 +44,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
         BoxArray ba_z(std::move(bl_z_phys));
 
         z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
+                                                    z_nd_mf_loc.nGrowVect());
     }
     z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
@@ -118,7 +119,9 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
         }
         BoxArray ba_z(std::move(bl_z_phys));
         z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0]+1,nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
+        // z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(nghost[0],nghost[1],0),IntVect(nghost[0],nghost[1],0));
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
+                                                    z_nd_mf_loc.nGrowVect());
     }
     z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
@@ -195,7 +198,9 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
         }
         BoxArray ba_z(std::move(bl_z_phys));
         z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1]+1,0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
+        // z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
+                                                    z_nd_mf_loc.nGrowVect());
     }
     z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
@@ -273,8 +278,10 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
         }
         BoxArray ba_z(std::move(bl_z_phys));
         z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(nghost[0],nghost[1],0),
-                                                    IntVect(nghost[0],nghost[1],0),m_geom.periodicity());
+        //z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(nghost[0],nghost[1],0),
+        //                                            IntVect(nghost[0],nghost[1],0),m_geom.periodicity());
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,m_z_phys_nd->nGrowVect(),
+                                                    z_nd_mf_loc.nGrowVect());
     }
     z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 

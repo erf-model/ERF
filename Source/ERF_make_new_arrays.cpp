@@ -211,15 +211,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Map factors
     // ********************************************************************************************
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
+    BoxList bl2d_mf = ba.boxList();
+    for (auto& b : bl2d_mf) {
         b.setRange(2,0);
     }
-    BoxArray ba2d(std::move(bl2d));
+    BoxArray ba2d_mf(std::move(bl2d_mf));
 
-    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,3);
-    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(1,0,0)),dm,1,3);
-    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d,IntVect(0,1,0)),dm,1,3);
+    mapfac_m[lev] = std::make_unique<MultiFab>(ba2d_mf,dm,1,3);
+    mapfac_u[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(1,0,0)),dm,1,3);
+    mapfac_v[lev] = std::make_unique<MultiFab>(convert(ba2d_mf,IntVect(0,1,0)),dm,1,3);
     if (solverChoice.test_mapfactor) {
         mapfac_m[lev]->setVal(0.5);
         mapfac_u[lev]->setVal(0.5);
@@ -323,12 +323,12 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
     lmask_lev[lev].resize(1);
     auto ngv = lev_new[Vars::cons].nGrowVect(); ngv[2] = 0;
-    BoxList bl2d = ba.boxList();
-    for (auto& b : bl2d) {
+    BoxList bl2d_mask = ba.boxList();
+    for (auto& b : bl2d_mask) {
         b.setRange(2,0);
     }
-    BoxArray ba2d(std::move(bl2d));
-    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d,dm,1,ngv);
+    BoxArray ba2d_mask(std::move(bl2d_mask));
+    lmask_lev[lev][0] = std::make_unique<iMultiFab>(ba2d_mask,dm,1,ngv);
     lmask_lev[lev][0]->setVal(1);
     lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
     }
@@ -408,11 +408,9 @@ ERF::update_terrain_arrays (int lev, Real time)
 {
     if (solverChoice.use_terrain) {
 
-        if (lev == 0 && (init_type != "real" && init_type != "metgrid") ) {
-            prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
-        }
-
+        //
+        // First interpolate from coarser level if there is one
+        //
         if (lev > 0) {
             Vector<MultiFab*> fmf = {z_phys_nd[lev].get(), z_phys_nd[lev].get()};
             Vector<Real> ftime    = {t_old[lev], t_new[lev]};
@@ -429,24 +427,23 @@ ERF::update_terrain_arrays (int lev, Real time)
                                   geom[lev-1], geom[lev],
                                   null_bc, 0, null_bc, 0, refRatio(lev-1),
                                   mapper, domain_bcs_type, 0);
+        }
 
-            //
-            // Then if not using real/metgrid data, we
-            // 1) redefine the terrain at k=0 for every fine box which includes k=0
-            // 2) recreate z_phys_nd at every fine node using
-            // the data at the bottom of each fine grid
-            // which has been either been interpolated from the coarse grid (k>0)
-            // or set in init_custom_terrain (k=0)
-            //
+        //
+        // Then, if not using real/metgrid data,
+        // 1) redefine the terrain at k=0 for every fine box which includes k=0
+        // 2) recreate z_phys_nd at every fine node using
+        // the data at the bottom of each fine grid
+        // which has been either been interpolated from the coarse grid (k>0)
+        // or set in init_custom_terrain (k=0)
+        //
+        if (init_type != "real" && init_type != "metgrid") {
             prob->init_custom_terrain(geom[lev],*z_phys_nd[lev],time);
-            if (init_type != "real" && init_type != "metgrid") {
-                init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag);
-            }
+            init_terrain_grid(lev,geom[lev],*z_phys_nd[lev],zlevels_stag,phys_bc_type);
         }
 
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
-
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
     }
 }
