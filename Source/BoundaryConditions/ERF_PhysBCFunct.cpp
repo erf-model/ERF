@@ -42,9 +42,11 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
             b.setBig(2,1);
         }
         BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,0);
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0,m_geom.periodicity());
+
+        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
     }
+    z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -115,9 +117,10 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             b.setBig(2,1);
         }
         BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(1,0,0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(1,0,0),IntVect(1,0,0),m_geom.periodicity());
+        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0]+1,nghost[1],0));
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
     }
+    z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -191,9 +194,10 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
             b.setBig(2,1);
         }
         BoxArray ba_z(std::move(bl_z_phys));
-        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(0,1,0));
-        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(0,1,0),IntVect(0,1,0),m_geom.periodicity());
+        z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1]+1,0));
+        z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,0,0);
     }
+    z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -266,14 +270,13 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
         BoxList bl_z_phys = convert(mf.boxArray(),IntVect(1,1,1)).boxList();
         for (auto& b : bl_z_phys) {
             b &= ndomain;
-            b.setSmall(2,0);
-            b.setBig(2,1);
         }
         BoxArray ba_z(std::move(bl_z_phys));
         z_nd_mf_loc.define(ba_z,mf.DistributionMap(),1,IntVect(nghost[0],nghost[1],0));
         z_nd_mf_loc.ParallelCopy(*m_z_phys_nd,0,0,1,IntVect(nghost[0],nghost[1],0),
                                                     IntVect(nghost[0],nghost[1],0),m_geom.periodicity());
     }
+    z_nd_mf_loc.FillBoundary(m_geom.periodicity());
 
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
