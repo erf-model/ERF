@@ -170,11 +170,9 @@ ERF::sum_integrated_quantities (Real time)
 }
 
 Real
-ERF::cloud_fraction (Real time)
+ERF::cloud_fraction (Real /*time*/)
 {
     BL_PROFILE("ERF::cloud_fraction()");
-
-    Real sum = 0.0;
 
     int lev = 0;
     // This holds all of qc
