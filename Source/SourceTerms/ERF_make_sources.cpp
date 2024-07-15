@@ -268,7 +268,6 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None)) {
             const int nv = RhoQ1_comp;
-            const int nc = RhoQ2_comp;
             if (solverChoice.custom_forcing_prim_vars) {
                 const int nr = Rho_comp;
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

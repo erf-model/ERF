@@ -195,7 +195,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &pi_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
-                                         const Real& l_gravity,
+                                         const Real& /*l_gravity*/,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
