@@ -1,0 +1,160 @@
+===============================================================================
+ ERF Job Information
+===============================================================================
+inputs file: /projects/erf/bperry/ERF/Build/build-tests/Tests/test_files/ABL_MYNN_PBL/ABL_MYNN_PBL.i
+
+number of MPI processes: 2
+
+CPU time used since start of simulation (CPU-hours): 0.000220452
+
+===============================================================================
+ Plotfile Information
+===============================================================================
+output data / time: Mon Jul 15 14:19:52 2024
+output dir:         /kfs2/projects/erf/bperry/ERF/Build/build-tests/Tests/test_files/ABL_MYNN_PBL
+
+
+===============================================================================
+ Build Information
+===============================================================================
+build date:    Jul 15 2024 14:15:38
+build machine: Linux x3000c0s25b0n0 4.18.0-477.10.1.el8_8.x86_64 #1 SMP Wed Apr 5 13:35:01 EDT 2023 x86_64
+build dir:     /projects/erf/bperry/ERF/Build/build-tests/Exec
+AMReX dir:     /projects/erf/bperry/ERF/Submodules/AMReX
+
+COMP:          GNU
+COMP version:  12.2.1
+
+
+ERF       git hash: 24.06-69-gc09476bca82b-dirty
+AMReX       git hash: 24.03
+
+
+===============================================================================
+ Grid Information
+===============================================================================
+ level: 0
+   number of boxes = 2
+   maximum zones   = 4 4 64 
+
+ Boundary conditions
+   -x: Periodic
+   +x: Periodic
+   -y: Periodic
+   +y: Periodic
+   -z: MOST
+   +z: SlipWall
+
+
+===============================================================================
+ Inputs File Parameters
+===============================================================================
+stop_time = 32400.0
+max_step = 100
+amrex.fpe_trap_invalid = 0
+fabarray.mfiter_tile_size = 1024 1024 1024
+geometry.prob_extent = 25 25 400
+amr.n_cell = 4 4 64
+geometry.is_periodic = 1 1 0
+zlo.type = Most
+erf.most.z0 = 0.1
+erf.most.surf_temp = 265.0
+erf.most.surf_heating_rate = -0.25
+zhi.type = SlipWall
+zhi.theta_grad = 0.01
+erf.init_type = input_sounding
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = input_sounding_GABLS1
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 6
+erf.sum_interval = 1
+erf.v = 1
+amr.v = 1
+amr.max_level = 0
+erf.check_file = chk
+erf.check_int = -1
+erf.plot_file_1 = plt
+erf.plot_int_1 = 300
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure theta rhoQKE Kmv Khv
+erf.dycore_vert_adv_type = Upwind_3rd
+erf.dryscal_vert_adv_type = Upwind_3rd
+erf.molec_diff_type = None
+erf.use_gravity = true
+erf.use_coriolis = true
+erf.latitude = 73.0
+erf.rotational_time_period = 86455.2516813368
+erf.abl_driver_type = GeostrophicWind
+erf.abl_geo_wind = 8.0 0.0 0.0
+erf.les_type = None
+erf.pbl_type = MYNN2.5
+prob.KE_0 = 0.4
+prob.KE_decay_height = 250.
+prob.KE_decay_order = 1
+amr.refine_grid_layout_x = 1
+amr.refine_grid_layout_y = 1
+amr.refine_grid_layout_z = 0
+amr.n_proper = 2
+amr.max_grid_size = 2048
+amr.blocking_factor = 1
+amr.n_error_buf = 0
+amrex.v = 1
+amrex.verbose = 1
+amrex.regtest_reduction = 0
+amrex.signal_handling = 1
+amrex.throw_exception = 0
+amrex.call_addr2line = 1
+amrex.abort_on_unused_inputs = 0
+amrex.handle_sigsegv = 1
+amrex.handle_sigterm = 0
+amrex.handle_sigint = 1
+amrex.handle_sigabrt = 1
+amrex.handle_sigfpe = 1
+amrex.handle_sigill = 1
+amrex.fpe_trap_zero = 0
+amrex.fpe_trap_overflow = 0
+amrex.use_gpu_aware_mpi = 0
+amrex.the_arena_init_size = 0
+amrex.the_device_arena_init_size = 8388608
+amrex.the_managed_arena_init_size = 8388608
+amrex.the_pinned_arena_init_size = 8388608
+amrex.the_comms_arena_init_size = 8388608
+amrex.the_arena_release_threshold = 9223372036854775807
+amrex.the_device_arena_release_threshold = 9223372036854775807
+amrex.the_managed_arena_release_threshold = 9223372036854775807
+amrex.the_pinned_arena_release_threshold = 9223372036854775807
+amrex.the_comms_arena_release_threshold = 9223372036854775807
+amrex.the_async_arena_release_threshold = 9223372036854775807
+amrex.the_arena_is_managed = 0
+amrex.abort_on_out_of_gpu_memory = 0
+fab.init_snan = 0
+DistributionMapping.v = 0
+DistributionMapping.verbose = 0
+DistributionMapping.efficiency = 0.90000000000000002
+DistributionMapping.sfc_threshold = 0
+DistributionMapping.node_size = 0
+DistributionMapping.verbose_mapper = 0
+fab.initval = nan
+fab.do_initval = 0
+fabarray.maxcomp = 25
+vismf.v = 0
+vismf.headerversion = 1
+vismf.groupsets = 0
+vismf.setbuf = 1
+vismf.usesingleread = 0
+vismf.usesinglewrite = 0
+vismf.checkfilepositions = 0
+vismf.usepersistentifstreams = 0
+vismf.usesynchronousreads = 0
+vismf.usedynamicsetselection = 1
+vismf.iobuffersize = 2097152
+vismf.allowsparsewrites = 1
+amrex.async_out = 0
+amrex.async_out_nfiles = 64
+amrex.vector_growth_factor = 1.5
+machine.verbose = 0
+machine.very_verbose = 0
+geometry.coord_sys = 0
+geometry.prob_lo = 0 0 0
+amr.grid_eff = 0.69999999999999996
+amr.refine_grid_layout = 1
+amr.check_input = 1

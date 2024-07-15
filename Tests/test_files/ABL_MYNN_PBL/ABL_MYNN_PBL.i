@@ -1,6 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
-
+max_step = 100
+  
 amrex.fpe_trap_invalid = 0
 
 fabarray.mfiter_tile_size = 1024 1024 1024
