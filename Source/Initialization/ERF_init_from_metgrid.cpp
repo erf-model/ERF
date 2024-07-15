@@ -134,11 +134,11 @@ ERF::init_from_metgrid (int lev)
     for ( MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
         // This defines only the z(i,j,0) values given the FAB filled from the NetCDF input
         FArrayBox& z_phys_nd_fab = (*z_phys)[mfi];
-        init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab,phys_bc_type);
+        init_terrain_from_metgrid(z_phys_nd_fab, NC_hgt_fab);
     } // mf
 
     // This defines all the z(i,j,k) values given z(i,j,0) from above.
-    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag);
+    init_terrain_grid(lev, geom[lev], *z_phys, zlevels_stag, phys_bc_type);
 
     // Copy LATITUDE, LONGITUDE, SST and LANDMASK data into MF and iMF data structures
     auto& ba = lev_new[Vars::cons].boxArray();
