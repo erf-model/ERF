@@ -29,7 +29,7 @@ macro(setup_test)
 
     # Set some default runtime options for all tests in this category
     # set(RUNTIME_OPTIONS "time.max_step=10 amr.plot_file=plt time.plot_interval=10 amrex.throw_exception=1 amrex.signal_handling=0")
-    # set(RUNTIME_OPTIONS "max_step=10 amr.plot_file=plt amr.checkpoint_files_output=0 amr.plot_files_output=1 amrex.signal_handling=0")    
+    # set(RUNTIME_OPTIONS "max_step=10 amr.plot_file=plt amr.checkpoint_files_output=0 amr.plot_files_output=1 amrex.signal_handling=0")
 
 endmacro(setup_test)
 
@@ -110,8 +110,9 @@ add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/*/erf_t
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
 add_test_r(ABL_MOST                          "ABL/*/erf_abl.exe" "plt00010")
+add_test_r(ABL_MYNN_PBL                      "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/*/erf_bubble.exe" "plt00010")
-    
+
 add_test_0(Deardorff_stationary              "ABL/*/erf_abl.exe" "plt00010")
 
 else()
@@ -148,6 +149,7 @@ add_test_r(TaylorGreenAdvectingDiffusing     "RegTests/TaylorGreenVortex/erf_tay
 add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(ABL_MOST                          "ABL/erf_abl" "plt00010")
+add_test_r(ABL_MYNN_PBL                      "ABL/erf_abl" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/erf_bubble" "plt00010")
 
 add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
@@ -156,4 +158,3 @@ endif()
 #=============================================================================
 # Performance tests
 #=============================================================================
-
