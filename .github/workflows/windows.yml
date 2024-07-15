@@ -29,8 +29,7 @@ jobs:
 
     - name: Compile and Link
       run: |
-        cmake --build build --parallel 2 --verbose \
-        2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
+        cmake --build build --parallel 2 --verbose 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
     - name: Report
       run: |
