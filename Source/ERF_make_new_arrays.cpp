@@ -354,7 +354,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
 
     if (l_use_diff) {
         //
-        // NOTE: We require ghost cells in the vertical when allowing grids that don't 
+        // NOTE: We require ghost cells in the vertical when allowing grids that don't
         //       cover the entire vertical extent of the domain at this level
         //
         Tau11_lev[lev] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) );
