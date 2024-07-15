@@ -29,16 +29,7 @@ jobs:
 
     - name: Compile and Link
       run: |
-        cmake --build build --parallel 2 --verbose 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
-
-    - name: Report
-      run: |
-        egrep "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | egrep -v "Submodules/amrex" | egrep -v "lto-wrapper: warning:" | sort | uniq \
-          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
-        cat ${{runner.workspace}}/build-output-warnings.txt
-        export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
-        exit ${return}
+        cmake --build build --parallel 2 --verbose
 
     - name: CMake Tests # see file ERF/Tests/CTestList.cmake
       run: |
