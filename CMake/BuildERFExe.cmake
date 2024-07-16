@@ -189,7 +189,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/Kessler/Update_Kessler.cpp
 	   ${SRC_DIR}/WindFarmParametrization/Fitch/AdvanceFitch.cpp
 	   ${SRC_DIR}/WindFarmParametrization/EWP/AdvanceEWP.cpp
-	   ${SRC_DIR}/WindFarmParametrization/Fitch/AdvanceSimpleAD.cpp
+	   ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/AdvanceSimpleAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/SLM.cpp
        ${SRC_DIR}/LandSurfaceModel/MM5/MM5.cpp
   )
