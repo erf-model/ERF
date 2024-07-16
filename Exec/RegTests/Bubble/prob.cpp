@@ -318,7 +318,7 @@ Problem::init_custom_pert(
                 const Real z = z_cc(i,j,k);
 
                 perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k),
-                                  pamrs_d, rdOcp,
+                                  parms_d, rdOcp,
                                   state_pert(i, j, k, Rho_comp),
                                   state_pert(i, j, k, RhoTheta_comp));
 
