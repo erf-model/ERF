@@ -47,10 +47,7 @@
 #include "EulerianMicrophysics.H"
 #include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
-
-#ifdef ERF_USE_WINDFARM
 #include "WindFarm.H"
-#endif
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
