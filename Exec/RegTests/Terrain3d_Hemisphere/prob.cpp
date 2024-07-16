@@ -58,7 +58,7 @@ Problem::init_custom_pert (
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
     // Geometry (note we must include these here to get the data on device)
-    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set scalar = 0 everywhere
         state_pert(i, j, k, RhoScalar_comp) = 0.0;
@@ -70,7 +70,7 @@ Problem::init_custom_pert (
     });
 
     // Set the x-velocity
-    ParallelForRNG(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
@@ -79,16 +79,16 @@ Problem::init_custom_pert (
             : prob_lo[2] + (k + 0.5) * dx[2];
 
         x_vel(i, j, k) = 10.0;
-        if ((z <= parms.pert_ref_height) && (parms.U_0_Pert_Mag != 0.0))
+        if ((z <= parms_d.pert_ref_height) && (parms_d.U_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real x_vel_prime = (rand_double*2.0 - 1.0)*parms.U_0_Pert_Mag;
+            Real x_vel_prime = (rand_double*2.0 - 1.0)*parms_d.U_0_Pert_Mag;
             x_vel_pert(i, j, k) += x_vel_prime;
         }
     });
 
     // Set the y-velocity
-    ParallelForRNG(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const Real* prob_lo = geomdata.ProbLo();
         const Real* dx = geomdata.CellSize();
@@ -99,18 +99,18 @@ Problem::init_custom_pert (
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = 0.0;
-        if ((z <= parms.pert_ref_height) && (parms.V_0_Pert_Mag != 0.0))
+        if ((z <= parms_d.pert_ref_height) && (parms_d.V_0_Pert_Mag != 0.0))
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real y_vel_prime = (rand_double*2.0 - 1.0)*parms.V_0_Pert_Mag;
+            Real y_vel_prime = (rand_double*2.0 - 1.0)*parms_d.V_0_Pert_Mag;
             y_vel_pert(i, j, k) += y_vel_prime;
         }
-        if (parms.pert_deltaV != 0.0)
+        if (parms_d.pert_deltaV != 0.0)
         {
             const amrex::Real xl = x - prob_lo[0];
-            const amrex::Real zl = z / parms.pert_ref_height;
+            const amrex::Real zl = z / parms_d.pert_ref_height;
             const amrex::Real damp = std::exp(-0.5 * zl * zl);
-            y_vel_pert(i, j, k) += parms.vfac * damp * z * std::cos(parms.bval * xl);
+            y_vel_pert(i, j, k) += parms_d.vfac * damp * z * std::cos(parms_d.bval * xl);
         }
     });
 
@@ -121,7 +121,7 @@ Problem::init_custom_pert (
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    ParallelForRNG(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
+    ParallelForRNG(zbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept
     {
         const int dom_lo_z = geomdata.Domain().smallEnd()[2];
         const int dom_hi_z = geomdata.Domain().bigEnd()[2];
@@ -131,10 +131,10 @@ Problem::init_custom_pert (
         {
             z_vel_pert(i, j, k) = 0.0;
         }
-        else if (parms.W_0_Pert_Mag != 0.0)
+        else if (parms_d.W_0_Pert_Mag != 0.0)
         {
             Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
-            Real z_vel_prime = (rand_double*2.0 - 1.0)*parms.W_0_Pert_Mag;
+            Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
             z_vel_pert(i, j, k) = z_vel_prime;
         }
     });
@@ -150,7 +150,7 @@ Problem::init_custom_terrain (
 {
     // Check if a valid csv file exists for the terrain
     std::string fname;
-    amrex::ParmParse pp("erf");
+    ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
     if (valid_fname) {
         this->read_custom_terrain(fname,geom,z_phys_nd,time);

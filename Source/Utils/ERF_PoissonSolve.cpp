@@ -23,16 +23,16 @@ ERF::get_projection_bc (Orientation::Side side) const noexcept
             r[dir] = LinOpBCType::Periodic;
         } else {
             auto bc_type = domain_bc_type[Orientation(dir,side)];
-            //if (bc_type == "Outflow") {
-            //    r[dir] = LinOpBCType::Dirichlet;
-            //} else
+            if (bc_type == "Outflow") {
+                r[dir] = LinOpBCType::Dirichlet;
+            } else
             {
                 r[dir] = LinOpBCType::Neumann;
             }
         }
     }
-    //r[2] = LinOpBCType::Neumann;
-    //amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
+    // r[2] = LinOpBCType::Neumann;
+    // amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
     return r;
 }
 bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
@@ -77,19 +77,13 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     inv_rho[1].define(vmf[Vars::yvel].boxArray(),dm_tmp[0],1,0,MFInfo());
     inv_rho[2].define(vmf[Vars::zvel].boxArray(),dm_tmp[0],1,0,MFInfo());
 
-#if 0
-    MultiFab density(vmf[Vars::cons], make_alias, 1, 1);
+    MultiFab density(vmf[Vars::cons], make_alias, Rho_comp, 1);
     density.FillBoundary(geom_tmp[0].periodicity());
     amrex::average_cellcenter_to_face(GetArrOfPtrs(inv_rho), density, geom_tmp[0]);
 
     for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
         inv_rho[idim].invert(l_dt, 0);
     }
-#else
-    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
-        inv_rho[idim].setVal(l_dt);
-    }
-#endif
 
     mlabec.setBCoeffs(0, GetArrOfConstPtrs(inv_rho));
 

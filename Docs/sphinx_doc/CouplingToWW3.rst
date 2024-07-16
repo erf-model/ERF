@@ -8,10 +8,12 @@ Coupling To WW3
 ===============
 
 Coupling with WaveWatch III is currently a work in progress.
-Currently, we have a one-way coupling between ERF and WaveWatch III (WW3), where WW3 sends ERF Hwave (significant wave height) and Lwave (mean wavelength) over a grid.
+We have established two-way coupling between ERF and WaveWatch III (WW3),
+in which WW3 sends ERF Hwave (significant wave height) and Lwave (mean wavelength) at the lower boundary,
+and ERF sends WW3 the wind magnitude and direction.
 
-One-way coupling WW3 to ERF
----------------------------
+Coupling WW3 to ERF
+-------------------
 
 The values are used to compute the surface roughness :math:`\overline{z_{0}}` through a fixed-point iteration:
 
@@ -23,8 +25,8 @@ To run the coupled model:
 .. code-block:: bash
 
     git clone --recursive git@github.com:erf-model/ERF
-    cd ERF/Exec/ABL
-    make -j4 USE_WW3_COUPLING=TRUE
+    cd ERF/Exec/DevTest/ABL_with_WW3
+    make -j4
     cd ../../Submodules/WW3
     ./model/bin/w3_setup model -c gnu -s Ifremer1
     cd regtests
