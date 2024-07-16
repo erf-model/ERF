@@ -19,12 +19,12 @@ USE_HIP  = FALSE
 USE_SYCL = FALSE
 
 # Debugging
-#DEBUG = TRUE
-
+DEBUG = TRUE
 
 TEST = TRUE
 USE_ASSERTION = TRUE
 
+# Incompressible Solver
 #USE_POISSON_SOLVE = TRUE
 
 # GNU Make

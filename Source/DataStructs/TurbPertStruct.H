@@ -171,13 +171,12 @@ struct TurbulentPerturbation {
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
-        //amrex::Print()<<"tpi_nonDim: "<<tpi_nonDim<<" Um: "<<Um<<" g: "<<g<<" beta: "<<beta<<" tpi_Hpb: "<<tpi_Hpb<<" theta["<<boxIdx<<"]: "<<pb_amp[boxIdx]
+        //amrex::Print()<<"["<<boxIdx<<"] tpi_nonDim: "<<tpi_nonDim<<" Um: "<<Um<<" g: "<<g<<" beta: "<<beta<<" tpi_Hpb: "<<tpi_Hpb<<" theta"<<pb_amp[boxIdx]
         //              <<" interval: "<<interval<<" amp: "<<pb_amp[boxIdx]/interval<< "\n";
         #endif
 
         // Ma & Senocak (2023) Eq. 7
         pb_amp[boxIdx] /= interval;
-
     }
 
 //#define INDEX_PERTURB
