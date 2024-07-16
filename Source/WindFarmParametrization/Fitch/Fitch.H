@@ -8,6 +8,8 @@
 
 class Fitch : public NullWindFarm {
 
+public:
+
     Fitch() {}
 
     virtual ~Fitch() = default;

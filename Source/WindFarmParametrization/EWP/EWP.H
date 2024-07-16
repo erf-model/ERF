@@ -8,6 +8,8 @@
 
 class EWP : public NullWindFarm {
 
+public:
+
     EWP(){}
 
     virtual ~EWP() = default;
