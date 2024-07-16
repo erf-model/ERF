@@ -98,12 +98,10 @@ protected:
     template<class NewWindFarmModel>
     void SetModel ()
     {
-        std::cout << "Setting the wind farm model with " << m_windfarm_model.size() << " levels " << "\n";
         for (int lev(0); lev<m_windfarm_model.size(); ++lev) {
             m_windfarm_model[lev] = std::make_unique<NewWindFarmModel>();
         }
     }
-
 
 private:
     amrex::Vector<std::unique_ptr<NullWindFarm>> m_windfarm_model; /*!< windfarm model */
