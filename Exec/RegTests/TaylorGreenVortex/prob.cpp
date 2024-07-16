@@ -45,7 +45,7 @@ Problem::init_custom_pert(
 {
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
-  ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
     // Geometry
     const Real* prob_lo = geomdata.ProbLo();
     const Real* dx = geomdata.CellSize();
@@ -54,15 +54,15 @@ Problem::init_custom_pert(
     const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
     // Initial potential temperature (actually rho*theta) perturbation
-    const Real p = parms.rho_0 * parms.V_0*parms.V_0*
+    const Real p = parms_d.rho_0 * parms_d.V_0*parms_d.V_0*
                           (
-                             1.0 / (Gamma * parms.M_0 * parms.M_0)
+                             1.0 / (Gamma * parms_d.M_0 * parms_d.M_0)
                           + (1.0 / 16.0) * (cos(2 * x) + cos(2 * y)) * (cos(2 * z) + 2)
                           );
     state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p) - getRhoThetagivenP(p_hse(i,j,k));
 
     // Set scalar = 0 everywhere
-    state_pert(i, j, k, RhoScalar_comp) = 1.0 * parms.rho_0;
+    state_pert(i, j, k, RhoScalar_comp) = 1.0 * parms_d.rho_0;
 
     if (use_moisture) {
         state_pert(i, j, k, RhoQ1_comp) = 0.0;
@@ -71,7 +71,7 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -80,11 +80,11 @@ Problem::init_custom_pert(
       const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
       // Set the x-velocity
-      x_vel_pert(i, j, k) = parms.V_0 * sin(x) * cos(y) * cos(z);
+      x_vel_pert(i, j, k) = parms_d.V_0 * sin(x) * cos(y) * cos(z);
   });
 
   // Set the y-velocity
-  ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(ybx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       const Real* prob_lo = geomdata.ProbLo();
       const Real* dx = geomdata.CellSize();
@@ -93,7 +93,7 @@ Problem::init_custom_pert(
       const Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
       // Set the y-velocity
-      y_vel_pert(i, j, k) = - parms.V_0 * cos(x) * sin(y) * cos(z);
+      y_vel_pert(i, j, k) = - parms_d.V_0 * cos(x) * sin(y) * cos(z);
   });
 
   // Set the z-velocity

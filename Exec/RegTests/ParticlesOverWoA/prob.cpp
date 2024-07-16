@@ -15,7 +15,7 @@ amrex_probinit(
 Problem::Problem()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("T_0", parms.T_0);
   pp.query("U_0", parms.U_0);
   pp.query("x_c", parms.x_c);
@@ -58,7 +58,7 @@ Problem::init_custom_pert(
   const Real rho_sfc   = p_0 / (R_d*parms.T_0);
   //const Real thetabar  = parms.T_0;
 
-  amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(bx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
     // Geometry (note we must include these here to get the data on device)
     const auto prob_lo  = geomdata.ProbLo();
@@ -70,14 +70,14 @@ Problem::init_custom_pert(
     const Real Tbar_hse = p_hse(i,j,k) / (R_d * r_hse(i,j,k));
 
     Real L = std::sqrt(
-        std::pow((x - parms.x_c)/parms.x_r, 2) +
-        std::pow((z - parms.z_c)/parms.z_r, 2)
+        std::pow((x - parms_d.x_c)/parms_d.x_r, 2) +
+        std::pow((z - parms_d.z_c)/parms_d.z_r, 2)
     );
     if (L <= 1.0) {
-        Real dT = parms.T_pert * (std::cos(PI*L) + 1.0)/2.0;
+        Real dT = parms_d.T_pert * (std::cos(PI*L) + 1.0)/2.0;
 
         // Note: dT is a temperature perturbation, theta_perturbed is base state + perturbation in theta
-        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms.C_p);
+        Real theta_perturbed = (Tbar_hse+dT)*std::pow(p_0/p_hse(i,j,k), R_d/parms_d.C_p);
 
         // This version perturbs rho but not p
         state_pert(i, j, k, Rho_comp) = getRhoThetagivenP(p_hse(i,j,k)) / theta_perturbed - r_hse(i,j,k);
@@ -93,15 +93,15 @@ Problem::init_custom_pert(
   });
 
   // Set the x-velocity
-  amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       Real ztop = z_nd(i,j,khi+1);
       Real zht  = z_nd(i,j,klo);
-      x_vel_pert(i, j, k) = parms.U_0 * ztop / (ztop - zht);
+      x_vel_pert(i, j, k) = parms_d.U_0 * ztop / (ztop - zht);
   });
 
   // Set the y-velocity
-  amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       y_vel_pert(i, j, k) = 0.0;
   });
@@ -113,7 +113,7 @@ Problem::init_custom_pert(
   dxInv[2] = 1. / dx[2];
 
   // Set the z-velocity from impenetrable condition
-  amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
   {
       z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
   });
@@ -130,7 +130,7 @@ Problem::init_custom_terrain(
 {
     // Check if a valid csv file exists for the terrain
     std::string fname;
-    amrex::ParmParse pp("erf");
+    ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
     if (valid_fname) {
         this->read_custom_terrain(fname,geom,z_phys_nd,time);
