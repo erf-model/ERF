@@ -70,8 +70,8 @@ void make_sources (int level,
     // *****************************************************************************
     // Planar averages for subsidence terms
     // *****************************************************************************
-    Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane, dptr_qc_plane;
-    TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab,  qc_plane_tab;
+    Table1D<Real>      dptr_r_plane, dptr_t_plane, dptr_qv_plane;
+    TableData<Real, 1>  r_plane_tab,  t_plane_tab,  qv_plane_tab;
     if (dptr_wbar_sub)
     {
         // Rho

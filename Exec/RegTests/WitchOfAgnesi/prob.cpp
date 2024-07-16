@@ -51,7 +51,7 @@ Problem::init_custom_pert (
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-    amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set scalar = 0 everywhere
         state_pert(i, j, k, RhoScalar_comp) = 0.0;

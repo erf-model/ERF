@@ -424,6 +424,9 @@ Problem::init_custom_pert(
                         omn = std::max(0.0,std::min(1.0,(T-tbgmin)*a_bg));
                     } else if(moisture_type == 2) {
                         omn = 1.0;
+                    } else {
+                        omn = 0.0;
+                        Abort("Bubble/prob.cpp: invalid moisture type specified");
                     }
                     Real qn  = state_pert(i, j, k, RhoQ2_comp);
                     state_pert(i, j, k, RhoQ2_comp) = qn * omn;

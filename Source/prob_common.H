@@ -398,6 +398,7 @@ public:
                     }
                 }
                 AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                amrex::ignore_unused(found);
                 z_arr(i,j,klo) = zloc;
             });
         }
