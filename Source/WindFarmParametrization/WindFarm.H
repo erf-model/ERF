@@ -60,15 +60,14 @@ public:
 
     void write_actuator_disks_vtk();
 
-    void advance (int lev,
-                        const amrex::Geometry& geom,
-                        const amrex::Real& dt_advance,
-                        amrex::MultiFab& cons_in,
-                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                        amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb) override
+    void advance (const amrex::Geometry& geom,
+                  const amrex::Real& dt_advance,
+                  amrex::MultiFab& cons_in,
+                  amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
+                  amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb) override
     {
-        m_windfarm_model[lev]->advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
-                                         mf_vars_windfarm, mf_Nturb);
+        m_windfarm_model[0]->advance(geom, dt_advance, cons_in, U_old, V_old, W_old,
+                                     mf_vars_windfarm, mf_Nturb);
     }
 
     void set_turb_spec(const amrex::Real& rotor_rad, const amrex::Real& hub_height,

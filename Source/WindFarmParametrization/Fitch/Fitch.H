@@ -8,12 +8,11 @@
 
 class Fitch : public NullWindFarm {
 
-void advance (int lev,
-                    const amrex::Geometry& geom,
-                    const amrex::Real& dt_advance,
-                    amrex::MultiFab& cons_in,
-                    amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                    amrex::MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb);
+void advance (const amrex::Geometry& geom,
+              const amrex::Real& dt_advance,
+              amrex::MultiFab& cons_in,
+              amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
+              amrex::MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb);
 
 void source_terms_cellcentered (const amrex::Geometry& geom,
                                       const amrex::MultiFab& cons_in,

@@ -45,8 +45,7 @@ Real compute_Aijk(const Real z_k,
 
 
 void
-Fitch::advance (int lev,
-                    const Geometry& geom,
+Fitch::advance (const Geometry& geom,
                     const Real& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,

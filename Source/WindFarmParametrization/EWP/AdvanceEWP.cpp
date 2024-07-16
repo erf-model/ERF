@@ -7,8 +7,7 @@ using namespace amrex;
 
 
 void
-EWP::advance (int lev,
-              const Geometry& geom,
+EWP::advance (const Geometry& geom,
               const Real& dt_advance,
               MultiFab& cons_in,
               MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
@@ -105,9 +104,6 @@ EWP::source_terms_cellcentered (const Geometry& geom,
             int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-
-            Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
-            Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
             // Compute Fitch source terms
@@ -131,7 +127,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
                         std::exp(-0.5*std::pow((z - d_hub_height)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
             ewp_array(i,j,k,1) = fac*std::sin(phi)*Nturb_array(i,j,k);
-            ewp_array(i,j,k,2) = 0.0;
+            ewp_array(i,j,k,2) = C_TKE*0.0;
          });
     }
 }

@@ -374,8 +374,7 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
-    void advance_windfarm (int lev,
-                       const amrex::Geometry& geom,
+    void advance_windfarm (const amrex::Geometry& geom,
                        const amrex::Real& dt_advance,
                        amrex::MultiFab& cons_in,
                        amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,

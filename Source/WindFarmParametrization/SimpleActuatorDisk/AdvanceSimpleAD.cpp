@@ -3,8 +3,7 @@
 
 using namespace amrex;
 
-void SimpleAD::advance (int lev,
-                  const Geometry& geom,
+void SimpleAD::advance (const Geometry& geom,
                   const Real& dt_advance,
                   MultiFab& cons_in,
                   MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
@@ -75,7 +74,7 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx       = mfi.tilebox();
-          const Box& gbx      = mfi.growntilebox(1);
+        const Box& gbx      = mfi.growntilebox(1);
         auto cons_array     = cons_in.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
         auto u_vel          = U_old.array(mfi);
@@ -92,18 +91,12 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
             Real x1 = ProbLoArr[0] + ii     * dx[0];
             Real x2 = ProbLoArr[0] + (ii+1) * dx[0];
 
-            Real x = ProbLoArr[0] + (ii+0.5) * dx[0];
             Real y = ProbLoArr[1] + (jj+0.5) * dx[1];
             Real z = ProbLoArr[2] + (kk+0.5) * dx[2];
 
             // Compute Simple AD source terms
 
-            Real Vabs = std::pow(u_vel(i,j,k)*u_vel(i,j,k) +
-                                 v_vel(i,j,k)*v_vel(i,j,k) +
-                                 w_vel(i,j,kk)*w_vel(i,j,kk), 0.5);
-
             Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-
 
             Real fac = 0.0;
             int check_int = 0;
