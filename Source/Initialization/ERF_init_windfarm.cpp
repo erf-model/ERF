@@ -14,7 +14,7 @@ using namespace amrex;
 
 // Explicit instantiation
 
-void 
+void
 ERF::init_windfarm (int lev)
 {
     if(solverChoice.windfarm_loc_type == WindFarmLocType::lat_lon) {
@@ -24,11 +24,11 @@ ERF::init_windfarm (int lev)
                              solverChoice.latitude_lo, solverChoice.longitude_lo);
     } else if(solverChoice.windfarm_loc_type == WindFarmLocType::x_y) {
         windfarm->read_tables(solverChoice.windfarm_loc_table,
-                             solverChoice.windfarm_spec_table, 
-							 true, false);
+                             solverChoice.windfarm_spec_table,
+                             true, false);
     }
 
-	windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
+    windfarm->fill_Nturb_multifab(geom[lev], Nturb[lev]);
 
     windfarm->write_turbine_locations_vtk();
 
@@ -46,6 +46,6 @@ ERF::advance_windfarm (int lev,
                        MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb,
                        SolverChoice& solver_choice)
 {
-	windfarm->advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
+    windfarm->advance(lev, geom, dt_advance, cons_in, U_old, V_old, W_old,
                       mf_vars_windfarm, mf_Nturb);
 }

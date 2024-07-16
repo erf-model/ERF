@@ -450,7 +450,7 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
-	// Initialize the windfarm object
+    // Initialize the windfarm object
     void initializeWindFarm (const int&);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells

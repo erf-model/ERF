@@ -44,22 +44,24 @@ Real compute_Aijk(const Real z_k,
 }
 
 
-void fitch_advance (int lev,
+void
+Fitch::advance (int lev,
                     const Geometry& geom,
                     const Real& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
                     MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
 {
-    fitch_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch, mf_Nturb);
-    fitch_update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
+    source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch, mf_Nturb);
+    update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
 
 
-void fitch_update (const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& U_old, MultiFab& V_old,
-                  const MultiFab& mf_vars_fitch)
+void
+Fitch::update (const Real& dt_advance,
+               MultiFab& cons_in,
+               MultiFab& U_old, MultiFab& V_old,
+               const MultiFab& mf_vars_fitch)
 {
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -89,11 +91,15 @@ void fitch_update (const Real& dt_advance,
     }
 }
 
-void fitch_source_terms_cellcentered (const Geometry& geom,
-                                      const MultiFab& cons_in,
-                                      const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                      MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
+void
+Fitch::source_terms_cellcentered (const Geometry& geom,
+                                        const MultiFab& cons_in,
+                                        const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
+                                        MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
 {
+
+  get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  d_wind_speed, d_thrust_coeff, d_power);
 
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();

@@ -6,22 +6,24 @@
 using namespace amrex;
 
 
-void ewp_advance (int lev,
-                  const Geometry& geom,
-                  const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                  MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
+void
+EWP::advance (int lev,
+              const Geometry& geom,
+              const Real& dt_advance,
+              MultiFab& cons_in,
+              MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
+              MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
  {
-    ewp_source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_ewp, mf_Nturb);
-    ewp_update(dt_advance, cons_in, U_old, V_old, mf_vars_ewp);
+    source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_ewp, mf_Nturb);
+    update(dt_advance, cons_in, U_old, V_old, mf_vars_ewp);
 }
 
 
-void ewp_update (const Real& dt_advance,
-                  MultiFab& cons_in,
-                  MultiFab& U_old, MultiFab& V_old,
-                  const MultiFab& mf_vars_ewp)
+void
+EWP::update (const Real& dt_advance,
+             MultiFab& cons_in,
+             MultiFab& U_old, MultiFab& V_old,
+             const MultiFab& mf_vars_ewp)
 {
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -51,11 +53,15 @@ void ewp_update (const Real& dt_advance,
     }
 }
 
-void ewp_source_terms_cellcentered (const Geometry& geom,
-                                      const MultiFab& cons_in,
-                                      const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                      MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
+void
+EWP::source_terms_cellcentered (const Geometry& geom,
+                                const MultiFab& cons_in,
+                                const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
+                                MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb)
 {
+
+  get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  d_wind_speed, d_thrust_coeff, d_power);
 
   auto dx = geom.CellSizeArray();
   auto ProbHiArr = geom.ProbHiArray();

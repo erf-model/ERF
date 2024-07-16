@@ -10,11 +10,6 @@ void SimpleAD::advance (int lev,
                   MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
                   MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
 {
-
-	std::cout << "Values of " << this->rotor_rad << " " << this->hub_height << "\n";
-
-	exit(0);
-
     source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_simpleAD, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
@@ -54,28 +49,33 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                           MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
 {
 
-  auto dx = geom.CellSizeArray();
-  auto ProbHiArr = geom.ProbHiArray();
-  auto ProbLoArr = geom.ProbLoArray();
-  Real d_rotor_rad = rotor_rad;
-  Real d_hub_height = hub_height;
+    get_turb_loc(d_xloc, d_yloc);
+    get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  d_wind_speed, d_thrust_coeff, d_power);
+
+
+      auto dx = geom.CellSizeArray();
+      auto ProbHiArr = geom.ProbHiArray();
+      auto ProbLoArr = geom.ProbLoArray();
+      Real d_rotor_rad = rotor_rad;
+      Real d_hub_height = hub_height;
 
   // Domain valid box
-  const amrex::Box& domain = geom.Domain();
-  int domlo_x = domain.smallEnd(0);
-  int domhi_x = domain.bigEnd(0) + 1;
-  int domlo_y = domain.smallEnd(1);
-  int domhi_y = domain.bigEnd(1) + 1;
-  int domlo_z = domain.smallEnd(2);
-  int domhi_z = domain.bigEnd(2) + 1;
+      const amrex::Box& domain = geom.Domain();
+      int domlo_x = domain.smallEnd(0);
+      int domhi_x = domain.bigEnd(0) + 1;
+      int domlo_y = domain.smallEnd(1);
+      int domhi_y = domain.bigEnd(1) + 1;
+      int domlo_z = domain.smallEnd(2);
+      int domhi_z = domain.bigEnd(2) + 1;
 
-  // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
-  mf_vars_simpleAD.setVal(0.0);
+      // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
+      mf_vars_simpleAD.setVal(0.0);
 
-  for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+    for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
         const Box& bx       = mfi.tilebox();
-        const Box& gbx      = mfi.growntilebox(1);
+          const Box& gbx      = mfi.growntilebox(1);
         auto cons_array     = cons_in.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
         auto u_vel          = U_old.array(mfi);
@@ -107,9 +107,10 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
             Real fac = 0.0;
             int check_int = 0;
-            for(int it=0;it<xloc.size();it++){
-                if(xloc[it]+1e-12 > x1 and xloc[it]+1e-12 < x2) {
-                   if(std::pow((y-yloc[it])*(y-yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
+
+            for(int it=0;it<d_xloc.size();it++){
+                if(d_xloc[it]+1e-12 > x1 and d_xloc[it]+1e-12 < x2) {
+                   if(std::pow((y-d_yloc[it])*(y-d_yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
                         check_int++;
                         fac = -2.0*std::pow(u_vel(i,j,k)*std::cos(phi) + v_vel(i,j,k)*std::sin(phi), 2.0)*0.5*(1.0-0.5);
                     }

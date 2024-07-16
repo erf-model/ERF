@@ -19,21 +19,21 @@ WindFarm::read_tables (std::string windfarm_loc_table,
                          const Real latitude_lo,
                          const Real longitude_lo)
 {
-	std::cout << "Reading tables " << "\n";
-	read_windfarm_locations_table(windfarm_loc_table,
-							 	  x_y, lat_lon,
-								  latitude_lo,longitude_lo);
+    std::cout << "Reading tables " << "\n";
+    read_windfarm_locations_table(windfarm_loc_table,
+                                   x_y, lat_lon,
+                                  latitude_lo,longitude_lo);
 
     read_windfarm_spec_table(windfarm_spec_table);
 }
 
-void 
+void
 WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
-										   bool x_y, bool lat_lon,
-										   const Real latitude_lo,
-										   const Real longitude_lo)
+                                           bool x_y, bool lat_lon,
+                                           const Real latitude_lo,
+                                           const Real longitude_lo)
 {
-	if(x_y) {
+    if(x_y) {
         init_windfarm_x_y(windfarm_loc_table);
     }
     else if(lat_lon) {
@@ -48,6 +48,8 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
     d_yloc.resize(yloc.size());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
     amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
+
+    set_turb_loc(d_xloc, d_yloc);
 }
 
 
@@ -199,11 +201,15 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
     Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
     Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
     Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
+
+    set_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  d_wind_speed, d_thrust_coeff, d_power);
+
 }
 
 void
 WindFarm::fill_Nturb_multifab(const Geometry& geom,
-							  MultiFab& mf_Nturb)
+                              MultiFab& mf_Nturb)
 {
     Real* d_xloc_ptr     = d_xloc.data();
     Real* d_yloc_ptr     = d_yloc.data();
