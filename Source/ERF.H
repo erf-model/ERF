@@ -666,9 +666,7 @@ private:
 
     // Variables for wind farm parametrization models
 
-#ifdef ERF_USE_WINDFARM
     std::unique_ptr<WindFarm> windfarm;
-#endif
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
