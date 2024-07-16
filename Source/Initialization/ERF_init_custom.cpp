@@ -94,8 +94,8 @@ ERF::init_custom (int lev)
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoKE_comp,    RhoKE_comp,    1, cons_pert.nGrow());
     }
 
-    // RhoQKE is only relevant if using MYNN2.5 or YSU
-    if (solverChoice.turbChoice[lev].pbl_type == PBLType::None) {
+    // RhoQKE is only relevant if using MYNN2.5
+    if (solverChoice.turbChoice[lev].pbl_type != PBLType::MYNN25) {
         lev_new[Vars::cons].setVal(0.0,RhoQKE_comp,1);
     } else {
         MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoQKE_comp,   RhoQKE_comp,   1, cons_pert.nGrow());

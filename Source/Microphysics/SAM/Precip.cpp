@@ -48,7 +48,6 @@ SAM::Precip (const SolverChoice& sc)
 
     // get the temperature, dentisy, theta, qt and qp from input
     for ( MFIter mfi(*(mic_fab_vars[MicVar::tabs]),TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto rho_array   = mic_fab_vars[MicVar::rho]->array(mfi);
         auto theta_array = mic_fab_vars[MicVar::theta]->array(mfi);
         auto tabs_array  = mic_fab_vars[MicVar::tabs]->array(mfi);
         auto pres_array  = mic_fab_vars[MicVar::pres]->array(mfi);
@@ -81,7 +80,7 @@ SAM::Precip (const SolverChoice& sc)
             Real dqc, dqca, dqi, dqia, dqp;
             Real dqpr, dqps, dqpg;
 
-            Real autor, autos;
+            Real auto_r, autos;
             Real accrcr, accrcs, accris, accrcg, accrig;
 
             // Work to be done for autoc/accr or evap
@@ -114,9 +113,9 @@ SAM::Precip (const SolverChoice& sc)
                     accrig = 0.0;
 
                     if (qcc > qcw0) {
-                        autor = alphaelq;
+                        auto_r = alphaelq;
                     } else {
-                        autor = 0.0;
+                        auto_r = 0.0;
                     }
 
                     if (qii > qci0) {
@@ -140,7 +139,7 @@ SAM::Precip (const SolverChoice& sc)
                     }
 
                     // Autoconversion & accretion (sink for cloud comps)
-                    dqca = dtn * autor  * (qcc-qcw0);
+                    dqca = dtn * auto_r  * (qcc-qcw0);
                     dprc = dtn * accrcr * qcc * std::pow(qpr, powr1);
                     dpsc = dtn * accrcs * qcc * std::pow(qps, pows1);
                     dpgc = dtn * accrcg * qcc * std::pow(qpg, powg1);
@@ -235,5 +234,3 @@ SAM::Precip (const SolverChoice& sc)
         });
     }
 }
-
-

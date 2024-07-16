@@ -1,0 +1,79 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 32400.0  # 540 min = 9 h (Cuxart et al. 2006)
+
+amrex.fpe_trap_invalid = 0
+
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# PROBLEM SIZE & GEOMETRY (Cuxart et al. 2006)
+geometry.prob_extent = 25  25  400
+amr.n_cell           =  4   4   64
+
+geometry.is_periodic = 1 1 0
+
+# MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
+zlo.type                    = "Most"
+erf.most.z0                 = 0.1  # from Cuxart et al. 2006
+erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
+erf.most.surf_heating_rate  = -0.25 # [K/h] from Cuxart et al. 2006
+
+zhi.type        = "SlipWall"
+zhi.theta_grad  = 0.01  # [K/m] to match the input sounding
+
+# INITIALIZATION (Cuxart et al. 2006)
+erf.init_type           = "input_sounding"
+erf.init_sounding_ideal = 1
+erf.input_sounding_file = "input_sounding_GABLS1"
+
+# TIME STEP CONTROL
+erf.fixed_dt        = 1.0  # largest stable low Mach dt
+erf.fixed_mri_dt_ratio = 6
+
+# DIAGNOSTICS & VERBOSITY
+erf.sum_interval    = 1       # timesteps between computing mass
+erf.v               = 1       # verbosity in ERF.cpp
+amr.v               = 1       # verbosity in Amr.cpp
+
+# REFINEMENT / REGRIDDING
+amr.max_level       = 0       # maximum level number allowed
+
+# CHECKPOINT FILES
+erf.check_file      = chk        # root name of checkpoint file
+erf.check_int       = -1         # number of timesteps between checkpoints
+
+# PLOTFILES
+erf.plot_file_1     = plt       # prefix of plotfile name
+erf.plot_int_1      = 300        # number of timesteps between plotfiles
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta rhoQKE Kmv Khv
+
+
+# SOLVER CHOICE
+erf.dycore_vert_adv_type   = "Upwind_3rd"
+erf.dryscal_vert_adv_type  = "Upwind_3rd"
+
+erf.molec_diff_type = "None"
+
+erf.use_gravity = true
+
+# Coriolis parameter f = 1.39e-4 s^-1 (Cuxart et al. 2006)
+erf.use_coriolis = true
+erf.latitude = 73.0
+erf.rotational_time_period = 86455.2516813368
+
+# Geostrophic wind (Cuxart et al. 2006)
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 8.0 0.0 0.0
+
+# Turbulence closure
+erf.les_type        = "None"
+
+# NOT USED
+#erf.rho0_trans      = 1.3223 # from Cuxart et al. 2006
+#erf.theta_ref       = 263.5 # from Cuxart et al. 2006
+
+erf.pbl_type    = "MYNN2.5"
+
+# Initial conditions from Beare et al. 2006
+prob.KE_0            = 0.4 # [m2/s2]
+prob.KE_decay_height = 250. # [m]
+prob.KE_decay_order  = 1

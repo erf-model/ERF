@@ -195,7 +195,7 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
                                          Array4<Real> const &pi_hse_arr,
                                          GeometryData const &geomdata,
                                          Array4<const Real> const &z_cc_arr,
-                                         const Real& l_gravity,
+                                         const Real& /*l_gravity*/,
                                          const Real& l_rdOcp,
                                          const bool& l_moist,
                                          InputSoundingData const &inputSoundingData)
@@ -240,22 +240,18 @@ init_bx_scalars_from_input_sounding_hse (const Box &bx,
         p_hse_arr (i, j, k) = getPgivenRTh(rhoTh_k, qv_k);
         pi_hse_arr(i, j, k) = getExnergivenRTh(rhoTh_k, l_rdOcp);
 
-        // Boundary treatment
+        // FOEXTRAP hse arrays
         if (k==0)
         {
-            // set the ghost cell with dz and rho at boundary
-            Real rho_surf =
-                interpolate_1d(z_inp_sound, rho_inp_sound, 0.0, inp_sound_size);
-            p_hse_arr (i, j, k-1) = p_hse_arr(i,j,k) + dz * rho_surf * l_gravity;
-            pi_hse_arr(i, j, k-1) = getExnergivenP(p_hse_arr(i, j, k-1), l_rdOcp);
+            r_hse_arr (i, j, k-1) = r_hse_arr (i,j,k);
+            p_hse_arr (i, j, k-1) = p_hse_arr (i,j,k);
+            pi_hse_arr(i, j, k-1) = pi_hse_arr(i,j,k);
         }
         else if (k==ktop)
         {
-            // set the ghost cell with dz and rho at boundary
-            Real rho_top =
-                interpolate_1d(z_inp_sound, rho_inp_sound, z+dz/2, inp_sound_size);
-            p_hse_arr (i, j, k+1) = p_hse_arr(i,j,k) - dz * rho_top * l_gravity;
-            pi_hse_arr(i, j, k+1) = getExnergivenP(p_hse_arr(i, j, k+1), l_rdOcp);
+            r_hse_arr (i, j, k+1) = r_hse_arr (i,j,k);
+            p_hse_arr (i, j, k+1) = p_hse_arr (i,j,k);
+            pi_hse_arr(i, j, k+1) = pi_hse_arr(i,j,k);
         }
 
         // total nonprecipitating water (Q1) == water vapor (Qv), i.e., there

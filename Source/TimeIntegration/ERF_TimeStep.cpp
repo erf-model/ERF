@@ -65,7 +65,7 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
 
 #ifdef ERF_USE_WW3_COUPLING
     read_waves(lev);
-    send_waves(lev);
+    send_to_ww3(lev);
 #endif
 
     // Advance a single level for a single time step
@@ -85,6 +85,12 @@ ERF::timeStep (int lev, Real time, int /*iteration*/)
         {
             Real strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
+        }
+    }
+
+    if (verbose && lev == 0) {
+        if (solverChoice.moisture_type != MoistureType::None) {
+            amrex::Print() << "Cloud fraction " << time << "  " << cloud_fraction(time) << std::endl;
         }
     }
 }

@@ -398,6 +398,7 @@ public:
                     }
                 }
                 AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                amrex::ignore_unused(found);
                 z_arr(i,j,klo) = zloc;
             });
         }
@@ -443,16 +444,6 @@ public:
             state(i, j, k, Rho_comp) = rho_0;
             state(i, j, k, RhoTheta_comp) = rho_0 * T_0;
         });
-    }
-
-    /**
-     * Function to set constant values for turbulent pertubation calculation
-    */
-    void
-    init_turbPert_const(TurbulentPerturbation& turbPert)
-    {
-        turbPert.tpi_Tinfty = base_parms.T_0;
-        turbPert.tpi_nonDim = 0.042;
     }
 
 protected:

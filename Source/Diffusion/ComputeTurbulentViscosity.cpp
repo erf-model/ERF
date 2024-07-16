@@ -57,6 +57,10 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
     const bool use_most = (most != nullptr);
     const bool use_terrain = (z_phys_nd != nullptr);
 
+    Real inv_Pr_t    = turbChoice.Pr_t_inv;
+    Real inv_Sc_t    = turbChoice.Sc_t_inv;
+    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
+
     // SMAGORINSKY: Fill Kturb for momentum in horizontal and vertical
     //***********************************************************************************
     if (turbChoice.les_type == LESType::Smagorinsky)
@@ -73,6 +77,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
           Box bxcc  = mfi.growntilebox() & domain;
 
           const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
+          const Array4<Real>& hfx_x   = Hfx1.array(mfi);
+          const Array4<Real>& hfx_y   = Hfx2.array(mfi);
+          const Array4<Real>& hfx_z   = Hfx3.array(mfi);
           const Array4<Real const > &cell_data = cons_in.array(mfi);
 
           Array4<Real const> tau11 = Tau11.array(mfi);
@@ -103,6 +110,31 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
 
               mu_turb(i, j, k, EddyDiff::Mom_h) = CsDeltaSqrMsf * cell_data(i, j, k, Rho_comp) * std::sqrt(2.0*SmnSmn);
               mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
+
+              // Calculate SFS quantities
+              Real dtheta_dz;
+              if (use_most && k==klo) {
+                  if (exp_most) {
+                      dtheta_dz = ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                  - cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp) )*dzInv;
+                  } else {
+                      dtheta_dz = 0.5 * (-3 * cell_data(i,j,k  ,RhoTheta_comp)
+                                            / cell_data(i,j,k  ,Rho_comp)
+                                        + 4 * cell_data(i,j,k+1,RhoTheta_comp)
+                                            / cell_data(i,j,k+1,Rho_comp)
+                                        -     cell_data(i,j,k+2,RhoTheta_comp)
+                                            / cell_data(i,j,k+2,Rho_comp) ) * dzInv;
+                  }
+              } else {
+                  dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
+                                    - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
+              }
+              // - heat flux
+              //   (Note: If using ERF_EXPLICIT_MOST_STRESS, the value at k=0 will
+              //    be overwritten when BCs are applied)
+              hfx_x(i,j,k) = 0.0;
+              hfx_y(i,j,k) = 0.0;
+              hfx_z(i,j,k) = -inv_Pr_t*mu_turb(i,j,k,EddyDiff::Mom_v) * dtheta_dz; // (rho*w)' theta' [kg m^-2 s^-1 K]
           });
       }
     }
@@ -168,13 +200,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                     dtheta_dz = 0.5 * ( cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp)
                                       - cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp) )*dzInv;
                 }
-                Real E         = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
-                Real strat     = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
+                Real E              = cell_data(i,j,k,RhoKE_comp) / cell_data(i,j,k,Rho_comp);
+                Real stratification = l_abs_g * dtheta_dz * l_inv_theta0; // stratification
                 Real length;
-                if (strat <= eps) {
+                if (stratification <= eps) {
                     length = DeltaMsf;
                 } else {
-                    length = 0.76 * std::sqrt(E / strat);
+                    length = 0.76 * std::sqrt(E / stratification);
                     // mixing length should be _reduced_ for stable stratification
                     length = amrex::min(length, DeltaMsf);
                     // following WRF, make sure the mixing length isn't too small
@@ -207,12 +239,9 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
         }
     }
 
-    // Extrapolate Kturb in x/y, fill remaining elements (relevent to lev==0)
+    // Extrapolate Kturb in x/y, fill remaining elements (relevant to lev==0)
     //***********************************************************************************
     int ngc(1);
-    Real inv_Pr_t    = turbChoice.Pr_t_inv;
-    Real inv_Sc_t    = turbChoice.Sc_t_inv;
-    Real inv_sigma_k = 1.0 / turbChoice.sigma_k;
     // EddyDiff mapping :   Theta_h     KE_h         QKE_h      Scalar_h    Q_h
     Vector<Real> Factors = {inv_Pr_t, inv_sigma_k, inv_sigma_k, inv_Sc_t, inv_Sc_t}; // alpha = mu/Pr
     Gpu::AsyncVector<Real> d_Factors; d_Factors.resize(Factors.size());
@@ -336,9 +365,13 @@ void ComputeTurbulentViscosityLES (const MultiFab& Tau11, const MultiFab& Tau22,
                 {
                     int indx   = n;
                     int indx_v = indx + offset;
+
                     mu_turb(i,j,k,indx)   = mu_turb(i,j,k,EddyDiff::Mom_h) * fac_ptr[indx-1];
+
                     // NOTE: Theta_v has already been set for Deardorff
-                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    if (!(indx_v == EddyDiff::Theta_v && use_KE)) {
+                        mu_turb(i,j,k,indx_v) = mu_turb(i,j,k,indx);
+                    }
                 });
                 break;
           }

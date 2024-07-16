@@ -9,7 +9,7 @@ using namespace amrex;
 /**
  * Function for computing the advective tendency for the momentum equations
  * This routine has explicit expressions for all cases (terrain or not) when
- * the horizontal and vertial spatial orders are <= 2, and calls more specialized
+ * the horizontal and vertical spatial orders are <= 2, and calls more specialized
  * functions when either (or both) spatial order(s) is greater than 2.
  *
  * @param[in] bxx box over which the x-momentum is updated

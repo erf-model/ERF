@@ -300,9 +300,15 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
             }
         };
 
+        bool ismoist = (solverChoice.moisture_type != MoistureType::None);
+
         // Note: All derived variables must be computed in order of "derived_names" defined in ERF.H
         calculate_derived("soundspeed",  vars_new[lev][Vars::cons], derived::erf_dersoundspeed);
-        calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        if (ismoist) {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dermoisttemp);
+        } else {
+            calculate_derived("temp",        vars_new[lev][Vars::cons], derived::erf_dertemp);
+        }
         calculate_derived("theta",       vars_new[lev][Vars::cons], derived::erf_dertheta);
         calculate_derived("KE",          vars_new[lev][Vars::cons], derived::erf_derKE);
         calculate_derived("QKE",         vars_new[lev][Vars::cons], derived::erf_derQKE);
@@ -1001,7 +1007,7 @@ ERF::WritePlotFile (int which, Vector<std::string> plot_var_names)
                 {
                     Real       qv = S_arr(i,j,k,RhoQ1_comp) / S_arr(i,j,k,Rho_comp);
                     Real       T  = getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv);
+                    Real pressure = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp), qv) * Real(0.01);
                     erf_qsatw(T, pressure, derdat(i,j,k,mf_comp));
                 });
             }

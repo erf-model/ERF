@@ -14,7 +14,7 @@ amrex_probinit (
 Problem::Problem ()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("U_0", parms.U_0);
   pp.query("V_0", parms.V_0);
   pp.query("W_0", parms.W_0);
@@ -51,7 +51,7 @@ Problem::init_custom_pert (
 
     AMREX_ALWAYS_ASSERT(bx.length()[2] == khi+1);
 
-    amrex::ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         // Set scalar = 0 everywhere
         state_pert(i, j, k, RhoScalar_comp) = 0.0;
@@ -63,13 +63,13 @@ Problem::init_custom_pert (
     });
 
     // Set the x-velocity
-    amrex::ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=, parms_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
-        x_vel_pert(i, j, k) = parms.U_0;
+        x_vel_pert(i, j, k) = parms_d.U_0;
     });
 
     // Set the y-velocity
-    amrex::ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         y_vel_pert(i, j, k) = 0.0;
     });
@@ -81,7 +81,7 @@ Problem::init_custom_pert (
     dxInv[2] = 1. / dx[2];
 
     // Set the z-velocity from impenetrable condition
-    amrex::ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         z_vel_pert(i, j, k) = WFromOmega(i, j, k, 0.0, x_vel_pert, y_vel_pert, z_nd, dxInv);
     });
@@ -98,7 +98,7 @@ Problem::init_custom_terrain (
 
     // Check if a valid csv file exists for the terrain
     std::string fname;
-    amrex::ParmParse pp("erf");
+    ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
     if (valid_fname) {
         this->read_custom_terrain(fname,geom,z_phys_nd,time);

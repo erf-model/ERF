@@ -126,8 +126,8 @@ ERF::sum_integrated_quantities (Real time)
         // The first data log only holds scalars
         if (NumDataLogs() > 0)
         {
-            int nd = 0;
-            std::ostream& data_log1 = DataLog(nd);
+            int n_d = 0;
+            std::ostream& data_log1 = DataLog(n_d);
             if (data_log1.good()) {
                 if (time == 0.0) {
                     data_log1 << std::setw(datwidth) << "          time";
@@ -167,6 +167,74 @@ ERF::sum_integrated_quantities (Real time)
             sample_lines(lev, time, SampleLine(i), vars_new[lev][Vars::cons]);
         }
     }
+}
+
+Real
+ERF::cloud_fraction (Real /*time*/)
+{
+    BL_PROFILE("ERF::cloud_fraction()");
+
+    int lev = 0;
+    // This holds all of qc
+    MultiFab qc(vars_new[lev][Vars::cons],make_alias,RhoQ2_comp,1);
+
+    int direction = 2; // z-direction
+    Box const& domain = geom[lev].Domain();
+
+    auto const& qc_arr = qc.const_arrays();
+
+    // qc_2d is an BaseFab<int> holding the max value over the column
+    auto qc_2d = ReduceToPlane<ReduceOpMax,int>(direction, domain, qc,
+         [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) -> int
+         {
+             if (qc_arr[box_no](i,j,k) > 0) {
+                 return 1;
+             } else {
+                 return 0;
+             }
+         });
+
+    auto* p = qc_2d.dataPtr();
+
+    Long numpts = qc_2d.numPts();
+
+    AMREX_ASSERT(numpts < Long(std::numeric_limits<int>::max));
+
+#if 1
+    if (ParallelDescriptor::UseGpuAwareMpi()) {
+        ParallelDescriptor::ReduceIntMax(p,static_cast<int>(numpts));
+    } else {
+        Gpu::PinnedVector<int> hv(numpts);
+        Gpu::copyAsync(Gpu::deviceToHost, p, p+numpts, hv.data());
+        Gpu::streamSynchronize();
+        ParallelDescriptor::ReduceIntMax(hv.data(),static_cast<int>(numpts));
+        Gpu::copyAsync(Gpu::hostToDevice, hv.data(), hv.data()+numpts, p);
+    }
+
+    // Sum over component 0
+    Long num_cloudy = qc_2d.template sum<RunOn::Device>(0);
+
+#else
+    //
+    // We need this if we allow domain decomposition in the vertical
+    //    but for now we leave it commented out
+    //
+    Long num_cloudy = Reduce::Sum<Long>(numpts,
+         [=] AMREX_GPU_DEVICE (Long i) -> Long {
+             if (p[i] == 1) {
+                 return 1;
+             } else {
+                 return 0;
+             }
+         });
+    ParallelDescriptor::ReduceLongSum(num_cloudy);
+#endif
+
+    Real num_total = qc_2d.box().d_numPts();
+
+    Real cloud_frac = num_cloudy / num_total;
+
+    return cloud_frac;
 }
 
 /**

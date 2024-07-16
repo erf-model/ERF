@@ -457,7 +457,7 @@ Notes
      * | If **erf.fixed_mri_dt_ratio** is specified but is not an even positive integer
      * | If **erf.fixed_dt** and **erf.fast_fixed_dt** are specified and the ratio of **fixed_dt** to **fast_fixed_dt**
          is not an even positive integer
-     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsitent
+     * | If **erf.fixed_dt** and **erf.fast_fixed_dt** and **erf.fixed_mri_dt_ratio** are all specified but are inconsistent
 
    * | Once the slow timestep is set and the inputs are allowed per the above criteria,
        the fast timestep is computed in one of several ways:
@@ -568,21 +568,23 @@ List of Parameters
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
 |                               | of steps between |                |                |
-|                               | ouputs           |                |                |
+|                               | outputs          |                |                |
 +-------------------------------+------------------+----------------+----------------+
-| **erf.interp_profiles_to_cc** | Interpolate all  | Boolean        | true           |
-|                               | outputs to cell  |                |                |
-|                               | centers          |                |                |
+| **erf.destag_profiles**       | Interpolate all  | Boolean        | true           |
+|                               | outputs to       |                |                |
+|                               | cell-center      |                |                |
+|                               | heights          |                |                |
 +-------------------------------+------------------+----------------+----------------+
 
 By default, all profiles are planar-averaged quantities :math:`\langle\cdot\rangle`
-interpolated to cell centers. Setting ``erf.interp_profiles_to_cc = false`` will
-keep vertically staggered quantities on z faces (quantities already at cell
-centers or on x/y faces will remain at those locations). Note that all output
-quantities--whether cell-centered or face-centered--will be output on the
-staggered grid. The user should discard the highest z level (corresponding to
-the z-dir ``amr.n_cell`` + 1) for cell-centered quantities. Staggered quantities
-are indicated below.
+that are destaggered by interpolating to cell centers where appropriate.
+Setting ``erf.destag_profiles = false`` will
+keep vertically staggered quantities on z faces -- quantities already at cell
+centers or on x/y faces will remain at those locations. Note that all output
+quantities -- whether cell-centered or face-centered -- will be output on the
+staggered grid. The user should discard values at the highest z level
+(corresponding to the z-dir of ``amr.n_cell`` + 1) for destaggered quantities.
+Staggered quantities are indicated below.
 
 The requested output files have the following columns:
 
@@ -613,7 +615,21 @@ The requested output files have the following columns:
 
   #. Total (moist) potential temperature, :math:`\langle \theta \rangle` (K)
 
-  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) for the subgrid model
+  #. Turbulent kinetic energy (TKE), :math:`\langle k \rangle` (m2/s2) from the Deardorff subgrid model only
+
+  #. Eddy diffusivity, :math:`\langle K \rangle` (kg/(m-s)) from the subgrid model
+
+  #. Water vapor mixing ratio, :math:`\langle q_v \rangle` (kg/kg) from the microphysics model
+
+  #. Cloud water mixing ratio, :math:`\langle q_c \rangle` (kg/kg) from the microphysics model
+
+  #. Rain water mixing ratio, :math:`\langle q_r \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Ice mixing ratio, :math:`\langle q_i \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Snow mixing ratio, :math:`\langle q_s \rangle` (kg/kg) from the microphysics model, if available
+
+  #. Graupel mixing ratio, :math:`\langle q_g \rangle` (kg/kg) from the microphysics model, if available
 
 * Vertical flux profiles
 
@@ -653,6 +669,14 @@ The requested output files have the following columns:
   #. Y-direction pressure transport of TKE, :math:`\langle p^\prime v^\prime \rangle` (m3/s3)
 
   #. *Z-direction pressure transport of TKE*, :math:`\langle p^\prime w^\prime \rangle` (m3/s3) -- *staggered*
+
+  #. *Z-direction flux of water vapor*, :math:`\langle q_v^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction flux of cloud water*, :math:`\langle q_c^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction flux of rain water*, :math:`\langle q_r^\prime w^\prime \rangle` (m/s) -- *staggered*
+
+  #. *Z-direction virtual temperature flux*, :math:`\langle w^\prime \theta_v^\prime \rangle` (K m/s) -- *staggered*
 
 * Modeled subgrid-scale (SGS) profiles
 
