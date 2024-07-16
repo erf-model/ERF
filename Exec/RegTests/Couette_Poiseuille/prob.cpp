@@ -13,7 +13,7 @@ amrex_probinit(
 Problem::Problem()
 {
   // Parse params
-  amrex::ParmParse pp("prob");
+  ParmParse pp("prob");
   pp.query("rho_0", parms.rho_0);
   pp.query("u_0", parms.u_0);
   pp.query("v_0", parms.v_0);
@@ -63,49 +63,49 @@ Problem::init_custom_pert(
     // Couette flow
     if (parms.prob_type == 1) {
 
-        ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(xbx, [=, pamrs_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
             const Real z = (k + 0.5) * dx[2];
-            x_vel_pert(i, j, k) = parms.u_0 * z / prob_hi[2];
+            x_vel_pert(i, j, k) = parms_d.u_0 * z / prob_hi[2];
         });
 
-        ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        ParallelFor(ybx, [=, pamrs_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const prob_hi  = geomdata.ProbHi();
             const auto *const dx       = geomdata.CellSize();
             const Real z = (k + 0.5) * dx[2];
-            y_vel_pert(i, j, k) = parms.v_0 * z / prob_hi[2];
+            y_vel_pert(i, j, k) = parms_d.v_0 * z / prob_hi[2];
         });
 
-        ParallelFor(zbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            z_vel_pert(i, j, k) = parms.w_0;
+        ParallelFor(zbx, [=, pamrs_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            z_vel_pert(i, j, k) = parms_d.w_0;
         });
 
     // Poiseuille flow
     } else if (parms.prob_type == 10 || parms.prob_type == 11) {
 
-        ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(xbx, [=, pamrs_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx      = geomdata.CellSize();
             const Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
 
             // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
-            if (parms.prob_type == 10) {
+            if (parms_d.prob_type == 10) {
                 x_vel_pert(i, j, k) = 1.0 - z_h * z_h;
             } else {
                 x_vel_pert(i, j, k) = 0.0;
             }
         });
 
-        ParallelFor(ybx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        ParallelFor(ybx, [=, pamrs_d=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             const Real* prob_lo = geomdata.ProbLo();
             const Real* dx      = geomdata.CellSize();
             const Real z_h = prob_lo[2] + (k + 0.5) *  dx[2];
 
             // Set the x-velocity to be a parabolic profile with max 1 at z = 0 and 0 at z = +/-1
-            if (parms.prob_type == 11) {
+            if (parms_d.prob_type == 11) {
                y_vel_pert(i, j, k) = 1.0 - z_h * z_h;
             } else {
                y_vel_pert(i, j, k) = 0.0;

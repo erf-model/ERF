@@ -222,7 +222,7 @@ Problem::init_custom_pert (
       {
           Real rand_double = amrex::Random(engine); // Between 0.0 and 1.0
           Real z_vel_prime = (rand_double*2.0 - 1.0)*parms_d.W_0_Pert_Mag;
-          z_vel_pert(i, j, k) = parms.W_0 + z_vel_prime;
+          z_vel_pert(i, j, k) = parms_d.W_0 + z_vel_prime;
       }
   });
 }
