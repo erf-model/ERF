@@ -10,8 +10,11 @@ void
 EWP::advance (const Geometry& geom,
               const Real& dt_advance,
               MultiFab& cons_in,
-              MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-              MultiFab& mf_vars_ewp, const MultiFab& mf_Nturb)
+              MultiFab& mf_vars_ewp,
+              MultiFab& U_old,
+              MultiFab& V_old,
+              MultiFab& W_old,
+              const MultiFab& mf_Nturb)
  {
     source_terms_cellcentered(geom, cons_in, mf_vars_ewp, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_ewp);

@@ -46,10 +46,13 @@ Real compute_Aijk(const Real z_k,
 
 void
 Fitch::advance (const Geometry& geom,
-                    const Real& dt_advance,
-                    MultiFab& cons_in,
-                    MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                    MultiFab& mf_vars_fitch, const MultiFab& mf_Nturb)
+                const Real& dt_advance,
+                MultiFab& cons_in,
+                MultiFab& mf_vars_fitch,
+                MultiFab& U_old,
+                MultiFab& V_old,
+                MultiFab& W_old,
+                const MultiFab& mf_Nturb)
 {
     source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
