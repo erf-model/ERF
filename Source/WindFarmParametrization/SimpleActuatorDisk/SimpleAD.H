@@ -9,6 +9,10 @@ class SimpleAD : public NullWindFarm {
 
 public:
 
+    SimpleAD() {}
+
+    virtual ~SimpleAD() = default;
+
     void advance (const amrex::Geometry& geom,
                   const amrex::Real& dt_advance,
                   amrex::MultiFab& cons_in,

@@ -17,6 +17,8 @@ public:
 
     WindFarm(){}
 
+    virtual ~WindFarm() = default;
+
     WindFarm (int nlev,
               const WindFarmType& a_windfarm_type)
     {

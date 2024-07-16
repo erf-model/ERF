@@ -12,6 +12,8 @@ public:
 
     NullWindFarm() {}
 
+    virtual ~NullWindFarm() = default;
+
     virtual void advance (const amrex::Geometry& geom,
                         const amrex::Real& dt_advance,
                         amrex::MultiFab& cons_in,
