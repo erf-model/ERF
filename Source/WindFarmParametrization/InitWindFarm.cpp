@@ -219,6 +219,7 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
     int i_lo = geom.Domain().smallEnd(0); int i_hi = geom.Domain().bigEnd(0);
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
     auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
     int num_turb = xloc.size();
 
      // Initialize wind farm
@@ -229,8 +230,6 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
 
-            auto dx = geom.CellSizeArray();
-            auto ProbLoArr = geom.ProbLoArray();
             Real x1 = ProbLoArr[0] + li*dx[0];
             Real x2 = ProbLoArr[0] + (li+1)*dx[0];
             Real y1 = ProbLoArr[1] + lj*dx[1];

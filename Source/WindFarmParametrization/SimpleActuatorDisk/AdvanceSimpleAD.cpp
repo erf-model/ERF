@@ -7,9 +7,9 @@ void SimpleAD::advance (const Geometry& geom,
                   const Real& dt_advance,
                   MultiFab& cons_in,
                   MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                  MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
+                  MultiFab& mf_vars_simpleAD, const MultiFab& mf_Nturb)
 {
-    source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_simpleAD, mf_Nturb);
+    source_terms_cellcentered(geom, cons_in, mf_vars_simpleAD , U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
 
@@ -21,11 +21,9 @@ void SimpleAD::update (const Real& dt_advance,
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        Box bx  = mfi.tilebox();
         Box tbx = mfi.nodaltilebox(0);
         Box tby = mfi.nodaltilebox(1);
 
-        auto cons_array  = cons_in.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
@@ -44,8 +42,9 @@ void SimpleAD::update (const Real& dt_advance,
 
 void SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                           const MultiFab& cons_in,
-                                          const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                          MultiFab& mf_vars_simpleAD, const amrex::MultiFab& mf_Nturb)
+                                          MultiFab& mf_vars_simpleAD,
+                                          const MultiFab& U_old, const MultiFab& V_old,
+                                          const MultiFab& W_old, const MultiFab& mf_Nturb)
 {
 
     get_turb_loc(d_xloc, d_yloc);
@@ -54,7 +53,6 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
 
       auto dx = geom.CellSizeArray();
-      auto ProbHiArr = geom.ProbHiArray();
       auto ProbLoArr = geom.ProbLoArray();
       Real d_rotor_rad = rotor_rad;
       Real d_hub_height = hub_height;
@@ -73,15 +71,11 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& bx       = mfi.tilebox();
         const Box& gbx      = mfi.growntilebox(1);
-        auto cons_array     = cons_in.array(mfi);
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
         auto u_vel          = U_old.array(mfi);
         auto v_vel          = V_old.array(mfi);
-        auto w_vel          = W_old.array(mfi);
-
-        amrex::IntVect lo = bx.smallEnd();
+        //auto w_vel          = W_old.array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
@@ -101,7 +95,7 @@ void SimpleAD::source_terms_cellcentered (const Geometry& geom,
             Real fac = 0.0;
             int check_int = 0;
 
-            for(int it=0;it<d_xloc.size();it++){
+            for(long unsigned int it=0;it<d_xloc.size();it++){
                 if(d_xloc[it]+1e-12 > x1 and d_xloc[it]+1e-12 < x2) {
                    if(std::pow((y-d_yloc[it])*(y-d_yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
                         check_int++;

@@ -23,7 +23,7 @@ public:
     virtual void set_turb_spec(const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
                                const amrex::Real& thrust_coeff_standing, const amrex::Gpu::DeviceVector<amrex::Real>& d_wind_speed,
                                const amrex::Gpu::DeviceVector<amrex::Real>& d_thrust_coeff,
-                                  const amrex::Gpu::DeviceVector<amrex::Real>& d_power)
+                               const amrex::Gpu::DeviceVector<amrex::Real>& d_power)
     {
         m_rotor_rad = rotor_rad;
         m_hub_height = hub_height;

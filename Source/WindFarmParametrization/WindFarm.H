@@ -62,29 +62,29 @@ public:
 
     void write_actuator_disks_vtk();
 
-    void advance (const amrex::Geometry& geom,
+    void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
                   amrex::MultiFab& cons_in,
                   amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
                   amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb) override
     {
-        m_windfarm_model[0]->advance(geom, dt_advance, cons_in, U_old, V_old, W_old,
+        m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, U_old, V_old, W_old,
                                      mf_vars_windfarm, mf_Nturb);
     }
 
-    void set_turb_spec(const amrex::Real& rotor_rad, const amrex::Real& hub_height,
-                       const amrex::Real& thrust_coeff_standing, const amrex::Gpu::DeviceVector<amrex::Real>& d_wind_speed,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& d_thrust_coeff,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& d_power) override
+    void set_turb_spec(const amrex::Real& a_rotor_rad, const amrex::Real& a_hub_height,
+                       const amrex::Real& a_thrust_coeff_standing, const amrex::Gpu::DeviceVector<amrex::Real>& a_d_wind_speed,
+                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_thrust_coeff,
+                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_power) override
     {
-        m_windfarm_model[0]->set_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
-                  d_wind_speed, d_thrust_coeff, d_power);
+        m_windfarm_model[0]->set_turb_spec(a_rotor_rad, a_hub_height, a_thrust_coeff_standing,
+                  a_d_wind_speed, a_d_thrust_coeff, a_d_power);
     }
 
-    void set_turb_loc (const amrex::Gpu::DeviceVector<amrex::Real>& d_xloc,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& d_yloc) override
+    void set_turb_loc (const amrex::Gpu::DeviceVector<amrex::Real>& a_d_xloc,
+                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_yloc) override
     {
-        m_windfarm_model[0]->set_turb_loc(d_xloc, d_yloc);
+        m_windfarm_model[0]->set_turb_loc(a_d_xloc, a_d_yloc);
     }
 
 protected:

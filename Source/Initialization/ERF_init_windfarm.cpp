@@ -38,13 +38,14 @@ ERF::init_windfarm (int lev)
 }
 
 void
-ERF::advance_windfarm (const Geometry& geom,
+ERF::advance_windfarm (const Geometry& a_geom,
                        const Real& dt_advance,
                        MultiFab& cons_in,
-                       MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                       MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb,
-                       SolverChoice& solver_choice)
+                       MultiFab& U_old,
+                       MultiFab& V_old,
+                       MultiFab& W_old,
+                       MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb)
 {
-    windfarm->advance(geom, dt_advance, cons_in, U_old, V_old, W_old,
+    windfarm->advance(a_geom, dt_advance, cons_in, U_old, V_old, W_old,
                       mf_vars_windfarm, mf_Nturb);
 }

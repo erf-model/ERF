@@ -49,9 +49,9 @@ Fitch::advance (const Geometry& geom,
                     const Real& dt_advance,
                     MultiFab& cons_in,
                     MultiFab& U_old, MultiFab& V_old, MultiFab& W_old,
-                    MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
+                    MultiFab& mf_vars_fitch, const MultiFab& mf_Nturb)
 {
-    source_terms_cellcentered(geom, cons_in, U_old, V_old, W_old, mf_vars_fitch, mf_Nturb);
+    source_terms_cellcentered(geom, cons_in, mf_vars_fitch, U_old, V_old, W_old, mf_Nturb);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_fitch);
 }
 
@@ -92,24 +92,21 @@ Fitch::update (const Real& dt_advance,
 
 void
 Fitch::source_terms_cellcentered (const Geometry& geom,
-                                        const MultiFab& cons_in,
-                                        const MultiFab& U_old, const MultiFab& V_old, const MultiFab& W_old,
-                                        MultiFab& mf_vars_fitch, const amrex::MultiFab& mf_Nturb)
+                                  const MultiFab& cons_in,
+                                  MultiFab& mf_vars_fitch,
+                                  const MultiFab& U_old,
+                                  const MultiFab& V_old,
+                                  const MultiFab& W_old,
+                                  const MultiFab& mf_Nturb)
 {
 
   get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
                   d_wind_speed, d_thrust_coeff, d_power);
 
   auto dx = geom.CellSizeArray();
-  auto ProbHiArr = geom.ProbHiArray();
-  auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
-  int domlo_x = domain.smallEnd(0);
-  int domhi_x = domain.bigEnd(0) + 1;
-  int domlo_y = domain.smallEnd(1);
-  int domhi_y = domain.bigEnd(1) + 1;
   int domlo_z = domain.smallEnd(2);
   int domhi_z = domain.bigEnd(2) + 1;
 
@@ -124,30 +121,19 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
   for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
-        const Box& bx = mfi.tilebox();
         const Box& gbx = mfi.growntilebox(1);
-        auto cons_array  = cons_in.array(mfi);
         auto fitch_array = mf_vars_fitch.array(mfi);
         auto Nturb_array = mf_Nturb.array(mfi);
         auto u_vel       = U_old.array(mfi);
         auto v_vel       = V_old.array(mfi);
         auto w_vel       = W_old.array(mfi);
 
-        amrex::IntVect lo = bx.smallEnd();
-
         const Real* wind_speed_d     = d_wind_speed.dataPtr();
         const Real* thrust_coeff_d   = d_thrust_coeff.dataPtr();
         const int n_spec_table = d_wind_speed.size();
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
-            int jj = amrex::min(amrex::max(j, domlo_y), domhi_y);
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
-
-
-            Real x = (ii+0.5) * dx[0];
-            Real y = (jj+0.5) * dx[1];
-            Real z = (kk+0.5) * dx[2];
 
             Real z_k   = kk*dx[2];
             Real z_kp1 = (kk+1)*dx[2];

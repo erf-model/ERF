@@ -94,7 +94,7 @@ ERF::Advance (int lev, Real time, Real dt_lev, int iteration, int /*ncycle*/)
 #if defined(ERF_USE_WINDFARM)
     if (solverChoice.windfarm_type != WindFarmType::None) {
         advance_windfarm(Geom(lev), dt_lev, S_old,
-                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev], solverChoice);
+                         U_old, V_old, W_old, vars_windfarm[lev], Nturb[lev]);
     }
 
 #endif
