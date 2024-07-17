@@ -2,6 +2,7 @@
 #include <WindFarm.H>
 #include <EWP.H>
 #include <IndexDefines.H>
+#include <cmath>
 
 using namespace amrex;
 
