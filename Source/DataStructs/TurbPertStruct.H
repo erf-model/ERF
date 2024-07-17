@@ -20,7 +20,10 @@ struct TurbulentPerturbation {
     // Note: Box will always be initialized at cell centered
     void init_tpi (const int lev,
                    const amrex::IntVect& nx,
-                   amrex::GpuArray<amrex::Real,3> const dx)
+                   const amrex::GpuArray<amrex::Real,3> dx,
+                   const amrex::BoxArray& ba,
+                   const amrex::DistributionMapping& dm,
+                   const int ngrow_state)
 
     {
         amrex::ParmParse pp(pp_prefix);
@@ -86,6 +89,10 @@ struct TurbulentPerturbation {
         pb_local_etime.resize(pb_ba[lev].size(), 0.0);
         pb_amp.resize(pb_ba[lev].size(), 0.0);
 
+        // Creating data array for perturbation amplitude storage
+        pb_cell.define(ba, dm, 1, ngrow_state);
+        pb_cell.setVal(0.);
+
         // Computing perturbation reference length
         tpi_Lpb = tpi_boxDim[0]*dx[0];
         tpi_Wpb = tpi_boxDim[1]*dx[1];
@@ -120,10 +127,13 @@ struct TurbulentPerturbation {
     void calc_tpi_update (const int lev,
                           const amrex::Real dt,
                           amrex::MultiFab& mf_xvel,
-                          amrex::MultiFab& mf_yvel)
+                          amrex::MultiFab& mf_yvel,
+                          amrex::MultiFab& mf_cons)
     {
         // Setting random number generator for update interval
         srand( (unsigned) time(NULL) );
+
+        auto m_ixtype = mf_cons.boxArray().ixType(); // safty step
 
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
@@ -138,6 +148,24 @@ struct TurbulentPerturbation {
 
                 // Trigger amplitude calculation per perturbation box
                 calc_tpi_amp(boxIdx, pb_interval[boxIdx]);
+
+                // Trigger random amplitude storage per cell within perturbation box
+                // Random perturbation is applied as a white noise on the temperature source term
+                // it becomes colored through the filtering of temperature transport equation from
+                // the eddy diffusivity.
+                for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
+                    const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
+                    amrex::Box vbx = mfi.validbox();
+                    amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+                    amrex::Box ubx = pbx & vbx;
+                    if (ubx.ok()) {
+                        amrex::Real amp_copy = pb_amp[boxIdx];
+                        ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                            amrex::Real rand_double = amrex::Random(engine);
+                            pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy; 
+                        });
+                    }
+                }
 
                 // Reset local elapsed time
                 pb_local_etime[boxIdx] = 0.;
@@ -171,8 +199,6 @@ struct TurbulentPerturbation {
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
-        //amrex::Print()<<"["<<boxIdx<<"] tpi_nonDim: "<<tpi_nonDim<<" Um: "<<Um<<" g: "<<g<<" beta: "<<beta<<" tpi_Hpb: "<<tpi_Hpb<<" theta"<<pb_amp[boxIdx]
-        //              <<" interval: "<<interval<<" amp: "<<pb_amp[boxIdx]/interval<< "\n";
         #endif
 
         // Ma & Senocak (2023) Eq. 7
@@ -182,26 +208,22 @@ struct TurbulentPerturbation {
 //#define INDEX_PERTURB
 
     // Applying perturbation amplitude onto source term (Umphrey and Senocak 2016)
-    // Random perturbation is applied as a white noise on the temperature source term
-    // it becomes colored through the filtering of temperature transport equation from
-    // the eddy diffusivity.
+    // This function does per cell application within the box union. Random perturbation
+    // is assigned in calc_tpi_update.
     void apply_tpi (const int lev,
                     const amrex::Box& vbx,                     // box union from upper level
                     const int comp,                            // Component to modify
                     const amrex::IndexType m_ixtype,           // IntVect type of src_arr
-                    const amrex::Array4<amrex::Real>& src_arr) // Array to apply perturbation
+                    const amrex::Array4<amrex::Real> &src_arr, // Array to apply perturbation
+                    const amrex::Array4<amrex::Real const> pert_cell)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                amrex::Real amp_copy = pb_amp[boxIdx];
-                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                    // Random number generation between 0 and 1
-                    amrex::Real rand_double = amrex::Random(engine);
-
-                    // Rescale between -1 and 1 and multiple with amplitude
-                    src_arr(i,j,k,comp) += (rand_double*2.0 - 1.0) * amp_copy;
+                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    //amrex::Print() << "pert_cell[" <<i<< ", "<<j<<", "<<k<<"] = "<< pert_cell(i,j,k,0)<<"\n"; //Sanity Check
+                    src_arr(i,j,k,comp) += pert_cell(i,j,k,0);
 
                     // For box region debug only
                     #ifdef INDEX_PERTURB
@@ -415,6 +437,9 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
     amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
 
+    // Perturbation amplitude cell storage
+    amrex::MultiFab pb_cell; // per cell storage of perturbation amplitude
+
   private:
 
     // Random number generation between range (used for interval calculation)
@@ -448,9 +473,8 @@ struct TurbulentPerturbation {
     amrex::Real tpi_lref;             // PB reference length [m]
 
     // Perturbation data arrays
-    amrex::Vector<amrex::Real> pb_interval;        // PB update time [s]
+    amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
     amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
     amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K] Ec:[K/s]
-
 };
 #endif

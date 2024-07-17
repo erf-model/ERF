@@ -18,13 +18,15 @@ ERF::turbPert_update (const int lev, const Real local_dt)
     auto& lev_new = vars_new[lev];
 
     // Accessing local data
+    MultiFab cons_data(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, lev_new[Vars::cons].nGrowVect());
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab yvel_data(lev_new[Vars::yvel].boxArray(), lev_new[Vars::yvel].DistributionMap(), 1, lev_new[Vars::yvel].nGrowVect());
+    MultiFab::Copy (cons_data, lev_new[Vars::cons], 0, 0, 1, lev_new[Vars::cons].nGrowVect());
     MultiFab::Copy (xvel_data, lev_new[Vars::xvel], 0, 0, 1, lev_new[Vars::xvel].nGrowVect());
     MultiFab::Copy (yvel_data, lev_new[Vars::yvel], 0, 0, 1, lev_new[Vars::yvel].nGrowVect());
 
     // Computing perturbation update time
-    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data);
+    turbPert.calc_tpi_update(lev, local_dt, xvel_data, yvel_data, cons_data);
 
     Print() << "Successfully initialized turbulent perturbation update time and amplitude\n";
 }
@@ -59,36 +61,38 @@ ERF::turbPert_amplitude (int lev)
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box &bx  = mfi.validbox();
-        const Box &xbx = mfi.tilebox(IntVect(1,0,0));
-        const Box &ybx = mfi.tilebox(IntVect(0,1,0));
-        const Box &zbx = mfi.tilebox(IntVect(0,0,1));
+        //const Box &xbx = mfi.tilebox(IntVect(1,0,0));
+        //const Box &ybx = mfi.tilebox(IntVect(0,1,0));
+        //const Box &zbx = mfi.tilebox(IntVect(0,0,1));
 
         // Perturbation on to different components
         const auto &cons_pert_arr = cons_pert.array(mfi);
-        const auto &xvel_pert_arr = xvel_pert.array(mfi);
-        const auto &yvel_pert_arr = yvel_pert.array(mfi);
-        const auto &zvel_pert_arr = zvel_pert.array(mfi);
+        //const auto &xvel_pert_arr = xvel_pert.array(mfi);
+        //const auto &yvel_pert_arr = yvel_pert.array(mfi);
+        //const auto &zvel_pert_arr = zvel_pert.array(mfi);
 
         Array4<Real const> cons_arr = lev_new[Vars::cons].const_array(mfi);
-        Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
-        Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
+        //Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
+        //Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
-        Array4<Real const> mf_m = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_u = mapfac_m[lev]->array(mfi);
-        Array4<Real const> mf_v = mapfac_m[lev]->array(mfi);
+        //Array4<Real const> mf_m = mapfac_m[lev]->array(mfi);
+        //Array4<Real const> mf_u = mapfac_m[lev]->array(mfi);
+        //Array4<Real const> mf_v = mapfac_m[lev]->array(mfi);
 
-        Array4<Real> r_hse_arr = r_hse.array(mfi);
-        Array4<Real> p_hse_arr = p_hse.array(mfi);
+        //Array4<Real> r_hse_arr = r_hse.array(mfi);
+        //Array4<Real> p_hse_arr = p_hse.array(mfi);
 
-        turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cons_pert_arr);
+        const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell.array(mfi);
+        turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cons_pert_arr, pert_cell);
 
-        prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
+        /*prob->init_custom_pert(bx, xbx, ybx, zbx, cons_arr, cons_pert_arr,
                                xvel_pert_arr, yvel_pert_arr, zvel_pert_arr,
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
+       */ 
     } // mfi
 
     // This initialization adds the initial perturbation direction on the RhoTheta field
-    MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
+    //MultiFab::Add(lev_new[Vars::cons], cons_pert, RhoTheta_comp, RhoTheta_comp, 1, cons_pert.nGrow());
 }
