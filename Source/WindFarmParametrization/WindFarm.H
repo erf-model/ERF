@@ -65,8 +65,11 @@ public:
     void advance (const amrex::Geometry& a_geom,
                   const amrex::Real& dt_advance,
                   amrex::MultiFab& cons_in,
-                  amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                  amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb) override
+                  amrex::MultiFab& mf_vars_windfarm,
+                  amrex::MultiFab& U_old,
+                  amrex::MultiFab& V_old,
+                  amrex::MultiFab& W_old,
+                  const amrex::MultiFab& mf_Nturb) override
     {
         m_windfarm_model[0]->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
                                      U_old, V_old, W_old, mf_Nturb);

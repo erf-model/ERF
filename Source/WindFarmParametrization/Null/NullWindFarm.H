@@ -14,11 +14,20 @@ public:
 
     virtual ~NullWindFarm() = default;
 
-    virtual void advance (const amrex::Geometry& geom,
+    /*virtual void advance (const amrex::Geometry& geom,
                         const amrex::Real& dt_advance,
                         amrex::MultiFab& cons_in,
                         amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
-                        amrex::MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb) = 0;
+                        amrex::MultiFab& mf_vars_ewp, const amrex::MultiFab& mf_Nturb) = 0;*/
+
+    virtual void advance (const amrex::Geometry& a_geom,
+                  const amrex::Real& dt_advance,
+                  amrex::MultiFab& cons_in,
+                  amrex::MultiFab& mf_vars_windfarm,
+                  amrex::MultiFab& U_old,
+                  amrex::MultiFab& V_old,
+                  amrex::MultiFab& W_old,
+                  const amrex::MultiFab& mf_Nturb) = 0;
 
     virtual void set_turb_spec(const amrex::Real&  rotor_rad, const amrex::Real& hub_height,
                                const amrex::Real& thrust_coeff_standing, const amrex::Gpu::DeviceVector<amrex::Real>& d_wind_speed,

@@ -11,9 +11,11 @@ SimpleAD::advance (const Geometry& geom,
                   MultiFab& U_old,
                   MultiFab& V_old,
                   MultiFab& W_old,
-                  const MultiFab& mf_Nturb)
+                    const MultiFab& mf_Nturb)
 {
-    source_terms_cellcentered(geom, cons_in, mf_vars_simpleAD , U_old, V_old, W_old, mf_Nturb);
+    AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
+    AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
+    source_terms_cellcentered(geom, cons_in, mf_vars_simpleAD , U_old, V_old);
     update(dt_advance, cons_in, U_old, V_old, mf_vars_simpleAD);
 }
 
@@ -47,10 +49,10 @@ SimpleAD::update (const Real& dt_advance,
 
 void
 SimpleAD::source_terms_cellcentered (const Geometry& geom,
-                                          const MultiFab& cons_in,
-                                          MultiFab& mf_vars_simpleAD,
-                                          const MultiFab& U_old, const MultiFab& V_old,
-                                          const MultiFab& W_old, const MultiFab& mf_Nturb)
+                                     const MultiFab& cons_in,
+                                     MultiFab& mf_vars_simpleAD,
+                                     const MultiFab& U_old,
+                                     const MultiFab& V_old)
 {
 
     get_turb_loc(d_xloc, d_yloc);
@@ -81,8 +83,6 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
         auto simpleAD_array = mf_vars_simpleAD.array(mfi);
         auto u_vel          = U_old.array(mfi);
         auto v_vel          = V_old.array(mfi);
-        auto w_vel          = W_old.array(mfi);
-        auto mf_Nturb_array = mf_Nturb.array(mfi);
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
@@ -115,7 +115,7 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                              "and check the windturbine locations input file. Exiting..");
             }
 
-            simpleAD_array(i,j,k,0) = fac*std::cos(phi) + w_vel(i,j,k) - w_vel(i,j,k) + mf_Nturb_array(i,j,k) - mf_Nturb_array(i,j,k);
+            simpleAD_array(i,j,k,0) = fac*std::cos(phi);
             simpleAD_array(i,j,k,1) = fac*std::sin(phi);
          });
     }

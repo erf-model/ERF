@@ -44,8 +44,17 @@ ERF::advance_windfarm (const Geometry& a_geom,
                        MultiFab& U_old,
                        MultiFab& V_old,
                        MultiFab& W_old,
-                       MultiFab& mf_vars_windfarm, const MultiFab& mf_Nturb)
+                       MultiFab& mf_vars_windfarm,
+                       const MultiFab& mf_Nturb)
 {
-    windfarm->advance(a_geom, dt_advance, cons_in, U_old, V_old, W_old,
-                      mf_vars_windfarm, mf_Nturb);
+    if(solverChoice.windfarm_type == WindFarmType::Fitch) {
+        windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
+                          U_old, V_old, W_old, mf_Nturb);
+    } else if (solverChoice.windfarm_type == WindFarmType::EWP) {
+        windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
+                          U_old, V_old, W_old, mf_Nturb);
+    } else if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        windfarm->advance(a_geom, dt_advance, cons_in, mf_vars_windfarm,
+                          U_old, V_old, W_old, mf_Nturb);
+    }
 }
