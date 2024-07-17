@@ -2,7 +2,7 @@
 start_time = 0.
 stop_time = 10.0
 
-max_step = 10
+#max_step = 10
 
 #erf.incompressible = 1
 amrex.fpe_trap_invalid = 1

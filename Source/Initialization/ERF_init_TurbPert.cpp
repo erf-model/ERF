@@ -71,7 +71,7 @@ ERF::turbPert_amplitude (int lev)
         //const auto &yvel_pert_arr = yvel_pert.array(mfi);
         //const auto &zvel_pert_arr = zvel_pert.array(mfi);
 
-        Array4<Real const> cons_arr = lev_new[Vars::cons].const_array(mfi);
+        //Array4<Real const> cons_arr = lev_new[Vars::cons].const_array(mfi);
         //Array4<Real const> z_nd_arr = (solverChoice.use_terrain) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         //Array4<Real const> z_cc_arr = (solverChoice.use_terrain) ? z_phys_cc[lev]->const_array(mfi) : Array4<Real const>{};
 
