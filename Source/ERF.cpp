@@ -1133,7 +1133,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 void
 ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
 {
-    //std::cout << "Solver choice windfarm is " << solverChoice.windfarm_type << "\n";
     windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
 }
 

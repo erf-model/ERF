@@ -1,5 +1,5 @@
 /**
- * \file ERF_init_windfarm.cpp
+ * \file InitWindFarm.cpp
  */
 
 #include <WindFarm.H>
@@ -19,11 +19,12 @@ WindFarm::read_tables (std::string windfarm_loc_table,
                          const Real latitude_lo,
                          const Real longitude_lo)
 {
-    std::cout << "Reading tables " << "\n";
+    amrex::Print() << "Reading wind turbine locations table" << "\n";
     read_windfarm_locations_table(windfarm_loc_table,
                                    x_y, lat_lon,
                                   latitude_lo,longitude_lo);
 
+    amrex::Print() << "Reading wind turbine specifications table" << "\n";
     read_windfarm_spec_table(windfarm_spec_table);
 }
 

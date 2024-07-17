@@ -11,7 +11,7 @@ SimpleAD::advance (const Geometry& geom,
                   MultiFab& U_old,
                   MultiFab& V_old,
                   MultiFab& W_old,
-                    const MultiFab& mf_Nturb)
+                  const MultiFab& mf_Nturb)
 {
     AMREX_ALWAYS_ASSERT(W_old.nComp() > 0);
     AMREX_ALWAYS_ASSERT(mf_Nturb.nComp() > 0);
