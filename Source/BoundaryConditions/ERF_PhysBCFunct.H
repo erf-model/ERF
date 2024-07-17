@@ -104,11 +104,12 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& xvel_bc_data);
 
     void impose_lateral_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp);
+                                  int bccomp, amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& xvel_bc_data);
     void impose_vertical_xvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
@@ -159,11 +160,13 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& yvel_bc_data);
 
     void impose_lateral_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Box& bx, const amrex::Box& domain,
-                                  int bccomp);
+                                  int bccomp,
+                                  amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& yvel_bc_data);
     void impose_vertical_yvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Box& bx, const amrex::Box& domain,
                                    const amrex::Array4<amrex::Real const>& z_nd,
@@ -214,7 +217,8 @@ public:
     * @param[in] use_real_bcs if true then we fill boundary conditions for interior locations
     */
     void operator() (amrex::MultiFab& mf, amrex::MultiFab& xvel, amrex::MultiFab& yvel,
-                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp);
+                     amrex::IntVect const& nghost, const amrex::Real time, int bccomp,
+                     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& zvel_bc_data);
 
     void impose_lateral_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                   const amrex::Array4<amrex::Real const>& xvel_arr,
@@ -222,7 +226,8 @@ public:
                                   const amrex::Box& bx, const amrex::Box& domain,
                                   const amrex::Array4<amrex::Real const>& z_nd,
                                   const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> dxInv,
-                                  int bccomp);
+                                  int bccomp,
+                                  amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>>& zvel_bc_data);
     void impose_vertical_zvel_bcs (const amrex::Array4<amrex::Real>& dest_arr,
                                    const amrex::Array4<amrex::Real const>& xvel_arr,
                                    const amrex::Array4<amrex::Real const>& yvel_arr,

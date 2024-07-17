@@ -1,8 +1,8 @@
 #include <AMReX_Vector.H>
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_ParmParse.H>
-
 #include <ERF.H>
+#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
@@ -96,12 +96,19 @@ void ERF::init_bcs ()
             if (input_bndry_planes && m_r2d->ingested_velocity()) {
                 m_bc_extdir_vals[BCVars::xvel_bc][ori] = 0.;
                 m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.;
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.;
+                m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.; 
             } else {
-                pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
-                m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
-                m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+                // Test for input data file if at xlo face
+                std::string dirichlet_file;
+                auto file_exists = pp.query("dirichlet_file", dirichlet_file);
+                if (ori.isLow() && (ori.coordDir() == 0) && file_exists) {
+                    init_Dirichlet_bc_data(ori, dirichlet_file);
+                } else {
+                    pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
+                    m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
+                    m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
+                    m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+                }
             }
 
             Real rho_in;
@@ -553,3 +560,122 @@ void ERF::init_bcs ()
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }
 
+void ERF::init_Dirichlet_bc_data (Orientation ori,
+                                  const std::string input_file)
+{
+    Print() << "START\n";
+    // Only on coarsest level!
+    int lev = 0;
+  
+    const int klo = 0;
+    const int khi = geom[lev].Domain().bigEnd()[2];
+    const int Nz  = geom[lev].Domain().size()[2];
+    const Real dz = geom[lev].CellSize()[2];
+
+    const bool use_terrain = (zlevels_stag.size() > 0);
+    const Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom[lev].ProbLo(2);
+    const Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom[lev].ProbHi(2);
+
+    Vector<Real> z_inp(Nz+2);
+    Vector<Real> u_inp(Nz+2);
+    Vector<Real> v_inp(Nz+2);
+    Vector<Real> w_inp(Nz+2);
+
+    Vector<Real> z_inp_tmp, u_inp_tmp, v_inp_tmp, w_inp_tmp;
+
+    // Read the dirichlet_input file
+    Print() << "dirichlet_input file location : " << input_file << std::endl;
+    std::ifstream input_reader(input_file);
+    if(!input_reader.is_open()) {
+        Error("Error opening the dirichlet_input file.\n");
+    } else {
+        // Read the contents of the input file
+        Print() << "Successfully opened the dirichlet_input file. Now reading... " << std::endl;
+        std::string line;
+
+        // First, read the input data into temp vectors; then, interpolate vectors to the
+        // domain lo/hi and cell centers (from level 0)
+
+        // Add surface
+        z_inp_tmp.push_back(zbot); // height above sea level [m]
+        u_inp_tmp.push_back(0.);
+        v_inp_tmp.push_back(0.);
+        w_inp_tmp.push_back(0.);
+
+        // Read the vertical profile at each given height
+        Real z, u, v, w;
+        while(std::getline(input_reader, line)) {
+            std::istringstream iss_z(line);
+            iss_z >> z >> u >> v >> w;
+            if (z == zbot) {
+                u_inp_tmp[0] = u;
+                v_inp_tmp[0] = v;
+                w_inp_tmp[0] = w;
+            } else {
+                AMREX_ALWAYS_ASSERT(z > z_inp_tmp[z_inp_tmp.size()-1]); // sounding is increasing in height
+                z_inp_tmp.push_back(z);
+                u_inp_tmp.push_back(u);
+                v_inp_tmp.push_back(v);
+                w_inp_tmp.push_back(w);
+                if (z >= ztop) break;
+            }
+        }
+
+        // At this point, we have an input from zbot up to
+        // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
+        const int Ninp = z_inp_tmp.size();
+        z_inp[0] = zbot;
+        u_inp[0] = u_inp_tmp[0];
+        v_inp[0] = v_inp_tmp[0];
+        w_inp[0] = w_inp_tmp[0];
+        for (int k=0; k < Nz; ++k) {
+            z_inp[k+1] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                       : zbot + (k + 0.5) * dz;
+            u_inp[k+1] = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), z_inp[k+1], Ninp);
+            v_inp[k+1] = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), z_inp[k+1], Ninp);
+            w_inp[k+1] = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), z_inp[k+1], Ninp);
+        }
+        z_inp[Nz+1] = ztop;
+        u_inp[Nz+1] = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), ztop, Ninp);
+        v_inp[Nz+1] = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), ztop, Ninp);
+        w_inp[Nz+1] = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), ztop, Ninp);
+    }
+
+    amrex::Print() << "Successfully read the dirichlet_input file..." << std::endl;
+    input_reader.close();
+    
+    // Populate host vectors at their respective positions (only on lev==0)
+    Vector<Real> zcc(khi+1);
+    Vector<Real> znd(khi+2);
+
+    if (z_phys_cc[lev]) {
+      // use_terrain=1
+      // calculate the damping strength based on the max height at each k
+      reduce_to_max_per_level(zcc, z_phys_cc[lev]);
+      reduce_to_max_per_level(znd, z_phys_nd[lev]);
+    } else {
+      const auto *const prob_lo = geom[lev].ProbLo();
+      const auto *const dx = geom[lev].CellSize();
+      for (int k = 0; k <= khi; k++) {
+          zcc[k] = prob_lo[2] + (k+0.5) * dx[2];
+          znd[k] = prob_lo[2] + (k    ) * dx[2];
+      }
+      znd[khi+1] = prob_lo[2] + (khi+1) * dx[2];
+    }
+
+    Vector<Real> u_dir_h(Nz  ,0.); xvel_bc_data[ori].resize(Nz  ,0.0);
+    Vector<Real> v_dir_h(Nz  ,0.); yvel_bc_data[ori].resize(Nz  ,0.0);
+    Vector<Real> w_dir_h(Nz+1,0.); zvel_bc_data[ori].resize(Nz+1,0.0);
+    for (int k = 0; k <= khi; k++) {
+        u_dir_h[k] = interpolate_1d(z_inp.dataPtr(), u_inp.dataPtr(), zcc[k], Nz  );
+        v_dir_h[k] = interpolate_1d(z_inp.dataPtr(), v_inp.dataPtr(), zcc[k], Nz  );
+        w_dir_h[k] = interpolate_1d(z_inp.dataPtr(), w_inp.dataPtr(), znd[k], Nz+1);
+    }
+    w_dir_h[khi+1] = interpolate_1d(z_inp.dataPtr(), w_inp.dataPtr(), znd[khi+1], Nz+1);
+
+    
+    // Copy from host version to device version
+    Gpu::copy(Gpu::hostToDevice, u_dir_h.begin(), u_dir_h.end(), xvel_bc_data[ori].begin());
+    Gpu::copy(Gpu::hostToDevice, v_dir_h.begin(), v_dir_h.end(), yvel_bc_data[ori].begin());
+    Gpu::copy(Gpu::hostToDevice, w_dir_h.begin(), w_dir_h.end(), zvel_bc_data[ori].begin());
+}

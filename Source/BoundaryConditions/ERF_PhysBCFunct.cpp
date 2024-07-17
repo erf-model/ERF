@@ -91,7 +91,8 @@ void ERFPhysBCFunct_cons::operator() (MultiFab& mf, int icomp, int ncomp,
 } // operator()
 
 void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real time, int bccomp)
+                                   IntVect const& nghost, const Real time, int bccomp,
+                                   Vector<Gpu::DeviceVector<Real>>& xvel_bc_data)
 {
     BL_PROFILE("ERFPhysBCFunct_u::()");
 
@@ -158,7 +159,7 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
                 {
                     if (!gdomainx.contains(xbx1))
                     {
-                        impose_lateral_xvel_bcs(velx_arr,xbx1,domain,bccomp);
+                      impose_lateral_xvel_bcs(velx_arr,xbx1,domain,bccomp, xvel_bc_data);
                     }
                 }
 
@@ -170,7 +171,8 @@ void ERFPhysBCFunct_u::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 } // operator()
 
 void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
-                                   IntVect const& nghost, const Real /*time*/, int bccomp)
+                                   IntVect const& nghost, const Real /*time*/, int bccomp,
+                                   Vector<Gpu::DeviceVector<Real>>& yvel_bc_data)
 {
     BL_PROFILE("ERFPhysBCFunct_v::()");
 
@@ -235,7 +237,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
                 if (!m_use_real_bcs)
                 {
-                    impose_lateral_yvel_bcs(vely_arr,ybx1,domain,bccomp);
+                  impose_lateral_yvel_bcs(vely_arr,ybx1,domain,bccomp, yvel_bc_data);
                 }
 
                 impose_vertical_yvel_bcs(vely_arr,ybx2,domain,z_nd_arr,dxInv,bccomp);
@@ -247,7 +249,7 @@ void ERFPhysBCFunct_v::operator() (MultiFab& mf, int /*icomp*/, int /*ncomp*/,
 
 void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
                                    IntVect const& nghost, const Real /*time*/,
-                                   const int bccomp_w)
+                                   const int bccomp_w, Vector<Gpu::DeviceVector<Real>>& zvel_bc_data)
 {
     BL_PROFILE("ERFPhysBCFunct_w::()");
 
@@ -317,7 +319,7 @@ void ERFPhysBCFunct_w::operator() (MultiFab& mf, MultiFab& xvel, MultiFab& yvel,
             {
                 if (!gdomainz.contains(zbx))
                 {
-                    impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w);
+                  impose_lateral_zvel_bcs(velz_arr,velx_arr,vely_arr,zbx,domain,z_nd_arr,dxInv,bccomp_w,zvel_bc_data);
                 }
             } // m_use_real_bcs
 
