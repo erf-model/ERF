@@ -133,7 +133,7 @@ struct TurbulentPerturbation {
         // Setting random number generator for update interval
         srand( (unsigned) time(NULL) );
 
-        auto m_ixtype = mf_cons.boxArray().ixType(); // safty step
+        auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
 
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
@@ -162,7 +162,7 @@ struct TurbulentPerturbation {
                         amrex::Real amp_copy = pb_amp[boxIdx];
                         ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                             amrex::Real rand_double = amrex::Random(engine);
-                            pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy; 
+                            pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy;
                         });
                     }
                 }

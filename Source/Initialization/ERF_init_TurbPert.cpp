@@ -90,7 +90,7 @@ ERF::turbPert_amplitude (int lev)
                                r_hse_arr, p_hse_arr, z_nd_arr, z_cc_arr,
                                geom[lev].data(), mf_m, mf_u, mf_v,
                                solverChoice);
-       */ 
+       */
     } // mfi
 
     // This initialization adds the initial perturbation direction on the RhoTheta field
