@@ -44,12 +44,7 @@ WindFarm::read_windfarm_locations_table(const std::string windfarm_loc_table,
                      " entry erf.windfarm_loc_table which should not be None. \n");
     }
 
-    d_xloc.resize(xloc.size());
-    d_yloc.resize(yloc.size());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
-    amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
-
-    set_turb_loc(d_xloc, d_yloc);
+    set_turb_loc(xloc, yloc);
 }
 
 
@@ -176,10 +171,6 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
     thrust_coeff.resize(nlines);
     power.resize(nlines);
 
-    d_wind_speed.resize(nlines);
-    d_thrust_coeff.resize(nlines);
-    d_power.resize(nlines);
-
     Real rotor_dia;
     file_turb_table >> hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
     rotor_rad = rotor_dia*0.5;
@@ -198,12 +189,8 @@ WindFarm::read_windfarm_spec_table(const std::string windfarm_spec_table)
     }
     file_turb_table.close();
 
-    Gpu::copy(Gpu::hostToDevice, wind_speed.begin(), wind_speed.end(), d_wind_speed.begin());
-    Gpu::copy(Gpu::hostToDevice, thrust_coeff.begin(), thrust_coeff.end(), d_thrust_coeff.begin());
-    Gpu::copy(Gpu::hostToDevice, power.begin(), power.end(), d_power.begin());
-
     set_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
-                  d_wind_speed, d_thrust_coeff, d_power);
+                  wind_speed, thrust_coeff, power);
 
 }
 
@@ -211,8 +198,8 @@ void
 WindFarm::fill_Nturb_multifab(const Geometry& geom,
                               MultiFab& mf_Nturb)
 {
-    Real* d_xloc_ptr     = d_xloc.data();
-    Real* d_yloc_ptr     = d_yloc.data();
+    Real* xloc_ptr     = xloc.data();
+    Real* yloc_ptr     = yloc.data();
 
     mf_Nturb.setVal(0);
 
@@ -236,8 +223,8 @@ WindFarm::fill_Nturb_multifab(const Geometry& geom,
             Real y2 = ProbLoArr[1] + (lj+1)*dx[1];
 
             for(int it=0; it<num_turb; it++){
-                if( d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2 and
-                    d_yloc_ptr[it]+1e-12 > y1 and d_yloc_ptr[it]+1e-12 < y2){
+                if( xloc_ptr[it]+1e-12 > x1 and xloc_ptr[it]+1e-12 < x2 and
+                    yloc_ptr[it]+1e-12 > y1 and yloc_ptr[it]+1e-12 < y2){
                        Nturb_array(i,j,k,0) = Nturb_array(i,j,k,0) + 1;
                 }
             }

@@ -47,6 +47,32 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
+AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE
+void cell_in_which_act_disk(const Real& y, const Real& z,
+                                    const Real* d_xloc,
+                                       const Real* d_yloc,
+                                    const Real& d_rotor_rad,
+                                    const Real& d_hub_height,
+                                    const Real& x1, const Real& x2)
+{
+    //Vector<int> which_act_disk;
+    /*for(long unsigned int it=0;it<d_xloc.size();it++){
+        if(d_xloc[it]+1e-12 > x1 and d_xloc[it]+1e-12 < x2) {
+            if(std::pow((y-d_yloc[it])*(y-d_yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
+                //which_act_disk.push_back(it);
+            }
+        }
+    }
+    if(which_act_disk.size() > 1){
+        amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
+                      "and check the windturbine locations input file. Exiting..");
+
+    }*/
+    //return which_act_disk;
+}
+
+
 void
 SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& cons_in,
@@ -54,14 +80,15 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& U_old,
                                      const MultiFab& V_old)
 {
-    Gpu::DeviceVector<Real> d_xloc, d_yloc;
-    Real d_rotor_rad, d_hub_height, d_thrust_coeff_standing;
-    Gpu::DeviceVector<Real> d_wind_speed, d_thrust_coeff, d_power;
 
-    get_turb_loc(d_xloc, d_yloc);
-    get_turb_spec(d_rotor_rad, d_hub_height, d_thrust_coeff_standing,
-                  d_wind_speed, d_thrust_coeff, d_power);
+    get_turb_loc(xloc, yloc);
+    get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+                  wind_speed, thrust_coeff, power);
 
+    Gpu::DeviceVector<Real> d_xloc(xloc.size());
+    Gpu::DeviceVector<Real> d_yloc(yloc.size());
+    Gpu::copy(Gpu::hostToDevice, xloc.begin(), xloc.end(), d_xloc.begin());
+    Gpu::copy(Gpu::hostToDevice, yloc.begin(), yloc.end(), d_yloc.begin());
 
       auto dx = geom.CellSizeArray();
       auto ProbLoArr = geom.ProbLoArray();
@@ -77,6 +104,14 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
 
       // The order of variables are - Vabs dVabsdt, dudt, dvdt, dTKEdt
       mf_vars_simpleAD.setVal(0.0);
+
+      Real d_rotor_rad = rotor_rad;
+      Real d_hub_height = hub_height;
+       // Get raw pointers to device vectors
+
+      Real* d_xloc_ptr = d_xloc.data();
+      Real* d_yloc_ptr = d_yloc.data();
+      long unsigned int nturbs = xloc.size();
 
     for ( MFIter mfi(cons_in,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
 
@@ -101,11 +136,12 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
             Real phi = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
 
             Real fac = 0.0;
+
             int check_int = 0;
 
-            for(long unsigned int it=0;it<d_xloc.size();it++){
-                if(d_xloc[it]+1e-12 > x1 and d_xloc[it]+1e-12 < x2) {
-                   if(std::pow((y-d_yloc[it])*(y-d_yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
+            for(long unsigned int it=0;it<nturbs;it++){
+                if(d_xloc_ptr[it]+1e-12 > x1 and d_xloc_ptr[it]+1e-12 < x2) {
+                   if(std::pow((y-d_yloc_ptr[it])*(y-d_yloc_ptr[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
                         check_int++;
                         fac = -2.0*std::pow(u_vel(i,j,k)*std::cos(phi) + v_vel(i,j,k)*std::sin(phi), 2.0)*0.5*(1.0-0.5);
                     }

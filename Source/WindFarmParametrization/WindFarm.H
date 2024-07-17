@@ -4,7 +4,6 @@
 #include <DataStruct.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_Gpu.H>
 
 #include "NullWindFarm.H"
 #include "Fitch.H"
@@ -76,18 +75,18 @@ public:
     }
 
     void set_turb_spec(const amrex::Real& a_rotor_rad, const amrex::Real& a_hub_height,
-                       const amrex::Real& a_thrust_coeff_standing, const amrex::Gpu::DeviceVector<amrex::Real>& a_d_wind_speed,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_thrust_coeff,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_power) override
+                       const amrex::Real& a_thrust_coeff_standing, const amrex::Vector<amrex::Real>& a_wind_speed,
+                       const amrex::Vector<amrex::Real>& a_thrust_coeff,
+                       const amrex::Vector<amrex::Real>& a_power) override
     {
         m_windfarm_model[0]->set_turb_spec(a_rotor_rad, a_hub_height, a_thrust_coeff_standing,
-                  a_d_wind_speed, a_d_thrust_coeff, a_d_power);
+                  a_wind_speed, a_thrust_coeff, a_power);
     }
 
-    void set_turb_loc (const amrex::Gpu::DeviceVector<amrex::Real>& a_d_xloc,
-                       const amrex::Gpu::DeviceVector<amrex::Real>& a_d_yloc) override
+    void set_turb_loc (const amrex::Vector<amrex::Real>& a_xloc,
+                       const amrex::Vector<amrex::Real>& a_yloc) override
     {
-        m_windfarm_model[0]->set_turb_loc(a_d_xloc, a_d_yloc);
+        m_windfarm_model[0]->set_turb_loc(a_xloc, a_yloc);
     }
 
 protected:
@@ -95,8 +94,6 @@ protected:
     amrex::Vector<amrex::Real> xloc, yloc;
     amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
     amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
-    amrex::Gpu::DeviceVector<amrex::Real> d_wind_speed, d_thrust_coeff, d_power;
-    amrex::Gpu::DeviceVector<amrex::Real> d_xloc, d_yloc;
 
    /*! \brief Create and set the specified windfarm model */
     template<class NewWindFarmModel>

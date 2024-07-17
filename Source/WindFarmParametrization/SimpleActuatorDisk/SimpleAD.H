@@ -34,6 +34,11 @@ public:
                  amrex::MultiFab& V_old,
                  const amrex::MultiFab& mf_vars);
 
+protected:
+    amrex::Vector<amrex::Real> xloc, yloc;
+    amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
+    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
+
 };
 
 #endif
