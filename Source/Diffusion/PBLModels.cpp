@@ -359,7 +359,10 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 const Real zval_up = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr) : gdata.ProbLo(2) + (kpbl + 0.5)*gdata.CellSize(2);
                 const Real zval_dn = use_terrain ? Compute_Zrel_AtCellCenter(i,j,kpbl-1,z_nd_arr) : gdata.ProbLo(2) + (kpbl-1 + 0.5)*gdata.CellSize(2);
                 pblh_arr(i,j,0) = zval_dn + interp_fact*(zval_up-zval_dn);
-                if (pblh_arr(i,j,0) < 0.5*(zval_up+zval_dn) ) {
+
+                const Real zval_0 = use_terrain ? Compute_Zrel_AtCellCenter(i,j,0,z_nd_arr) : gdata.ProbLo(2) + (0.5)*gdata.CellSize(2);
+                const Real zval_1 = use_terrain ? Compute_Zrel_AtCellCenter(i,j,1,z_nd_arr) : gdata.ProbLo(2) + (1.5)*gdata.CellSize(2);
+                if (pblh_arr(i,j,0) < 0.5*(zval_0+zval_1) ) {
                     kpbl = 0;
                 }
                 pbli_arr(i,j,0) = kpbl;
@@ -450,8 +453,17 @@ ComputeTurbulentViscosityPBL (const MultiFab& xvel,
                 const Real rhoKmin = ckz * dz_terrain * rho;
                 const Real rhoKmax = rho * Kmax;
                 K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Mom_v) ,rhoKmax), rhoKmin);
-                K_turb(i,j,k,EddyDiff::Mom_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
+                K_turb(i,j,k,EddyDiff::Theta_v) = std::max(std::min(K_turb(i,j,k,EddyDiff::Theta_v) ,rhoKmax), rhoKmin);
                 K_turb(i,j,k,EddyDiff::PBL_lengthscale) = pblh_arr(i,j,0);
+            });
+
+            // HACK set bottom ghost cell to 1st cell
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k==-1) {
+                    K_turb(i,j,k,EddyDiff::Mom_v) = K_turb(i,j,0,EddyDiff::Mom_v);
+                    K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,0,EddyDiff::Theta_v);
+                }
             });
         }
     }
