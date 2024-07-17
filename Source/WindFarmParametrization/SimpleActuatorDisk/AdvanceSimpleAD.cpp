@@ -47,32 +47,6 @@ SimpleAD::update (const Real& dt_advance,
     }
 }
 
-AMREX_FORCE_INLINE
-AMREX_GPU_DEVICE
-void cell_in_which_act_disk(const Real& y, const Real& z,
-                                    const Real* d_xloc,
-                                       const Real* d_yloc,
-                                    const Real& d_rotor_rad,
-                                    const Real& d_hub_height,
-                                    const Real& x1, const Real& x2)
-{
-    //Vector<int> which_act_disk;
-    /*for(long unsigned int it=0;it<d_xloc.size();it++){
-        if(d_xloc[it]+1e-12 > x1 and d_xloc[it]+1e-12 < x2) {
-            if(std::pow((y-d_yloc[it])*(y-d_yloc[it]) + (z-d_hub_height)*(z-d_hub_height),0.5) < d_rotor_rad) {
-                //which_act_disk.push_back(it);
-            }
-        }
-    }
-    if(which_act_disk.size() > 1){
-        amrex::Error("Actuator disks are overlapping. Visualize actuator_disks.vtk "
-                      "and check the windturbine locations input file. Exiting..");
-
-    }*/
-    //return which_act_disk;
-}
-
-
 void
 SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& cons_in,
