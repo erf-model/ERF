@@ -34,13 +34,6 @@ public:
                  amrex::MultiFab& V_old,
                  const amrex::MultiFab& mf_vars);
 
-protected:
-    amrex::Vector<amrex::Real> xloc, yloc;
-    amrex::Real hub_height, rotor_rad, thrust_coeff_standing, nominal_power;
-    amrex::Vector<amrex::Real> wind_speed, thrust_coeff, power;
-    amrex::Gpu::DeviceVector<amrex::Real> d_wind_speed, d_thrust_coeff, d_power;
-    amrex::Gpu::DeviceVector<amrex::Real> d_xloc, d_yloc;
-
 };
 
 #endif

@@ -1,8 +1,7 @@
-#include <ERF.H>
-#include <WindFarm.H>
 #include <Fitch.H>
 #include <IndexDefines.H>
-#include <cmath>
+#include <ERF_Constants.H>
+#include <Interpolation_1D.H>
 
 using namespace amrex;
 
@@ -16,7 +15,7 @@ Real compute_A(const Real z,
     Real d  = std::min(std::fabs(z - hub_height), rotor_rad);
     Real theta = std::acos(d/rotor_rad);
     Real A_s = rotor_rad*rotor_rad*theta - d*std::pow(rotor_rad*rotor_rad - d*d, 0.5);
-    Real A = M_PI*rotor_rad*rotor_rad/2.0 - A_s;
+    Real A = PI*rotor_rad*rotor_rad/2.0 - A_s;
 
     return A;
 }
@@ -163,6 +162,6 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
         });
     }
         //std::cout << "Checking sum here...." <<"\n";
-        //printf("%0.15g, %0.15g\n", *sum_area , M_PI*R*R);
+        //printf("%0.15g, %0.15g\n", *sum_area , PI*R*R);
         //exit(0);
 }

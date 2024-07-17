@@ -54,16 +54,17 @@ SimpleAD::source_terms_cellcentered (const Geometry& geom,
                                      const MultiFab& U_old,
                                      const MultiFab& V_old)
 {
+    Gpu::DeviceVector<Real> d_xloc, d_yloc;
+    Real d_rotor_rad, d_hub_height, d_thrust_coeff_standing;
+    Gpu::DeviceVector<Real> d_wind_speed, d_thrust_coeff, d_power;
 
     get_turb_loc(d_xloc, d_yloc);
-    get_turb_spec(rotor_rad, hub_height, thrust_coeff_standing,
+    get_turb_spec(d_rotor_rad, d_hub_height, d_thrust_coeff_standing,
                   d_wind_speed, d_thrust_coeff, d_power);
 
 
       auto dx = geom.CellSizeArray();
       auto ProbLoArr = geom.ProbLoArray();
-      Real d_rotor_rad = rotor_rad;
-      Real d_hub_height = hub_height;
 
   // Domain valid box
       const amrex::Box& domain = geom.Domain();

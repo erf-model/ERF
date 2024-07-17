@@ -1,11 +1,9 @@
-#include <ERF.H>
-#include <WindFarm.H>
 #include <EWP.H>
 #include <IndexDefines.H>
-#include <cmath>
+#include <ERF_Constants.H>
+#include <Interpolation_1D.H>
 
 using namespace amrex;
-
 
 void
 EWP::advance (const Geometry& geom,
@@ -118,7 +116,7 @@ EWP::source_terms_cellcentered (const Geometry& geom,
                            (std::pow(2.0*K_turb*L_wake/Vabs + std::pow(sigma_0,2),3.0/2.0) - std::pow(sigma_0,3));
 
             Real phi     = std::atan2(v_vel(i,j,k),u_vel(i,j,k)); // Wind direction w.r.t the x-dreiction
-            Real fac = -std::pow(M_PI/8.0,0.5)*C_T*std::pow(d_rotor_rad,2)*
+            Real fac = -std::pow(PI/8.0,0.5)*C_T*std::pow(d_rotor_rad,2)*
                         std::pow(Vabs,2)/(dx[0]*dx[1]*sigma_e)*
                         std::exp(-0.5*std::pow((z - d_hub_height)/sigma_e,2));
             ewp_array(i,j,k,0) = fac*std::cos(phi)*Nturb_array(i,j,k);
