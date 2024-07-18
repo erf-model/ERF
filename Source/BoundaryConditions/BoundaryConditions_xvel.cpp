@@ -15,8 +15,7 @@ using namespace amrex;
  */
 
 void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
-                                                const Box& bx, const Box& domain, int bccomp,
-                                                Vector<Gpu::DeviceVector<Real>>& xvel_bc_data)
+                                                const Box& bx, const Box& domain, int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_xvel_bcs()",impose_lateral_xvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -53,8 +52,8 @@ void ERFPhysBCFunct_u::impose_lateral_xvel_bcs (const Array4<Real>& dest_arr,
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
-        Real* xvel_xlo_ptr = xvel_bc_data[0].data();
-        Real* xvel_xhi_ptr = xvel_bc_data[3].data();
+        Real* xvel_xlo_ptr = m_u_bc_data[0];
+        Real* xvel_xhi_ptr = m_u_bc_data[3];
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+2);
         Box bx_xlo_face(bx); bx_xlo_face.setSmall(0,dom_lo.x  ); bx_xlo_face.setBig(0,dom_lo.x  );

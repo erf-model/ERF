@@ -108,7 +108,7 @@ ERF::FillPatch (int lev, Real time,
             FillPatchSingleLevel(*mfs_vel[Vars::zvel], time, fmf, ftime, icomp, icomp, ncomp_w,
                                  geom[lev], *physbcs_w_no_terrain[lev], BCVars::zvel_bc);
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::zvel_bc,zvel_bc_data);
+                              ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
 
     } else {
@@ -161,7 +161,7 @@ ERF::FillPatch (int lev, Real time,
                                *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
                                refRatio(lev-1), mapper, domain_bcs_type, BCVars::zvel_bc);
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                              ngvect_vels,time,BCVars::zvel_bc,zvel_bc_data);
+                              ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
     } // lev > 0
 
@@ -183,10 +183,10 @@ ERF::FillPatch (int lev, Real time,
     // We call these even if init_type == real because these will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc);
     if (!cons_only) {
-        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc, xvel_bc_data);
-        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc, yvel_bc_data);
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                          ngvect_vels,time,BCVars::zvel_bc, zvel_bc_data);
+                          ngvect_vels,time,BCVars::zvel_bc);
     }
 }
 
@@ -384,7 +384,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
                                    *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
                                    refRatio(lev-1), mapper, domain_bcs_type, bccomp);
                 (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                                   ngvect,time,BCVars::zvel_bc,zvel_bc_data);
+                                   ngvect,time,BCVars::zvel_bc);
             }
         } // lev > 0
     } // var_idx
@@ -407,10 +407,10 @@ ERF::FillIntermediatePatch (int lev, Real time,
     // We call this even if init_type == real because this routine will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],icomp_cons,ncomp_cons,ngvect_cons,time,BCVars::cons_bc);
     if (!cons_only) {
-        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc,xvel_bc_data);
-        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc,yvel_bc_data);
+        (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
+        (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                          ngvect_vels,time,BCVars::zvel_bc,zvel_bc_data);
+                          ngvect_vels,time,BCVars::zvel_bc);
     }
     // ***************************************************************************
 
@@ -564,10 +564,10 @@ ERF::FillCoarsePatch (int lev, Real time)
     int ncomp_cons = vars_new[lev][Vars::cons].nComp();
 
     (*physbcs_cons[lev])(vars_new[lev][Vars::cons],0,ncomp_cons,ngvect_cons,time,BCVars::cons_bc);
-    (   *physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1         ,ngvect_vels,time,BCVars::xvel_bc,xvel_bc_data);
-    (   *physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1         ,ngvect_vels,time,BCVars::yvel_bc,yvel_bc_data);
+    (   *physbcs_u[lev])(vars_new[lev][Vars::xvel],0,1         ,ngvect_vels,time,BCVars::xvel_bc);
+    (   *physbcs_v[lev])(vars_new[lev][Vars::yvel],0,1         ,ngvect_vels,time,BCVars::yvel_bc);
     (   *physbcs_w[lev])(vars_new[lev][Vars::zvel],vars_new[lev][Vars::xvel],vars_new[lev][Vars::yvel],
-                         ngvect_vels,time,BCVars::zvel_bc,zvel_bc_data);
+                         ngvect_vels,time,BCVars::zvel_bc);
 
     // ***************************************************************************
     // Since lev > 0 here we don't worry about m_r2d or wrfbdy data

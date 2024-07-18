@@ -19,7 +19,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
                                                 const Box& bx, const Box& domain,
                                                 const Array4<Real const>& z_phys_nd,
                                                 const GpuArray<Real,AMREX_SPACEDIM> dxInv,
-                                                int bccomp, Vector<Gpu::DeviceVector<Real>>& zvel_bc_data)
+                                                int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_zvel_bcs()",impose_lateral_zvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -60,8 +60,8 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
-        Real* zvel_xlo_ptr = zvel_bc_data[0].data();
-        Real* zvel_xhi_ptr = zvel_bc_data[3].data();
+        Real* zvel_xlo_ptr = m_w_bc_data[0];
+        Real* zvel_xhi_ptr = m_w_bc_data[3];
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(

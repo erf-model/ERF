@@ -13,7 +13,7 @@ using namespace amrex;
  */
 void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
                                                 const Box& bx, const Box& domain,
-                                                int bccomp, Vector<Gpu::DeviceVector<Real>>& yvel_bc_data)
+                                                int bccomp)
 {
     BL_PROFILE_VAR("impose_lateral_yvel_bcs()",impose_lateral_yvel_bcs);
     const auto& dom_lo = lbound(domain);
@@ -51,8 +51,8 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
     if (!is_periodic_in_x)
     {
         // Populate ghost cells on lo-x and hi-x domain boundaries
-        Real* yvel_xlo_ptr = yvel_bc_data[0].data();
-        Real* yvel_xhi_ptr = yvel_bc_data[3].data();
+        Real* yvel_xlo_ptr = m_v_bc_data[0];
+        Real* yvel_xhi_ptr = m_v_bc_data[3];
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(

@@ -584,8 +584,8 @@ private:
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> xvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> yvel_bc_data;
     amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
-  
-    // Function to read and populate above vectors (if input file exists)  
+
+    // Function to read and populate above vectors (if input file exists)
     void init_Dirichlet_bc_data (amrex::Orientation ori,
                                  const std::string input_file);
 
