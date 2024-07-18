@@ -80,7 +80,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
     bool l_consA  = (diffChoice.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = ( (turbChoice.les_type == LESType::Smagorinsky) ||
                       (turbChoice.les_type == LESType::Deardorff  ) ||
-                      (turbChoice.pbl_type == PBLType::MYNN25     ) );
+                      (turbChoice.pbl_type == PBLType::MYNN25     ) ||
+                      (turbChoice.pbl_type == PBLType::YSU        ) );
 
     const Box xbx = surroundingNodes(bx,0);
     const Box ybx = surroundingNodes(bx,1);

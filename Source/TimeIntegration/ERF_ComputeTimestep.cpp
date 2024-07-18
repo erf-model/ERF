@@ -27,7 +27,9 @@ ERF::ComputeDt (int step)
         dt_0 = amrex::min(dt_0, n_factor*dt_tmp[lev]);
         if (step == 0){
             dt_0 *= init_shrink;
-            Print() << "Timestep 0: shrink initial dt by " << init_shrink << std::endl;
+            if (verbose) {
+                Print() << "Timestep 0: shrink initial dt at level " << lev << " by " << init_shrink << std::endl;
+            }
         }
     }
 
@@ -70,6 +72,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::zvel]});
 
     int l_no_substepping = solverChoice.no_substepping;
+    int l_incompressible = solverChoice.incompressible[level];
 
 #ifdef ERF_USE_EB
     EBFArrayBoxFactory ebfact = EBFactory(level);
@@ -189,13 +192,15 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          }
      }
 
-     if (verbose)
+     if (verbose && !l_no_substepping)
          Print() << "smallest even ratio is: " << dt_fast_ratio << std::endl;
 
      if (fixed_dt > 0.0) {
          return fixed_dt;
      } else {
-         if (l_no_substepping) {
+         if (l_incompressible && l_no_substepping) {
+             return estdt_lowM;
+         } else if (l_no_substepping) {
              return estdt_comp;
          } else {
              return estdt_lowM;

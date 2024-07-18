@@ -46,7 +46,7 @@ Problem::init_custom_pert(
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
 
     // Geometry (note we must include these here to get the data on device)
-    ParallelFor(bx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         const auto prob_lo  = geomdata.ProbLo();
         const auto dx       = geomdata.CellSize();
@@ -63,7 +63,7 @@ Problem::init_custom_pert(
     });
 
     // Set the x-velocity
-    ParallelFor(xbx, [=, parms=parms] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
         x_vel_pert(i, j, k) = 10.0;
     });
@@ -91,7 +91,7 @@ Problem::init_custom_terrain(
 {
     // Check if a valid csv file exists for the terrain
     std::string fname;
-    amrex::ParmParse pp("erf");
+    ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
     if (valid_fname) {
         this->read_custom_terrain(fname,geom,z_phys_nd,time);

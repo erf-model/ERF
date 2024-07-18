@@ -186,7 +186,7 @@ ERF::write_1D_profiles (Real time)
  * @param h_avg_pw Profile for pressure perturbation * z-velocity on Host
  */
 void
-ERF::derive_diag_profiles(Real time,
+ERF::derive_diag_profiles(Real /*time*/,
                           Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_kturb,
@@ -246,9 +246,11 @@ ERF::derive_diag_profiles(Real time,
     Gpu::DeviceVector<Real> d_avg_v(hu_size, Real(0.0));
     Gpu::DeviceVector<Real> d_avg_w(hu_size, Real(0.0));
 
+#if 0
     auto* avg_u_ptr = d_avg_u.data();
     auto* avg_v_ptr = d_avg_v.data();
     auto* avg_w_ptr = d_avg_w.data();
+#endif
 
     Gpu::copy(Gpu::hostToDevice, h_avg_u.begin(), h_avg_u.end(), d_avg_u.begin());
     Gpu::copy(Gpu::hostToDevice, h_avg_v.begin(), h_avg_v.end(), d_avg_v.begin());

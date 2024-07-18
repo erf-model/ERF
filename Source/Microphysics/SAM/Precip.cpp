@@ -234,5 +234,3 @@ SAM::Precip (const SolverChoice& sc)
         });
     }
 }
-
-
