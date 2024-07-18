@@ -267,32 +267,41 @@ public:
      * @param[in] time current time
     */
     virtual void
-    init_custom_terrain (const amrex::Geometry& /*geom*/,
+    init_custom_terrain (const amrex::Geometry& geom,
                          amrex::MultiFab& z_phys_nd,
-                         const amrex::Real& /*time*/)
+                         const amrex::Real& time)
     {
-        // Note that this only sets the terrain value at the ground IF k=0 is in the box
-        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
+        // Check if a valid csv file exists for the terrain
+        std::string fname;
+        amrex::ParmParse pp("erf");
+        auto valid_fname = pp.query("terrain_file_name",fname);
+        if (valid_fname) {
+            amrex::Print() << "Reading custom terrain from " << fname << std::endl;
+            this->read_custom_terrain(fname,geom,z_phys_nd,time);
+        } else {
+            // Note that this only sets the terrain value at the ground IF k=0 is in the box
+            amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
 
-        // Number of ghost cells
-        int ngrow = z_phys_nd.nGrow();
+            // Number of ghost cells
+            int ngrow = z_phys_nd.nGrow();
 
-        // Bottom of domain
-        int k0 = 0;
+            // Bottom of domain
+            int k0 = 0;
 
-        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            // Grown box with no z range
-            amrex::Box  zbx = mfi.nodaltilebox(2);
-            if (zbx.smallEnd(2) <= 0) {
-                amrex::Box xybx = mfi.growntilebox(ngrow);
-                xybx.setRange(2,0);
+            for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+            {
+                // Grown box with no z range
+                amrex::Box  zbx = mfi.nodaltilebox(2);
+                if (zbx.smallEnd(2) <= 0) {
+                    amrex::Box xybx = mfi.growntilebox(ngrow);
+                    xybx.setRange(2,0);
 
-                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                    amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
 
-                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                    z_arr(i,j,k0) = 0.0;
-                });
+                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                        z_arr(i,j,k0) = 0.0;
+                    });
+                }
             }
         }
     }
