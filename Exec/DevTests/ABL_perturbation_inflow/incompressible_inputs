@@ -12,8 +12,8 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  16.    2.    8.
-amr.n_cell           = 128     16    64
+geometry.prob_extent =   2.    0.25    1.
+amr.n_cell           = 128     16     64
 
 geometry.is_periodic = 0 1 0
 
@@ -66,13 +66,6 @@ erf.buoyancy_type = 1
 # Initial condition for the entire field
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_ReTau2000DNS_sounding.txt"
-
-# Inflow boundary condition
-erf.sponge_type = "input_sponge"
-erf.input_sponge_file = "input_ReTau2000DNS_sponge.txt"
-erf.sponge_strength = 100000.0
-erf.use_xlo_sponge_damping = true
-erf.xlo_sponge_end = 1.0
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
