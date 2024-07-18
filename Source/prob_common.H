@@ -276,7 +276,6 @@ public:
         amrex::ParmParse pp("erf");
         auto valid_fname = pp.query("terrain_file_name",fname);
         if (valid_fname) {
-            amrex::Print() << "Reading custom terrain from " << fname << std::endl;
             this->read_custom_terrain(fname,geom,z_phys_nd,time);
         } else {
             // Note that this only sets the terrain value at the ground IF k=0 is in the box
