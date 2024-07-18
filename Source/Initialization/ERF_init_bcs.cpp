@@ -2,7 +2,6 @@
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_ParmParse.H>
 #include <ERF.H>
-#include <Utils/ParFunctions.H>
 
 using namespace amrex;
 
