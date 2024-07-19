@@ -271,7 +271,7 @@ public:
                          amrex::MultiFab& z_phys_nd,
                          const amrex::Real& time)
     {
-        // Check if a valid csv file exists for the terrain
+        // Check if a valid text file exists for the terrain
         std::string fname;
         amrex::ParmParse pp("erf");
         auto valid_fname = pp.query("terrain_file_name",fname);

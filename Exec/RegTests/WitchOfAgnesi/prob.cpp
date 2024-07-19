@@ -96,7 +96,7 @@ Problem::init_custom_terrain (
     const Real& time)
 {
 
-    // Check if a valid csv file exists for the terrain
+    // Check if a valid text file exists for the terrain
     std::string fname;
     ParmParse pp("erf");
     auto valid_fname = pp.query("terrain_file_name",fname);
