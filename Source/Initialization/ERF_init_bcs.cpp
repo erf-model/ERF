@@ -1,7 +1,6 @@
 #include <AMReX_Vector.H>
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_ParmParse.H>
-
 #include <ERF.H>
 
 using namespace amrex;
@@ -98,10 +97,17 @@ void ERF::init_bcs ()
                 m_bc_extdir_vals[BCVars::yvel_bc][ori] = 0.;
                 m_bc_extdir_vals[BCVars::zvel_bc][ori] = 0.;
             } else {
-                pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
-                m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
-                m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
-                m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+                // Test for input data file if at xlo face
+                std::string dirichlet_file;
+                auto file_exists = pp.query("dirichlet_file", dirichlet_file);
+                if (ori.isLow() && (ori.coordDir() == 0) && file_exists) {
+                    init_Dirichlet_bc_data(ori, dirichlet_file);
+                } else {
+                    pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
+                    m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
+                    m_bc_extdir_vals[BCVars::yvel_bc][ori] = v[1];
+                    m_bc_extdir_vals[BCVars::zvel_bc][ori] = v[2];
+                }
             }
 
             Real rho_in;
@@ -553,3 +559,90 @@ void ERF::init_bcs ()
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }
 
+void ERF::init_Dirichlet_bc_data (Orientation ori,
+                                  const std::string input_file)
+{
+    // Only on coarsest level!
+    int lev = 0;
+
+    const int klo = 0;
+    const int khi = geom[lev].Domain().bigEnd()[2];
+    const int Nz  = geom[lev].Domain().size()[2];
+    const Real dz = geom[lev].CellSize()[2];
+
+    const bool use_terrain = (zlevels_stag.size() > 0);
+    const Real zbot = (use_terrain) ? zlevels_stag[klo]   : geom[lev].ProbLo(2);
+    const Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom[lev].ProbHi(2);
+
+    // Size of Nz (domain grid)
+    Vector<Real> zcc_inp(Nz  );
+    Vector<Real> znd_inp(Nz+1);
+    Vector<Real> u_inp(Nz  ); xvel_bc_data[ori].resize(Nz  ,0.0);
+    Vector<Real> v_inp(Nz  ); yvel_bc_data[ori].resize(Nz  ,0.0);
+    Vector<Real> w_inp(Nz+1); zvel_bc_data[ori].resize(Nz+1,0.0);
+
+    // Size of Ninp (number of z points in input file)
+    Vector<Real> z_inp_tmp, u_inp_tmp, v_inp_tmp, w_inp_tmp;
+
+    // Read the dirichlet_input file
+    Print() << "dirichlet_input file location : " << input_file << std::endl;
+    std::ifstream input_reader(input_file);
+    if(!input_reader.is_open()) {
+        Error("Error opening the dirichlet_input file.\n");
+    } else {
+        Print() << "Successfully opened the dirichlet_input file. Now reading... " << std::endl;
+        std::string line;
+
+        // First, read the input data into temp vectors; (Ninp from size of input file)
+
+        // Add surface
+        z_inp_tmp.push_back(zbot); // height above sea level [m]
+        u_inp_tmp.push_back(0.);
+        v_inp_tmp.push_back(0.);
+        w_inp_tmp.push_back(0.);
+
+        // Read the vertical profile at each given height
+        Real z, u, v, w;
+        while(std::getline(input_reader, line)) {
+            std::istringstream iss_z(line);
+            iss_z >> z >> u >> v >> w;
+            if (z == zbot) {
+                u_inp_tmp[0] = u;
+                v_inp_tmp[0] = v;
+                w_inp_tmp[0] = w;
+            } else {
+                AMREX_ALWAYS_ASSERT(z > z_inp_tmp[z_inp_tmp.size()-1]); // sounding is increasing in height
+                z_inp_tmp.push_back(z);
+                u_inp_tmp.push_back(u);
+                v_inp_tmp.push_back(v);
+                w_inp_tmp.push_back(w);
+                if (z >= ztop) break;
+            }
+        }
+
+        // At this point, we have an input from zbot up to
+        // z_inp_tmp[N-1] >= ztop. Now, interpolate to grid level 0 heights
+        const int Ninp = z_inp_tmp.size();
+        for (int k(0); k<Nz; ++k) {
+            zcc_inp[k] = (use_terrain) ? 0.5 * (zlevels_stag[k] + zlevels_stag[k+1])
+                                         : zbot + (k + 0.5) * dz;
+            znd_inp[k] = (use_terrain) ? zlevels_stag[k+1] : zbot + (k) * dz;
+            u_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), u_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
+            v_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), v_inp_tmp.dataPtr(), zcc_inp[k], Ninp);
+            w_inp[k]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), znd_inp[k], Ninp);
+        }
+        znd_inp[Nz] = ztop;
+        w_inp[Nz]   = interpolate_1d(z_inp_tmp.dataPtr(), w_inp_tmp.dataPtr(), ztop, Ninp);
+    }
+
+    amrex::Print() << "Successfully read and interpolated the dirichlet_input file..." << std::endl;
+    input_reader.close();
+
+    // Copy host data to the device
+    Gpu::copy(Gpu::hostToDevice, u_inp.begin(), u_inp.end(), xvel_bc_data[ori].begin());
+    Gpu::copy(Gpu::hostToDevice, v_inp.begin(), v_inp.end(), yvel_bc_data[ori].begin());
+    Gpu::copy(Gpu::hostToDevice, w_inp.begin(), w_inp.end(), zvel_bc_data[ori].begin());
+
+    // NOTE: These device vectors are passed to the PhysBC constructors when that
+    //       class is instantiated in ERF_make_new_arrays.cpp.
+}

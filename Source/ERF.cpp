@@ -190,7 +190,6 @@ ERF::ERF ()
     pp_inc.resize(nlevs_max);
 #endif
 
-
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
     rW_new.resize(nlevs_max);
@@ -305,6 +304,12 @@ ERF::ERF ()
         lon_m[lev] = nullptr;
     }
 #endif
+
+    // Dirichlet BC data
+    int nfaces = 6;
+    xvel_bc_data.resize(nfaces);
+    yvel_bc_data.resize(nfaces);
+    zvel_bc_data.resize(nfaces);
 
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
