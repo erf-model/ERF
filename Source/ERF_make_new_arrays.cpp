@@ -480,19 +480,33 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
 void
 ERF::initialize_bcs (int lev)
 {
+    // Dirichlet BC data only lives on level 0
+    int nface = 6; // 6 faces
+    Vector<Real*> u_bc_tmp; u_bc_tmp.resize(nface,nullptr);
+    Vector<Real*> v_bc_tmp; v_bc_tmp.resize(nface,nullptr);
+    Vector<Real*> w_bc_tmp; w_bc_tmp.resize(nface,nullptr);
+    if (lev==0) {
+        for (int iface(0); iface<nface; ++iface) {
+            u_bc_tmp[iface] = xvel_bc_data[iface].data();
+            v_bc_tmp[iface] = yvel_bc_data[iface].data();
+            w_bc_tmp[iface] = zvel_bc_data[iface].data();
+        }
+    }
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
                                                                z_phys_nd[lev], use_real_bcs);
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs);
+                                                            z_phys_nd[lev], use_real_bcs, u_bc_tmp);
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            z_phys_nd[lev], use_real_bcs);
+                                                            z_phys_nd[lev], use_real_bcs, v_bc_tmp);
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
-                                                            solverChoice.terrain_type, z_phys_nd[lev], use_real_bcs);
+                                                            solverChoice.terrain_type, z_phys_nd[lev],
+                                                            use_real_bcs, w_bc_tmp);
     physbcs_w_no_terrain[lev]    = std::make_unique<ERFPhysBCFunct_w_no_terrain>
                                                            (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
-                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs);
+                                                            m_bc_extdir_vals, m_bc_neumann_vals, use_real_bcs,
+                                                            w_bc_tmp);
 }
