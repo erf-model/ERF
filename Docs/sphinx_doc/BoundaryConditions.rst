@@ -318,6 +318,8 @@ The ``source`` type forcing can adopt the box perturbation method by having the 
           erf.perturbation_T_infinity = 300.0
           erf.perturbation_T_intensity = 0.1
 
+The primary purpose of the box perturbation method is not merely to perturb the temperature field in a box format. The key difference between the box and cell perturbation methods lies in how the perturbation is introduced into the temperature source term. Both methods use white noise to generate perturbations, but through the eddy diffusivity scheme and temperature transport, this white noise transforms into colored noise. Although the exact nature of the colored noise is unknown, this method effectively initiates perturbations that develop downstream. While colored noise can be directly added in the cell perturbation method, introducing it directly into the temperature field can cause simulation instability.
+
 Direct type forcing
 -------------------
 
