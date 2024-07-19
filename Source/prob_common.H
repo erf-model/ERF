@@ -359,8 +359,8 @@ public:
         file.close();
 
         // Copy data to the GPU
-        int ncell = m_xterrain.size();
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(ncell),d_yterrain(ncell),d_zterrain(ncell);
+        int nnode = m_xterrain.size();
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nnode),d_yterrain(nnode),d_zterrain(nnode);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
@@ -392,22 +392,28 @@ public:
                 int jj = amrex::min(amrex::max(j,jlo),jhi);
 
                 // Location of nodes
-                bool found = false;
                 amrex::Real x = ProbLoArr[0]  + ii  * dx[0];
                 amrex::Real y = ProbLoArr[1]  + jj  * dx[1];
-                amrex::Real zloc = 0.0;
-                for(int n=0; n<ncell; ++n)
-                {
-                    amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
-                    if(delta<tol){
-                        found=true;
-                        zloc=d_zt[n];
-                        continue;
+                int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
+                if (std::sqrt(std::pow(x-d_xt[inode],2)+std::pow(y-d_yt[inode],2)) < tol) {
+                    z_arr(i,j,klo) = d_zt[inode];
+                } else {
+                    // Unexpected list order, do brute force search
+                    amrex::Real zloc = 0.0;
+                    bool found = false;
+                    for (int n=0; n<nnode; ++n)
+                    {
+                        amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
+                        if (delta < tol) {
+                            found = true;
+                            zloc = d_zt[n];
+                            break;
+                        }
                     }
+                    AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                    amrex::ignore_unused(found);
+                    z_arr(i,j,klo) = zloc;
                 }
-                AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
-                amrex::ignore_unused(found);
-                z_arr(i,j,klo) = zloc;
             });
         }
     }
