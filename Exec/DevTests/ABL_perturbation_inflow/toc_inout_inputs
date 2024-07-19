@@ -1,24 +1,19 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 10.0
-max_step = 10
+#max_step = 1
 
 erf.no_substepping = 1
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =   2.    0.25    1.
-amr.n_cell           = 128     16     64
+geometry.prob_extent =  8.    0.5     1.
+amr.n_cell           = 256      16     32
 geometry.is_periodic = 0 1 0
 
 xlo.type = "Inflow"
 xhi.type = "Outflow"
 zhi.type = "SlipWall"
-
-xlo.density =   1.0
-xlo.theta   = 300.0
-xlo.dirichlet_file = "input_ReTau180Ana_inflow.txt"
-
 #zlo.type = "NoSlipWall"
 zlo.type = "Most"
 erf.most.flux_type = "custom"
@@ -26,13 +21,17 @@ erf.most.ustar  = 0.18   # ustar
 erf.most.tstar  = 0. # theta flux
 erf.most.qstar  = 0. # qv    flux
 
+xlo.density =   1.0
+xlo.theta   = 300.0
+xlo.dirichlet_file = "input_ReTau180Ana_inflow.txt"
+
 # TIME STEP CONTROL
 erf.cfl = 0.5
 erf.dynamicViscosity = 0.001
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
-erf.pert_interval  = 1       # timesteps between perturbation output message
+erf.pert_interval  = 10       # timesteps between perturbation output message
 erf.v              = 0       # verbosity in ERF.cpp
 amr.v              = 0       # verbosity in Amr.cpp
 
@@ -53,14 +52,15 @@ erf.check_per       = 1.0
 erf.alpha_T = 0.0
 erf.alpha_C = 1.0
 
-erf.use_gravity = false
+erf.use_gravity = false # Turned this off to make sure const density
 erf.buoyancy_type = 1
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
+
 erf.abl_driver_type = "PressureGradient"
-erf.abl_pressure_grad = -0.0000648 0. 0.
+erf.abl_pressure_grad = -0.0324 0. 0.
 
 # Initial condition for the entire field
 erf.init_type = "input_sounding"
@@ -73,14 +73,11 @@ erf.input_sounding_file = "input_ReTau180Ana_sounding.txt"
 #erf.perturbation_offset = 3
 
 #erf.perturbation_box_dims = 8 8 4
-#erf.perturbation_nondimensional = 0.042 # Ri
+#erf.perturbation_nondimensional = 0.1 # Ri
 #erf.perturbation_T_infinity = 300.0
 #erf.perturbation_T_intensity = 0.1
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.0
-prob.A_0 = 1.0
-prob.U_0 = 0.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 300.0
+prob.U_0_Pert_Mag = 1.0
+prob.V_0_Pert_Mag = 1.0
+prob.W_0_Pert_Mag = 0.0
