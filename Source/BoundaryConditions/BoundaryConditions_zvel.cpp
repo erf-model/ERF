@@ -60,13 +60,15 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
+        Real* zvel_xlo_ptr = m_w_bc_data[0];
+        Real* zvel_xhi_ptr = m_w_bc_data[3];
         Box bx_xlo(bx);  bx_xlo.setBig  (0,dom_lo.x-1);
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(
             bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = dom_lo.x - 1 - i;
                 if (bc_ptr_w[n].lo(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][0];
+                    dest_arr(i,j,k) = (zvel_xlo_ptr) ? zvel_xlo_ptr[k] : l_bc_extdir_vals_d[n][0];
                     if (l_use_terrain) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }
@@ -83,7 +85,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
                 int iflip = 2*dom_hi.x + 1 - i;
                 if (bc_ptr_w[n].hi(0) == ERFBCType::ext_dir) {
-                    dest_arr(i,j,k) = l_bc_extdir_vals_d[n][3];
+                    dest_arr(i,j,k) = (zvel_xhi_ptr) ? zvel_xhi_ptr[k] : l_bc_extdir_vals_d[n][3];
                     if (l_use_terrain) {
                         dest_arr(i,j,k) = WFromOmega(i,j,k,dest_arr(i,j,k),xvel_arr,yvel_arr,z_phys_nd,dxInv);
                     }

@@ -108,7 +108,7 @@ ERF::FillPatch (int lev, Real time,
             FillPatchSingleLevel(*mfs_vel[Vars::zvel], time, fmf, ftime, icomp, icomp, ncomp_w,
                                  geom[lev], *physbcs_w_no_terrain[lev], BCVars::zvel_bc);
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                               ngvect_vels,time,BCVars::zvel_bc);
+                              ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
 
     } else {
@@ -161,7 +161,7 @@ ERF::FillPatch (int lev, Real time,
                                *physbcs_w_no_terrain[lev  ], BCVars::zvel_bc,
                                refRatio(lev-1), mapper, domain_bcs_type, BCVars::zvel_bc);
             (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                               ngvect_vels,time,BCVars::zvel_bc);
+                              ngvect_vels,time,BCVars::zvel_bc);
         } // !cons_only
     } // lev > 0
 
@@ -186,7 +186,7 @@ ERF::FillPatch (int lev, Real time,
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
         (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                           ngvect_vels,time,BCVars::zvel_bc);
+                          ngvect_vels,time,BCVars::zvel_bc);
     }
 }
 
@@ -410,7 +410,7 @@ ERF::FillIntermediatePatch (int lev, Real time,
         (*physbcs_u[lev])(*mfs_vel[Vars::xvel],0,1,ngvect_vels,time,BCVars::xvel_bc);
         (*physbcs_v[lev])(*mfs_vel[Vars::yvel],0,1,ngvect_vels,time,BCVars::yvel_bc);
         (*physbcs_w[lev])(*mfs_vel[Vars::zvel],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
-                           ngvect_vels,time,BCVars::zvel_bc);
+                          ngvect_vels,time,BCVars::zvel_bc);
     }
     // ***************************************************************************
 
