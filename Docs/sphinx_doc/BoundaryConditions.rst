@@ -88,6 +88,18 @@ xlo.density       = 1. sets the inflow density,
 xlo.theta         = 300. sets the inflow potential temperature,
 xlo.scalar        = 2. sets the inflow value of the advected scalar
 
+Additionally, one may use an input file to specify the Dirichlet velocities as a function of the
+vertical coordinate z. The input file is expected to contain the following components ``{z  u  v  w}``.
+For a file named ``inflow_file``, one would use the following inputs:
+
+::
+
+    xlo.type                =   "Inflow"
+    xlo.dirichlet_file      =   "inflow_file"
+    xlo.density             =   1.
+    xlo.theta               =   300.
+    xlo.scalar              =   2.
+
 The "slipwall" and "noslipwall" types have options for adiabatic vs Dirichlet boundary conditions.
 If a value for theta is given for a face with type "slipwall" or "noslipwall" then the boundary
 condition for theta is assumed to be "ext_dir", i.e. theta is specified on the boundary.
