@@ -190,7 +190,6 @@ ERF::ERF ()
     pp_inc.resize(nlevs_max);
 #endif
 
-
     rU_new.resize(nlevs_max);
     rV_new.resize(nlevs_max);
     rW_new.resize(nlevs_max);
