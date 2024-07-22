@@ -305,12 +305,6 @@ ERF::ERF ()
     }
 #endif
 
-    // Dirichlet BC data
-    int nfaces = 6;
-    xvel_bc_data.resize(nfaces);
-    yvel_bc_data.resize(nfaces);
-    zvel_bc_data.resize(nfaces);
-
     // Initialize tagging criteria for mesh refinement
     refinement_criteria_setup();
 

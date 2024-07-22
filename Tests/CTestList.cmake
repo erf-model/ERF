@@ -111,6 +111,7 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/*/erf_is
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/*/erf_isentropic_vortex.exe" "plt00010")
 add_test_r(ABL_MOST                          "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(ABL_MYNN_PBL                      "ABL/*/erf_abl.exe" "plt00100")
+add_test_r(ABL_InflowFile                    "ABL/*/erf_abl.exe" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/*/erf_bubble.exe" "plt00010")
 
 add_test_0(Deardorff_stationary              "ABL/*/erf_abl.exe" "plt00010")
@@ -150,6 +151,7 @@ add_test_r(MSF_NoSub_IsentropicVortexAdv     "RegTests/IsentropicVortex/erf_isen
 add_test_r(MSF_Sub_IsentropicVortexAdv       "RegTests/IsentropicVortex/erf_isentropic_vortex" "plt00010")
 add_test_r(ABL_MOST                          "ABL/erf_abl" "plt00010")
 add_test_r(ABL_MYNN_PBL                      "ABL/erf_abl" "plt00100")
+add_test_r(ABL_InflowFile                    "ABL/erf_abl" "plt00010")
 add_test_r(MoistBubble                       "RegTests/Bubble/erf_bubble" "plt00010")
 
 add_test_0(InitSoundingIdeal_stationary      "ABL/erf_abl" "plt00010")
