@@ -1,0 +1,52 @@
+# ERF (https://github.com/erf-model/ERF) containerfile for NERSC Perlmutter
+# Paul Lin, LBNL/NERSC
+# May 2024
+
+FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
+
+WORKDIR /app
+ARG base_dir=/app/erf
+
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    g++-12 \
+    gcc-12 \
+    gfortran-12 \
+    git \
+    libtool \
+    make \
+    tar \
+    autoconf \
+    automake \
+    wget \
+    python3 \
+    cmake
+
+# MPICH to be swapped out later for Cray MPI
+ARG mpich_version=4.2.2
+ARG mpich_dir=mpich-${mpich_version}
+
+RUN wget https://www.mpich.org/static/downloads/$mpich_version/$mpich_dir.tar.gz && \
+    tar xzf $mpich_dir.tar.gz && \
+    cd $mpich_dir && \
+    ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
+    make -j8 && \
+    make install && \
+    make clean  && \
+    cd ..  && \
+    rm -rf $mpich_dir $mpich_dir.tar.gz
+
+RUN mkdir ${base_dir}
+
+ARG build_dir=MyBuild
+
+RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git && cd ERF && mkdir ${build_dir} && cd ${build_dir} && cmake \
+  -DCMAKE_C_COMPILER=mpicc \
+  -DCMAKE_CXX_COMPILER=mpicxx \
+  -DCMAKE_Fortran_COMPILER=mpif90 \
+  -DCMAKE_BUILD_TYPE:STRING=Release \
+  -DCMAKE_CUDA_ARCHITECTURES=80 \
+  -DERF_ENABLE_MPI:BOOL=ON \
+  -DERF_ENABLE_CUDA=ON \
+  .. && \
+  make -j8 
