@@ -581,13 +581,12 @@ private:
     InputSpongeData input_sponge_data;
 
     // Vector (6 planes) of DeviceVectors (ncell in plane) for Dirichlet BC data
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> xvel_bc_data;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> yvel_bc_data;
-    amrex::Vector<amrex::Gpu::DeviceVector<amrex::Real>> zvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> xvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> yvel_bc_data;
+    amrex::Gpu::DeviceVector<amrex::Real> zvel_bc_data;
 
     // Function to read and populate above vectors (if input file exists)
-    void init_Dirichlet_bc_data (amrex::Orientation ori,
-                                 const std::string input_file);
+    void init_Dirichlet_bc_data (const std::string input_file);
 
     // write checkpoint file to disk
     void WriteCheckpointFile () const;

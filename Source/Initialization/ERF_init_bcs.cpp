@@ -100,8 +100,8 @@ void ERF::init_bcs ()
                 // Test for input data file if at xlo face
                 std::string dirichlet_file;
                 auto file_exists = pp.query("dirichlet_file", dirichlet_file);
-                if (ori.isLow() && (ori.coordDir() == 0) && file_exists) {
-                    init_Dirichlet_bc_data(ori, dirichlet_file);
+                if (file_exists) {
+                    init_Dirichlet_bc_data(dirichlet_file);
                 } else {
                     pp.getarr("velocity", v, 0, AMREX_SPACEDIM);
                     m_bc_extdir_vals[BCVars::xvel_bc][ori] = v[0];
@@ -559,8 +559,7 @@ void ERF::init_bcs ()
     Gpu::copy(Gpu::hostToDevice, domain_bcs_type.begin(), domain_bcs_type.end(), domain_bcs_type_d.begin());
 }
 
-void ERF::init_Dirichlet_bc_data (Orientation ori,
-                                  const std::string input_file)
+void ERF::init_Dirichlet_bc_data (const std::string input_file)
 {
     // Only on coarsest level!
     int lev = 0;
@@ -577,9 +576,9 @@ void ERF::init_Dirichlet_bc_data (Orientation ori,
     // Size of Nz (domain grid)
     Vector<Real> zcc_inp(Nz  );
     Vector<Real> znd_inp(Nz+1);
-    Vector<Real> u_inp(Nz  ); xvel_bc_data[ori].resize(Nz  ,0.0);
-    Vector<Real> v_inp(Nz  ); yvel_bc_data[ori].resize(Nz  ,0.0);
-    Vector<Real> w_inp(Nz+1); zvel_bc_data[ori].resize(Nz+1,0.0);
+    Vector<Real> u_inp(Nz  ); xvel_bc_data.resize(Nz  ,0.0);
+    Vector<Real> v_inp(Nz  ); yvel_bc_data.resize(Nz  ,0.0);
+    Vector<Real> w_inp(Nz+1); zvel_bc_data.resize(Nz+1,0.0);
 
     // Size of Ninp (number of z points in input file)
     Vector<Real> z_inp_tmp, u_inp_tmp, v_inp_tmp, w_inp_tmp;
@@ -639,9 +638,9 @@ void ERF::init_Dirichlet_bc_data (Orientation ori,
     input_reader.close();
 
     // Copy host data to the device
-    Gpu::copy(Gpu::hostToDevice, u_inp.begin(), u_inp.end(), xvel_bc_data[ori].begin());
-    Gpu::copy(Gpu::hostToDevice, v_inp.begin(), v_inp.end(), yvel_bc_data[ori].begin());
-    Gpu::copy(Gpu::hostToDevice, w_inp.begin(), w_inp.end(), zvel_bc_data[ori].begin());
+    Gpu::copy(Gpu::hostToDevice, u_inp.begin(), u_inp.end(), xvel_bc_data.begin());
+    Gpu::copy(Gpu::hostToDevice, v_inp.begin(), v_inp.end(), yvel_bc_data.begin());
+    Gpu::copy(Gpu::hostToDevice, w_inp.begin(), w_inp.end(), zvel_bc_data.begin());
 
     // NOTE: These device vectors are passed to the PhysBC constructors when that
     //       class is instantiated in ERF_make_new_arrays.cpp.

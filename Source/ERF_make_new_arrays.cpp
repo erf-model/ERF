@@ -489,17 +489,15 @@ void
 ERF::initialize_bcs (int lev)
 {
     // Dirichlet BC data only lives on level 0
-    int nface = 6; // 6 faces
-    Vector<Real*> u_bc_tmp; u_bc_tmp.resize(nface,nullptr);
-    Vector<Real*> v_bc_tmp; v_bc_tmp.resize(nface,nullptr);
-    Vector<Real*> w_bc_tmp; w_bc_tmp.resize(nface,nullptr);
+    Real* u_bc_tmp(nullptr);
+    Real* v_bc_tmp(nullptr);
+    Real* w_bc_tmp(nullptr);
     if (lev==0) {
-        for (int iface(0); iface<nface; ++iface) {
-            u_bc_tmp[iface] = xvel_bc_data[iface].data();
-            v_bc_tmp[iface] = yvel_bc_data[iface].data();
-            w_bc_tmp[iface] = zvel_bc_data[iface].data();
-        }
+        u_bc_tmp = xvel_bc_data.data();
+        v_bc_tmp = yvel_bc_data.data();
+        w_bc_tmp = zvel_bc_data.data();
     }
+
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
                                                                z_phys_nd[lev], use_real_bcs);
