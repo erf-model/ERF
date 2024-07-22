@@ -156,19 +156,37 @@ struct SolverChoice {
         pp.query("c_p", c_p);
         rdOcp = R_d / c_p;
 
+        // Turn off acoustic substepping?
+        int nvals_sub = pp.countval("no_substepping");
+        if (nvals_sub > 0) {
+            AMREX_ALWAYS_ASSERT(nvals_sub == 1 || nvals_sub >= max_level+1);
+            amrex::Vector<int> sub_in; sub_in.resize(nvals_sub);
+            pp.getarr("no_substepping",sub_in);
+            if (nvals_sub == 1) {
+                for (int i = 0; i <= max_level; ++i) no_substepping.push_back(sub_in[0]);
+            } else {
+                for (int i = 0; i <= max_level; ++i) no_substepping.push_back(sub_in[i]);
+            }
+        } else {
+            for (int i = 0; i <= max_level; ++i) no_substepping.push_back(0);
+        }
 
 #if defined(ERF_USE_POISSON_SOLVE)
         // Should we project the initial velocity field to make it divergence-free?
         pp.query("project_initial_velocity", project_initial_velocity);
 
         int nvals_inc = pp.countval("incompressible");
-        AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
-        amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
-        pp.getarr("incompressible",inc_in);
-        if (nvals_inc == 1) {
-            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+        if (nvals_inc > 0) {
+            AMREX_ALWAYS_ASSERT(nvals_inc == 1 || nvals_inc >= max_level+1);
+            amrex::Vector<int> inc_in; inc_in.resize(nvals_inc);
+            pp.getarr("incompressible",inc_in);
+            if (nvals_inc == 1) {
+                for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+            } else {
+                for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[i]);
+            }
         } else {
-            for (int i = 0; i <= max_level; ++i) incompressible.push_back(inc_in[0]);
+            for (int i = 0; i <= max_level; ++i) incompressible.push_back(0);
         }
 
         pp.query("constant_density", constant_density);
@@ -181,15 +199,20 @@ struct SolverChoice {
         for (int i = 0; i <= max_level; ++i) incompressible[i] = 0;
 #endif
 
-        // Turn off acoustic substepping?
-        pp.query("no_substepping", no_substepping);
         pp.query("force_stage1_single_substep", force_stage1_single_substep);
 
 #if defined(ERF_USE_POISSON_SOLVE)
         for (int lev = 0; lev <= max_level; lev++) {
-            if (incompressible[lev] != 0 && no_substepping == 0)
+            if (incompressible[lev] != 0 && no_substepping[lev] == 0)
             {
                 amrex::Abort("If you specify incompressible, you must specific no_substepping");
+            }
+            if (lev > 0)
+            {
+                if (incompressible[lev] == 0 && incompressible[lev-1] == 1)
+                {
+                    amrex::Abort("One can not have a compressible refined region within an incompressible coarse region");
+                }
             }
         }
 #endif
@@ -310,10 +333,12 @@ struct SolverChoice {
     void display(int max_level)
     {
         amrex::Print() << "SOLVER CHOICE: " << std::endl;
-        amrex::Print() << "no_substepping              : " << no_substepping << std::endl;
         amrex::Print() << "force_stage1_single_substep : "  << force_stage1_single_substep << std::endl;
         for (int lev = 0; lev <= max_level; lev++) {
             amrex::Print() << "incompressible at level     : " << lev << " is " << incompressible[lev] << std::endl;
+        }
+        for (int lev = 0; lev <= max_level; lev++) {
+            amrex::Print() << "no_substepping at level     : " << lev << " is " << no_substepping[lev] << std::endl;
         }
         amrex::Print() << "use_coriolis                : " << use_coriolis << std::endl;
         amrex::Print() << "use_gravity                 : " << use_gravity << std::endl;
@@ -398,10 +423,11 @@ struct SolverChoice {
     // Default prefix
     std::string pp_prefix {"erf"};
 
-    int         no_substepping              = 0;
     int         force_stage1_single_substep = 1;
 
     amrex::Vector<int> incompressible;
+    amrex::Vector<int> no_substepping;
+
     int         constant_density    = 0;
     int         project_every_stage = 1;
     int         ncorr               = 1;

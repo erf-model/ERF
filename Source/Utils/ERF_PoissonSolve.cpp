@@ -5,6 +5,8 @@
 
 #ifdef ERF_USE_POISSON_SOLVE
 
+#include "ProjectionUtils.H"
+
 using namespace amrex;
 
 /**
@@ -17,22 +19,23 @@ using BCType = LinOpBCType;
 Array<LinOpBCType,AMREX_SPACEDIM>
 ERF::get_projection_bc (Orientation::Side side) const noexcept
 {
+    //
+    // NOTE: these are boundary conditions on the domain -- we compute these with level 0 grids
+    //
     amrex::Array<amrex::LinOpBCType,AMREX_SPACEDIM> r;
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         if (geom[0].isPeriodic(dir)) {
             r[dir] = LinOpBCType::Periodic;
         } else {
             auto bc_type = domain_bc_type[Orientation(dir,side)];
-            //if (bc_type == "Outflow") {
-            //    r[dir] = LinOpBCType::Dirichlet;
-            //} else
-            {
+            if (bc_type == "Outflow") {
+                r[dir] = LinOpBCType::Dirichlet;
+            } else {
                 r[dir] = LinOpBCType::Neumann;
             }
         }
     }
-    //r[2] = LinOpBCType::Neumann;
-    //amrex::Print() << "BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
+    // amrex::Print() << "Domain BCs for Poisson solve " << r[0] << " " << r[1] << " " << r[2] << std::endl;
     return r;
 }
 bool ERF::projection_has_dirichlet (Array<LinOpBCType,AMREX_SPACEDIM> bcs) const
@@ -95,7 +98,8 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
 
     auto bclo = get_projection_bc(Orientation::low);
     auto bchi = get_projection_bc(Orientation::high);
-    bool need_adjust_rhs = (projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi)) ? false : true;
+    bool need_adjust_rhs = ( projection_has_dirichlet(bclo) || projection_has_dirichlet(bchi) ) ? false : true;
+
     mlabec.setDomainBC(bclo, bchi);
 
     if (lev > 0) {
@@ -113,6 +117,7 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
 
     rhs[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
     phi[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+
     rhs[0].setVal(0.0);
     phi[0].setVal(0.0);
 
@@ -126,14 +131,60 @@ void ERF::project_velocities (int lev, Real l_dt, Vector<MultiFab>& vmf, MultiFa
     u[0] = &(vmf[Vars::xvel]);
     u[1] = &(vmf[Vars::yvel]);
     u[2] = &(vmf[Vars::zvel]);
-    computeDivergence(rhs[0], u, geom_tmp[0]);
 
-    // If all Neumann BCs, adjust RHS to make sure we can converge
-    if (need_adjust_rhs)
+    int solve_type = 1; // Adjust the outflow velocities to make sum(divu) = 0 and solve div(u) = 0
+//  int solve_type = 2; // Interpolate the coarse divu to fine divu to             solve div(u) = S != 0
+
+    if (lev == 0)
     {
+        // Compute the RHS = div(U)
+        computeDivergence(rhs[0], u, geom_tmp[0]);
+
+        // If all Neumann BCs, adjust RHS to make sure we can converge
+        if (need_adjust_rhs) {
+            Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
+            rhs[0].plus(-offset, 0, 1);
+            amrex::Print() << "Domain-wide Poisson solvability offset = " << offset << std::endl;
+        }
+
+    // This type is what is in the ERF-AW coupling
+    } else if (solve_type == 1) { // lev > 0
+
+        // Now compute the RHS = div(U)
+        computeDivergence(rhs[0], u, geom_tmp[0]);
+
+        Real offset0 = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
+
+        Array<MultiFab*, AMREX_SPACEDIM> uu;
+        uu[0] = &(vmf[Vars::xvel]);
+        uu[1] = &(vmf[Vars::yvel]);
+        uu[2] = &(vmf[Vars::zvel]);
+        enforceInflowOutflowSolvability(uu,geom[lev]);
+
+        // Now compute the RHS = div(u)
+        computeDivergence(rhs[0], u, geom_tmp[0]);
+
+        // Test that we have correctly made this solvable
+        // We expect this value to be less than solver tolerance
+        amrex::Print() << "Region-wide Poisson solvability offset went from = " << offset0 << " to " <<
+                          volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false) << std::endl;
+
+    // This is an alternate strategy in which we allow div(u) != 0 in the incompressible region
+    } else if (solve_type == 2) { // lev > 0
+
+        // Now compute the RHS = div(U)
+        computeDivergence(rhs[0], u, geom_tmp[0]);
+
+        Vector<MultiFab> divuS;
+        divuS.resize(1);
+        divuS[0].define(ba_tmp[0], dm_tmp[0], 1, 0);
+        divuS[0].setVal(0.0);
+
+        MultiFab::Saxpy(rhs[0], Real(1.0), divuS[0], 0, 0, 1, 0);
+
+        // We do not expect this to be close to tolerance
         Real offset = volWgtSumMF(lev, rhs[0], 0, *mapfac_m[lev], false, false);
-        // amrex::Print() << "Poisson solvability offset = " << offset << std::endl;
-        rhs[0].plus(-offset, 0, 1);
+        amrex::Print() << "Region-wide Poisson solvability offset would be = " << offset << " but this is ok" << std::endl;
     }
 
     // Initialize phi to 0

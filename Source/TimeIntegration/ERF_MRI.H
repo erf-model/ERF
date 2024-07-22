@@ -320,8 +320,7 @@ public:
             // Capture the time we got to in the previous RK step
             old_time_stage = time_stage;
 
-            if (nrk == 0) { nsubsteps = 1; dtau = timestep; time_stage = time; }
-            if (nrk == 1) { nsubsteps = 1; dtau = timestep; time_stage = time + timestep; }
+            nsubsteps = 1; dtau = timestep; time_stage = time + timestep;
 
             // All pre_update does is call cons_to_prim, and we have done this with the old
             //     data already before starting the RK steps

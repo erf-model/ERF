@@ -173,7 +173,14 @@ ERF::ERF ()
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
     for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
+        // If coarse is compressible and fine is incompressible,
+        //    don't subcycle in time
+        if (solverChoice.incompressible[lev-1] == 0 &&
+            solverChoice.incompressible[lev  ] == 1) {
+            nsubsteps[lev] = 1;
+        } else {
+            nsubsteps[lev] = MaxRefRatio(lev-1);
+        }
     }
 
     t_new.resize(nlevs_max, 0.0);
@@ -1097,7 +1104,6 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 void
 ERF::restart ()
 {
-    // TODO: This could be deleted since ba/dm are not created yet?
     for (int lev = 0; lev <= finest_level; ++lev)
     {
         auto& lev_new = vars_new[lev];
@@ -1831,8 +1837,16 @@ ERF::ERF (const RealBox& rb, int max_level_in,
 
     istep.resize(nlevs_max, 0);
     nsubsteps.resize(nlevs_max, 1);
-    for (int lev = 1; lev <= max_level; ++lev) {
-        nsubsteps[lev] = MaxRefRatio(lev-1);
+    for (int lev = 1; lev <= max_level; ++lev)
+    {
+        // If coarse is compressible and fine is incompressible,
+        //    don't subcycle in time
+        if (solverChoice.incompressible[lev-1] == 0 &&
+            solverChoice.incompressible[lev  ] == 1) {
+            nsubsteps[lev] = 1;
+        } else {
+            nsubsteps[lev] = MaxRefRatio(lev-1);
+        }
     }
 
     t_new.resize(nlevs_max, 0.0);

@@ -23,4 +23,5 @@ CEXE_sources += Time_Avg_Vel.cpp
 ifeq ($(USE_POISSON_SOLVE),TRUE)
 CEXE_sources += ERF_PoissonSolve.cpp
 CEXE_sources += ERF_PoissonSolve_tb.cpp
+CEXE_headers += ProjectionUtils.H
 endif

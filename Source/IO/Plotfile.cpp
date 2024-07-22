@@ -51,7 +51,12 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
 
     for (int i = 0; i < ncomp_cons; ++i) {
         if ( containerHasElement(plot_var_names, cons_names[i]) ) {
-            tmp_plot_names.push_back(cons_names[i]);
+            if ( (solverChoice.moisture_type == MoistureType::SAM) || (derived_names[i] != "rhoQ4" &&
+                                                                       derived_names[i] != "rhoQ5" &&
+                                                                       derived_names[i] != "rhoQ6") )
+            {
+                tmp_plot_names.push_back(cons_names[i]);
+            } // moisture_type
         }
     }
     // check for velocity since it's not in cons_names
@@ -63,12 +68,24 @@ ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>
         tmp_plot_names.push_back("y_velocity");
         tmp_plot_names.push_back("z_velocity");
     }
+
+    //
+    // If the model we are running doesn't have the variable listed in the inputs file,
+    //     just ignore it rather than aborting
+    //
     for (int i = 0; i < derived_names.size(); ++i) {
         if ( containerHasElement(plot_var_names, derived_names[i]) ) {
             if (solverChoice.use_terrain || (derived_names[i] != "z_phys" && derived_names[i] != "detJ") ) {
-               tmp_plot_names.push_back(derived_names[i]);
-            }
-        }
+                if ( (solverChoice.moisture_type == MoistureType::SAM) || (derived_names[i] != "qi" &&
+                                                                           derived_names[i] != "qsnow" &&
+                                                                           derived_names[i] != "qgraup" &&
+                                                                           derived_names[i] != "snow_accum" &&
+                                                                           derived_names[i] != "graup_accum") )
+                {
+                    tmp_plot_names.push_back(derived_names[i]);
+                } // moisture_type
+            } // use_terrain?
+        } // hasElement
     }
 #ifdef ERF_USE_PARTICLES
     const auto& particles_namelist( particleData.getNamesUnalloc() );

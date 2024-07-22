@@ -408,7 +408,7 @@ ERF::initialize_integrator (int lev, MultiFab& cons_mf, MultiFab& vel_mf)
     int_state.push_back(MultiFab(convert(ba,IntVect(0,0,1)), dm, 1, vel_mf.nGrow())); // zmom
 
     mri_integrator_mem[lev] = std::make_unique<MRISplitIntegrator<Vector<MultiFab> > >(int_state);
-    mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping);
+    mri_integrator_mem[lev]->setNoSubstepping(solverChoice.no_substepping[lev]);
     mri_integrator_mem[lev]->setIncompressible(solverChoice.incompressible[lev]);
     mri_integrator_mem[lev]->setNcompCons(ncomp_cons);
     mri_integrator_mem[lev]->setForceFirstStageSingleSubstep(solverChoice.force_stage1_single_substep);

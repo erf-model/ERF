@@ -65,7 +65,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel]});
 
-    int l_no_substepping = solverChoice.no_substepping;
+    int l_no_substepping = solverChoice.no_substepping[level];
 
 #ifdef ERF_USE_EB
     EBFArrayBoxFactory ebfact = EBFactory(level);
