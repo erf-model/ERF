@@ -19,56 +19,56 @@ The following is an example ERF containerfile with filename ``erf_containerfile`
 
 .. code:: shell
 
-     1	FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
-     2	
-     3	WORKDIR /app
-     4	ARG base_dir=/app/erf
-     5	
-     6	RUN apt-get update -y && \
-     7	    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-     8	    g++-12 \
-     9	    gcc-12 \
-    10	    gfortran-12 \
-    11	    git \
-    12	    libtool \
-    13	    make \
-    14	    tar \
-    15	    autoconf \
-    16	    automake \
-    17	    wget \
-    18	    python3 \
-    19	    cmake
-    20	
-    21	# MPICH to be swapped out later for Cray MPI
-    22	ARG mpich_version=4.2.2
-    23	ARG mpich_dir=mpich-${mpich_version}
-    24	
-    25	RUN wget https://www.mpich.org/static/downloads/$mpich_version/$mpich_dir.tar.gz && \
-    26	    tar xzf $mpich_dir.tar.gz && \
-    27	    cd $mpich_dir && \
-    28	    ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
-    29	    make -j8 && \
-    30	    make install && \
-    31	    make clean  && \
-    32	    cd ..  && \
-    33	    rm -rf $mpich_dir $mpich_dir.tar.gz
-    34	
-    35	RUN mkdir ${base_dir}
-    36	
-    37	ARG build_dir=MyBuild
-    38	
-    39	RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git && \
-    40	  cd ERF && mkdir ${build_dir} && cd ${build_dir} && \
-    41	  cmake \
-    42	  -DCMAKE_C_COMPILER=mpicc \
-    43	  -DCMAKE_CXX_COMPILER=mpicxx \
-    44	  -DCMAKE_Fortran_COMPILER=mpif90 \
-    45	  -DCMAKE_BUILD_TYPE:STRING=Release \
-    46	  -DCMAKE_CUDA_ARCHITECTURES=80 \
-    47	  -DERF_ENABLE_MPI:BOOL=ON \
-    48	  -DERF_ENABLE_CUDA=ON \
-    49	  .. && \
-    50	  make -j8 
+     1    FROM nvcr.io/nvidia/cuda:12.2.0-devel-ubuntu22.04
+     2
+     3    WORKDIR /app
+     4    ARG base_dir=/app/erf
+     5
+     6    RUN apt-get update -y && \
+     7        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+     8        g++-12 \
+     9        gcc-12 \
+    10        gfortran-12 \
+    11        git \
+    12        libtool \
+    13        make \
+    14        tar \
+    15        autoconf \
+    16        automake \
+    17        wget \
+    18        python3 \
+    19        cmake
+    20
+    21    # MPICH to be swapped out later for Cray MPI
+    22    ARG mpich_version=4.2.2
+    23    ARG mpich_dir=mpich-${mpich_version}
+    24
+    25    RUN wget https://www.mpich.org/static/downloads/$mpich_version/$mpich_dir.tar.gz && \
+    26        tar xzf $mpich_dir.tar.gz && \
+    27        cd $mpich_dir && \
+    28        ./configure CC=/usr/bin/gcc-12 CXX=/usr/bin/g++-12 F77=/usr/bin/gfortran-12 FC=/usr/bin/gfortran-12 && \
+    29        make -j8 && \
+    30        make install && \
+    31        make clean  && \
+    32        cd ..  && \
+    33        rm -rf $mpich_dir $mpich_dir.tar.gz
+    34
+    35    RUN mkdir ${base_dir}
+    36
+    37    ARG build_dir=MyBuild
+    38
+    39    RUN cd ${base_dir} && git clone --recursive https://github.com/erf-model/ERF.git && \
+    40      cd ERF && mkdir ${build_dir} && cd ${build_dir} && \
+    41      cmake \
+    42      -DCMAKE_C_COMPILER=mpicc \
+    43      -DCMAKE_CXX_COMPILER=mpicxx \
+    44      -DCMAKE_Fortran_COMPILER=mpif90 \
+    45      -DCMAKE_BUILD_TYPE:STRING=Release \
+    46      -DCMAKE_CUDA_ARCHITECTURES=80 \
+    47      -DERF_ENABLE_MPI:BOOL=ON \
+    48      -DERF_ENABLE_CUDA=ON \
+    49      .. && \
+    50      make -j8
 
 Line numbers were added for instructional purposes but should not appear in containerfile.
 The containerfile is available at https://github.com/erf-model/ERF/tree/development/Build/erf_containerfile
@@ -78,9 +78,9 @@ The containerfile is available at https://github.com/erf-model/ERF/tree/developm
 * Line 4 sets a value for the variable ``base_dir``
 * Lines 6-19 download the GNU 12 compilers and all the necessary utilities for building ERF in the container
 * Lines 21-33 download the MPICH source code and builds it.  At runtime this MPICH will get replaced by Perlmutter's Cray MPI
-* Lines 39-52 clone the ERF repo and build it with cmake/make
-  
-  
+* Lines 39-50 clone the ERF repo and build it with cmake/make
+
+
 
 Build the container on Perlmutter using ``podman-hpc`` and using the containerfile ``erf_containerfile`` with name ``erf`` and tag ``1.00`` (``-t <name>:<tag>``)
 
@@ -113,14 +113,14 @@ Submit the following slurm batch script in order to use the image in a job
 .. code:: shell
 
   #!/bin/bash
-  
+
   #SBATCH --account=<proj>
   #SBATCH --constraint=gpu
   #SBATCH --job-name=erf
   #SBATCH --nodes=1
   #SBATCH --time=0:05:00
   #SBATCH -q regular
-  
+
   srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
   podman-hpc run --rm --mpi --gpu -v /pscratch/sd/u/user/erf/abl:/run -w /run erf:1.00 \
   /app/erf/ERF/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
@@ -129,12 +129,12 @@ Submit the following slurm batch script in order to use the image in a job
 
 .. code:: shell
 
-	  #!/bin/bash
-	  # select_cpu_device wrapper script
-	  export CUDA_VISIBLE_DEVICES=$((3-$SLURM_LOCALID))
-	  exec $*
+      #!/bin/bash
+      # select_cpu_device wrapper script
+      export CUDA_VISIBLE_DEVICES=$((3-$SLURM_LOCALID))
+      exec $*
 
-Arguments for ``podman-hpc run`` used above	  
+Arguments for ``podman-hpc run`` used above
 
 * ``--rm`` removes the container after exit
 * ``--mpi`` enables Cray MPI support (swaps MPICH in the container for Perlmutter's Cray MPI)
@@ -158,13 +158,13 @@ Common Issues
 
 * Using ``podman`` rather than ``podman-hpc`` on Perlmutter (best to always use ``podman-hpc``)
 * Before issuing ``podman-hpc migrate <name>:<tag>`` after having issued the command earlier with identical ``<name>:<tag>``, if want to keep the same name, please change the ``<tag>`` to one that has not been used previously.  If want to use an identical ``<name>:<tag>`` used in a previous ``podman-hpc migrate`` command, please first issue ``podman-hpc rmsqi <name>:<tag>`` to delete the old image.  Otherwise could potentially end up with errors such as
-  
+
     .. code:: shell
-	  
+
       Error: read-only image store assigns the same name to multiple images
 
   and will have resort to `various methods <https://docs.nersc.gov/development/containers/podman-hpc/overview/#troubleshooting>`_ to get out of the bad configuration state.
-  
+
 * The default containerfile is a file called ``Containerfile`` (case sensitive).  When that file is being used, can replace ``-f erf_containerfile`` with a period:
 
    .. code:: shell
