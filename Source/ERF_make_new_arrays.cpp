@@ -323,7 +323,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         solverChoice.pert_type == PerturbationType::perturbDirect)
     {
         if (lev == 0) {
-            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray());
+            turbPert.init_tpi(lev, geom[lev].Domain().bigEnd(), geom[lev].CellSizeArray(), ba, dm, ngrow_state);
         }
     }
 
