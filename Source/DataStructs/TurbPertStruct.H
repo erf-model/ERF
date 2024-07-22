@@ -9,6 +9,12 @@
  * Container holding quantities related to turbulent perturbation parameters
  */
 
+/*  The general rule of thumb is to create a perturbation box size of 1/8th of the boundary layer height.
+    The boundary layer height cant be the height of the domain. The length and width of the box should 
+    be twice the height of the box. If meandering flow is present, the width of the box should be take
+    the angle of the inflow into consideration.
+*/
+
 struct TurbulentPerturbation {
 
   public:
@@ -17,7 +23,6 @@ struct TurbulentPerturbation {
 
     // Initializing Perturbation Region
     // Currently only support perturbation in the x and y direction
-    // Note: Box will always be initialized at cell centered
     void init_tpi (const int lev,
                    const amrex::IntVect& nx,
                    const amrex::GpuArray<amrex::Real,3> dx,
@@ -136,11 +141,16 @@ struct TurbulentPerturbation {
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
 
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+
+            // Check if the local elasped time is greater than the update interval
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
+
                 // Compute mean velocity magnitude within perturbation box
                 calc_tpi_meanMag_perBox(boxIdx, lev, mf_xvel, mf_yvel);
                 //calc_tpi_meanMag_firstCell(boxIdx, lev, mf_xvel, mf_yvel);
 
+                // Done for parallelism to avoid Inf being stored in array
+                // Only the rank owning the box will be able to access the storage location
                 if (pb_mag[boxIdx] !=0.) {
                     amrex::Real interval = tpi_lref / pb_mag[boxIdx];
                     pb_interval[boxIdx] = RandomReal(0.9*interval,1.1*interval); // 10% variation
@@ -154,12 +164,12 @@ struct TurbulentPerturbation {
                 // it becomes colored through the filtering of temperature transport equation from
                 // the eddy diffusivity.
                 for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
-                    const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
                     amrex::Box vbx = mfi.validbox();
                     amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
                     amrex::Box ubx = pbx & vbx;
                     if (ubx.ok()) {
                         amrex::Real amp_copy = pb_amp[boxIdx];
+                        const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
                         ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
                             amrex::Real rand_double = amrex::Random(engine);
                             pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy;
@@ -170,7 +180,7 @@ struct TurbulentPerturbation {
                 // Reset local elapsed time
                 pb_local_etime[boxIdx] = 0.;
             } else {
-                // Increase by timestep
+                // Increase by timestep of level 0
                 pb_local_etime[boxIdx] += dt;
             } // if
         } // for
@@ -191,11 +201,11 @@ struct TurbulentPerturbation {
         #endif
 
         #ifdef BULK_RICHARDSON_FORMULATION
-        amrex::Real beta = 1./tpi_Tinf;
+        amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
 
         // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
-        //amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
-        amrex::Real g = CONST_GRAV;
+        amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
+        //amrex::Real g = CONST_GRAV;
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
@@ -222,7 +232,6 @@ struct TurbulentPerturbation {
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    //amrex::Print() << "pert_cell[" <<i<< ", "<<j<<", "<<k<<"] = "<< pert_cell(i,j,k,0)<<"\n"; //Sanity Check
                     src_arr(i,j,k,comp) += pert_cell(i,j,k,0);
 
                     // For box region debug only
