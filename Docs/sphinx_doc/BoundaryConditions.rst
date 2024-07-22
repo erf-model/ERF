@@ -262,13 +262,13 @@ Two different types of perturbation are currently available, ``source``, adopted
 ..
    _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
-and ``direct``, adopted from `Munoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, `\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the `\rho \theta field`.
+and ``direct``, adopted from `Munoz-Esparza et al. (2015)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. It's important to note that while this perturbation starts as white noise, it becomes colored noise due to the eddy viscosity turbulence closure. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta field`.
 
-The current implementation only supports West and South face perturbations, specified by ``erf.perturbation_direction``, where the 3 integer inputs represent the `x`, `y`, and `z` directions, respectively. The flow perturbation method requires the dimensions of an individual box input through ``erf.perturbation_box_dim``, with 3 integer inputs representing `nx_{pb}`, `ny_{pb}`, and `nz_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_,
+The current implementation only supports West and South face perturbations, specified by ``erf.perturbation_direction``, where the 3 integer inputs represent the `x`, `y`, and `z` directions, respectively. The flow perturbation method requires the dimensions of an individual box input through ``erf.perturbation_box_dim``, with 3 integer inputs representing :math:`nx_{pb}`, :math:`ny_{pb}`, and :math:`nz_{pb}`, respectively. Following the guidance of `Ma and Senocak (2023)`_,
 
 .. _`Ma and Senocak (2023)`: https://link.springer.com/article/10.1007/s10546-023-00786-1
 
-the general rule of thumb is to use `H_{PB} = 1/8 \delta` as the height of the perturbation box, where `\delta` is the boundary layer height. The length of the box in the x-direction should be `L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as `W_{PB} = L_{PB} \tan{\theta_{inflow}}`. Note that the current implementation only accepts ``int`` entries. Therefore, considering the domain size and mesh resolution, the dimensions of a singular box can be determined.
+the general rule of thumb is to use :math:`H_{PB} = 1/8 \delta` as the height of the perturbation box, where :math:`\delta` is the boundary layer height. The length of the box in the x-direction should be :math:`L_{PB} = 2H_{PB}`. Depending on the direction of the bulk flow, the width of the box in the y-direction should be defined as :math:`W_{PB} = L_{PB} \tan{\theta_{inflow}}`. Note that the current implementation only accepts ``int`` entries. Therefore, considering the domain size and mesh resolution, the dimensions of a singular box can be determined.
 
 The specification of the number of layers and the offset into the domain of the perturbation boxes can be made through ``erf.perturbation_layers`` and ``erf.perturbation_offset``, respectively.
 
@@ -306,7 +306,8 @@ The magnitude of the perturbation, ignoring the advection and diffusion effects 
 
 .. math::
 
-   \Phi_{PB} \propto \frac{\Delta \overliner{\phi}}{t_p}
+   \Phi_{PB} \propto \frac{\Delta \overline{\phi}}{t_p}
+
 
 and the perturbation amplitude is determined by the equation,
 
@@ -328,6 +329,8 @@ The ``source`` type forcing can adopt the box perturbation method by having the 
           erf.perturbation_nondimensional = 0.042 # Ri
           erf.perturbation_T_infinity = 300.0
           erf.perturbation_T_intensity = 0.1
+
+The primary purpose of the box perturbation method is not merely to perturb the temperature field in a box format. The key difference between the box and cell perturbation methods lies in how the perturbation is introduced into the temperature source term. Both methods use white noise to generate perturbations, but through the eddy diffusivity scheme and temperature transport, this white noise transforms into colored noise. Although the exact nature of the colored noise is unknown, this method effectively initiates perturbations that develop downstream. While colored noise can be directly added in the cell perturbation method, introducing it directly into the temperature field can cause simulation instability.
 
 Direct type forcing
 -------------------
