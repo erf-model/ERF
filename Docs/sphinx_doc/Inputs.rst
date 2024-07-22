@@ -563,7 +563,7 @@ List of Parameters
 | Parameter                     | Definition       | Acceptable     | Default        |
 |                               |                  | Values         |                |
 +===============================+==================+================+================+
-| **erf.datalog**               | Output           | Up to four     | NONE           |
+| **erf.data_log**              | Output           | Up to four     | NONE           |
 |                               | filename(s)      | strings        |                |
 +-------------------------------+------------------+----------------+----------------+
 | **erf.profile_int**           | Interval (number)| Integer        | -1             |
