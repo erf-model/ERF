@@ -10,7 +10,7 @@
  */
 
 /*  The general rule of thumb is to create a perturbation box size of 1/8th of the boundary layer height.
-    The boundary layer height cant be the height of the domain. The length and width of the box should 
+    The boundary layer height can't be the height of the domain. The length and width of the box should 
     be twice the height of the box. If meandering flow is present, the width of the box should be take
     the angle of the inflow into consideration.
 */
@@ -142,7 +142,7 @@ struct TurbulentPerturbation {
 
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
 
-            // Check if the local elasped time is greater than the update interval
+            // Check if the local elapsed time is greater than the update interval
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
 
                 // Compute mean velocity magnitude within perturbation box
