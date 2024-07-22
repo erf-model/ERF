@@ -1,39 +1,44 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-start_time = 0.
-stop_time = 35.0
-#stop_time = 10.0
+stop_time = 20.0
+#max_step = 5
 
-#max_step = 1000
-
+erf.no_substepping = 1
 amrex.fpe_trap_invalid = 1
-
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-#geometry.prob_extent =  4.    1.    1.
-#amr.n_cell           = 128    32    32
-
-geometry.prob_extent =  10.    1.    1.
-#amr.n_cell           = 128    16    16
-amr.n_cell           = 128     16    64
+geometry.prob_extent =  40     2.5     10
+#geometry.prob_extent =   2.    0.25    1.
+amr.n_cell           = 128     16     64
 
 geometry.is_periodic = 0 1 0
 
-xlo.type = "Outflow"
+xlo.type = "Inflow"
 xhi.type = "Outflow"
-zlo.type = "NoSlipWall"
 zhi.type = "SlipWall"
+#zlo.type = "NoSlipWall"
+zlo.type = "Most"
+
+erf.most.flux_type = "custom"
+erf.most.ustar  = 0.0395   # z=10.
+#erf.most.ustar  = 0.395   # z=1.0
+erf.most.tstar  = 0. # theta flux
+erf.most.qstar  = 0. # qv    flux
+
+xlo.density =   1.0
+xlo.theta   = 300.0
+xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 
 # TIME STEP CONTROL
-erf.no_substepping = 1
-erf.cfl = 0.5
-
-erf.dynamicViscosity = 0.0001 # H = 1, therefore utau = 0.2
+erf.cfl = 0.4
+erf.dynamicViscosity = 0.001
+erf.use_gravity = true
+erf.buoyancy_type = 2
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 1       # timesteps between computing mass
-erf.pert_interval  = 1       # timesteps between perturbation output message
-erf.v              = 1       # verbosity in ERF.cpp
+erf.sum_interval   = 0       # timesteps between computing mass
+erf.pert_interval  = 5       # timesteps between perturbation output message XXX
+erf.v              = 0       # verbosity in ERF.cpp XXX
 amr.v              = 0       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
@@ -42,55 +47,37 @@ amr.max_level       = 0      # maximum level number allowed
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
 #erf.plot_per_1      = 0.1
-erf.plot_int_1      = 10
+erf.plot_int_1      = 5
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
-erf.check_file      = chk    # root name of checkpoint file
-erf.check_per       = 1.0
-
-# Restart for data collection
-#erf.restart = "/home/tma/Desktop/TurbChannel/SpinUp/chk233334"
-#erf.data_log    = "surf.txt" "mean.txt" "flux.txt" "subgrid.txt"
-#erf.profile_int = 33334
+#erf.check_file      = chk    # root name of checkpoint file
+#erf.check_per       = 1.0
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
 erf.alpha_C = 1.0
-erf.use_gravity = false
 
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 
-erf.buoyancy_type = 1
-
 # Initial condition for the entire field
 erf.init_type = "input_sounding"
-erf.input_sounding_file = "input_ReTau2000DNS_sounding.txt"
-
-# Inflow boundary condition
-erf.sponge_type = "input_sponge"
-erf.input_sponge_file = "input_ReTau2000DNS_sponge.txt"
-erf.sponge_strength = 100000.0
-erf.use_xlo_sponge_damping = true
-erf.xlo_sponge_end = 1.0
+erf.input_sounding_file = "input_ReTau395Ana_sounding.txt"
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
 erf.perturbation_direction = 1 0 0
 erf.perturbation_layers = 3
-erf.perturbation_offset = 0
+erf.perturbation_offset = 3
 
-erf.perturbation_box_dims = 4 4 8 # 0.25 0.25 0.125
+erf.perturbation_box_dims = 4 8 8
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
-erf.perturbation_T_intensity = 0.1
+erf.perturbation_T_intensity = 0.05
 
 # PROBLEM PARAMETERS
-prob.rho_0 = 1.0
-prob.A_0 = 1.0
-prob.U_0 = 0.0
-prob.V_0 = 0.0
-prob.W_0 = 0.0
-prob.T_0 = 300.0
+#prob.U_0_Pert_Mag = 1.0
+#prob.V_0_Pert_Mag = 1.0
+#prob.W_0_Pert_Mag = 0.0
