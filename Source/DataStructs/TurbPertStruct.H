@@ -10,7 +10,7 @@
  */
 
 /*  The general rule of thumb is to create a perturbation box size of 1/8th of the boundary layer height.
-    The boundary layer height can't be the height of the domain. The length and width of the box should 
+    The boundary layer height can't be the height of the domain. The length and width of the box should
     be twice the height of the box. If meandering flow is present, the width of the box should be take
     the angle of the inflow into consideration.
 */
