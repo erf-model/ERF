@@ -8,6 +8,8 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_Box.H>
 #include <cmath>
+#include <time.h>
+#include <iostream>
 
 using namespace amrex;
 
@@ -73,6 +75,11 @@ ERF::read_waves (int lev)
                      MPI_Recv(my_L_ptr, nsealm, MPI_DOUBLE, other_root, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                  }
              }
+
+    amrex::Real myclock = ParallelDescriptor::second();
+
+    amrex::AllPrintToFile("recv_from_ww3_timer.txt") << "It took " << myclock << " seconds to finish receiving from ww3" << std::endl;
+
              amrex::AllPrintToFile("output_HS_cpp.txt")<<FArrayBox(my_H_arr)<<std::endl;
              amrex::AllPrintToFile("output_L_cpp.txt")<<FArrayBox(my_L_arr)<<std::endl;
 
@@ -109,14 +116,16 @@ ERF::send_to_ww3 (int lev)
     int ncomp = 1; // number components
     auto& lev_new = vars_new[lev];
     const double PI = 3.1415926535897932384626433832795028841971693993751058209;
-
+   
+    int count_send = 0;
     int k_ref = 0;
     int nlevs_max = max_level + 1;
     const auto dz  = geom[lev].CellSize(2); //For 10m
     if (dz < 10){
         k_ref = std::floor( (10 / dz) - 0.5 );
     }
-
+    double clkStart2, timedif2;
+    clkStart2 = (double) clock() / CLOCKS_PER_SEC;
     // Access xvel, yvel from ABL
     MultiFab xvel_data(lev_new[Vars::xvel].boxArray(), lev_new[Vars::xvel].DistributionMap(), 1, lev_new[Vars::xvel].nGrowVect());
 
@@ -266,9 +275,15 @@ ERF::send_to_ww3 (int lev)
     indices[counter] = iv;
     ++counter;
     }
+    timedif2 = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart2;
+    amrex::AllPrintToFile("timer.txt") << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
+    //amrex::Print() << "It took " << (double) timedif2 << " seconds to reach the part before sending" << std::endl;
 
+    double clkStart, timedif;
+    clkStart = (double) clock() / CLOCKS_PER_SEC;
 
 // Print magnitude values and corresponding IntVect indices
+
 for (int j = 0; j < n_elements; ++j) {
     amrex::AllPrintToFile("debug_send.txt")
         << "dz, k_ref " << dz << ", " << k_ref << " "
@@ -289,6 +304,7 @@ for (int j = 0; j < n_elements; ++j) {
              other_root = 0;
          }
 
+
          amrex::Print()<< "We are sending " << n_elements << std::endl;
 
          if (amrex::MPMD::MyProc() == this_root) {
@@ -307,6 +323,16 @@ MPI_Send(theta_values.data(), n_elements, MPI_DOUBLE, other_root, 14, MPI_COMM_W
                  //MPI_Recv(&ny, 1, MPI_INT, other_root, 6, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
              }
          }
+    timedif = ( ((double) clock()) / CLOCKS_PER_SEC) - clkStart; 
+
+    amrex::Real myclock = ParallelDescriptor::second(); 
+	
+    amrex::AllPrintToFile("send_to_ww3_timer.txt") << "It took " << myclock << " seconds to reach the end of send_to_ww3 using amrex::ParallelDescriptor to time" << std::endl;
+    amrex::AllPrintToFile("timer.txt") << "It took " << timedif << " seconds to send WW3 these arrays via MPI_Send" << std::endl; 
+  // amrex::Print() << "It took " << myclock  << " seconds to send WW3 these arrays via MPI_Send" << std::endl;
+
+         //count_send = count_send + 1;
+         //amrex::AllPrintToFile("count_sends.txt")  <<  " Sending to WW3 : " << count_send << std::endl;
 
 
 }
