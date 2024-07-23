@@ -25,14 +25,14 @@ zhi.type = "SlipWall"
 zlo.type = "Most"
 erf.most.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
-##erf.most.ustar  = 0.395   # z=1.0
+#erf.most.ustar  = 0.395   # z=1.0
 erf.most.tstar  = 0. # theta flux
 erf.most.qstar  = 0. # qv    flux
 
-xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 xlo.density =   1.0
 xlo.theta   = 300.0
 #xlo.velocity = 1.0 0.0 0.0
+xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 
 # TIME STEP CONTROL
 erf.cfl = 0.5
