@@ -99,3 +99,9 @@ In addition to this documentation, there is API documentation for ERF generated 
    :maxdepth: 1
 
    Applications_Requirements.rst
+
+.. toctree::
+   :caption: CONTAINERS
+   :maxdepth: 1
+
+   containers.rst
