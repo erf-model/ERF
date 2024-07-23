@@ -47,6 +47,7 @@
 #include "EulerianMicrophysics.H"
 #include "LagrangianMicrophysics.H"
 #include "LandSurface.H"
+#include "WindFarm.H"
 
 #ifdef ERF_USE_RRTMGP
 #include "Radiation.H"
@@ -385,14 +386,11 @@ public:
 
 #ifdef ERF_USE_WINDFARM
     void init_windfarm(int lev);
-    void init_windfarm_lat_lon(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
-    void init_windfarm_x_y(const int lev,
-                               const std::string windfarm_loc_table,
-                               amrex::Vector<amrex::Real>& xloc,
-                               amrex::Vector<amrex::Real>& yloc);
+    void advance_windfarm (const amrex::Geometry& a_geom,
+                       const amrex::Real& dt_advance,
+                       amrex::MultiFab& cons_in,
+                       amrex::MultiFab& U_old, amrex::MultiFab& V_old, amrex::MultiFab& W_old,
+                       amrex::MultiFab& mf_vars_windfarm, const amrex::MultiFab& mf_Nturb);
 #endif
 
 #ifdef ERF_USE_EB
@@ -449,6 +447,9 @@ private:
 
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
+
+    // Initialize the windfarm object
+    void initializeWindFarm (const int&);
 
     // Compute a vector of new MultiFabs by copying from valid region and filling ghost cells
     //
@@ -671,6 +672,7 @@ private:
 
     // Variables for wind farm parametrization models
 
+    std::unique_ptr<WindFarm> windfarm;
     amrex::Vector<amrex::MultiFab> Nturb;
     amrex::Vector<amrex::MultiFab> vars_windfarm; // Fitch: Vabs, Vabsdt, dudt, dvdt, dTKEdt
                                                   // EWP:                 dudt, dvdt, dTKEdt
