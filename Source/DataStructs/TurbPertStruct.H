@@ -448,7 +448,7 @@ struct TurbulentPerturbation {
 
     // Perturbation amplitude cell storage
     // This is after random assignment of equation (10) in Ma and Senocak 2023
-    amrex::MultiFab pb_cell;              
+    amrex::MultiFab pb_cell;
 
 
   private:
