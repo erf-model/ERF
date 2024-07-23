@@ -71,7 +71,7 @@ The following is an example ERF containerfile with filename ``erf_containerfile`
     50      make -j8
 
 Line numbers were added for instructional purposes but should not appear in containerfile.
-The containerfile is available at https://github.com/erf-model/ERF/tree/development/Build/erf_containerfile
+The containerfile is available at https://github.com/erf-model/ERF/blob/development/Build/erf_containerfile
 
 * Line 1 downloads a container base image from NVIDIA's container registry that contains the Ubuntu 22.04 operating system and CUDA 12.2.0
 * Line 3 sets the working directory
