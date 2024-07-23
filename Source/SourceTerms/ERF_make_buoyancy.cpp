@@ -71,7 +71,6 @@ void make_buoyancy (Vector<MultiFab>& S_data,
             } // mfi
 
         } else if (solverChoice.buoyancy_type == 2 || solverChoice.buoyancy_type == 3) {
-
             PlaneAverage state_ave(&(S_data[IntVars::cons]), geom, solverChoice.ave_plane);
             PlaneAverage prim_ave(&S_prim, geom, solverChoice.ave_plane);
 
