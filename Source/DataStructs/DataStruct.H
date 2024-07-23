@@ -294,6 +294,9 @@ struct SolverChoice {
             NumDiffCoeff *= std::pow(2.0,-6);
         }
 
+        // Use monotonic advection?
+        pp.query("use_mono_adv",use_mono_adv);
+
            advChoice.init_params();
           diffChoice.init_params();
         spongeChoice.init_params();
@@ -519,6 +522,9 @@ struct SolverChoice {
     // Numerical diffusion
     bool use_NumDiff{false};
     amrex::Real NumDiffCoeff{0.};
+
+    // Monotonic advection limiter
+    bool use_mono_adv{false};
 
     CouplingType coupling_type;
     TerrainType  terrain_type;
