@@ -267,32 +267,40 @@ public:
      * @param[in] time current time
     */
     virtual void
-    init_custom_terrain (const amrex::Geometry& /*geom*/,
+    init_custom_terrain (const amrex::Geometry& geom,
                          amrex::MultiFab& z_phys_nd,
-                         const amrex::Real& /*time*/)
+                         const amrex::Real& time)
     {
-        // Note that this only sets the terrain value at the ground IF k=0 is in the box
-        amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
+        // Check if a valid text file exists for the terrain
+        std::string fname;
+        amrex::ParmParse pp("erf");
+        auto valid_fname = pp.query("terrain_file_name",fname);
+        if (valid_fname) {
+            this->read_custom_terrain(fname,geom,z_phys_nd,time);
+        } else {
+            // Note that this only sets the terrain value at the ground IF k=0 is in the box
+            amrex::Print() << "Initializing flat terrain at z=0" << std::endl;
 
-        // Number of ghost cells
-        int ngrow = z_phys_nd.nGrow();
+            // Number of ghost cells
+            int ngrow = z_phys_nd.nGrow();
 
-        // Bottom of domain
-        int k0 = 0;
+            // Bottom of domain
+            int k0 = 0;
 
-        for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
-        {
-            // Grown box with no z range
-            amrex::Box  zbx = mfi.nodaltilebox(2);
-            if (zbx.smallEnd(2) <= 0) {
-                amrex::Box xybx = mfi.growntilebox(ngrow);
-                xybx.setRange(2,0);
+            for ( amrex::MFIter mfi(z_phys_nd, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi )
+            {
+                // Grown box with no z range
+                amrex::Box  zbx = mfi.nodaltilebox(2);
+                if (zbx.smallEnd(2) <= 0) {
+                    amrex::Box xybx = mfi.growntilebox(ngrow);
+                    xybx.setRange(2,0);
 
-                amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
+                    amrex::Array4<amrex::Real> const& z_arr = z_phys_nd.array(mfi);
 
-                ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                    z_arr(i,j,k0) = 0.0;
-                });
+                    ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                        z_arr(i,j,k0) = 0.0;
+                    });
+                }
             }
         }
     }
@@ -351,8 +359,8 @@ public:
         file.close();
 
         // Copy data to the GPU
-        int ncell = m_xterrain.size();
-        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(ncell),d_yterrain(ncell),d_zterrain(ncell);
+        int nnode = m_xterrain.size();
+        amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nnode),d_yterrain(nnode),d_zterrain(nnode);
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_xterrain.begin(), m_xterrain.end(), d_xterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_yterrain.begin(), m_yterrain.end(), d_yterrain.begin());
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, m_zterrain.begin(), m_zterrain.end(), d_zterrain.begin());
@@ -384,22 +392,28 @@ public:
                 int jj = amrex::min(amrex::max(j,jlo),jhi);
 
                 // Location of nodes
-                bool found = false;
                 amrex::Real x = ProbLoArr[0]  + ii  * dx[0];
                 amrex::Real y = ProbLoArr[1]  + jj  * dx[1];
-                amrex::Real zloc = 0.0;
-                for(int n=0; n<ncell; ++n)
-                {
-                    amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
-                    if(delta<tol){
-                        found=true;
-                        zloc=d_zt[n];
-                        continue;
+                int inode = ii + jj * (ihi-ilo+2); // stride is Nx+1
+                if (std::sqrt(std::pow(x-d_xt[inode],2)+std::pow(y-d_yt[inode],2)) < tol) {
+                    z_arr(i,j,klo) = d_zt[inode];
+                } else {
+                    // Unexpected list order, do brute force search
+                    amrex::Real zloc = 0.0;
+                    bool found = false;
+                    for (int n=0; n<nnode; ++n)
+                    {
+                        amrex::Real delta=std::sqrt(std::pow(x-d_xt[n],2)+std::pow(y-d_yt[n],2));
+                        if (delta < tol) {
+                            found = true;
+                            zloc = d_zt[n];
+                            break;
+                        }
                     }
+                    AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
+                    amrex::ignore_unused(found);
+                    z_arr(i,j,klo) = zloc;
                 }
-                AMREX_ASSERT_WITH_MESSAGE(found, "Location read from terrain file does not match the grid!");
-                amrex::ignore_unused(found);
-                z_arr(i,j,klo) = zloc;
             });
         }
     }

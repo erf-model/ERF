@@ -33,5 +33,5 @@ USE_WINDFARM = TRUE
 Bpack := ./Make.package
 Blocs := .
 ERF_HOME := ../..
-ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/Fitch
+ERF_PROBLEM_DIR = $(ERF_HOME)/Exec/SimpleActuatorDisk
 include $(ERF_HOME)/Exec/Make.ERF
