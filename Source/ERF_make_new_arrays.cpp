@@ -238,11 +238,15 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     //*********************************************************
     if (solverChoice.windfarm_type == WindFarmType::Fitch){
         vars_windfarm[lev].define(ba, dm, 5, ngrow_state); // V, dVabsdt, dudt, dvdt, dTKEdt
-                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
     if (solverChoice.windfarm_type == WindFarmType::EWP){
         vars_windfarm[lev].define(ba, dm, 3, ngrow_state); // dudt, dvdt, dTKEdt
-                Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
+    }
+    if (solverChoice.windfarm_type == WindFarmType::SimpleAD) {
+        vars_windfarm[lev].define(ba, dm, 2, ngrow_state);// dudt, dvdt
+        Nturb[lev].define(ba, dm, 1, ngrow_state); // Number of turbines in a cell
     }
 #endif
 

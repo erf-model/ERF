@@ -138,6 +138,8 @@ ERF::ERF ()
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
+    initializeWindFarm(nlevs_max);
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
@@ -1124,6 +1126,13 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
     qmoist.resize(a_nlevsmax);
     return;
+}
+
+
+void
+ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+{
+    windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
 }
 
 void
