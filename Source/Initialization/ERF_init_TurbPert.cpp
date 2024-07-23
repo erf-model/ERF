@@ -46,10 +46,12 @@ ERF::turbPert_amplitude (int lev)
     // Initializing perturbation to zero
     cons_pert.setVal(0.);
 
+    // Defining BoxArray type
+    auto m_ixtype = cons_pert.boxArray().ixType();
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    auto m_ixtype = cons_pert.boxArray().ixType();
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
         const Box &bx  = mfi.validbox();
         const auto &cons_pert_arr = cons_pert.array(mfi); // Address of perturbation array
