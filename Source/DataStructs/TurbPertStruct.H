@@ -447,7 +447,9 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
 
     // Perturbation amplitude cell storage
-    amrex::MultiFab pb_cell; // per cell storage of perturbation amplitude
+    // This is after random assignment of equation (10) in Ma and Senocak 2023
+    amrex::MultiFab pb_cell;              
+
 
   private:
 

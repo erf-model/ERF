@@ -1,5 +1,5 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 20.0
+stop_time = 60.0
 #max_step = 5
 
 erf.no_substepping = 1
@@ -7,9 +7,13 @@ amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
-geometry.prob_extent =  40     2.5     10
-#geometry.prob_extent =   2.    0.25    1.
-amr.n_cell           = 128     16     64
+#Larger problem
+geometry.prob_extent =  40     5     10
+amr.n_cell           = 256    32     64
+
+# Quick debug problem
+#geometry.prob_extent =  20     5     10
+#amr.n_cell           =  64    16     32
 
 geometry.is_periodic = 0 1 0
 
@@ -17,8 +21,8 @@ xlo.type = "Inflow"
 xhi.type = "Outflow"
 zhi.type = "SlipWall"
 #zlo.type = "NoSlipWall"
-zlo.type = "Most"
 
+zlo.type = "Most"
 erf.most.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
 #erf.most.ustar  = 0.395   # z=1.0
@@ -27,17 +31,16 @@ erf.most.qstar  = 0. # qv    flux
 
 xlo.density =   1.0
 xlo.theta   = 300.0
+#xlo.velocity = 1.0 0.0 0.0
 xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 
 # TIME STEP CONTROL
-erf.cfl = 0.4
+erf.cfl = 0.5
 erf.dynamicViscosity = 0.001
-erf.use_gravity = true
-erf.buoyancy_type = 2
 
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 0       # timesteps between computing mass
-erf.pert_interval  = 5       # timesteps between perturbation output message XXX
+erf.sum_interval   = 1       # timesteps between computing mass
+erf.pert_interval  = 1       # timesteps between perturbation output message XXX
 erf.v              = 0       # verbosity in ERF.cpp XXX
 amr.v              = 0       # verbosity in Amr.cpp
 
@@ -46,8 +49,8 @@ amr.max_level       = 0      # maximum level number allowed
 
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
-#erf.plot_per_1      = 0.1
-erf.plot_int_1      = 5
+erf.plot_per_1      = 0.05
+#erf.plot_int_1      = 5
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
@@ -56,15 +59,12 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
 
 # SOLVER CHOICE
 erf.alpha_T = 0.0
-erf.alpha_C = 1.0
-
+erf.alpha_C = 0.0
 erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
-
-# Initial condition for the entire field
-erf.init_type = "input_sounding"
-erf.input_sounding_file = "input_ReTau395Ana_sounding.txt"
+erf.use_gravity     = true
+erf.buoyancy_type   = 2
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
@@ -72,12 +72,16 @@ erf.perturbation_direction = 1 0 0
 erf.perturbation_layers = 3
 erf.perturbation_offset = 3
 
-erf.perturbation_box_dims = 4 8 8
+erf.perturbation_box_dims = 8 8 4
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
-erf.perturbation_T_intensity = 0.05
+erf.perturbation_T_intensity = 0.1
+
+# Initial condition for the entire field
+#erf.init_type = "uniform"
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_ReTau395Ana_sounding.txt"
 
 # PROBLEM PARAMETERS
-#prob.U_0_Pert_Mag = 1.0
-#prob.V_0_Pert_Mag = 1.0
-#prob.W_0_Pert_Mag = 0.0
+prob.rho_0 = 1.0
+prob.T_0 = 300.0
