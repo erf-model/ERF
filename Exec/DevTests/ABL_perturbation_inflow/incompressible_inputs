@@ -50,8 +50,8 @@ amr.max_level       = 0      # maximum level number allowed
 
 # PLOTFILES
 erf.plot_file_1     = plt    # prefix of plotfile name
-#erf.plot_per_1      = 0.1
-erf.plot_int_1      = 5
+erf.plot_per_1      = 0.05
+#erf.plot_int_1      = 5
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # CHECKPOINT FILES
