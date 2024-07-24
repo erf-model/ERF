@@ -150,21 +150,21 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (verbose) {
          if (fixed_dt <= 0.0) {
              Print() << "Using cfl = " << cfl << std::endl;
-             Print() << "Fast  dt at level " << level << ":  " << estdt_comp << std::endl;
+             Print() << "Compressible dt at level " << level << ":  " << estdt_comp << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Slow  dt at level " << level << ":  " << estdt_lowM << std::endl;
+                 Print() << "Incompressible dt at level " << level << ":  " << estdt_lowM << std::endl;
              } else {
-                 Print() << "Slow  dt at level " << level << ": undefined " << std::endl;
+                 Print() << "Incompressible dt at level " << level << ": undefined " << std::endl;
              }
          }
 
          if (fixed_dt > 0.0) {
              Print() << "Based on cfl of 1.0 " << std::endl;
-             Print() << "Fast  dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
+             Print() << "Compressible dt at level " << level << " would be:  " << estdt_comp/cfl << std::endl;
              if (estdt_lowM_inv > 0.0_rt) {
-                 Print() << "Slow  dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
+                 Print() << "Incompressible dt at level " << level << " would be:  " << estdt_lowM/cfl << std::endl;
              } else {
-                 Print() << "Slow  dt at level " << level << " would be undefined " << std::endl;
+                 Print() << "Incompressible dt at level " << level << " would be undefined " << std::endl;
              }
              Print() << "Fixed dt at level " << level << "       is:  " << fixed_dt << std::endl;
              if (fixed_fast_dt > 0.0) {
@@ -187,7 +187,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      } else {
          if ( dt_fast_ratio%6 != 0) {
              Print() << "mri_dt_ratio = " << dt_fast_ratio
-                            << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
+                     << " not divisible by 6 for N/3 substeps in stage 1" << std::endl;
              dt_fast_ratio = static_cast<int>(std::ceil(dt_fast_ratio/6.0) * 6);
          }
      }
@@ -198,12 +198,17 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
      if (fixed_dt > 0.0) {
          return fixed_dt;
      } else {
-         if (l_incompressible && l_no_substepping) {
+         // Incompressible (substepping is not allowed)
+         if (l_incompressible) {
              return estdt_lowM;
-         } else if (l_no_substepping) {
+         }
+         // Compressible without substepping
+         else if (l_no_substepping) {
              return estdt_comp;
-         } else {
-             return estdt_lowM;
+         }
+         // Compressible with substepping
+         else {
+             return estdt_comp;
          }
      }
 }
