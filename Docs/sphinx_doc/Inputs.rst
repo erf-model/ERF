@@ -1057,6 +1057,11 @@ methods for defining how the terrain-fitted coordinates given the topography:
 - Sullivan Terrain Following (name TBD):
     The influence of the terrain decreases with the cube of height.
 
+A custom surface definition may be provided through the ``erf.terrain_file_name`` parameter.
+The specified input text file should have three space-delimited columns for x, y, and z coordinates,
+which will dictate the location of surface *nodes*. All surface nodes within the computational
+domain must be specified within the text file, but may be specified in any order.
+
 List of Parameters
 ------------------
 
@@ -1073,7 +1078,8 @@ List of Parameters
 |                             | following          | 1,                 |            |
 |                             |                    | 2                  |            |
 +-----------------------------+--------------------+--------------------+------------+
-
+| **erf.terrain_file_name**   | filename           | String             | NONE       |
++-----------------------------+--------------------+--------------------+------------+
 
 Examples of Usage
 -----------------

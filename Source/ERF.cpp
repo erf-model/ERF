@@ -138,6 +138,10 @@ ERF::ERF ()
     ReadParameters();
     initializeMicrophysics(nlevs_max);
 
+#ifdef ERF_USE_WINDFARM
+    initializeWindFarm(nlevs_max);
+#endif
+
     const std::string& pv1 = "plot_vars_1"; setPlotVariables(pv1,plot_var_names_1);
     const std::string& pv2 = "plot_vars_2"; setPlotVariables(pv2,plot_var_names_2);
 
@@ -152,12 +156,12 @@ ERF::ERF ()
 
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[nz-1]-geom[0].ProbHi(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_hi[2]=" << geom[0].ProbHi(2)
+            Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
                 << " does not match highest requested z level " << zlevels_stag[nz-1]
                 << std::endl;
         }
         if (std::fabs(zlevels_stag[0]-geom[0].ProbLo(2)) > 1.0e-4) {
-            Print() << "WARNING: prob_lo[2]=" << geom[0].ProbLo(2)
+            Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
                 << " does not match lowest requested level " << zlevels_stag[0]
                 << std::endl;
         }
@@ -1126,6 +1130,15 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     qmoist.resize(a_nlevsmax);
     return;
 }
+
+
+#ifdef ERF_USE_WINDFARM
+void
+ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+{
+    windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
+}
+#endif
 
 void
 ERF::restart ()
