@@ -191,6 +191,7 @@ ERF::init_from_metgrid (int lev)
             }
             lmask_lev[lev][it]->FillBoundary(geom[lev].periodicity());
         }
+    }
 
     lat_m[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ngv);
     for ( MFIter mfi(*(lat_m[lev]), TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
