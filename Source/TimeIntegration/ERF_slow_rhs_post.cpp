@@ -168,15 +168,15 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *****************************************************************************
     // Monotonic advection for scalars
     // *****************************************************************************
-    int nvar = S_new[IntVars::cons].nComp();
+    int nvar = S_prim.nComp();
     Vector<Real> max_scal(nvar, 1.0e34); Gpu::DeviceVector<Real> max_scal_d(nvar);
     Vector<Real> min_scal(nvar,-1.0e34); Gpu::DeviceVector<Real> min_scal_d(nvar);
     if (l_use_mono_adv) {
-        auto const& ma_s_arr = S_new[IntVars::cons].const_arrays();
+        auto const& ma_s_arr = S_prim.const_arrays();
         for (int ivar(RhoKE_comp); ivar<nvar; ++ivar) {
             GpuTuple<Real,Real> mm = ParReduce(TypeList<ReduceOpMax,ReduceOpMin>{},
                                                TypeList<Real, Real>{},
-                                               S_new[IntVars::cons], IntVect(0),
+                                               S_prim, S_prim.nGrowVect(),
                 [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
                 -> GpuTuple<Real,Real>
                 {

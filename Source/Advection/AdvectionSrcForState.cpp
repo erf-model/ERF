@@ -202,118 +202,66 @@ AdvectionSrcForScalars (const Real& dt,
         case AdvType::Centered_2nd:
             AdvectionSrcForScalarsVert<CENTERED2>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom,
-                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type,
+                                                  use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Upwind_3rd:
             AdvectionSrcForScalarsVert<UPWIND3>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                horiz_upw_frac, vert_upw_frac, vert_adv_type,
+                                                use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Centered_4th:
             AdvectionSrcForScalarsVert<CENTERED4>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom,
-                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type,
+                                                  use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Upwind_5th:
             AdvectionSrcForScalarsVert<UPWIND5>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                 avg_xmom, avg_ymom, avg_zmom,
-                                                horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                horiz_upw_frac, vert_upw_frac, vert_adv_type,
+                                                use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Centered_6th:
             AdvectionSrcForScalarsVert<CENTERED6>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                   avg_xmom, avg_ymom, avg_zmom,
-                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type);
+                                                  horiz_upw_frac, vert_upw_frac, vert_adv_type,
+                                                  use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Weno_3:
             AdvectionSrcForScalarsWrapper<WENO3,WENO3>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                       horiz_upw_frac, vert_upw_frac);
+                                                       horiz_upw_frac, vert_upw_frac,
+                                                       use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Weno_5:
             AdvectionSrcForScalarsWrapper<WENO5,WENO5>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                        avg_xmom, avg_ymom, avg_zmom,
-                                                       horiz_upw_frac, vert_upw_frac);
+                                                       horiz_upw_frac, vert_upw_frac,
+                                                       use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Weno_3Z:
             AdvectionSrcForScalarsWrapper<WENO_Z3,WENO_Z3>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
-                                                           horiz_upw_frac, vert_upw_frac);
+                                                           horiz_upw_frac, vert_upw_frac,
+                                                           use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Weno_3MZQ:
             AdvectionSrcForScalarsWrapper<WENO_MZQ3,WENO_MZQ3>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                                avg_xmom, avg_ymom, avg_zmom,
-                                                               horiz_upw_frac, vert_upw_frac);
+                                                               horiz_upw_frac, vert_upw_frac,
+                                                               use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         case AdvType::Weno_5Z:
             AdvectionSrcForScalarsWrapper<WENO_Z5,WENO_Z5>(bx, ncomp, icomp, flx_arr, cell_prim,
                                                            avg_xmom, avg_ymom, avg_zmom,
-                                                           horiz_upw_frac, vert_upw_frac);
+                                                           horiz_upw_frac, vert_upw_frac,
+                                                           use_mono_adv, max_s_ptr, min_s_ptr);
             break;
         default:
             AMREX_ASSERT_WITH_MESSAGE(false, "Unknown advection scheme!");
         }
-    }
-
-    // Monotonicity preserving order reduction for SLOW SCALARS (0-th upwind)
-    if (use_mono_adv) {
-        ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-        {
-            const int cons_index = icomp + n;
-            const int prim_index = cons_index - 1;
-
-            Real max_val = max_s_ptr[cons_index];
-            Real min_val = min_s_ptr[cons_index];
-
-            Real invdetJ = (detJ(i,j,k) > 0.) ?  1. / detJ(i,j,k) : 1.;
-            Real mfsq = mf_m(i,j,0) * mf_m(i,j,0);
-
-            Real RHS = - invdetJ * mfsq * (
-                ( (flx_arr[0])(i+1,j  ,k  ,cons_index) - (flx_arr[0])(i,j,k,cons_index) ) * dxInv +
-                ( (flx_arr[1])(i  ,j+1,k  ,cons_index) - (flx_arr[1])(i,j,k,cons_index) ) * dyInv +
-                ( (flx_arr[2])(i  ,j  ,k+1,cons_index) - (flx_arr[2])(i,j,k,cons_index) ) * dzInv );
-
-            // NOTE: This forward prediction uses the `cur_cons` as opposed to `old_cons` since
-            //       source terms may cause increase/decrease in a variable each RK stage. We
-            //       want to ensure the advection operator does not induce over/under-shoot
-            //       from the current state. If the `old_cons` is used and significant forcing is
-            //       present, we could trip an order reduction just due to the source terms.
-            Real tmp_upd = cur_cons(i,j,k,cons_index) + RHS*dt;
-            if (tmp_upd<min_val || tmp_upd>max_val) {
-                // HI
-                if (avg_xmom(i+1,j,k)>0.0) {
-                    (flx_arr[0])(i+1,j,k,cons_index) = avg_xmom(i+1,j,k) * cell_prim(i  ,j,k,prim_index);
-                } else {
-                    (flx_arr[0])(i+1,j,k,cons_index) = avg_xmom(i+1,j,k) * cell_prim(i+1,j,k,prim_index);
-                }
-                if (avg_ymom(i,j+1,k)>0.0) {
-                    (flx_arr[1])(i,j+1,k,cons_index) = avg_ymom(i,j+1,k) * cell_prim(i,j  ,k,prim_index);
-                } else {
-                    (flx_arr[1])(i,j+1,k,cons_index) = avg_ymom(i,j+1,k) * cell_prim(i,j+1,k,prim_index);
-                }
-                if (avg_zmom(i,j,k+1)>0.0) {
-                    (flx_arr[2])(i,j,k+1,cons_index) = avg_zmom(i,j,k+1) * cell_prim(i,j,k  ,prim_index);
-                } else {
-                    (flx_arr[2])(i,j,k+1,cons_index) = avg_zmom(i,j,k+1) * cell_prim(i,j,k+1,prim_index);
-                }
-
-                // LO
-                if (avg_xmom(i,j,k)>0.0) {
-                    (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * cell_prim(i-1,j,k,prim_index);
-                } else {
-                    (flx_arr[0])(i,j,k,cons_index) = avg_xmom(i,j,k) * cell_prim(i  ,j,k,prim_index);
-                }
-                if (avg_ymom(i,j,k)>0.0) {
-                    (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * cell_prim(i,j-1,k,prim_index);
-                } else {
-                    (flx_arr[1])(i,j,k,cons_index) = avg_ymom(i,j,k) * cell_prim(i,j  ,k,prim_index);
-                }
-                if (avg_zmom(i,j,k)>0.0) {
-                    (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * cell_prim(i,j,k-1,prim_index);
-                } else {
-                    (flx_arr[2])(i,j,k,cons_index) = avg_zmom(i,j,k) * cell_prim(i,j,k  ,prim_index);
-                }
-            }
-        });
     }
 
     ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
