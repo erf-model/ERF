@@ -184,7 +184,7 @@ struct TurbulentPerturbation {
         } // for
 
         // Normalizing the adjustment based on how many boxes there are
-        // the values within the array is already noramlized by the number
+        // the values within the array is already normalized by the number
         // of cells within each box
         tpi_pert_adjust = tpi_net_buoyant / (amrex::Real) pb_ba[lev].size();
 
@@ -214,7 +214,7 @@ struct TurbulentPerturbation {
             // the forcing term
             // Ma & Senocak (2023) Eq. 7
             pb_amp[boxIdx] /= interval;
-        } 
+        }
     }
 
 //#define INDEX_PERTURB
@@ -255,7 +255,7 @@ struct TurbulentPerturbation {
             amrex::Box vbx = mfi.validbox();
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
-            if (ubx.ok()) { 
+            if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[boxIdx];
                 const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
                 ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
@@ -504,7 +504,7 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
             << time << " ####################\n";
         amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
-        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n"; 
+        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n";
         for (int i = 0; i < pb_mag.size(); i++) {
             amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
                 << "] pb_Umag=" << pb_mag[i]
