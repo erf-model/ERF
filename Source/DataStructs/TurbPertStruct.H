@@ -1,10 +1,10 @@
 #ifndef _TURB_PERT_STRUCT_H_
 #define _TURB_PERT_STRUCT_H_
 
+#include <DataStruct.H>
 #include <AMReX_MultiFabUtil.H>
 #include <TileNoZ.H>
 #include <time.h>
-
 /**
  * Container holding quantities related to turbulent perturbation parameters
  */
@@ -88,6 +88,7 @@ struct TurbulentPerturbation {
 
         // Initializing mean magnitude vector
         pb_mag.resize(pb_ba[lev].size(), 0.);
+        pb_netZero.resize(pb_ba[lev].size(), 0.);
 
         // Set size of vector and initialize
         pb_interval.resize(pb_ba[lev].size(), -1.0);
@@ -103,6 +104,9 @@ struct TurbulentPerturbation {
         tpi_Wpb = tpi_boxDim[1]*dx[1];
         tpi_Hpb = tpi_boxDim[2]*dx[2];
         tpi_lref = sqrt(tpi_Lpb*tpi_Lpb + tpi_Wpb*tpi_Wpb);
+
+        tpi_pert_adjust = 0.;
+        tpi_net_buoyant = 0.;
 
         // Function check point message
         amrex::PrintToFile("BoxPerturbationOutput") << "perturbation_box_dims: " << tpi_boxDim[0] << " "
@@ -126,15 +130,21 @@ struct TurbulentPerturbation {
         amrex::PrintToFile("BoxPerturbationOutput") << "Turbulent perturbation BoxArray:\n" << pb_ba[lev] << "\n";
     }
 
+
     // Perturbation update frequency check.
     // This function will trigger calc_tpi_meanMag() and calc_tpi_amp(), when
-    // the local elapsed time is greater than the perturbation frequency
+    // the local elapsed time is greater than the perturbation frequency.
+    // At each timestep a total buoyant force sanity check is made to ensure
+    // that the sum of the buoyant force introduced into the system is net-zero
     void calc_tpi_update (const int lev,
                           const amrex::Real dt,
                           amrex::MultiFab& mf_xvel,
                           amrex::MultiFab& mf_yvel,
                           amrex::MultiFab& mf_cons)
     {
+        // Resettubg the net buoyant force value
+        tpi_net_buoyant = 0.;
+
         // Setting random number generator for update interval
         srand( (unsigned) time(NULL) );
 
@@ -145,12 +155,11 @@ struct TurbulentPerturbation {
             // Check if the local elapsed time is greater than the update interval
             if ( pb_interval[boxIdx] <= pb_local_etime[boxIdx] ) {
 
-                // Compute mean velocity magnitude within perturbation box
+                // Compute mean velocity of each perturbation box
                 calc_tpi_meanMag_perBox(boxIdx, lev, mf_xvel, mf_yvel);
-                //calc_tpi_meanMag_firstCell(boxIdx, lev, mf_xvel, mf_yvel);
 
-                // Done for parallelism to avoid Inf being stored in array
                 // Only the rank owning the box will be able to access the storage location
+                // Done for parallelism to avoid Inf being stored in array
                 if (pb_mag[boxIdx] !=0.) {
                     amrex::Real interval = tpi_lref / pb_mag[boxIdx];
                     pb_interval[boxIdx] = RandomReal(0.9*interval,1.1*interval); // 10% variation
@@ -160,22 +169,7 @@ struct TurbulentPerturbation {
                 calc_tpi_amp(boxIdx, pb_interval[boxIdx]);
 
                 // Trigger random amplitude storage per cell within perturbation box
-                // Random perturbation is applied as a white noise on the temperature source term
-                // it becomes colored through the filtering of temperature transport equation from
-                // the eddy diffusivity.
-                for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
-                    amrex::Box vbx = mfi.validbox();
-                    amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
-                    amrex::Box ubx = pbx & vbx;
-                    if (ubx.ok()) {
-                        amrex::Real amp_copy = pb_amp[boxIdx];
-                        const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
-                        ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                            amrex::Real rand_double = amrex::Random(engine);
-                            pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy;
-                        });
-                    }
-                }
+                pseudoRandomPert(boxIdx, lev, m_ixtype);
 
                 // Reset local elapsed time
                 pb_local_etime[boxIdx] = 0.;
@@ -183,11 +177,22 @@ struct TurbulentPerturbation {
                 // Increase by timestep of level 0
                 pb_local_etime[boxIdx] += dt;
             } // if
-        } // for
-    }
 
-//#define ECKERT_FORMULATION
-#define BULK_RICHARDSON_FORMULATION
+            // Per iteration operation of net-zero buoyant force check
+            if (pb_mag[boxIdx] !=0.) netZeroBuoyantAdd(boxIdx, lev);
+            tpi_net_buoyant += pb_netZero[boxIdx];
+        } // for
+
+        // Normalizing the adjustment based on how many boxes there are
+        // the values within the array is already noramlized by the number
+        // of cells within each box
+        tpi_pert_adjust = tpi_net_buoyant / (amrex::Real) pb_ba[lev].size();
+
+        // Per iteration operation of net-zero buoyant force adjustment
+        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
+            if (pb_mag[boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev, tpi_pert_adjust);
+        }
+    }
 
     // Perturbation amplitude calculation
     void calc_tpi_amp (const int boxIdx, const amrex::Real interval)
@@ -195,12 +200,6 @@ struct TurbulentPerturbation {
         amrex::Real Um = pb_mag[boxIdx];
         pb_amp[boxIdx] = 0.; // Safety step
 
-        #ifdef ECKERT_FORMULATION
-        // Muñoz-Esparza et al. (2015) Eq. 9
-        pb_amp[boxIdx] = Um * Um / (tpi_rho * tpi_cp * tpi_nonDim);
-        #endif
-
-        #ifdef BULK_RICHARDSON_FORMULATION
         amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
 
         // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
@@ -209,10 +208,13 @@ struct TurbulentPerturbation {
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
-        #endif
 
-        // Ma & Senocak (2023) Eq. 7
-        pb_amp[boxIdx] /= interval;
+        if (pt_type == 0) {
+            // Performing this step converts the perturbation proportionality into
+            // the forcing term
+            // Ma & Senocak (2023) Eq. 7
+            pb_amp[boxIdx] /= interval;
+        } 
     }
 
 //#define INDEX_PERTURB
@@ -231,6 +233,7 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
+                amrex::Real amp_copy = pb_amp[boxIdx];
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     src_arr(i,j,k,comp) += pert_cell(i,j,k,0);
 
@@ -243,7 +246,77 @@ struct TurbulentPerturbation {
         }
     }
 
-// TODO: Test the difference between these two
+    // Assigns pseudo-random (ie. white noise) perturbation to a storage cell, this
+    // value is then held constant for the duration of the update interval and assigned onto
+    // the source term
+    void pseudoRandomPert (const int boxIdx, const int lev, const amrex::IndexType m_ixtype)
+    {
+        for (amrex::MFIter mfi(pb_cell,TileNoZ()); mfi.isValid(); ++mfi) {
+            amrex::Box vbx = mfi.validbox();
+            amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) { 
+                amrex::Real amp_copy = pb_amp[boxIdx];
+                const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
+                ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
+                    amrex::Real rand_double = amrex::Random(engine);
+                    pert_cell(i,j,k,0) = (rand_double*2.0 - 1.0) * amp_copy;
+                });
+            }
+        }
+    }
+
+    // Checks for net-zero buoyant force introduction into the system
+    void netZeroBuoyantAdd (const int boxIdx, const int lev)
+    {
+        // Creating local copy of PB box array and magnitude
+        const amrex::BoxArray m_pb_ba = pb_ba[lev];
+        amrex::Real* m_pb_netZero = get_pb_netZero();
+
+        // Create device array for summation
+        amrex::Gpu::DeviceVector<amrex::Real> tmp_d(1,0.);
+        amrex::Real* tmp = tmp_d.data();
+
+        // Iterates through the cells of each box and sum the white noise perturbation
+        for (amrex::MFIter mfi(pb_cell, TileNoZ()) ; mfi.isValid(); ++mfi) {
+            const amrex::Box &vbx = mfi.validbox();
+            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+                const amrex::Array4<const amrex::Real> &pert_cell = pb_cell.array(mfi);
+                int npts = ubx.numPts(); // Used in normalization
+                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
+                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
+                    amrex::Gpu::deviceReduceSum(&tmp[0], pert_cell(i,j,k), handler);
+                });
+                tmp[0] /= (amrex::Real) npts;
+
+                // Assigning onto storage array
+                pb_netZero[boxIdx] = tmp[0];
+            }
+        }
+    }
+
+    // If it's not a net-zero buoyant force, then adjust all cell by a normalized value
+    // to achieve this logic
+    void netZeroBuoyantAdjust (const int boxIdx, const int lev, const amrex::Real tpi_pert_adjust)
+    {
+        // Creating local copy of PB box array and magnitude
+        const amrex::BoxArray m_pb_ba = pb_ba[lev];
+        for (amrex::MFIter mfi(pb_cell, TileNoZ()) ; mfi.isValid(); ++mfi) {
+            const amrex::Box &vbx = mfi.validbox();
+            amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
+            amrex::Box ubx = pbx & vbx;
+            if (ubx.ok()) {
+               const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
+               ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                   pert_cell(i,j,k,0) -= tpi_pert_adjust;
+               });
+            }
+        }
+    }
+
+// TODO: Test the difference between these two for Source term perturbation
 //#define USE_SLAB_AVERAGE
 #define USE_VOLUME_AVERAGE
 
@@ -423,13 +496,15 @@ struct TurbulentPerturbation {
 
     // Quality of life function definitions
     amrex::Real* get_pb_mag() { return pb_mag.data(); }
+    amrex::Real* get_pb_netZero() { return pb_netZero.data(); }
 
     // Output debug message into a file
     void debug (amrex::Real time)
     {
         amrex::PrintToFile("BoxPerturbationOutput") << "#################### PB output at time = "
             << time << " ####################\n";
-
+        amrex::PrintToFile("BoxPerturbationOutput") << " Using type: " <<  pt_type << "\n";
+        amrex::PrintToFile("BoxPerturbationOutput") << " Net: " << tpi_net_buoyant << " Adjust : " <<  tpi_pert_adjust << "\n"; 
         for (int i = 0; i < pb_mag.size(); i++) {
             amrex::PrintToFile("BoxPerturbationOutput") << "[" << i
                 << "] pb_Umag=" << pb_mag[i]
@@ -442,6 +517,8 @@ struct TurbulentPerturbation {
 
     std::string pp_prefix {"erf"};
 
+    int pt_type; // HACK to store perturbation type
+
     // Public data members
     amrex::Vector<amrex::BoxArray> pb_ba;  // PB box array
     amrex::Vector<amrex::Real>     pb_mag; // BP mean magnitude [m/s]
@@ -449,7 +526,6 @@ struct TurbulentPerturbation {
     // Perturbation amplitude cell storage
     // This is after random assignment of equation (10) in Ma and Senocak 2023
     amrex::MultiFab pb_cell;
-
 
   private:
 
@@ -483,9 +559,14 @@ struct TurbulentPerturbation {
     amrex::Real tpi_Wpb;              // PB width  [m]
     amrex::Real tpi_lref;             // PB reference length [m]
 
+    amrex::Real tpi_pert_adjust;      // Perturbation adjust for net-zero condition
+    amrex::Real tpi_net_buoyant;
+
     // Perturbation data arrays
     amrex::Vector<amrex::Real> pb_interval;    // PB update time [s]
     amrex::Vector<amrex::Real> pb_local_etime; // PB local elapsed time [s]
     amrex::Vector<amrex::Real> pb_amp;         // PB perturbation amplitude Ri:[K] Ec:[K/s]
+
+    amrex::Vector<amrex::Real> pb_netZero;     // PB array used for net zero sum calculation
 };
 #endif

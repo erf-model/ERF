@@ -249,7 +249,7 @@ struct SolverChoice {
             amrex::Print() << "Perturb temperature via direct field add\n";
         } else if (!turb_pert_type_string.compare("None")) {
             pert_type = PerturbationType::None;
-            amrex::Print() << "No perturbation method selected\n";
+            amrex::Print() << "No inflow perturbation method selected\n";
         } else {
             amrex::Abort("Dont know this perturbation_type");
         }

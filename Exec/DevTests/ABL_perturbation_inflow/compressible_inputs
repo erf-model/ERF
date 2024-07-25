@@ -1,15 +1,14 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 60.0
-#max_step = 5
+#max_step = 1
 
-erf.no_substepping = 1
 amrex.fpe_trap_invalid = 1
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # PROBLEM SIZE & GEOMETRY
 #Larger problem
-geometry.prob_extent =  40     5     10
-amr.n_cell           = 256    32     64
+geometry.prob_extent =  80   2.5     10
+amr.n_cell           = 512    16     64
 
 # Quick debug problem
 #geometry.prob_extent =  20     5     10
@@ -25,7 +24,6 @@ zhi.type = "SlipWall"
 zlo.type = "Most"
 erf.most.flux_type = "custom"
 erf.most.ustar  = 0.0395   # z=10.
-#erf.most.ustar  = 0.395   # z=1.0
 erf.most.tstar  = 0. # theta flux
 erf.most.qstar  = 0. # qv    flux
 
@@ -35,13 +33,14 @@ xlo.theta   = 300.0
 xlo.dirichlet_file = "input_ReTau395Ana_inflow.txt"
 
 # TIME STEP CONTROL
-erf.cfl = 0.5
+erf.fixed_dt = 0.0004
+erf.fixed_mri_dt_ratio = 4
 erf.dynamicViscosity = 0.001
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.pert_interval  = 1       # timesteps between perturbation output message XXX
-erf.v              = 0       # verbosity in ERF.cpp XXX
+erf.v              = 1       # verbosity in ERF.cpp XXX
 amr.v              = 0       # verbosity in Amr.cpp
 
 # REFINEMENT / REGRIDDING
@@ -64,7 +63,7 @@ erf.molec_diff_type = "None"
 erf.les_type        = "Smagorinsky"
 erf.Cs              = 0.1
 erf.use_gravity     = true
-erf.buoyancy_type   = 2
+erf.buoyancy_type   = 1
 
 # Turbulent inflow generation
 erf.perturbation_type = "source"
@@ -72,13 +71,17 @@ erf.perturbation_direction = 1 0 0
 erf.perturbation_layers = 3
 erf.perturbation_offset = 3
 
-erf.perturbation_box_dims = 8 8 4
+erf.perturbation_box_dims = 16 16 8
 erf.perturbation_nondimensional = 0.042 # Ri
 erf.perturbation_T_infinity = 300.0
 erf.perturbation_T_intensity = 0.1
 
+#erf.perturbation_type = "direct"
+#erf.perturbation_nondimensional = 0.16 #Ec
+#erf.perturbation_rho_0 = 1.0
+#erf.perturbation_cp = 1250
+
 # Initial condition for the entire field
-#erf.init_type = "uniform"
 erf.init_type = "input_sounding"
 erf.input_sounding_file = "input_ReTau395Ana_sounding.txt"
 
