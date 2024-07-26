@@ -60,6 +60,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
                               Array4<      Real>& hfx_z,
+                              Array4<      Real>& qfx_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const DiffChoice &diffChoice,
@@ -267,7 +268,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -343,7 +344,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -414,7 +415,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
 
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }
@@ -486,7 +487,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 // set the exact value from MOST, don't need finite diff
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i-1, j, k, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * GradCz / met_h_zeta;
             }

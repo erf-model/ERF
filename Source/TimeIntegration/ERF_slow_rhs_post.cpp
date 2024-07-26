@@ -61,7 +61,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab& source,
                         const MultiFab* SmnSmn,
                         const MultiFab* eddyDiffs,
-                        MultiFab* Hfx3, MultiFab* Diss,
+                        MultiFab* Hfx3,
+                        MultiFab* Qfx3,
+                        MultiFab* Diss,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
                         std::unique_ptr<ABLMost>& most,
@@ -293,7 +295,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         AdvType horiz_adv_type, vert_adv_type;
         Real    horiz_upw_frac, vert_upw_frac;
 
-        Array4<Real> diffflux_x, diffflux_y, diffflux_z, hfx_z, diss;
+        Array4<Real> diffflux_x, diffflux_y, diffflux_z, hfx_z, qfx_z, diss;
         const bool use_most = (most != nullptr);
 
         if (l_use_diff) {
@@ -302,6 +304,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             diffflux_z = dflux_z->array(mfi);
 
             hfx_z = Hfx3->array(mfi);
+            qfx_z = Qfx3->array(mfi);
             diss  = Diss->array(mfi);
         }
 
@@ -358,14 +361,14 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                z_nd, ax_arr, ay_arr, az_arr, detJ_arr,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                               hfx_z, diss,
+                                               hfx_z, qfx_z, diss,
                                                mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                     } else {
                         DiffusionSrcForState_N(tbx, domain, start_comp, num_comp, exp_most, u, v,
                                                new_cons, cur_prim, cell_rhs,
                                                diffflux_x, diffflux_y, diffflux_z,
                                                dxInv, SmnSmn_a, mf_m, mf_u, mf_v,
-                                               hfx_z, diss,
+                                               hfx_z, qfx_z, diss,
                                                mu_turb, dc, tc, tm_arr, grav_gpu, bc_ptr_d, use_most);
                     }
                 } // use_diff

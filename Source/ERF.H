@@ -212,11 +212,13 @@ public:
     void derive_stress_profiles (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
                                  amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
-                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qfx3,
+                                 amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
     void derive_stress_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_tau11, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau12,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau13, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau22,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tau23, amrex::Gpu::HostVector<amrex::Real>& h_avg_tau33,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qfx3,
+                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -719,6 +721,7 @@ private:
     // Other SFS terms
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_hfx1_lev, SFS_hfx2_lev, SFS_hfx3_lev;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_diss_lev;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> SFS_qfx3_lev;
 
     // Terrain / grid stretching
     amrex::Vector<amrex::Real> zlevels_stag; // nominal height levels

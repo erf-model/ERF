@@ -193,6 +193,7 @@ void ERF::advance_dycore(int level,
     MultiFab* Hfx1 = SFS_hfx1_lev[level].get();
     MultiFab* Hfx2 = SFS_hfx2_lev[level].get();
     MultiFab* Hfx3 = SFS_hfx3_lev[level].get();
+    MultiFab* Qfx3 = SFS_qfx3_lev[level].get();
     MultiFab* Diss = SFS_diss_lev[level].get();
 
     // *************************************************************************

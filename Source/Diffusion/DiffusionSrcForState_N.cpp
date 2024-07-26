@@ -52,6 +52,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
                               Array4<      Real>& hfx_z,
+                              Array4<      Real>& qfx_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const DiffChoice &diffChoice,
@@ -236,9 +237,15 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+            }
+
+            if (qty_index == RhoTheta_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ1_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else if (l_turb) {
@@ -289,9 +296,15 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+            }
+
+            if (qty_index == RhoTheta_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ1_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else if(l_consA) {
@@ -338,9 +351,15 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                           - 3. * cell_prim(i, j, k  , prim_index)
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+            }
+
+            if (qty_index == RhoTheta_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ1_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else {
@@ -386,9 +405,15 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                                                      + (1./3.) * cell_prim(i, j, k+1, prim_index) ) * dz_inv;
             } else if (most_on_zlo && (qty_index == RhoTheta_comp)) {
                 Real rhoFace  = 0.5 * ( cell_data(i, j, k, Rho_comp) + cell_data(i, j, k-1, Rho_comp) );
-                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,-1);
+                zflux(i,j,k,qty_index) = -rhoFace * hfx_z(i,j,0);
             } else {
                 zflux(i,j,k,qty_index) = rhoAlpha * (cell_prim(i, j, k, prim_index) - cell_prim(i, j, k-1, prim_index)) * dz_inv;
+            }
+
+            if (qty_index == RhoTheta_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ1_comp) {
+                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     }
