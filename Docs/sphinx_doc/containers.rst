@@ -148,10 +148,56 @@ The remaining arguments are the normal ERF command line arguments.
 
 Please issue ``podman-hpc --help`` for the help page and ``podman-hpc run --help`` for the ``podman-hpc run`` help page.
 
+Container image libraries
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
 Container image libraries provide a convenient way to store and share images.
 The best known one is probably Docker Hub.  NERSC provides a private registry to its users via `registry.nersc.gov <https://docs.nersc.gov/development/containers/registry>`_.
 
-``shifter`` is a NERSC-developed tool that provides an alternative method for running containers on Perlmutter. `NERSC's containers documentation <https://docs.nersc.gov/development/containers>`_ provides an introduction to shifter including a tutorial.
+In order to push the ERF image to Docker Hub, need to modify the tag, login to Docker Hub, and then push the image.
+
+.. code:: shell
+
+   podman-hpc tag erf:1.00 docker.io/docker_hub_username/erf:1.00
+   podman-hpc login docker.io
+   podman-hpc push docker.io/docker_hub_username/erf:1.00
+
+Shifter container runtime
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Shifter is a NERSC-developed tool that provides an alternative method for running containers on Perlmutter.   Recall that Shifter cannot be used to build images. `NERSC's containers documentation <https://docs.nersc.gov/development/containers>`_ provides an introduction to shifter including a tutorial.
+
+Use the ``shifterimg pull`` command to pull images directly from Docker Hub and it will automatically convert your Docker image into Shifter format.
+
+Need to first login to Docker Hub, then pull.  ``--user nersc_user`` will restrict usage of the image to only ``nersc_user``.
+
+.. code:: shell
+
+   shifterimg login docker.io
+   shifterimg -v --user nersc_user pull docker_hub_username/erf:1.00
+
+Submit the following slurm batch script in order to use the image in a job
+
+.. code:: shell
+
+  #!/bin/bash
+
+  #SBATCH --account=<proj>
+  #SBATCH --constraint=gpu
+  #SBATCH --job-name=erf
+  #SBATCH --nodes=1
+  #SBATCH --time=0:05:00
+  #SBATCH -q regular
+  #SBATCH --image=docker_hub_username/erf:1.00 # for shifter, not podman-hpc
+  #SBATCH --module=mpich,gpu  # for shifter, not podman-hpc; CPU-only MPI
+  ##SBATCH --module=cuda-mpich  # for shifter, not podman-hpc; GPU-Aware MPI
+  #SBATCH --volume="<$SCRATCH/my_erf_run_dir>:/run"  # for shifter, not podman-hpc
+
+  srun -N 1 -n 4 -c 32 --ntasks-per-node=4 --gpus-per-node=4 ./device_wrapper \
+  shifter \
+  /app/erf/ERF/MyBuild/Exec/ABL/erf_abl inputs_smagorinsky amrex.use_gpu_aware_mpi=0
+
+
 
 Common Issues
 ~~~~~~~~~~~~~
