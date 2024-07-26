@@ -31,6 +31,9 @@ struct TurbulentPerturbation {
                    const int ngrow_state)
 
     {
+        // Initialization for some 0 dependent terms
+        tpi_Ti = 0.;
+
         amrex::ParmParse pp(pp_prefix);
 
         // Reading inputs, and placing assertion for the perturbation inflow to work
@@ -53,7 +56,7 @@ struct TurbulentPerturbation {
         }
         if (tpi_nonDim < 0.) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = 0.042)"); }
         if (tpi_Tinf < 0.) { amrex::Abort("Please provide a valid ambient temperature value (ie. T_0)"); }
-        if (tpi_Ti <= 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
+        if (tpi_Ti < 0.) { amrex::Abort("Please provide a valid temperature intensity value (ie. 0-1.0)"); }
         if (tpi_rho < 0.) { amrex::Abort("Please provide a valid density (ie. rho_0)"); }
         if (tpi_cp < 0.) { amrex::Abort("Please provide a valid specific head capacity"); }
 
@@ -203,8 +206,8 @@ struct TurbulentPerturbation {
         amrex::Real beta = 1./tpi_Tinf; // Thermal expansion coefficient
 
         // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
-        amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
-        //amrex::Real g = CONST_GRAV;
+        amrex::Real g = CONST_GRAV;
+        if (tpi_Ti > 0.) amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
