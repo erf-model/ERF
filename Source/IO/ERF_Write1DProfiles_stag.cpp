@@ -642,7 +642,8 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         //const Array4<const Real>& hfx1_arr = SFS_hfx1_lev[lev]->const_array(mfi);
         //const Array4<const Real>& hfx2_arr = SFS_hfx2_lev[lev]->const_array(mfi);
         const Array4<const Real>& hfx3_arr = SFS_hfx3_lev[lev]->const_array(mfi);
-        const Array4<const Real>& qfx3_arr = SFS_qfx3_lev[lev]->const_array(mfi);
+        const Array4<const Real>& qfx3_arr = (l_use_moist) ? SFS_qfx3_lev[lev]->const_array(mfi) :
+                                                             Array4<const Real>{};
         const Array4<const Real>& diss_arr = SFS_diss_lev[lev]->const_array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
