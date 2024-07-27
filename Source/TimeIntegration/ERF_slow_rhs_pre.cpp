@@ -430,7 +430,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Array4<Real> diffflux_z = dflux_z->array(mfi);
 
             Array4<Real> hfx_z = Hfx3->array(mfi);
-            Array4<Real> qfx_z = Qfx3->array(mfi);
+            Array4<Real> qfx_z = (l_use_moisture) ? Qfx3->array(mfi) : Array4<Real>{};
             Array4<Real> diss  = Diss->array(mfi);
 
             const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};

@@ -243,7 +243,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
                 qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
@@ -302,7 +302,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
                 qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
@@ -357,7 +357,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
                 qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }
@@ -411,7 +411,7 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             }
 
             if (qty_index == RhoTheta_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
                 qfx_z(i,j,k) = zflux(i,j,k,qty_index);
             }

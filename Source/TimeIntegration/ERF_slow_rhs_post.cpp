@@ -122,7 +122,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                     tc.les_type == LESType::Deardorff   ||
                                     tc.pbl_type == PBLType::MYNN25      ||
                                     tc.pbl_type == PBLType::YSU );
-    const bool exp_most     = (solverChoice.use_explicit_most);
+    const bool l_use_moisture   = (solverChoice.moisture_type != MoistureType::None);
+    const bool exp_most         = (solverChoice.use_explicit_most);
 
     const Box& domain = geom.Domain();
 
@@ -304,7 +305,7 @@ void erf_slow_rhs_post (int level, int finest_level,
             diffflux_z = dflux_z->array(mfi);
 
             hfx_z = Hfx3->array(mfi);
-            qfx_z = Qfx3->array(mfi);
+            if (l_use_moisture) qfx_z = Qfx3->array(mfi);
             diss  = Diss->array(mfi);
         }
 
