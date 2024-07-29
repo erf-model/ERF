@@ -193,7 +193,7 @@ struct TurbulentPerturbation {
 
         // Per iteration operation of net-zero buoyant force adjustment
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-            if (pb_mag[boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev, tpi_pert_adjust);
+            if (pb_mag[boxIdx] !=0.) netZeroBuoyantAdjust(boxIdx, lev);
         }
     }
 
@@ -301,7 +301,7 @@ struct TurbulentPerturbation {
 
     // If it's not a net-zero buoyant force, then adjust all cell by a normalized value
     // to achieve this logic
-    void netZeroBuoyantAdjust (const int boxIdx, const int lev, const amrex::Real tpi_pert_adjust)
+    void netZeroBuoyantAdjust (const int boxIdx, const int lev)
     {
         // Creating local copy of PB box array and magnitude
         const amrex::BoxArray m_pb_ba = pb_ba[lev];
