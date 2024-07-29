@@ -310,9 +310,10 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(m_pb_ba[boxIdx], vbx.ixType());
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
+               const amrex::Real adjust = tpi_pert_adjust;
                const amrex::Array4<amrex::Real> &pert_cell = pb_cell.array(mfi);
                ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   pert_cell(i,j,k,0) -= tpi_pert_adjust;
+                   pert_cell(i,j,k,0) -= adjust;
                });
             }
         }
