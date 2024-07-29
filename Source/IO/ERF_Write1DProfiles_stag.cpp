@@ -258,10 +258,10 @@ ERF::write_1D_profiles_stag (Real time)
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
-                                << h_avg_tau11[k]  << " " << h_avg_tau12[k]  << " " << h_avg_tau13[k]   << " "
-                                << h_avg_tau22[k]  << " " << h_avg_tau23[k]  << " " << h_avg_tau33[k]   << " "
+                                << h_avg_tau11[k]  << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
+                                << h_avg_tau22[k]  << " " << h_avg_tau23[k] << " " << h_avg_tau33[k] << " "
                                 << h_avg_sgshfx[k] << " "
-                                << 9e9 << " " << 9e9 << " "
+                                << h_avg_sgsq1fx[k] << " " << h_avg_sgsq2fx[k] << " "
                                 << h_avg_sgsdiss[k]
                                 << std::endl;
                   } // loop over z
@@ -270,7 +270,9 @@ ERF::write_1D_profiles_stag (Real time)
                             << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
                             << 0 << " " << 0 << " " << h_avg_tau13[unstag_size] << " "
                             << 0 << " " << h_avg_tau23[unstag_size] << " " << 0 << " "
-                            << 0 << " " << 0
+                            << 0 << " "
+                            << 0 << " " << 0 << " "
+                            << 0
                             << std::endl;
                 } // if good
             } // if (NumDataLogs() > 3)
@@ -700,7 +702,8 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     Real area_z = static_cast<Real>(domain.length(0)*domain.length(1));
     for (int k = 0; k < ht_size; ++k) {
         h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z;
-        h_avg_tau22[k] /= area_z; h_avg_tau33[k] /= area_z;
+        h_avg_tau22[k] /= area_z;
+        h_avg_tau33[k] /= area_z;
         h_avg_hfx3[k] /= area_z;
         h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
         h_avg_diss[k] /= area_z;
