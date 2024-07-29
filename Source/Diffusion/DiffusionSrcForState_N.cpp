@@ -52,7 +52,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const Array4<const Real>& mf_u,
                         const Array4<const Real>& mf_v,
                               Array4<      Real>& hfx_z,
-                              Array4<      Real>& qfx_z,
+                              Array4<      Real>& qfx1_z,
+                              Array4<      Real>& qfx2_z,
                               Array4<      Real>& diss,
                         const Array4<const Real>& mu_turb,
                         const DiffChoice &diffChoice,
@@ -245,7 +246,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (qty_index == RhoTheta_comp) {
                 hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else if (l_turb) {
@@ -304,7 +307,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (qty_index == RhoTheta_comp) {
                 hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else if(l_consA) {
@@ -359,7 +364,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (qty_index == RhoTheta_comp) {
                 hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     } else {
@@ -413,7 +420,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             if (qty_index == RhoTheta_comp) {
                 hfx_z(i,j,k) = zflux(i,j,k,qty_index);
             } else  if (qty_index == RhoQ1_comp) {
-                qfx_z(i,j,k) = zflux(i,j,k,qty_index);
+                qfx1_z(i,j,k) = zflux(i,j,k,qty_index);
+            } else  if (qty_index == RhoQ2_comp) {
+                qfx2_z(i,j,k) = zflux(i,j,k,qty_index);
             }
         });
     }

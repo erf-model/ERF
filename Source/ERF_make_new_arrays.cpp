@@ -394,10 +394,13 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
         SFS_hfx3_lev[lev]->setVal(0.);
         SFS_diss_lev[lev]->setVal(0.);
         if (l_use_moist) {
-            SFS_qfx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
-            SFS_qfx3_lev[lev]->setVal(0.0);
+            SFS_q1fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            SFS_q1fx3_lev[lev]->setVal(0.0);
+            SFS_q2fx3_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(0,0,1)), dm, 1, IntVect(1,1,1) );
+            SFS_q2fx3_lev[lev]->setVal(0.0);
         } else {
-            SFS_qfx3_lev[lev] = nullptr;
+            SFS_q1fx3_lev[lev] = nullptr;
+            SFS_q2fx3_lev[lev] = nullptr;
         }
     } else {
         Tau11_lev[lev] = nullptr; Tau22_lev[lev] = nullptr; Tau33_lev[lev] = nullptr;
