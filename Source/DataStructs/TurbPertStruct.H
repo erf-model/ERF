@@ -207,7 +207,7 @@ struct TurbulentPerturbation {
 
         // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
         amrex::Real g = CONST_GRAV;
-        if (tpi_Ti > 0.) amrex::Real g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
+        if (tpi_Ti > 0.) g = (tpi_nonDim * Um * Um) / (tpi_Ti * tpi_Hpb);
 
         // Ma and Senocak (2023) Eq. 8, solving for delta phi
         if (g != 0) pb_amp[boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb);
@@ -236,7 +236,6 @@ struct TurbulentPerturbation {
             amrex::Box pbx = convert(pb_ba[lev][boxIdx], m_ixtype);
             amrex::Box ubx = pbx & vbx;
             if (ubx.ok()) {
-                amrex::Real amp_copy = pb_amp[boxIdx];
                 ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     src_arr(i,j,k,comp) += pert_cell(i,j,k,0);
 
@@ -295,7 +294,7 @@ struct TurbulentPerturbation {
                 tmp[0] /= (amrex::Real) npts;
 
                 // Assigning onto storage array
-                pb_netZero[boxIdx] = tmp[0];
+                m_pb_netZero[boxIdx] = tmp[0];
             }
         }
     }
