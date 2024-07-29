@@ -266,13 +266,14 @@ ERF::write_1D_profiles_stag (Real time)
                                 << std::endl;
                   } // loop over z
                   // Write top face values
+                  Real NANval = 0.0;
                   data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                             << std::setw(datwidth) << std::setprecision(datprecision) << unstag_size * dx[2] << " "
-                            << 0 << " " << 0 << " " << h_avg_tau13[unstag_size] << " "
-                            << 0 << " " << h_avg_tau23[unstag_size] << " " << 0 << " "
-                            << 0 << " "
-                            << 0 << " " << 0 << " "
-                            << 0
+                            << NANval << " " << NANval << " " << h_avg_tau13[unstag_size] << " "
+                            << NANval << " " << h_avg_tau23[unstag_size] << " " << NANval << " "
+                            << h_avg_sgshfx[unstag_size] << " "
+                            << h_avg_sgsq1fx[unstag_size] << " " << h_avg_sgsq2fx[unstag_size] << " "
+                            << NANval
                             << std::endl;
                 } // if good
             } // if (NumDataLogs() > 3)
@@ -623,7 +624,7 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     MultiFab mf_out(grids[lev], dmap[lev], 10, 0);
 
     // This will hold Tau13 and Tau23
-    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 2, 0);
+    MultiFab mf_out_stag(convert(grids[lev], IntVect(0,0,1)), dmap[lev], 5, 0);
 
     bool l_use_moist   = ( solverChoice.moisture_type != MoistureType::None );
 
@@ -663,17 +664,22 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
 //          fab_arr(i, j, k, 4) = 0.25 * ( tau23_arr(i,j,k  ) + tau23_arr(i,j+1,k)
 //                                       + tau23_arr(i,j,k+1) + tau23_arr(i,j+1,k+1) );
             fab_arr(i, j, k, 5) = tau33_arr(i,j,k);
-            fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
-            fab_arr(i, j, k, 7) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
-            fab_arr(i, j, k, 8) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
+//          fab_arr(i, j, k, 6) =  hfx3_arr(i,j,k);
+//          fab_arr(i, j, k, 7) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
+//          fab_arr(i, j, k, 8) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
             fab_arr(i, j, k, 9) =  diss_arr(i,j,k);
         });
 
         const Box& zbx = mfi.tilebox(IntVect(0,0,1));
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
+            // average from edge to face center
             fab_arr_stag(i,j,k,0) = 0.5*(tau13_arr(i,j,k) + tau13_arr(i+1,j  ,k));
             fab_arr_stag(i,j,k,1) = 0.5*(tau23_arr(i,j,k) + tau23_arr(i  ,j+1,k));
+
+            fab_arr_stag(i,j,k,2) =  hfx3_arr(i,j,k);
+            fab_arr_stag(i,j,k,3) =  (l_use_moist) ? q1fx3_arr(i,j,k) : 0.0;
+            fab_arr_stag(i,j,k,4) =  (l_use_moist) ? q2fx3_arr(i,j,k) : 0.0;
         });
     }
 
@@ -688,13 +694,16 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
     h_avg_tau22 = sumToLine(mf_out,3,1,domain,zdir);
 //  h_avg_tau23 = sumToLine(mf_out,4,1,domain,zdir);
     h_avg_tau33 = sumToLine(mf_out,5,1,domain,zdir);
-    h_avg_hfx3  = sumToLine(mf_out,6,1,domain,zdir);
-    h_avg_q1fx3 = sumToLine(mf_out,7,1,domain,zdir);
-    h_avg_q2fx3 = sumToLine(mf_out,8,1,domain,zdir);
+//  h_avg_hfx3  = sumToLine(mf_out,6,1,domain,zdir);
+//  h_avg_q1fx3 = sumToLine(mf_out,7,1,domain,zdir);
+//  h_avg_q2fx3 = sumToLine(mf_out,8,1,domain,zdir);
     h_avg_diss  = sumToLine(mf_out,9,1,domain,zdir);
 
     h_avg_tau13 = sumToLine(mf_out_stag,0,1,stag_domain,zdir);
     h_avg_tau23 = sumToLine(mf_out_stag,1,1,stag_domain,zdir);
+    h_avg_hfx3  = sumToLine(mf_out_stag,2,1,stag_domain,zdir);
+    h_avg_q1fx3 = sumToLine(mf_out_stag,3,1,stag_domain,zdir);
+    h_avg_q2fx3 = sumToLine(mf_out_stag,4,1,stag_domain,zdir);
 
     int ht_size =  h_avg_tau11.size(); // _un_staggered
 
@@ -704,12 +713,12 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
         h_avg_tau11[k] /= area_z; h_avg_tau12[k] /= area_z;
         h_avg_tau22[k] /= area_z;
         h_avg_tau33[k] /= area_z;
-        h_avg_hfx3[k] /= area_z;
-        h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
         h_avg_diss[k] /= area_z;
     }
     for (int k = 0; k < ht_size+1; ++k) { // staggered heights
         h_avg_tau13[k] /= area_z;
         h_avg_tau23[k] /= area_z;
+        h_avg_hfx3[k] /= area_z;
+        h_avg_q1fx3[k] /= area_z; h_avg_q2fx3[k] /= area_z;
     }
 }
