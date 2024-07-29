@@ -113,6 +113,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_moving_terrain   = (solverChoice.terrain_type == TerrainType::Moving);
     if (l_moving_terrain) AMREX_ALWAYS_ASSERT(l_use_terrain);
 
+    const bool l_use_mono_adv   = solverChoice.use_mono_adv;
     const bool l_use_QKE        = tc.use_QKE && tc.advect_QKE;
     const bool l_use_deardorff  = (tc.les_type == LESType::Deardorff);
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
@@ -166,6 +167,32 @@ void erf_slow_rhs_post (int level, int finest_level,
          is_valid_slow_var[RhoQ1_comp] = 1;
     }
 
+    // *****************************************************************************
+    // Monotonic advection for scalars
+    // *****************************************************************************
+    int nvar = S_new[IntVars::cons].nComp();
+    Vector<Real> max_scal(nvar, 1.0e34); Gpu::DeviceVector<Real> max_scal_d(nvar);
+    Vector<Real> min_scal(nvar,-1.0e34); Gpu::DeviceVector<Real> min_scal_d(nvar);
+    if (l_use_mono_adv) {
+        auto const& ma_s_arr = S_new[IntVars::cons].const_arrays();
+        for (int ivar(RhoKE_comp); ivar<nvar; ++ivar) {
+            GpuTuple<Real,Real> mm = ParReduce(TypeList<ReduceOpMax,ReduceOpMin>{},
+                                               TypeList<Real, Real>{},
+                                               S_new[IntVars::cons], IntVect(0),
+                [=] AMREX_GPU_DEVICE (int box_no, int i, int j, int k) noexcept
+                -> GpuTuple<Real,Real>
+                {
+                    return { ma_s_arr[box_no](i,j,k,ivar), ma_s_arr[box_no](i,j,k,ivar) };
+                });
+            max_scal[ivar] = get<0>(mm);
+            min_scal[ivar] = get<1>(mm);
+        }
+    }
+    Gpu::copy(Gpu::hostToDevice, max_scal.begin(), max_scal.end(), max_scal_d.begin());
+    Gpu::copy(Gpu::hostToDevice, min_scal.begin(), min_scal.end(), min_scal_d.begin());
+    Real* max_s_ptr = max_scal_d.data();
+    Real* min_s_ptr = min_scal_d.data();
+
     // *************************************************************************
     // Calculate cell-centered eddy viscosity & diffusivities
     //
@@ -207,7 +234,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         // *************************************************************************
         // Define Array4's
         // *************************************************************************
-        const Array4<      Real> & old_cons   = S_old[IntVars::cons].array(mfi);
+        const Array4<const Real> & old_cons   = S_old[IntVars::cons].array(mfi);
         const Array4<      Real> & cell_rhs   = S_rhs[IntVars::cons].array(mfi);
 
         const Array4<      Real> & new_cons  = S_new[IntVars::cons].array(mfi);
@@ -344,10 +371,10 @@ void erf_slow_rhs_post (int level, int finest_level,
                     num_comp = 1;
                 }
 
-                AdvectionSrcForScalars(tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
-                                       cur_prim, cell_rhs,
-                                       detJ_arr,
-                                       dxInv, mf_m,
+                AdvectionSrcForScalars(dt, tbx, start_comp, num_comp, avg_xmom, avg_ymom, avg_zmom,
+                                       cur_cons, cur_prim, cell_rhs,
+                                       l_use_mono_adv, max_s_ptr, min_s_ptr,
+                                       detJ_arr, dxInv, mf_m,
                                        horiz_adv_type, vert_adv_type,
                                        horiz_upw_frac, vert_upw_frac,
                                        flx_arr, domain, bc_ptr_h);
@@ -433,6 +460,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), eps);
                         } else if (ivar == RhoQKE_comp) {
                             cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 1e-12);
+                        } else if (ivar >= RhoQ1_comp) {
+                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), 0.0);
                         }
                     });
 
