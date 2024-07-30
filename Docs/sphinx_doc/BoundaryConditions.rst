@@ -259,7 +259,8 @@ ERF provides the capability to apply a perturbation zone at the inflow domain bo
 
 Two different types of perturbation methods are currently available, ``source`` and ``direct``. Both methods uses the formulation introduced by `DeLeon et al. (2018)`_. The ``source`` option applies the perturbation amplitude range, :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term. Conversely, the ``direct`` option applies the calculated temperature difference directly onto the :math:`\rho \theta` field.
 
-.. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
+..
+  _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
 The perturbation update interval of the individual perturbation box is determined by,
 
